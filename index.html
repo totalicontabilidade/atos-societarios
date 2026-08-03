@@ -1704,9 +1704,18 @@ window.TINA=(function(){
     // formato "NOME subscreve/possui/detém 60.000 quotas" (verbo, sem separador)
     const qre4=/([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,60}?)\s+(?:subscreve\w*|possui|det[ée]m|integraliza\w*|é\s+titular\s+de)\s+([\d.]{1,10})\s*(?:quotas|cotas)\b/gi; let qm4;
     while((qm4=qre4.exec(t))){const so=acharSocio(qm4[1]); const q=parseInt(qm4[2].replace(/\./g,""),10); if(so&&q&&!(so.quotas>0))so.quotas=q;}
-    const admBlk=m1(t,/administra[çc][ãa]o[\s\S]{0,160}?(?:exercida|caber[áa])[\s\S]{0,180}?([A-ZÀ-Ú][A-ZÀ-Ú'., \-]{4,180})/i);
-    let algum=false; socios.forEach(so=>{const key=so.tipoPessoa==="PJ"?(so.pjRep||so.nome):so.nome; if(key&&admBlk&&admBlk.toUpperCase().includes(key.toUpperCase())){so.administrador=true;algum=true;}});
-    if(!algum) socios.forEach(so=>so.administrador=true);
+    // representante de sócio menor/incapaz ("assistido por sua mãe NOME, brasileira, …") é captado como sócio → remove se NÃO tem quotas (representante não recebe quotas; pai que também é sócio tem quotas e permanece)
+    { const repRe=/(?:representad[oa]|assistid[oa])\s+por\s+(?:seu[as]?\s+|sua[s]?\s+)?(?:pai|m[ãa]e|genitor[a]?|tutor[a]?|curador[a]?|respons[áa]vel|representante\s+legal|av[óô]s?)\s+([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,60}?)\s*[,;]/gi;
+      const repNames=[]; let rmp; while(rmp=repRe.exec(t)){const n=limparNome(rmp[1],d.razao).toUpperCase(); if(n.length>=4)repNames.push(n);}
+      if(repNames.length) for(let i=socios.length-1;i>=0;i--){ const sn=(socios[i].nome||"").toUpperCase(); if(sn && !(socios[i].quotas>0) && repNames.some(r=>sn.includes(r)||r.includes(sn))) socios.splice(i,1); } }
+    // administração: só o trecho da ATRIBUIÇÃO (para antes de "sendo/vedado/não/O sócio/."), não o parágrafo inteiro — senão pega quem "NÃO exercerá administração"
+    const admText=(m1(t,/administra[çc][ãa]o\b[\s\S]{0,25}?(?:ser[áa]\s+(?:exercida|administrada)|exercida|caber[áa]|compete|incumbe|fica\s+a\s+cargo|ser[áa]\s+de\s+responsabilidade)([\s\S]{0,200}?)(?=\.|;|\bsendo\b|\bficando\b|\bvedad|\bO[s]?\s+s[óo]cio|\bn[ãa]o\b|\bcom\s+os\s+poderes\b|CL[ÁA]USULA|$)/i)||"").toUpperCase();
+    const negNames=[]; { const negRe=/([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,60}?)\s+n[ãa]o\s+(?:exercer[áa]|administrar[áa]|participar[áa]|integrar[áa]|ter[áa]\s+(?:poderes|fun[çc])|assumir[áa]\s+a\s+administra)/gi; let nmA; while(nmA=negRe.exec(t))negNames.push(nmA[1].toUpperCase().replace(/\s+/g," ").trim()); }  // "NOME não exercerá administração"
+    let algum=false; socios.forEach(so=>{const key=(so.tipoPessoa==="PJ"?(so.pjRep||so.nome):so.nome)||""; const KEY=key.toUpperCase();
+      const excl=KEY&&negNames.some(n=>n.includes(KEY)||KEY.includes(n));
+      if(KEY&&admText.includes(KEY)&&!excl){so.administrador=true;algum=true;}});
+    if(!algum) socios.forEach(so=>so.administrador=true);                                   // sem cláusula clara → todos administram (padrão)
+    else socios.forEach(so=>{ if(so.administrador!==true) so.administrador=false; });        // há definição explícita → não citado = NÃO administra (evita marcar menor/não-administrador)
     // EI: se a razão capturou "NOME_EMPRESARIAL + NOME_TITULAR" colados (ex.: "J S LIMA JOAO SILVA LIMA"), tira o titular do fim
     if(d.razao && socios.length===1 && socios[0].nome){ const tn=socios[0].nome.toUpperCase(); if(d.razao.length>socios[0].nome.length+1 && d.razao.toUpperCase().replace(/\s+$/,"").endsWith(tn)){ const c=d.razao.slice(0,d.razao.length-socios[0].nome.length).trim().replace(/[,;]+$/,"").trim(); if(c)d.razao=c; } }
     // EI cujo nome empresarial NÃO veio explícito mas = nome do titular (ex.: título "…EMPRESÁRIO INDIVIDUAL NOME…")
