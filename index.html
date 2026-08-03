@@ -245,7 +245,7 @@
         <div><label>Foro (comarca)</label><input type="text" id="foro" placeholder="Ex.: Aracaju"></div>
         <div></div>
       </div>
-      <div class="row disthide"><label>Objeto social <span class="hint">— atividades separadas por ";"</span></label>
+      <div class="row disthide"><label style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Objeto social <span class="hint">— atividades separadas por ";"</span><button type="button" class="btn s mini" id="btnObjetos" title="Inserir ou salvar modelos de objeto social" style="margin-left:auto">📋 Modelos</button></label>
         <textarea id="objeto" placeholder="Ex.: Comércio varejista de artigos diversos; Prestação de serviços de consultoria"></textarea></div>
     </div>
 
@@ -424,6 +424,10 @@
         <input type="file" id="fileImportCasos" accept="application/json,.json" style="display:none">
       </div>
       <div class="hint" style="margin-top:2px">Guarda <b>só metadados</b> neste navegador (ID, empresa, CNPJ, tipo, data) — nenhum dado pessoal, endereço, sócio ou o documento. Como fica só neste navegador, <b>exporte um backup</b> de tempos em tempos (limpar o navegador apaga os casos).</div>
+      <div class="grid g2 row" style="margin-top:10px">
+        <div><input type="text" id="painelBusca" placeholder="🔎 Buscar por empresa, CNPJ, ID ou tipo…"></div>
+        <div><select id="painelOrdem"><option value="recente">Mais recentes primeiro</option><option value="antigo">Mais antigos primeiro</option><option value="empresa">Empresa (A–Z)</option></select></div>
+      </div>
       <div id="painelLista" style="margin-top:12px"></div>
     </div>
   </div>
@@ -469,6 +473,22 @@
         <button class="btn s mini" id="btnConfigReset">Restaurar padrão</button>
         <span class="hint" id="cfgStat"></span>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="objetoModal">
+  <div class="modal">
+    <div class="mh"><span>📋 Modelos de objeto social</span><button class="x" id="btnObjetoClose">Fechar</button></div>
+    <div class="mb">
+      <div class="hint" style="margin-bottom:10px">Monte uma biblioteca dos objetos que o escritório mais usa. Salve o objeto atual ou digite um novo; depois é só <b>Inserir</b> no formulário. Fica salvo <b>só neste navegador</b>.</div>
+      <div class="row"><label>Novo modelo <span class="hint">— pode colar do campo Objeto social</span></label>
+        <textarea id="objetoNovo" placeholder="Ex.: Comércio varejista de artigos do vestuário e acessórios; confecção de peças sob medida" style="min-height:70px"></textarea></div>
+      <div class="bar">
+        <button class="btn p mini" id="btnObjetoSalvar">+ Salvar na biblioteca</button>
+        <button class="btn s mini" id="btnObjetoDoCampo">Usar o objeto do formulário</button>
+      </div>
+      <div id="objetoLista" style="margin-top:12px"></div>
     </div>
   </div>
 </div>
@@ -1336,11 +1356,30 @@ window.TINA=(function(){
       const ph=[...new Set((txt.match(/\[[^\]]{2,40}\]/g)||[]))];
       if(ph.length) f.push("Variáveis ainda no documento: "+ph.join(" "));
     }catch(e){}
+    f.consist = checarConsistencia(d);   // avisos de consistência (não bloqueiam, mas evitam exigência na Junta)
     return f;
   }
+  // ===== Checagens de consistência (datas coerentes, CEP × UF) =====
+  function _parseBR(s){const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec((s||"").trim());if(!m)return null;const dd=+m[1],mm=+m[2],yy=+m[3];const dt=new Date(yy,mm-1,dd);return (dt.getFullYear()===yy&&dt.getMonth()===mm-1&&dt.getDate()===dd)?dt:null;}
+  const CEP_UF=[[1000,19999,"SP"],[20000,28999,"RJ"],[29000,29999,"ES"],[30000,39999,"MG"],[40000,48999,"BA"],[49000,49999,"SE"],[50000,56999,"PE"],[57000,57999,"AL"],[58000,58999,"PB"],[59000,59999,"RN"],[60000,63999,"CE"],[64000,64999,"PI"],[65000,65999,"MA"],[66000,68899,"PA"],[68900,68999,"AP"],[69000,69299,"AM"],[69300,69389,"RR"],[69400,69899,"AM"],[69900,69999,"AC"],[70000,72799,"DF"],[72800,72999,"GO"],[73000,73699,"DF"],[73700,76799,"GO"],[76800,76999,"RO"],[77000,77999,"TO"],[78000,78899,"MT"],[79000,79999,"MS"],[80000,87999,"PR"],[88000,89999,"SC"],[90000,99999,"RS"]];
+  function cepUF(cep){const d=(cep||"").replace(/\D/g,"");if(d.length<5)return null;const p=parseInt(d.slice(0,5),10);if(isNaN(p))return null;for(let i=0;i<CEP_UF.length;i++){if(p>=CEP_UF[i][0]&&p<=CEP_UF[i][1])return CEP_UF[i][2];}return null;}
+  function checarConsistencia(d){const w=[];const isDist=MODE.startsWith("dist");const isEI=MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE==="dist_ei";const isAlt=MODE.endsWith("alt");const isTransf=MODE.startsWith("transf");
+    const ato=_parseBR(d.atoData);
+    (d.socios||[]).forEach((so,i)=>{ if(so.tipoPessoa==="PJ")return; const rot=(isEI?"Titular":"Sócio "+(i+1))+(so.nome?" ("+so.nome+")":"");
+      const nasc=_parseBR(so.nascimento); if(nasc&&ato&&nasc>=ato)w.push(rot+": nascimento posterior à data do ato — verifique.");
+      const uf=cepUF(so.cep); if(uf&&so.uf&&uf!==so.uf)w.push(rot+": o CEP "+so.cep+" costuma ser de "+uf+", mas a UF marcada é "+so.uf+".");
+    });
+    const s=d.sede||{}; const sedeUF=cepUF(s.cep); if(sedeUF&&s.uf&&sedeUF!==s.uf)w.push("Sede: o CEP "+s.cep+" costuma ser de "+sedeUF+", mas a UF marcada é "+s.uf+".");
+    const ini=_parseBR(d.dataInicioOrig); if(ini&&ato&&ini>ato&&(isAlt||isTransf||isDist))w.push("Início das atividades ("+d.dataInicioOrig+") é posterior à data do ato ("+d.atoData+").");
+    if(isDist){const enc=_parseBR(d.dataEncerramento); if(enc&&ini&&enc<ini)w.push("Encerramento das operações anterior ao início das atividades."); if(enc&&ato&&enc>ato)w.push("Encerramento das operações posterior à data do ato.");}
+    return w;}
   function renderValidacao(f){ const box=$("validacaoBox"); if(!box)return; box.style.display="block";
-    if(!f.length){box.className="val ok";box.innerHTML="✓ <b>Validação OK</b> — todos os dados necessários estão preenchidos. Pronto para gerar.";}
-    else{box.className="val warn";box.innerHTML="⚠ <b>Faltam dados para o documento ficar completo ("+f.length+"):</b><ul>"+f.map(x=>"<li>"+escHtml(x)+"</li>").join("")+"</ul>";}}
+    const cons=(f&&f.consist)||[]; let html="";
+    if(!f.length){ box.className=cons.length?"val warn":"val ok";
+      html=cons.length?"✓ <b>Campos obrigatórios OK.</b> Confira os pontos abaixo antes de gerar.":"✓ <b>Validação OK</b> — todos os dados necessários estão preenchidos. Pronto para gerar."; }
+    else { box.className="val warn"; html="⚠ <b>Faltam dados para o documento ficar completo ("+f.length+"):</b><ul>"+f.map(x=>"<li>"+escHtml(x)+"</li>").join("")+"</ul>"; }
+    if(cons.length) html+="<div style='margin-top:10px'>⚠ <b>Confira (possíveis inconsistências):</b><ul>"+cons.map(x=>"<li>"+escHtml(x)+"</li>").join("")+"</ul></div>";
+    box.innerHTML=html; }
   async function acaoValidar(){ const box=$("validacaoBox"); box.style.display="block"; box.className="val"; box.style.color="var(--muted)"; box.textContent="Validando…"; renderValidacao(await validar());
     // rola sozinho até a validação e dá um flash de destaque (bloco central, livre do header/ações sticky)
     box.scrollIntoView({behavior:"smooth",block:"center"}); box.classList.remove("val-flash"); void box.offsetWidth; box.classList.add("val-flash"); }
@@ -1477,8 +1516,16 @@ window.TINA=(function(){
     if(c){ c.empresa=(d.razao||"").toUpperCase(); c.cnpj=d.cnpj||""; c.tipo=tipoAto(d); c.data=data; c.modo=MODE; }
     else { c={id:novoIdCaso(data),empresa:(d.razao||"").toUpperCase(),cnpj:d.cnpj||"",tipo:tipoAto(d),data:data,modo:MODE,criadoEm:Date.now()}; cs.push(c); casoAtualId=c.id; }
     salvarCasos(cs); return c;}
-  function renderPainel(){const box=$("painelLista"); if(!box)return; const casos=lerCasos().sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0));
-    if(!casos.length){box.innerHTML="<p class='hint'>Nenhum caso salvo ainda. Preencha um ato e clique em \"+ Salvar caso atual\" (ou salve pelo e-mail de confirmação).</p>";return;}
+  function renderPainel(){const box=$("painelLista"); if(!box)return; let casos=lerCasos();
+    const todos=casos.length;
+    const q=(($("painelBusca")&&$("painelBusca").value)||"").trim().toLowerCase();
+    if(q)casos=casos.filter(c=>[c.id,c.empresa,c.cnpj,c.tipo].some(v=>(v||"").toLowerCase().includes(q)));
+    const ord=($("painelOrdem")&&$("painelOrdem").value)||"recente";
+    if(ord==="empresa")casos.sort((a,b)=>(a.empresa||"").localeCompare(b.empresa||"","pt"));
+    else if(ord==="antigo")casos.sort((a,b)=>(a.criadoEm||0)-(b.criadoEm||0));
+    else casos.sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0));
+    if(!todos){box.innerHTML="<p class='hint'>Nenhum caso salvo ainda. Preencha um ato e clique em \"+ Salvar caso atual\" (ou salve pelo e-mail de confirmação).</p>";return;}
+    if(!casos.length){box.innerHTML="<p class='hint'>Nenhum caso corresponde à busca \""+escHtml(q)+"\".</p>";return;}
     box.innerHTML="<div style='overflow-x:auto'><table style='width:100%;font-size:12px;border-collapse:collapse' class='casostbl'>"+
       "<tr><th style='text-align:left'>ID</th><th style='text-align:left'>Empresa</th><th style='text-align:left'>Tipo</th><th>Data</th><th></th></tr>"+
       casos.map(c=>"<tr data-id='"+escHtml(c.id)+"'"+(c.id===casoAtualId?" style='background:#f2f7ff'":"")+">"+
@@ -1995,6 +2042,35 @@ window.TINA=(function(){
   /* ===== Limpar com confirmação ===== */
   function limparComConfirmacao(){if(draftTemConteudo(snapshotForm())){if(!confirm("Limpar todos os campos do formulário? O preenchimento atual será apagado."))return;}limpar();aplicarPadroesForm();limparRascunho();toast("Formulário limpo.","info");}
 
+  /* ===== Biblioteca de objetos sociais (localStorage) ===== */
+  const SUGESTOES_OBJ=[
+    "Comércio varejista de artigos do vestuário e acessórios",
+    "Comércio varejista de mercadorias em geral, com predominância de produtos alimentícios (minimercado/mercearia)",
+    "Prestação de serviços de consultoria em gestão empresarial",
+    "Atividades de contabilidade, assessoria e consultoria contábil, fiscal e trabalhista",
+    "Serviços de preparação e fornecimento de alimentos e bebidas (lanchonete/restaurante)",
+    "Fabricação e comércio de produtos de padaria e confeitaria com predominância de produção própria",
+    "Prestação de serviços de transporte rodoviário de cargas",
+    "Comércio, instalação e manutenção de equipamentos de informática e periféricos"
+  ];
+  function lerObjetos(){try{return JSON.parse(localStorage.getItem("tinaObjetos")||"[]");}catch(e){return [];}}
+  function salvarObjetos(a){try{localStorage.setItem("tinaObjetos",JSON.stringify(a));}catch(e){}}
+  function _objRow(t,idx,src){const short=escHtml(t.length>150?t.slice(0,150)+"…":t);
+    return "<div class='objrow' style='display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)'>"+
+      "<div style='flex:1;font-size:12.5px;line-height:1.4'>"+short+"</div>"+
+      "<button class='btn p mini' data-ins-idx='"+idx+"' data-ins-src='"+src+"' type='button'>Inserir</button>"+
+      (src==="lib"?"<button class='btn del mini' data-delobj='"+idx+"' type='button' title='Remover da biblioteca'>×</button>":"")+"</div>";}
+  function renderObjetos(){const box=$("objetoLista");if(!box)return;const list=lerObjetos();let html="";
+    if(list.length){html="<div class='hint' style='font-weight:700;color:var(--navy);margin-bottom:2px'>Sua biblioteca</div>"+list.map((t,i)=>_objRow(t,i,"lib")).join("");}
+    else html="<p class='hint'>Sua biblioteca está vazia — salve o objeto atual ou digite um novo acima.</p>";
+    html+="<div class='hint' style='font-weight:700;color:var(--navy);margin:14px 0 2px'>Sugestões</div>"+SUGESTOES_OBJ.map((t,i)=>_objRow(t,i,"sug")).join("");
+    box.innerHTML=html;
+    box.querySelectorAll("[data-ins-idx]").forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.insIdx,src=b.dataset.insSrc;const t=src==="sug"?SUGESTOES_OBJ[i]:lerObjetos()[i];if(t)inserirObjeto(t);}));
+    box.querySelectorAll("[data-delobj]").forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.delobj;const l=lerObjetos();l.splice(i,1);salvarObjetos(l);renderObjetos();}));}
+  function abrirObjetos(){if($("objetoNovo"))$("objetoNovo").value="";renderObjetos();$("objetoModal").classList.add("open");}
+  function inserirObjeto(t){const el=$("objeto");if(!el)return;const cur=el.value.trim();el.value=cur?(cur.replace(/;\s*$/,"")+"; "+t):t;el.dispatchEvent(new Event("input",{bubbles:true}));$("objetoModal").classList.remove("open");toast("Objeto inserido no formulário.","ok");}
+  function salvarObjetoNovo(){const t=(($("objetoNovo")&&$("objetoNovo").value)||"").trim();if(!t){toast("Digite ou cole um objeto para salvar.","info");return;}const l=lerObjetos();if(l.some(x=>x===t)){toast("Esse modelo já está na biblioteca.","info");return;}l.unshift(t);salvarObjetos(l);$("objetoNovo").value="";renderObjetos();toast("Modelo salvo na biblioteca.","ok");}
+
   var cnpjLiveCheck=null;
   function init(){
     CFG=lerCfg(); aplicarCfg();
@@ -2047,6 +2123,15 @@ window.TINA=(function(){
     if($("btnExportarCasos")) $("btnExportarCasos").addEventListener("click",exportarCasos);
     if($("btnImportarCasos")) $("btnImportarCasos").addEventListener("click",()=>$("fileImportCasos").click());
     if($("fileImportCasos")) $("fileImportCasos").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(f)importarCasos(f);e.target.value="";});
+    // Busca e ordenação no painel
+    if($("painelBusca")) $("painelBusca").addEventListener("input",renderPainel);
+    if($("painelOrdem")) $("painelOrdem").addEventListener("change",renderPainel);
+    // Biblioteca de objetos sociais
+    if($("btnObjetos")) $("btnObjetos").addEventListener("click",abrirObjetos);
+    if($("btnObjetoClose")) $("btnObjetoClose").addEventListener("click",()=>$("objetoModal").classList.remove("open"));
+    if($("objetoModal")) $("objetoModal").addEventListener("click",e=>{if(e.target.id==="objetoModal")$("objetoModal").classList.remove("open");});
+    if($("btnObjetoSalvar")) $("btnObjetoSalvar").addEventListener("click",salvarObjetoNovo);
+    if($("btnObjetoDoCampo")) $("btnObjetoDoCampo").addEventListener("click",()=>{if($("objetoNovo"))$("objetoNovo").value=($("objeto")&&$("objeto").value)||"";});
     // Validação de CNPJ em tempo real (campo principal de Registro)
     const cnpjEl=$("cnpj");
     if(cnpjEl){ let st=$("cnpjstat"); if(!st){st=document.createElement("div");st.className="fldstat";st.id="cnpjstat";cnpjEl.insertAdjacentElement("afterend",st);}
@@ -2067,7 +2152,7 @@ window.TINA=(function(){
       bt.addEventListener("click",()=>window.scrollTo({top:0,behavior:"smooth"})); }
   }
   document.addEventListener("DOMContentLoaded",init);
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
