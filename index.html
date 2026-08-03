@@ -144,7 +144,28 @@
     .actions .status{text-align:center;order:3}
     #preview{max-height:none}
     input[type=text],input[type=number],input[type=date],select,textarea{font-size:16px}
+    .toast-wrap{top:10px;left:10px;right:10px;transform:none}
+    .toast{max-width:none}
+    #draftBanner{left:10px;right:10px;top:64px;flex-direction:column;align-items:stretch;gap:8px}
   }
+  /* avisos flutuantes (toast) */
+  .toast-wrap{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+  .toast{pointer-events:auto;max-width:min(92vw,460px);background:var(--navy);color:#fff;border:1px solid rgba(255,255,255,.15);border-left:4px solid var(--gold);border-radius:10px;padding:11px 15px;font-size:13.5px;line-height:1.35;box-shadow:0 8px 26px rgba(20,41,63,.28);opacity:0;transform:translateY(-8px);transition:opacity .22s ease,transform .22s ease}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast.ok{border-left-color:var(--ok)}
+  .toast.err{border-left-color:var(--err)}
+  .toast.info{border-left-color:var(--gold2)}
+  /* banner de recuperação de rascunho */
+  #draftBanner{position:fixed;left:50%;transform:translateX(-50%);top:72px;z-index:70;display:none;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:12px;padding:11px 15px;box-shadow:0 10px 30px rgba(20,41,63,.22);max-width:min(94vw,560px)}
+  #draftBanner.show{display:flex}
+  #draftBanner .dbtxt{font-size:13px;color:var(--navy);line-height:1.35}
+  #draftBanner .btn{padding:7px 12px;font-size:12.5px}
+  /* botão engrenagem (configurações) no cabeçalho */
+  .head-gear{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);color:#fff;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .18s;margin-right:10px}
+  .head-gear:hover{background:rgba(255,255,255,.24)}
+  .head-gear:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .fldstat.ok{color:var(--ok)} .fldstat.err{color:var(--err)}
+  .cfg-logo-prev{max-height:46px;max-width:180px;border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--navy);object-fit:contain}
 </style>
 </head>
 <body>
@@ -157,6 +178,7 @@
     <div class="sub">padrão JUCESE / DREI 81</div>
   </div>
   <div class="spacer"></div>
+  <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip">v0.5 · beta</span>
 </header>
 
@@ -397,9 +419,56 @@
     <div class="mb">
       <div class="bar">
         <button class="btn p mini" id="btnSalvarCaso">+ Salvar caso atual</button>
-        <span class="hint">Guarda <b>só metadados</b> neste navegador (ID, empresa, CNPJ, tipo, data) — nenhum dado pessoal, endereço, sócio ou o documento.</span>
+        <button class="btn o mini" id="btnExportarCasos" title="Baixar um arquivo de backup com todos os casos">⬇ Exportar backup</button>
+        <button class="btn o mini" id="btnImportarCasos" title="Restaurar casos de um arquivo de backup">⬆ Importar backup</button>
+        <input type="file" id="fileImportCasos" accept="application/json,.json" style="display:none">
       </div>
+      <div class="hint" style="margin-top:2px">Guarda <b>só metadados</b> neste navegador (ID, empresa, CNPJ, tipo, data) — nenhum dado pessoal, endereço, sócio ou o documento. Como fica só neste navegador, <b>exporte um backup</b> de tempos em tempos (limpar o navegador apaga os casos).</div>
       <div id="painelLista" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="configModal">
+  <div class="modal">
+    <div class="mh"><span>⚙ Configurações do escritório</span><button class="x" id="btnConfigClose">Fechar</button></div>
+    <div class="mb">
+      <div class="hint" style="margin-bottom:12px">Personalize a marca e os dados que se repetem. Fica salvo <b>só neste navegador</b>. Nada aqui entra nos documentos como dado de cliente — é a identidade do seu escritório e valores padrão.</div>
+
+      <div class="hint" style="font-weight:700;color:var(--navy);margin:4px 0 6px">Identidade (marca)</div>
+      <div class="grid g2 row">
+        <div><label>Nome do escritório</label><input type="text" id="cfgEscritorio" placeholder="Ex.: Sua Contabilidade Ltda"></div>
+        <div><label>Cor principal <span class="hint">(destaque do topo/botões)</span></label><input type="color" id="cfgCor" value="#14293f" style="height:42px;padding:4px"></div>
+      </div>
+      <div class="row">
+        <label>Logo <span class="hint">(PNG/JPG com fundo transparente fica melhor)</span></label>
+        <div class="bar" style="align-items:center">
+          <input type="file" id="cfgLogoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="max-width:260px">
+          <img id="cfgLogoPrev" class="cfg-logo-prev" style="display:none" alt="Prévia do logo">
+          <button class="btn s mini" type="button" id="btnCfgLogoLimpar">Remover logo</button>
+        </div>
+      </div>
+
+      <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Dados que se repetem</div>
+      <div class="grid g2 row">
+        <div><label>Paralegal responsável <span class="hint">(assinatura do e-mail)</span></label><input type="text" id="cfgParalegal" placeholder="Seu nome"></div>
+        <div><label>E-mail do remetente</label><input type="text" id="cfgRemetente" placeholder="voce@seuescritorio.com.br"></div>
+      </div>
+
+      <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Padrões de preenchimento <span class="hint" style="font-weight:400">(usados em formulários novos)</span></div>
+      <div class="grid g4 row">
+        <div><label>Município padrão</label><input type="text" id="cfgMun" placeholder="Ex.: Aracaju"></div>
+        <div><label>UF padrão</label><select id="cfgUF"></select></div>
+        <div><label>Órgão expedidor</label><select id="cfgOrgao"></select></div>
+        <div><label>UF do órgão</label><select id="cfgOrgaoUF"></select></div>
+      </div>
+      <div class="row"><label>Foro padrão <span class="hint">(comarca)</span></label><input type="text" id="cfgForo" placeholder="Ex.: Aracaju - SE"></div>
+
+      <div class="bar" style="margin-top:14px">
+        <button class="btn p mini" id="btnConfigSalvar">Salvar configurações</button>
+        <button class="btn s mini" id="btnConfigReset">Restaurar padrão</button>
+        <span class="hint" id="cfgStat"></span>
+      </div>
     </div>
   </div>
 </div>
@@ -480,7 +549,7 @@ window.TINA=(function(){
 
   /* Sócios */
   let seq=0;
-  function socioCard(data){data=data||{};const idx=++seq;const div=document.createElement("div");div.className="socio";div.dataset.idx=idx;const isPJ=data.tipoPessoa==="PJ";
+  function socioCard(data){const _empty=!data||!Object.keys(data).length;data=Object.assign({},_empty?cfgSocioDefaults():{},data||{});const idx=++seq;const div=document.createElement("div");div.className="socio";div.dataset.idx=idx;const isPJ=data.tipoPessoa==="PJ";
     div.innerHTML=`
       <span class="tag">Sócio</span>
       <label class="checkline pjtoggle" style="float:right;font-size:12px"><input type="checkbox" data-f="tipoPJ" ${isPJ?'checked':''}> Pessoa jurídica (empresa sócia)</label>
@@ -795,7 +864,7 @@ window.TINA=(function(){
       }
     });
 
-    const doc=new Document({creator:"Tina — Totali Soluções Contábeis",title:(isAlt?"Alteração Contratual — ":isTransf?"Transformação — ":"Contrato Social — ")+(d.razao||""),
+    const doc=new Document({creator:_autor(),title:(isAlt?"Alteração Contratual — ":isTransf?"Transformação — ":"Contrato Social — ")+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
     const base=(d.razao||"EMPRESA").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
@@ -908,7 +977,7 @@ window.TINA=(function(){
     ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
     ch.push(P([T((tit.nome||"[TITULAR]").toUpperCase(),{bold:true})],CEN,SP10_0));
     ch.push(P([T(g("Empresário Titular","Empresária Titular"))],CEN,{after:220,line:240,lineRule:AUTO}));
-    const doc=new Document({creator:"Tina — Totali Soluções Contábeis",title:(isAlt?"Alteração EI — ":isTransf?"Transformação → EI — ":"Inscrição EI — ")+(d.razao||""),
+    const doc=new Document({creator:_autor(),title:(isAlt?"Alteração EI — ":isTransf?"Transformação → EI — ":"Inscrição EI — ")+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
     const base=(d.razao||"EMPRESARIO").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
@@ -1016,7 +1085,7 @@ window.TINA=(function(){
       ch.push(P([T((s.nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0));
       ch.push(P([T(s.administrador?gsex(s,"Sócio/Administrador","Sócia/Administradora"):gsex(s,"Sócio","Sócia"))],CEN,{after:220,line:240,lineRule:AUTO})); });
 
-    const doc=new Document({creator:"Tina — Totali Soluções Contábeis",title:"Transformação EI → "+(isSLU?"SLU":"Ltda")+" — "+(d.razao||""),
+    const doc=new Document({creator:_autor(),title:"Transformação EI → "+(isSLU?"SLU":"Ltda")+" — "+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
     const base=(d.razao||"EMPRESA").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
@@ -1081,7 +1150,7 @@ window.TINA=(function(){
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
     sign(tit.nome,g("Empresário Titular","Empresária Titular"));
 
-    const doc=new Document({creator:"Tina — Totali Soluções Contábeis",title:"Transformação Ltda → EI — "+(d.razao||""),
+    const doc=new Document({creator:_autor(),title:"Transformação Ltda → EI — "+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
     const base=(d.razao||"EMPRESARIO").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
@@ -1155,7 +1224,7 @@ window.TINA=(function(){
         ch.push(P([T(s.administrador?gsex(s,"Sócio Administrador","Sócia Administradora"):gsex(s,"Sócio","Sócia"))],CEN,{after:220,line:240,lineRule:AUTO})); });
     }
 
-    const doc=new Document({creator:"Tina — Totali Soluções Contábeis",title:(isEI?"Extinção EI — ":"Distrato — ")+(d.razao||""),
+    const doc=new Document({creator:_autor(),title:(isEI?"Extinção EI — ":"Distrato — ")+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
     const base=(d.razao||"EMPRESA").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
@@ -1311,7 +1380,7 @@ window.TINA=(function(){
         } }); });
     return content; }
   function gerarPdfBlob(){ const content=_domToPdfmake(); if(!content.length) throw new Error("prévia vazia");
-    const dd={ pageSize:"A4", pageMargins:[70.87,70.87,70.87,70.87], defaultStyle:{font:"Times",fontSize:12,lineHeight:1.15}, language:"pt-BR", info:{title:(coletar().razao||"Ato societário"),producer:"Totali Soluções Contábeis",creator:"Totali Soluções Contábeis"}, content };
+    const dd={ pageSize:"A4", pageMargins:[70.87,70.87,70.87,70.87], defaultStyle:{font:"Times",fontSize:12,lineHeight:1.15}, language:"pt-BR", info:{title:(coletar().razao||"Ato societário"),producer:_autor(),creator:_autor()}, content };
     return new Promise((res,rej)=>{ try{ pdfMake.createPdf(dd).getBlob(res); }catch(e){ rej(e); } }); }
   function baixarPDF(){ const d=coletar(); if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados (razão social e sócios) antes de baixar.";return;}
     $("status").className="status muted";$("status").textContent="Gerando PDF…";
@@ -1381,7 +1450,7 @@ window.TINA=(function(){
     b+="Solicitamos a gentileza de revisar com atenção as informações abaixo e, estando tudo correto, responder a este e-mail confirmando (basta \"Confirmado\" ou \"De acordo\") para que possamos prosseguir com a elaboração e o protocolo. Caso identifique algo a ajustar, é só indicar nesta mesma resposta.\n\n";
     b+=SEP+"\n"+tituloBloco+"\n"+SEP+"\n\n"+blocosEmail(d,sufixo)+"\n\n";
     const pts=pontosEmail(d); if(pts.length) b+=SEP+"\nPONTOS DE ATENÇÃO\n"+SEP+"\n\n"+pts.map(p=>"▸ "+p).join("\n")+"\n\n";
-    b+=SEP+"\n\nID da solicitação: #"+id+"\n(Por favor, mantenha este código no assunto da sua resposta para facilitar o controle.)\n\nEm caso de dúvidas, fico à disposição.\n\nAtenciosamente,\n\n\n"+paralegal+"\nParalegal — Totali Contabilidade\n"+remetente;
+    b+=SEP+"\n\nID da solicitação: #"+id+"\n(Por favor, mantenha este código no assunto da sua resposta para facilitar o controle.)\n\nEm caso de dúvidas, fico à disposição.\n\nAtenciosamente,\n\n\n"+paralegal+"\nParalegal — "+(CFG.escritorio||"Totali Contabilidade")+"\n"+remetente;
     $("emailAssunto").value="[CONFIRMAÇÃO] "+ato+" — "+razUP+" — ID #"+id;
     $("emailCorpo").value=b;
     $("emailModal").classList.add("open");
@@ -1395,6 +1464,9 @@ window.TINA=(function(){
   /* ===== Painel de casos (só metadados, localStorage) ===== */
   let casoAtualId=null;
   let emailIdAtual="";
+  let CFG=cfgDefault();      // configurações do escritório (marca + padrões); definidas de fato no init via lerCfg()
+  let _cfgLogoTmp="";        // logo escolhido no modal antes de salvar
+  let _suppressDraft=false;  // evita autosave durante restauração programática
   function tipoAto(d){const n=d.numAlteracao||"1"; return ATO_EMAIL[MODE]||(MODE==="alt"?(n+"ª Alteração Contratual"):MODE==="ei_alt"?(n+"ª Alteração de Empresário Individual"):"Ato societário");}
   function lerCasos(){try{return JSON.parse(localStorage.getItem("tinaCasos")||"[]");}catch(e){return [];}}
   function salvarCasos(a){try{localStorage.setItem("tinaCasos",JSON.stringify(a));}catch(e){}}
@@ -1402,8 +1474,8 @@ window.TINA=(function(){
     const n=lerCasos().filter(c=>c.id&&c.id.indexOf(ymd)===0).length; return ymd+"-"+String(n+1).padStart(4,"0");}
   function registrarCaso(){const d=coletar(); const data=d.atoData||hojeBR(); const cs=lerCasos();
     let c=casoAtualId?cs.find(x=>x.id===casoAtualId):null;
-    if(c){ c.empresa=(d.razao||"").toUpperCase(); c.cnpj=d.cnpj||""; c.tipo=tipoAto(d); c.data=data; }
-    else { c={id:novoIdCaso(data),empresa:(d.razao||"").toUpperCase(),cnpj:d.cnpj||"",tipo:tipoAto(d),data:data,criadoEm:Date.now()}; cs.push(c); casoAtualId=c.id; }
+    if(c){ c.empresa=(d.razao||"").toUpperCase(); c.cnpj=d.cnpj||""; c.tipo=tipoAto(d); c.data=data; c.modo=MODE; }
+    else { c={id:novoIdCaso(data),empresa:(d.razao||"").toUpperCase(),cnpj:d.cnpj||"",tipo:tipoAto(d),data:data,modo:MODE,criadoEm:Date.now()}; cs.push(c); casoAtualId=c.id; }
     salvarCasos(cs); return c;}
   function renderPainel(){const box=$("painelLista"); if(!box)return; const casos=lerCasos().sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0));
     if(!casos.length){box.innerHTML="<p class='hint'>Nenhum caso salvo ainda. Preencha um ato e clique em \"+ Salvar caso atual\" (ou salve pelo e-mail de confirmação).</p>";return;}
@@ -1414,9 +1486,10 @@ window.TINA=(function(){
         "<td>"+escHtml(c.empresa||"—")+(c.cnpj?"<br><span class='hint'>"+escHtml(c.cnpj)+"</span>":"")+"</td>"+
         "<td>"+escHtml(c.tipo||"")+"</td>"+
         "<td style='text-align:center'>"+escHtml(c.data||"")+"</td>"+
-        "<td style='white-space:nowrap'><button class='btn o mini' data-loc title='Localizar a resposta deste caso no seu Gmail'>🔎 Gmail</button> <button class='btn del mini' data-del title='Remover'>×</button></td></tr>").join("")+"</table></div>"+
-      "<p class='hint' style='margin-top:8px'>"+casos.length+" caso(s) salvo(s) neste navegador. Use 🔎 para achar a resposta no Gmail; use × para remover.</p>";
+        "<td style='white-space:nowrap'><button class='btn s mini' data-dup title='Iniciar um novo ato para esta empresa'>⧉ Duplicar</button> <button class='btn o mini' data-loc title='Localizar a resposta deste caso no seu Gmail'>🔎 Gmail</button> <button class='btn del mini' data-del title='Remover'>×</button></td></tr>").join("")+"</table></div>"+
+      "<p class='hint' style='margin-top:8px'>"+casos.length+" caso(s) salvo(s) neste navegador. Use ⧉ para começar outro ato da mesma empresa; 🔎 para achar a resposta no Gmail; × para remover.</p>";
     box.querySelectorAll("tr[data-id]").forEach(tr=>{const id=tr.dataset.id;
+      const dup=tr.querySelector("[data-dup]"); if(dup)dup.addEventListener("click",()=>duplicarCaso(id));
       const loc=tr.querySelector("[data-loc]"); if(loc)loc.addEventListener("click",()=>localizarGmail(id));
       const del=tr.querySelector("[data-del]"); if(del)del.addEventListener("click",()=>{if(confirm("Remover este caso do painel? (não afeta documentos já baixados)")){salvarCasos(lerCasos().filter(x=>x.id!==id));if(casoAtualId===id)casoAtualId=null;renderPainel();}});
     });}
@@ -1838,10 +1911,96 @@ window.TINA=(function(){
     else{av.style.display="none";}
   }
 
+  /* ===== Avisos (toast) ===== */
+  function toast(msg,type,ms){const w=$("toastWrap");if(!w)return;const t=document.createElement("div");t.className="toast"+(type?" "+type:"");t.textContent=msg;w.appendChild(t);requestAnimationFrame(()=>t.classList.add("show"));setTimeout(()=>{t.classList.remove("show");setTimeout(()=>t.remove(),280);},ms||3400);}
+  function debounce(fn,ms){let t;return function(){clearTimeout(t);const a=arguments,c=this;t=setTimeout(()=>fn.apply(c,a),ms);};}
+
+  /* ===== Validação de CNPJ (máscara + dígitos) ===== */
+  function fmtCnpj(v){const d=(v||"").replace(/\D/g,"").slice(0,14);let o=d.slice(0,2);if(d.length>2)o+="."+d.slice(2,5);if(d.length>5)o+="."+d.slice(5,8);if(d.length>8)o+="/"+d.slice(8,12);if(d.length>12)o+="-"+d.slice(12,14);return o;}
+  function validaCNPJ(v){v=(v||"").replace(/\D/g,"");if(v.length!==14||/^(\d)\1{13}$/.test(v))return false;const dg=v.split("").map(Number);
+    const calc=len=>{const w=len===12?[5,4,3,2,9,8,7,6,5,4,3,2]:[6,5,4,3,2,9,8,7,6,5,4,3,2];let s=0;for(let i=0;i<len;i++)s+=dg[i]*w[i];const r=s%11;return r<2?0:11-r;};
+    return calc(12)===dg[12]&&calc(13)===dg[13];}
+
+  /* ===== Configurações do escritório (marca + padrões) — só neste navegador ===== */
+  function cfgDefault(){return {escritorio:"",logo:"",cor:"",paralegal:"",remetente:"",defMun:"",defUF:"",defOrgao:"",defOrgaoUF:"",foro:""};}
+  function lerCfg(){try{return Object.assign(cfgDefault(),JSON.parse(localStorage.getItem("tinaCfg")||"{}"));}catch(e){return cfgDefault();}}
+  function salvarCfg(c){try{localStorage.setItem("tinaCfg",JSON.stringify(c));}catch(e){}}
+  function _autor(){return (CFG&&CFG.escritorio)||"Totali Soluções Contábeis";}
+  function cfgSocioDefaults(){const o={};if(CFG.defMun)o.mun=CFG.defMun;if(CFG.defUF){o.uf=CFG.defUF;o.naturalUF=CFG.defUF;}if(CFG.defOrgao)o.orgao=CFG.defOrgao;if(CFG.defOrgaoUF)o.orgaoUF=CFG.defOrgaoUF;return o;}
+  function aplicarPadroesForm(){if(CFG.defMun&&$("s_mun")&&!$("s_mun").value)$("s_mun").value=CFG.defMun;if(CFG.defUF&&$("s_uf")&&!$("s_uf").value)$("s_uf").value=CFG.defUF;if(CFG.foro&&$("foro")&&!$("foro").value)$("foro").value=CFG.foro;}
+  function shade(hex,pct){hex=String(hex||"").replace("#","");if(hex.length===3)hex=hex.split("").map(c=>c+c).join("");const n=parseInt(hex,16);if(isNaN(n)||hex.length!==6)return "#"+hex;let r=(n>>16)&255,g=(n>>8)&255,b=n&255;const f=pct/100,ad=v=>Math.max(0,Math.min(255,Math.round(v+(pct>=0?(255-v):v)*f)));return "#"+[ad(r),ad(g),ad(b)].map(v=>v.toString(16).padStart(2,"0")).join("");}
+  function aplicarCfg(){const nome=CFG.escritorio||"Totali Soluções Contábeis";
+    const logoEl=document.querySelector("header .logo"),lf=$("lf");
+    if(lf)lf.textContent=nome;
+    if(logoEl){logoEl.alt=nome;
+      if(CFG.logo){logoEl.src=CFG.logo;logoEl.style.display="";if(lf)lf.style.display="none";}
+      else if(CFG.escritorio){logoEl.style.display="none";if(lf)lf.style.display="inline-block";}  // nome sem logo → mostra o nome como texto
+      else {logoEl.src="assets/totali-logo-branca.png";logoEl.style.display="";if(lf)lf.style.display="none";}}
+    const foot=document.querySelector(".foot");if(foot)foot.textContent=nome+" — documento gerado é rascunho para revisão do paralegal antes do protocolo na Junta.";
+    const root=document.documentElement.style;
+    if(CFG.cor){root.setProperty("--navy",CFG.cor);root.setProperty("--navy2",shade(CFG.cor,24));root.setProperty("--navy3",shade(CFG.cor,-18));}
+    else{root.removeProperty("--navy");root.removeProperty("--navy2");root.removeProperty("--navy3");}
+    if($("emailParalegal")&&!$("emailParalegal").value&&CFG.paralegal)$("emailParalegal").value=CFG.paralegal;
+    if($("emailRemetente")&&!$("emailRemetente").value&&CFG.remetente)$("emailRemetente").value=CFG.remetente;}
+  function abrirConfig(){$("cfgUF").innerHTML=ufOpts(CFG.defUF);$("cfgOrgaoUF").innerHTML=ufOpts(CFG.defOrgaoUF);$("cfgOrgao").innerHTML=orgaoOpts(CFG.defOrgao||"");
+    $("cfgEscritorio").value=CFG.escritorio||"";$("cfgCor").value=CFG.cor||"#14293f";$("cfgParalegal").value=CFG.paralegal||"";$("cfgRemetente").value=CFG.remetente||"";$("cfgMun").value=CFG.defMun||"";$("cfgForo").value=CFG.foro||"";
+    _cfgLogoTmp=CFG.logo||"";const prev=$("cfgLogoPrev");if(_cfgLogoTmp){prev.src=_cfgLogoTmp;prev.style.display="";}else prev.style.display="none";
+    if($("cfgLogoFile"))$("cfgLogoFile").value="";$("cfgStat").textContent="";$("configModal").classList.add("open");}
+  function salvarConfigForm(){const cor=($("cfgCor").value||"").toLowerCase();
+    CFG={escritorio:$("cfgEscritorio").value.trim(),logo:_cfgLogoTmp||"",cor:(cor==="#14293f"||!cor)?"":cor,paralegal:$("cfgParalegal").value.trim(),remetente:$("cfgRemetente").value.trim(),defMun:$("cfgMun").value.trim(),defUF:$("cfgUF").value,defOrgao:$("cfgOrgao").value,defOrgaoUF:$("cfgOrgaoUF").value,foro:$("cfgForo").value.trim()};
+    salvarCfg(CFG);aplicarCfg();$("cfgStat").style.color="var(--ok)";$("cfgStat").textContent="✓ Salvo.";toast("Configurações salvas.","ok");}
+  function resetConfig(){CFG=cfgDefault();salvarCfg(CFG);aplicarCfg();abrirConfig();toast("Configurações restauradas ao padrão.","info");}
+
+  /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
+  const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra"];
+  const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento"];
+  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),fields:{},checks:{},socios:readSocios()};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
+  function draftTemConteudo(o){if(!o)return false;const f=o.fields||{};if((f.razao||"").trim())return true;if((f.objeto||"").trim())return true;if(o.socios&&o.socios.some(s=>(s.nome||"").trim()))return true;return false;}
+  function salvarRascunho(){if(_suppressDraft)return;try{const snap=snapshotForm();if(draftTemConteudo(snap))localStorage.setItem("tinaDraft",JSON.stringify(snap));else localStorage.removeItem("tinaDraft");}catch(e){}}
+  const salvarRascunhoDeb=debounce(salvarRascunho,700);
+  function limparRascunho(){try{localStorage.removeItem("tinaDraft");}catch(e){}}
+  function restaurarForm(o){if(!o)return;_suppressDraft=true;try{
+    if(o.mode)switchMode(o.mode);
+    DRAFT_FIELDS.forEach(id=>{if($(id)&&o.fields&&(id in o.fields))$(id).value=o.fields[id];});
+    DRAFT_CHECKS.forEach(id=>{if($(id)&&o.checks&&(id in o.checks))$(id).checked=!!o.checks[id];});
+    $("socios").innerHTML="";const arr=(o.socios&&o.socios.length)?o.socios:[undefined];arr.forEach(s=>socioCard(s));
+    if(typeof recalc==="function")recalc();
+  }finally{_suppressDraft=false;}salvarRascunho();}
+
+  /* ===== Backup do painel (exportar/importar JSON) ===== */
+  function exportarCasos(){const casos=lerCasos();if(!casos.length){toast("Não há casos para exportar.","info");return;}
+    const blob=new Blob([JSON.stringify({app:"atos-societarios",tipo:"painel-casos",exportadoEm:new Date().toISOString(),casos},null,2)],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);const dt=new Date();
+    a.download="painel-casos-"+dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0")+".json";
+    document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},120);toast("Backup exportado ("+casos.length+" caso(s)).","ok");}
+  function importarCasos(file){if(!file)return;const rd=new FileReader();
+    rd.onload=()=>{let data;try{data=JSON.parse(rd.result);}catch(e){toast("Arquivo inválido (não é JSON).","err");return;}
+      const novos=Array.isArray(data)?data:(data&&Array.isArray(data.casos)?data.casos:null);
+      if(!novos){toast("Arquivo não parece um backup de casos.","err");return;}
+      const porId={};lerCasos().forEach(c=>{if(c&&c.id)porId[c.id]=c;});let add=0;
+      novos.forEach(c=>{if(c&&c.id&&!porId[c.id]){porId[c.id]=c;add++;}});
+      salvarCasos(Object.values(porId));renderPainel();
+      toast("Importado: "+add+" novo(s), "+(novos.length-add)+" já existente(s).","ok");};
+    rd.readAsText(file);}
+
+  /* ===== Duplicar caso: novo ato para a mesma empresa (só metadados existem) ===== */
+  function duplicarCaso(id){const c=lerCasos().find(x=>x.id===id);if(!c)return;
+    limparCampos();if(c.modo)switchMode(c.modo);
+    if($("razao"))$("razao").value=c.empresa||"";if($("cnpj")){$("cnpj").value=fmtCnpj(c.cnpj||"");if(typeof cnpjLiveCheck==="function")cnpjLiveCheck();}
+    aplicarPadroesForm();casoAtualId=null;salvarRascunho();
+    if($("painelModal"))$("painelModal").classList.remove("open");
+    toast("Novo formulário iniciado para "+(c.empresa||"a empresa")+". Preencha o restante.","ok");
+    window.scrollTo({top:0,behavior:"smooth"});}
+
+  /* ===== Limpar com confirmação ===== */
+  function limparComConfirmacao(){if(draftTemConteudo(snapshotForm())){if(!confirm("Limpar todos os campos do formulário? O preenchimento atual será apagado."))return;}limpar();aplicarPadroesForm();limparRascunho();toast("Formulário limpo.","info");}
+
+  var cnpjLiveCheck=null;
   function init(){
+    CFG=lerCfg(); aplicarCfg();
     $("btnAddSocio").addEventListener("click",()=>socioCard());
     $("btnExemplo").addEventListener("click",exemplo);
-    $("btnLimpar").addEventListener("click",limpar);
+    $("btnLimpar").addEventListener("click",limparComConfirmacao);
     $("btnGerar").addEventListener("click",()=>{ gerarPreview().then(()=>{ const pc=$("previewCard"); if(pc){ pc.scrollIntoView({behavior:"smooth",block:"start"}); pc.classList.remove("val-flash"); void pc.offsetWidth; pc.classList.add("val-flash"); } }); });
     $("btnBaixar").addEventListener("click",baixarDocx);
     $("btnPDF").addEventListener("click",baixarPDF);
@@ -1875,6 +2034,31 @@ window.TINA=(function(){
     if(!window.docxLib){$("status").style.color="var(--err)";$("status").textContent="⚠ lib/docx.umd.min.js não carregou.";}
     socioCard();
     switchMode(MODE);
+    aplicarPadroesForm();
+    // Configurações do escritório (marca + padrões)
+    if($("btnConfig")) $("btnConfig").addEventListener("click",abrirConfig);
+    if($("btnConfigClose")) $("btnConfigClose").addEventListener("click",()=>$("configModal").classList.remove("open"));
+    if($("configModal")) $("configModal").addEventListener("click",e=>{if(e.target.id==="configModal")$("configModal").classList.remove("open");});
+    if($("btnConfigSalvar")) $("btnConfigSalvar").addEventListener("click",salvarConfigForm);
+    if($("btnConfigReset")) $("btnConfigReset").addEventListener("click",()=>{if(confirm("Restaurar as configurações ao padrão? Isso remove logo, cor e dados salvos."))resetConfig();});
+    if($("cfgLogoFile")) $("cfgLogoFile").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(!f)return;if(f.size>500*1024){toast("Logo muito grande (máx. 500 KB).","err");e.target.value="";return;}const rd=new FileReader();rd.onload=()=>{_cfgLogoTmp=rd.result;const p=$("cfgLogoPrev");p.src=_cfgLogoTmp;p.style.display="";};rd.readAsDataURL(f);});
+    if($("btnCfgLogoLimpar")) $("btnCfgLogoLimpar").addEventListener("click",()=>{_cfgLogoTmp="";const p=$("cfgLogoPrev");p.style.display="none";if($("cfgLogoFile"))$("cfgLogoFile").value="";});
+    // Backup do painel de casos
+    if($("btnExportarCasos")) $("btnExportarCasos").addEventListener("click",exportarCasos);
+    if($("btnImportarCasos")) $("btnImportarCasos").addEventListener("click",()=>$("fileImportCasos").click());
+    if($("fileImportCasos")) $("fileImportCasos").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(f)importarCasos(f);e.target.value="";});
+    // Validação de CNPJ em tempo real (campo principal de Registro)
+    const cnpjEl=$("cnpj");
+    if(cnpjEl){ let st=$("cnpjstat"); if(!st){st=document.createElement("div");st.className="fldstat";st.id="cnpjstat";cnpjEl.insertAdjacentElement("afterend",st);}
+      cnpjLiveCheck=()=>{cnpjEl.value=fmtCnpj(cnpjEl.value);const d=cnpjEl.value.replace(/\D/g,"");if(!d){st.textContent="";st.className="fldstat";return;}if(d.length<14){st.textContent="Faltam dígitos…";st.className="fldstat";return;}if(validaCNPJ(cnpjEl.value)){st.textContent="✓ CNPJ válido";st.className="fldstat ok";}else{st.textContent="✗ CNPJ inválido — verifique";st.className="fldstat err";}};
+      cnpjEl.addEventListener("input",cnpjLiveCheck); }
+    // Auto-save (rascunho) + recuperação
+    let draftSalvo=null; try{draftSalvo=JSON.parse(localStorage.getItem("tinaDraft")||"null");}catch(e){}
+    if(draftTemConteudo(draftSalvo) && $("draftBanner")){ $("draftBanner").classList.add("show");
+      if($("btnDraftRestore")) $("btnDraftRestore").addEventListener("click",()=>{restaurarForm(draftSalvo);$("draftBanner").classList.remove("show");toast("Rascunho restaurado.","ok");});
+      if($("btnDraftDiscard")) $("btnDraftDiscard").addEventListener("click",()=>{limparRascunho();$("draftBanner").classList.remove("show");toast("Rascunho descartado.","info");}); }
+    document.addEventListener("input",salvarRascunhoDeb);
+    document.addEventListener("change",salvarRascunhoDeb);
     const bt=$("btnTopo");   // botão "voltar ao topo": aparece ao rolar >300px, rola suave até o topo, sem sobrepor a barra de ações sticky
     if(bt){ const acts=document.querySelector(".actions");
       const place=()=>{ if(!acts){bt.style.bottom="18px";return;} const r=acts.getBoundingClientRect(),vh=window.innerHeight; bt.style.bottom=(r.top<vh && r.bottom>vh-4)?((vh-r.top+10)+"px"):"18px"; };  // acima da barra quando ela está grudada no rodapé
@@ -1883,9 +2067,17 @@ window.TINA=(function(){
       bt.addEventListener("click",()=>window.scrollTo({top:0,behavior:"smooth"})); }
   }
   document.addEventListener("DOMContentLoaded",init);
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF},_pdf:{parseContratoTexto,aplicarDadosContrato}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
+<div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+<div id="draftBanner">
+  <span class="dbtxt">📝 Encontramos um <b>rascunho não salvo</b> da última vez. Deseja restaurar?</span>
+  <div class="bar" style="margin:0">
+    <button class="btn p mini" id="btnDraftRestore" type="button">Restaurar</button>
+    <button class="btn s mini" id="btnDraftDiscard" type="button">Descartar</button>
+  </div>
+</div>
 </body>
 </html>
