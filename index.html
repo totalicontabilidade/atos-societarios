@@ -77,6 +77,7 @@
   .val.warn{background:var(--warnbg);border-color:var(--warnln);color:#7c5406}
   .val ul{margin:6px 0 0;padding-left:18px}
   .val{scroll-margin-top:88px;scroll-margin-bottom:96px}   /* folga p/ o header/ações sticky quando o site rola até a validação */
+  #previewCard{scroll-margin-top:84px}   /* folga p/ o header sticky quando o site rola até a prévia */
   @keyframes valflash{0%{box-shadow:0 0 0 0 rgba(194,162,80,0);transform:translateY(4px)}12%{box-shadow:0 0 0 5px rgba(194,162,80,.38);transform:translateY(0)}100%{box-shadow:0 0 0 0 rgba(194,162,80,0);transform:translateY(0)}}
   .val-flash{animation:valflash 1.15s ease-out}
   @media (prefers-reduced-motion: reduce){ .val-flash{animation:none} }
@@ -253,7 +254,13 @@
         <div class="ltdaonly"><label>Valor da quota (R$)</label><input type="number" id="valorQuota" step="0.01" value="1.00" oninput="TINA.recalc()"></div>
         <div class="ltdaonly"><label>Nº de quotas <span class="hint">(auto)</span></label><input type="text" id="numQuotas" readonly></div>
       </div>
-      <div class="hint">Valores por extenso gerados automaticamente.</div>
+      <div class="row"><label>Forma de integralização do capital</label><select id="integralizacao">
+        <option value="moeda">Em moeda corrente nacional</option>
+        <option value="bens">Em bens móveis — exige laudo de avaliação</option>
+        <option value="bens_imoveis">Em bens imóveis — exige laudo de avaliação</option>
+        <option value="mista">Parte em moeda corrente, parte em bens</option>
+      </select></div>
+      <div class="hint">Valores por extenso gerados automaticamente. <b>Capital em bens</b> exige laudo de avaliação anexo ao processo.</div>
     </div>
 
     <div class="card">
@@ -434,6 +441,8 @@ window.TINA=(function(){
     let s="";for(let k=0;k<out.length;k++)s+=k===0?out[k]:((k===out.length-1&&p[0]>0&&(p[0]<100||p[0]%100===0))?" e ":", ")+out[k]; return s; }  // "e" antes do último grupo se <100 OU centena redonda (mil e cem, dois mil e duzentos)
   function extensoReais(v){v=Number(v)||0;const i=Math.floor(v),c=Math.round((v-i)*100);
     let s=extensoInt(i)+(i===1?" real":" reais"); if(c>0)s+=" e "+extensoInt(c)+(c===1?" centavo":" centavos"); return s; }
+  function formaIntegr(d,def){ const f=(d&&d.integralizacao)||"moeda";   // forma de integralização do capital (padrão preserva a redação original por trecho)
+    return f==="bens"?"em bens móveis, conforme laudo de avaliação anexo":f==="bens_imoveis"?"em bens imóveis, conforme laudo de avaliação anexo":f==="mista"?"parte em moeda corrente nacional e parte em bens, conforme laudo de avaliação anexo":(def||"em moeda corrente nacional"); }
 
   /* CPF / CEP */
   function fmtCep(v){const d=(v||"").replace(/\D/g,"").slice(0,8);return d.length>5?d.slice(0,5)+"-"+d.slice(5):d;}
@@ -562,7 +571,7 @@ window.TINA=(function(){
     const CHG=new Set();["nome","fantasia","sede","objeto","capital","quadro","enquadramento"].forEach(k=>{const e=$("alt_"+k);if(e&&e.checked)CHG.add(k);});
     return{razao:v("razao"),fantasia:v("fantasia"),enquadramento:$("enquadramento").value,foro:v("foro"),objeto:v("objeto"),
       sede:{cep:v("s_cep"),log:v("s_log"),num:v("s_num"),comp:v("s_comp"),bairro:v("s_bairro"),mun:v("s_mun"),uf:v("s_uf").toUpperCase()},
-      capital:cap,valorQuota:vq,numQuotas:vq>0?Math.round(cap/vq):0,modoAdm:$("modoAdm").value,
+      capital:cap,valorQuota:vq,numQuotas:vq>0?Math.round(cap/vq):0,modoAdm:$("modoAdm").value,integralizacao:v("integralizacao"),
       socios:socios.map(s=>{const q=Number(s.quotas)||0;return{...s,quotas:q,valorQuotas:q*vq,percentual:cap>0?(q*vq/cap*100):0};}),
       atoCidade:v("atoCidade"),atoData:v("atoData"),
       cnpj:v("cnpj"),nire:v("nire"),numAlteracao:v("numAlteracao"),dataInicioOrig:v("dataInicioOrig"),razaoAnterior:v("razaoAnterior"),socioRetira:v("socioRetira"),socioRetiraSexo:v("socioRetiraSexo"),acervo:Number($("acervo")&&$("acervo").value)||0,dataEncerramento:v("dataEncerramento"),guardiaoLivros:v("guardiaoLivros"),clausulasExtra:v("clausulasExtra"),changed:CHG};}
@@ -654,7 +663,7 @@ window.TINA=(function(){
       if(CH.has("fantasia")) delib("Do título do estabelecimento",d.fantasia?resolvem+" adotar como título de estabelecimento (nome fantasia) a expressão "+fantUP+".":resolvem+" suprimir o nome fantasia da sociedade.");
       if(CH.has("sede")) delib("Da alteração da sede",resolvem+" transferir a sede da sociedade, que passa a ser no seguinte endereço: "+endLinha(d.sede)+".");
       if(CH.has("objeto")) delib("Da alteração do objeto social",resolvem+" alterar o objeto social, que passa a ser o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
-      if(CH.has("capital")){delib("Da alteração do capital social",resolvem+" alterar o capital social, que passa a ser de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), totalmente subscrito e integralizado em moeda corrente do País, dividido em "+numBR(d.numQuotas)+" quotas de "+reais(d.valorQuota)+" cada uma, distribuídas da seguinte forma:");ch.push(tabelaQuotas(d,X));}
+      if(CH.has("capital")){delib("Da alteração do capital social",resolvem+" alterar o capital social, que passa a ser de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), totalmente subscrito e integralizado "+formaIntegr(d,"em moeda corrente do País")+", dividido em "+numBR(d.numQuotas)+" quotas de "+reais(d.valorQuota)+" cada uma, distribuídas da seguinte forma:");ch.push(tabelaQuotas(d,X));}
       if(CH.has("quadro")){delib("Do quadro societário",resolvem+" alterar a composição do quadro societário e a distribuição das quotas, que passa a ficar assim constituído:");ch.push(tabelaQuotas(d,X));}
       if(CH.has("enquadramento")) delib("Do reenquadramento","A sociedade passa a se enquadrar como "+(d.enquadramento==="DEMAIS"?"sociedade não enquadrada como ME ou EPP":ENQ[d.enquadramento])+", nos termos da Lei Complementar nº 123/2006.");
       if((d.clausulasExtra||"").trim()) delib("Outras deliberações",d.clausulasExtra.trim());
@@ -690,7 +699,7 @@ window.TINA=(function(){
     // V - CAPITAL
     const futCap=isTransf?false:(isAlt?(CH.has("capital")||CH.has("quadro")):true);
     ch.push(heading(nx(),"DO CAPITAL"));
-    ch.push(corpo("O capital social "+(futCap?"será":"é")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), dividido em "+numBR(d.numQuotas)+" ("+extensoInt(d.numQuotas)+") quotas, no valor nominal de "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, totalmente integralizado em moeda corrente do País."));
+    ch.push(corpo("O capital social "+(futCap?"será":"é")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), dividido em "+numBR(d.numQuotas)+" ("+extensoInt(d.numQuotas)+") quotas, no valor nominal de "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, totalmente integralizado "+formaIntegr(d,"em moeda corrente do País")+"."));
     ch.push(P([T("Parágrafo único. ",{bold:true}),T("O capital encontra-se subscrito e integralizado "+(plural?"pelos sócios":("pel"+gSole("o sócio","a sócia")))+" da seguinte forma:")],JUST,SP15));
     ch.push(tabelaQuotas(d,X));
     // VI - ADMINISTRAÇÃO
@@ -832,7 +841,7 @@ window.TINA=(function(){
       if(CH.has("fantasia")) delib("Do título do estabelecimento", d.fantasia?resolve+" adotar como nome fantasia a expressão "+fantUP+".":resolve+" suprimir o nome fantasia.");
       if(CH.has("sede")) delib("Da alteração da sede",resolve+" transferir a sede, que passa a ser à "+endLinha(d.sede)+".");
       if(CH.has("objeto")) delib("Da alteração do objeto",resolve+" alterar o objeto, que passa a ser o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
-      if(CH.has("capital")) delib("Da alteração do capital",resolve+" alterar o capital, que passa a ser de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado em moeda corrente nacional.");
+      if(CH.has("capital")) delib("Da alteração do capital",resolve+" alterar o capital, que passa a ser de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado "+formaIntegr(d,"em moeda corrente nacional")+".");
       if(CH.has("enquadramento")) delib("Do reenquadramento","A atividade passa a se enquadrar como "+(d.enquadramento==="DEMAIS"?"não enquadrada como ME ou EPP":ENQ[d.enquadramento])+", nos termos da Lei Complementar nº 123/2006.");
       if((d.clausulasExtra||"").trim()) delib("Outras deliberações",d.clausulasExtra.trim());
       ch.push(P([T("Cláusula "+ordExt[dci++]+" – Da ratificação. ",{bold:true}),T("Permanecem inalteradas e em pleno vigor as demais disposições do instrumento de inscrição não expressamente modificadas por este ato.")],JUST,SP15));
@@ -849,7 +858,7 @@ window.TINA=(function(){
     if(d.fantasia) ch.push(P([T("Parágrafo único. ",{bold:true}),...R("O Empresário Individual "+((isAlt?CH.has("fantasia"):true)?"usará":"usa")+" o nome fantasia "+fantUP+" em todas as suas atividades, sempre que aplicável.")],JUST,SP15));
     // II - CAPITAL
     ch.push(heading(nx(),"DO CAPITAL"));
-    ch.push(corpo("O capital destinado ao exercício da atividade do Empresário Individual "+(fut("capital")?"será":"é")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado em moeda corrente nacional."));
+    ch.push(corpo("O capital destinado ao exercício da atividade do Empresário Individual "+(fut("capital")?"será":"é")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado "+formaIntegr(d,"em moeda corrente nacional")+"."));
     // III - SEDE
     ch.push(heading(nx(),"DA SEDE"));
     ch.push(corpo("O Empresário Individual "+(fut("sede")?"terá":"tem")+" sua sede à "+endLinha(d.sede)+"."));
@@ -929,7 +938,7 @@ window.TINA=(function(){
     const cl1=(txt)=>ch.push(P([T("Cláusula "+ord1[o1++]+" – ",{bold:true}),...R(txt)],JUST,SP15));
     cl1("Fica transformado este Empresário Individual em Sociedade Limitada"+(isSLU?" Unipessoal":"")+", sob o nome empresarial de: "+razaoUP+" LTDA, com sub-rogação de todos os direitos e obrigações pertinentes."+(d.fantasia?" E como nome de fantasia: "+fantUP+".":""));
     cl1("O acervo deste Empresário Individual, no valor de "+reais(acervo)+" ("+extensoReais(acervo)+") passa a constituir o capital da Sociedade Limitada mencionada na cláusula anterior.");
-    if(aumentou) cl1("Fica o capital social aumentado de "+reais(acervo)+" ("+extensoReais(acervo)+") para "+reais(newCap)+" ("+extensoReais(newCap)+"), dividido em "+numBR(d.numQuotas)+" quotas no valor nominal de "+reais(d.valorQuota)+" cada uma, sendo o aumento de "+reais(newCap-acervo)+" ("+extensoReais(newCap-acervo)+") integralizado neste ato em moeda corrente do País.");
+    if(aumentou) cl1("Fica o capital social aumentado de "+reais(acervo)+" ("+extensoReais(acervo)+") para "+reais(newCap)+" ("+extensoReais(newCap)+"), dividido em "+numBR(d.numQuotas)+" quotas no valor nominal de "+reais(d.valorQuota)+" cada uma, sendo o aumento de "+reais(newCap-acervo)+" ("+extensoReais(newCap-acervo)+") integralizado neste ato "+formaIntegr(d,"em moeda corrente do País")+".");
     cl1("O endereço e sede da empresa serão: "+endLinha(d.sede)+".");
     ch.push(corpo("Para tanto, firma nesta mesma data, em documento separado, o Contrato Social de constituição por transformação de Empresário Individual."));
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
@@ -961,7 +970,7 @@ window.TINA=(function(){
     cl2("A sociedade pode a qualquer tempo, instalar, manter e extinguir filiais e quaisquer outros estabelecimentos necessários ao bom desempenho das atividades consubstanciadas no objeto social, em qualquer parte do território nacional ou no exterior, respeitadas as prescrições e exigências legais pertinentes, mediante alteração contratual assinada "+(plural?"pelos sócios":gT("pelo sócio","pela sócia"))+".");
     cl2("A sociedade pode mudar a qualquer tempo a forma jurídica ora adotada, "+(plural?"deliberada por maioria simples do capital social, entendendo-se que cada quota possuída dá direito a um voto nas deliberações":gT("por decisão do único sócio","por decisão da única sócia"))+".");
     cl2("O prazo de duração da sociedade é por tempo indeterminado e suas atividades tiveram início em "+(d.dataInicioOrig||d.atoData||"[DATA]")+".");
-    ch.push(P([T("Cláusula "+(++c2)+"ª – ",{bold:true}),...R("O capital social será "+reais(newCap)+" ("+extensoReais(newCap)+") dividido em "+numBR(d.numQuotas)+" quotas de valor nominal "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, integralizadas, neste ato em moeda corrente do País, "+(plural?"pelos sócios":gT("pelo sócio","pela sócia"))+":")],JUST,SP15));
+    ch.push(P([T("Cláusula "+(++c2)+"ª – ",{bold:true}),...R("O capital social será "+reais(newCap)+" ("+extensoReais(newCap)+") dividido em "+numBR(d.numQuotas)+" quotas de valor nominal "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, integralizadas, neste ato "+formaIntegr(d,"em moeda corrente do País")+", "+(plural?"pelos sócios":gT("pelo sócio","pela sócia"))+":")],JUST,SP15));
     ch.push(tabelaQuotas(d,X));
     cl2(plural
       ? "As quotas são indivisíveis e não podem ser cedidas ou transferidas a terceiros sem o consentimento do outro sócio, a quem fica assegurado, em igualdade de condições e preço, direito de preferência para a sua aquisição se postas à venda, formalizando, se realizada a cessão delas, a alteração contratual pertinente."
@@ -1049,7 +1058,7 @@ window.TINA=(function(){
     const ord2=["Primeira","Segunda","Terceira","Quarta","Quinta","Sexta","Sétima"]; let o2=0;
     const cl2=(txt)=>ch.push(P([T("Cláusula "+ord2[o2++]+" – ",{bold:true}),...R(txt)],JUST,SP15));
     cl2("O Empresário Individual adota como nome empresarial a seguinte firma: "+nomeUP+".");
-    cl2("O capital é de "+reais(cap)+" ("+extensoReais(cap)+"), totalmente subscrito e integralizado, neste ato, em moeda corrente do País.");
+    cl2("O capital é de "+reais(cap)+" ("+extensoReais(cap)+"), totalmente subscrito e integralizado, neste ato, "+formaIntegr(d,"em moeda corrente do País")+".");
     cl2("O Empresário Individual terá sua sede no seguinte endereço: "+endLinha(d.sede)+".");
     cl2("O Empresário Individual terá por objeto o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
     cl2(g("O empresário declara","A empresária declara")+", sob as penas da lei, inclusive que são verídicas todas as informações prestadas neste instrumento e quanto ao disposto no artigo 299 do Código Penal, não estar "+g("impedido","impedida")+" de exercer atividade empresária e não possuir outro registro como Empresário Individual no País.");
@@ -1429,7 +1438,7 @@ window.TINA=(function(){
     ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","clausulasExtra"].forEach(id=>{if($(id))$(id).value="";});
     document.querySelectorAll(".revisar").forEach(e=>e.classList.remove("revisar"));
     ["nome","fantasia","sede","objeto","capital","quadro","enquadramento"].forEach(k=>{if($("alt_"+k))$("alt_"+k).checked=false;});
-    $("valorQuota").value="1.00";$("enquadramento").value="ME";$("modoAdm").value="ISOLADAMENTE e/ou CONJUNTAMENTE";
+    $("valorQuota").value="1.00";$("enquadramento").value="ME";$("modoAdm").value="ISOLADAMENTE e/ou CONJUNTAMENTE";if($("integralizacao"))$("integralizacao").value="moeda";if($("socioRetiraSexo"))$("socioRetiraSexo").value="M";
     $("socios").innerHTML="";$("numQuotas").value="";if($("s_cep_stat"))$("s_cep_stat").textContent="";const b=$("valCapital");if(b)b.style.display="none";
     if(typeof MODE!=="undefined"&&(MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE==="transf_ei_slu"||MODE==="dist_ei"))socioCard();}  // modos de titular único: recria o card
   function limpar(){ limparCampos();
@@ -1639,6 +1648,8 @@ window.TINA=(function(){
     let cap=""; { const re=/capital[\s\S]{0,45}?R\$\s*([\d][\d., ]{0,16}\d|\d)/gi; let m,last; while((m=re.exec(t)))last=m[1]; cap=last||""; }  // última menção = capital final; aceita espaço interno ("4 0.000,00"); brNum remove espaços
     if(!cap)cap=m1(t,/capital[\s\S]{0,90}?([\d]{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*\(/i); if(cap)d.capital=brNum(cap);
     const vq=brNum(m1(t,/valor nominal de (?:R\$\s*)?([\d.,]+)/i)); if(vq>0)d.valorQuota=vq;
+    if(/integraliz\w+[^.]{0,45}?bens\s+im[óo]ve/i.test(t)) d.integralizacao="bens_imoveis";   // capital em bens (imóveis/móveis)
+    else if(/integraliz\w+[^.]{0,45}?\bbens\b/i.test(t)) d.integralizacao="bens";
     const objFim="(?:\\.{1,2}\\s+[A-ZÀ-Ú]|Par[áa]grafo|CL[ÁA]USULA|Cl[áa]usula|$)";
     d.objeto=m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?|objeto(?: social)?)[^:]{0,45}?(?:atividades?\\s*:|:)\\s*([\\s\\S]+?)"+objFim,"i"))
       ||m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?)\\s+(?:o exerc[íi]cio d[ae]s?\\s+)?(?:as\\s+)?atividades?(?:\\s+econ[ôo]micas)?\\s+de\\s+([\\s\\S]+?)"+objFim,"i"))
@@ -1672,7 +1683,7 @@ window.TINA=(function(){
     while((mm=startRe.exec(t))){const ns=mm.index+mm[0].indexOf(mm[1]); found.push({start:ns,nome:mm[1].replace(/\s+/g," ").trim()});}
     for(let i=0;i<found.length;i++){const seg=t.slice(found[i].start,(found[i+1]?found[i+1].start:found[i].start+700)); const so=parseSocioQualif(seg); so.nome=limparNome(found[i].nome,d.razao); if(so.nome && !socios.some(x=>x.nome===so.nome)) socios.push(so);}
     // --- SÓCIOS PESSOA JURÍDICA: "RAZÃO LTDA, … inscrita no CNPJ … representada por seu administrador NOME" ---
-    const pjList=[]; { const pjRe=/([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .,&'\/\-–]{4,90}?(?:LTDA|LIMITADA|EIRELI|S\/A|S\.A\.))\s*,?\s*(?:sociedade[^,]{0,45},?\s*)?inscrita no CNPJ sob o n[º°o.]{1,4}\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\s*-?\s*\d{2})([\s\S]{0,400}?)representad[ao] por\s+(?:seu[ao]?\s+)?((?:s[óo]cio[- ])?administrador[a]?|s[óo]cio-administrador[a]?|procurador[a]?|representante legal|diretor[a]?|presidente)?\s*([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,55}?)\s*[,;]/gi; let pm;
+    const pjList=[]; { const pjRe=/([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .,&'\/\-–]{4,90}?(?:LTDA|LIMITADA|EIRELI|S\/A|S\.A\.|INC\.?|LLC|LTD\.?|GMBH|CORP\.?|PLC|N\.V\.|B\.V\.|S\.R\.L\.|S\.A\.S\.))\s*,?\s*(?:[^;]{0,160}?)?inscrit[ao] no CNPJ sob o n[º°o.]{1,4}\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\s*-?\s*\d{2})([\s\S]{0,400}?)representad[ao] por\s+(?:seu[ao]?\s+)?((?:s[óo]cio[- ])?administrador[a]?|s[óo]cio-administrador[a]?|procurador[a]?|representante legal|diretor[a]?|presidente)?\s*([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,55}?)\s*[,;]/gi; let pm;
       while((pm=pjRe.exec(t))){ let razao=pm[1].replace(/\s+/g," ").replace(/[,\s]+$/,"").trim();
         razao=razao.replace(/^.*\b(?:s[óo]cia|sociedade|empresa|pessoa jur[íi]dica|admitid[ao]|ingressa\w*)\b\s+/i,"").trim();  // tira prefixo de frase antes da razão
         { let rw=razao.split(/\s+/); while(rw.length>1 && /^(?:NIRE|CNPJ|N[º°o.]|inscri\w*|sob|\d[\d.\-\/]*)$/i.test(rw[0])) rw.shift(); razao=rw.join(" ").trim(); }  // tira "NIRE/CNPJ ‹número›" grudado do cabeçalho no início da razão
@@ -1739,6 +1750,7 @@ window.TINA=(function(){
     if(typeof d.valorQuota==="number"&&d.valorQuota>0)setf("valorQuota",d.valorQuota,false);
     setf("objeto",d.objeto,inc.has("objeto"));
     if(d.enquadramento&&$("enquadramento"))$("enquadramento").value=d.enquadramento;
+    if(d.integralizacao&&$("integralizacao")){$("integralizacao").value=d.integralizacao;$("integralizacao").classList.add("revisar");}
     setf("dataInicioOrig",d.dataInicioOrig,true);
     setf("numAlteracao",d.numAlteracao,inc.has("numAlteracao"));
     setf("foro",d.foro,true);
@@ -1788,7 +1800,7 @@ window.TINA=(function(){
     $("btnAddSocio").addEventListener("click",()=>socioCard());
     $("btnExemplo").addEventListener("click",exemplo);
     $("btnLimpar").addEventListener("click",limpar);
-    $("btnGerar").addEventListener("click",gerarPreview);
+    $("btnGerar").addEventListener("click",()=>{ gerarPreview().then(()=>{ const pc=$("previewCard"); if(pc){ pc.scrollIntoView({behavior:"smooth",block:"start"}); pc.classList.remove("val-flash"); void pc.offsetWidth; pc.classList.add("val-flash"); } }); });
     $("btnBaixar").addEventListener("click",baixarDocx);
     $("btnPDF").addEventListener("click",baixarPDF);
     $("s_uf").innerHTML=ufOpts();
