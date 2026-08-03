@@ -625,6 +625,7 @@ window.TINA=(function(){
     const heading=(rom,tema)=>P([T("CLÁUSULA "+rom+" - "+tema,{bold:true})],LEFT,SP10);
     const corpo=(t)=>P(R(t),JUST,SP15);
     const parag=(t)=>P([T("Parágrafo único. ",{bold:true}),...R(t)],JUST,SP15);
+    const gap=()=>new Paragraph({spacing:{after:0,line:240,lineRule:AUTO},children:[new TextRun({text:" "})]});   // linha em branco após a tabela (parágrafo vazio colapsa no preview → usa um espaço p/ garantir a altura da linha)
 
     const nS=d.socios.length,plural=nS>1;
     const admins=d.socios.filter(s=>s.administrador);
@@ -663,8 +664,8 @@ window.TINA=(function(){
       if(CH.has("fantasia")) delib("Do título do estabelecimento",d.fantasia?resolvem+" adotar como título de estabelecimento (nome fantasia) a expressão "+fantUP+".":resolvem+" suprimir o nome fantasia da sociedade.");
       if(CH.has("sede")) delib("Da alteração da sede",resolvem+" transferir a sede da sociedade, que passa a ser no seguinte endereço: "+endLinha(d.sede)+".");
       if(CH.has("objeto")) delib("Da alteração do objeto social",resolvem+" alterar o objeto social, que passa a ser o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
-      if(CH.has("capital")){delib("Da alteração do capital social",resolvem+" alterar o capital social, que passa a ser de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), totalmente subscrito e integralizado "+formaIntegr(d,"em moeda corrente do País")+", dividido em "+numBR(d.numQuotas)+" quotas de "+reais(d.valorQuota)+" cada uma, distribuídas da seguinte forma:");ch.push(tabelaQuotas(d,X));}
-      if(CH.has("quadro")){delib("Do quadro societário",resolvem+" alterar a composição do quadro societário e a distribuição das quotas, que passa a ficar assim constituído:");ch.push(tabelaQuotas(d,X));}
+      if(CH.has("capital")){delib("Da alteração do capital social",resolvem+" alterar o capital social, que passa a ser de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), totalmente subscrito e integralizado "+formaIntegr(d,"em moeda corrente do País")+", dividido em "+numBR(d.numQuotas)+" quotas de "+reais(d.valorQuota)+" cada uma, distribuídas da seguinte forma:");ch.push(tabelaQuotas(d,X));ch.push(gap());}
+      if(CH.has("quadro")){delib("Do quadro societário",resolvem+" alterar a composição do quadro societário e a distribuição das quotas, que passa a ficar assim constituído:");ch.push(tabelaQuotas(d,X));ch.push(gap());}
       if(CH.has("enquadramento")) delib("Do reenquadramento","A sociedade passa a se enquadrar como "+(d.enquadramento==="DEMAIS"?"sociedade não enquadrada como ME ou EPP":ENQ[d.enquadramento])+", nos termos da Lei Complementar nº 123/2006.");
       if((d.clausulasExtra||"").trim()) delib("Outras deliberações",d.clausulasExtra.trim());
       ch.push(P([T("Cláusula "+ordExt[dci++]+" – Da ratificação. ",{bold:true}),T("Permanecem inalteradas e em pleno vigor todas as demais cláusulas e condições do Contrato Social que não tenham sido expressamente modificadas por este instrumento.")],JUST,SP15));
@@ -701,7 +702,7 @@ window.TINA=(function(){
     ch.push(heading(nx(),"DO CAPITAL"));
     ch.push(corpo("O capital social "+(futCap?"será":"é")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), dividido em "+numBR(d.numQuotas)+" ("+extensoInt(d.numQuotas)+") quotas, no valor nominal de "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, totalmente integralizado "+formaIntegr(d,"em moeda corrente do País")+"."));
     ch.push(P([T("Parágrafo único. ",{bold:true}),T("O capital encontra-se subscrito e integralizado "+(plural?"pelos sócios":("pel"+gSole("o sócio","a sócia")))+" da seguinte forma:")],JUST,SP15));
-    ch.push(tabelaQuotas(d,X));
+    ch.push(tabelaQuotas(d,X)); ch.push(gap());
     // VI - ADMINISTRAÇÃO
     ch.push(heading(nx(),"DA ADMINISTRAÇÃO"));
     const admName=(s)=> s.tipoPessoa==="PJ"
@@ -971,7 +972,7 @@ window.TINA=(function(){
     cl2("A sociedade pode mudar a qualquer tempo a forma jurídica ora adotada, "+(plural?"deliberada por maioria simples do capital social, entendendo-se que cada quota possuída dá direito a um voto nas deliberações":gT("por decisão do único sócio","por decisão da única sócia"))+".");
     cl2("O prazo de duração da sociedade é por tempo indeterminado e suas atividades tiveram início em "+(d.dataInicioOrig||d.atoData||"[DATA]")+".");
     ch.push(P([T("Cláusula "+(++c2)+"ª – ",{bold:true}),...R("O capital social será "+reais(newCap)+" ("+extensoReais(newCap)+") dividido em "+numBR(d.numQuotas)+" quotas de valor nominal "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, integralizadas, neste ato "+formaIntegr(d,"em moeda corrente do País")+", "+(plural?"pelos sócios":gT("pelo sócio","pela sócia"))+":")],JUST,SP15));
-    ch.push(tabelaQuotas(d,X));
+    ch.push(tabelaQuotas(d,X)); ch.push(new Paragraph({spacing:{after:0,line:240,lineRule:AUTO},children:[T(" ")]}));   // linha em branco após a tabela
     cl2(plural
       ? "As quotas são indivisíveis e não podem ser cedidas ou transferidas a terceiros sem o consentimento do outro sócio, a quem fica assegurado, em igualdade de condições e preço, direito de preferência para a sua aquisição se postas à venda, formalizando, se realizada a cessão delas, a alteração contratual pertinente."
       : "As quotas são indivisíveis em relação à sociedade. Sendo a sociedade unipessoal, a cessão total ou parcial de quotas, bem como a admissão de novos sócios, dependerá exclusivamente da vontade "+gT("do único sócio","da única sócia")+", formalizando-se a alteração contratual pertinente.");
