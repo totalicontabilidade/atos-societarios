@@ -76,6 +76,10 @@
   .val.ok{background:var(--okbg);border-color:var(--okln);color:#0b6e42}
   .val.warn{background:var(--warnbg);border-color:var(--warnln);color:#7c5406}
   .val ul{margin:6px 0 0;padding-left:18px}
+  .val{scroll-margin-top:88px;scroll-margin-bottom:96px}   /* folga p/ o header/ações sticky quando o site rola até a validação */
+  @keyframes valflash{0%{box-shadow:0 0 0 0 rgba(194,162,80,0);transform:translateY(4px)}12%{box-shadow:0 0 0 5px rgba(194,162,80,.38);transform:translateY(0)}100%{box-shadow:0 0 0 0 rgba(194,162,80,0);transform:translateY(0)}}
+  .val-flash{animation:valflash 1.15s ease-out}
+  @media (prefers-reduced-motion: reduce){ .val-flash{animation:none} }
   input.revisar,select.revisar,textarea.revisar{border-color:var(--warnln)!important;background:#fffdf4;box-shadow:inset 3px 0 0 var(--warn)}
   .helpbtn{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--navy);color:#fff;font-size:11px;font-weight:800;cursor:pointer;margin-left:4px;vertical-align:middle;user-select:none}
   .modal-bg{position:fixed;inset:0;background:rgba(15,25,40,.55);z-index:50;display:none;align-items:center;justify-content:center;padding:16px}
@@ -1245,7 +1249,9 @@ window.TINA=(function(){
   function renderValidacao(f){ const box=$("validacaoBox"); if(!box)return; box.style.display="block";
     if(!f.length){box.className="val ok";box.innerHTML="✓ <b>Validação OK</b> — todos os dados necessários estão preenchidos. Pronto para gerar.";}
     else{box.className="val warn";box.innerHTML="⚠ <b>Faltam dados para o documento ficar completo ("+f.length+"):</b><ul>"+f.map(x=>"<li>"+escHtml(x)+"</li>").join("")+"</ul>";}}
-  async function acaoValidar(){ const box=$("validacaoBox"); box.style.display="block"; box.className="val"; box.style.color="var(--muted)"; box.textContent="Validando…"; renderValidacao(await validar()); }
+  async function acaoValidar(){ const box=$("validacaoBox"); box.style.display="block"; box.className="val"; box.style.color="var(--muted)"; box.textContent="Validando…"; renderValidacao(await validar());
+    // rola sozinho até a validação e dá um flash de destaque (bloco central, livre do header/ações sticky)
+    box.scrollIntoView({behavior:"smooth",block:"center"}); box.classList.remove("val-flash"); void box.offsetWidth; box.classList.add("val-flash"); }
 
   function gerarPreview(){$("status").className="status muted";$("status").textContent="Gerando prévia…";
     return buildBlob().then(({blob,nomeArq})=>{_blob={blob,nomeArq};const c=$("preview");c.innerHTML="";
@@ -1536,7 +1542,10 @@ window.TINA=(function(){
     const s={}; seg=(seg||"").replace(/\s+/g," ").trim();
     // corta o que vem ANTES da nacionalidade (nome/razão colada) — os demais campos ficam depois de "brasileiro(a)"
     { const iNac=seg.search(/\b(?:brasileir[oa]|estrangeir[oa]|naturalizad[oa])\b/i); if(iNac>0) seg=seg.slice(iNac); }
-    const nac=seg.match(/brasileir([oa])/i); if(nac){s.nacionalidade="brasileiro"; s.sexo=/a/i.test(nac[1])?"F":"M";}
+    { let nm;  // nacionalidade: naturalizado tem prioridade sobre brasileiro ("brasileiro naturalizado"); estrangeiro idem. Sexo vem do gênero da palavra.
+      if(nm=seg.match(/naturalizad([oa])/i)){s.nacionalidade="naturalizado";s.sexo=/a/i.test(nm[1])?"F":"M";}
+      else if(nm=seg.match(/estrangeir([oa])/i)){s.nacionalidade="estrangeiro";s.sexo=/a/i.test(nm[1])?"F":"M";}
+      else if(nm=seg.match(/brasileir([oa])/i)){s.nacionalidade="brasileiro";s.sexo=/a/i.test(nm[1])?"F":"M";} }
     const ec=seg.match(/\b(solteir[oa]|casad[oa]|divorciad[oa]|vi[úu]v[oa]|separad[oa])\b|uni[ãa]o est[áa]vel/i);
     if(ec){const w=ec[0].toLowerCase(); s.estadoCivil=w.startsWith("solteir")?"solteiro":w.startsWith("casad")?"casado":w.startsWith("divorc")?"divorciado":/^vi/.test(w)?"viuvo":w.startsWith("separad")?"separado":"uniao";}
     const rgm=seg.match(/(comunh[ãa]o\s+parcial|comunh[ãa]o\s+universal|separa[çc][ãa]o\s+obrigat[óo]ria|separa[çc][ãa]o\s+total|separa[çc][ãa]o(?:\s+convencional)?\s+de\s+bens|participa[çc][ãa]o\s+final)/i);
@@ -1548,6 +1557,7 @@ window.TINA=(function(){
     let cpf=seg.match(/CPF[^0-9]{0,14}(\d{3}[.\s]?\d{3}[.\s]?\d{3}\s*-?\s*\d{2})/i)||seg.match(/(\d{3}\.\d{3}\.\d{3}\s*-\s*\d{2})/)||seg.match(/(\d{3}\.\d{3}\.\d{3}-\d{2})/);
     if(cpf){const g=cpf[1].replace(/\D/g,""); if(g.length===11)s.cpf=g.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4");}
     const rg=seg.match(/(?:RG|CIN|C\.\s?I\.?|R\.\s?G\.?|carteira de identidade|identidade)[^\d]{0,25}([\d][\d.\-]{3,})/i); if(rg)s.rg=rg[1].replace(/[.\-]/g,"");
+    if(!s.rg){const est=seg.match(/\b(?:RNM|RNE|CIE|RG estrangeiro|c[ée]dula de identidade de estrangeiro|passaporte)\b[^A-Za-z0-9]{0,15}(?:n[º°o.]?\s*)?([A-Z]?-?\d[\dA-Za-z.\-\/]{3,})/i); if(est)s.rg=est[1].replace(/\./g,"").trim();}  // documento de estrangeiro (RNM/RNE/passaporte) é alfanumérico
     let org=seg.match(/expedid[oa]\s+p[eo]la\s+([A-ZÀ-Ú]{2,6})\s*[\/\-]?\s*([A-Z]{2})?/i)||seg.match(/\b(SSP|SDS|DGPC|DPT|IFP|IIRGD|DETRAN|POLITEC|ITEP|IGP|SESP|SPTC|PTC|PC|SESDEC|SEJUSP)\s*[\/\- ]\s*(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/i); if(org){s.orgao=(org[1]||"").toUpperCase(); if(org[2])s.orgaoUF=org[2].toUpperCase();}
     const prof=seg.match(/\b(empres[áa]ri[oa]|comerciante|administrador[a]?|advogad[oa]|contador[a]?|contabilista|m[ée]dic[oa]|engenheir[oa]|arquitet[oa]|professor[a]?|estudante|aut[ôo]nom[oa]|do lar|aposentad[oa]|vendedor[a]?|t[ée]cnic[oa]|funcion[áa]ri[oa](?: p[úu]blic[oa])?|servidor[a]?(?: p[úu]blic[oa])?)\b/i); if(prof)s.profissao=prof[1];
     const end=seg.match(/(?:residente e domiciliad[oa]|domiciliad[oa])[^A-ZÀ-Ú0-9]{0,18}(.+?CEP[:\s]*[\d.\- ]{7,13})/i)||seg.match(/(?:residente e domiciliad[oa]|domiciliad[oa])[^A-ZÀ-Ú0-9]{0,18}(.+?)(?:;|\bcom sede\b|\bEmpres[áa]ri|$)/i); if(end){const e=parseEndereco(end[1]); s.log=e.log;s.num=e.num;s.comp=e.comp;s.bairro=e.bairro;s.mun=e.mun;s.uf=e.uf;s.cep=e.cep;}
