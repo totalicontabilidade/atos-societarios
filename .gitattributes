@@ -1,0 +1,7 @@
+# Normaliza fim de linha (evita ruído CRLF/LF entre Windows e o GitHub)
+* text=auto eol=lf
+
+# Tratar como binário (sem conversão de fim de linha)
+*.png binary
+*.min.js -text
+lib/docxtemplater.js -text

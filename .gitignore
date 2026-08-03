@@ -1,0 +1,29 @@
+# ── PROTEÇÃO DE DADOS (PII) ──────────────────────────────────────────
+# NUNCA versionar documentos de clientes. Se um contrato/PDF for
+# arrastado para esta pasta por engano, o Git o ignora e ele não vai
+# parar num repositório público. Isto é uma trava de segurança.
+*.pdf
+*.docx
+*.doc
+*.odt
+*.rtf
+*.xlsx
+*.xls
+*.csv
+*.zip
+
+# Rascunhos / dados de trabalho
+/reference/
+/temp/
+/tmp/
+/casos/
+*.local
+*.bak
+
+# Sistema operacional / editor
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*~
