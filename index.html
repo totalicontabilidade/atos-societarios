@@ -1493,7 +1493,7 @@ window.TINA=(function(){
   function m1(t,re){const m=t.match(re);return m?m[1].trim():"";}
   const UFMAP={ACRE:"AC",ALAGOAS:"AL","AMAPÁ":"AP",AMAPA:"AP",AMAZONAS:"AM",BAHIA:"BA","CEARÁ":"CE",CEARA:"CE","DISTRITO FEDERAL":"DF","ESPÍRITO SANTO":"ES","ESPIRITO SANTO":"ES","GOIÁS":"GO",GOIAS:"GO","MARANHÃO":"MA",MARANHAO:"MA","MATO GROSSO":"MT","MATO GROSSO DO SUL":"MS","MINAS GERAIS":"MG","PARÁ":"PA",PARA:"PA","PARAÍBA":"PB",PARAIBA:"PB","PARANÁ":"PR",PARANA:"PR",PERNAMBUCO:"PE","PIAUÍ":"PI",PIAUI:"PI","RIO DE JANEIRO":"RJ","RIO GRANDE DO NORTE":"RN","RIO GRANDE DO SUL":"RS","RONDÔNIA":"RO",RONDONIA:"RO",RORAIMA:"RR","SANTA CATARINA":"SC","SÃO PAULO":"SP","SAO PAULO":"SP",SERGIPE:"SE",TOCANTINS:"TO"};
   function parseEndereco(str){
-    const e={}; str=(str||"").replace(/\s+/g," ").replace(/^\s*(?:.*?\bendere[çc]o:?\s*|sede\s+(?:na|à|no|em)\s+|n[oa]\s*\(?\s*[oa]?\s*\)?\s*:\s*)/i,"").trim();  // tira conector "no(a):"/"na:" no início
+    const e={}; str=(str||"").replace(/\s+/g," ").replace(/^\s*(?:.*?\bendere[çc]o:?\s*|sede\s+(?:na|à|no|em)\s+|n[oa]\s*\(?\s*[oa]?\s*\)?\s*:\s*|(?:n[ao]|à|ao|em)\s+)/i,"").trim();  // tira conector "no(a):"/"na:"/"na "/"no "/"à "/"em " solto no início (o /i faz [^A-Z] excluir minúsculas, então o conector escapa dos regexes de sócio/sede)
     let m;
     // formato "(na) cidade de MUN - UF, na LOGRADOURO…" (cidade vem primeiro): extrai MUN/UF e remove esse trecho
     if(m=str.match(/(?:na\s+)?cidade de\s+([A-Za-zÀ-ú .']+?)\s*[-–\/]\s*([A-Z]{2})\b/i)){ if(!e.mun)e.mun=m[1].trim(); if(!e.uf)e.uf=m[2].toUpperCase(); str=str.replace(m[0],"").replace(/^[\s,]*(?:na|no|à|em)\s+/i,"").replace(/^[\s,]+/,"").trim(); }
@@ -1557,6 +1557,8 @@ window.TINA=(function(){
   function limparNome(nome, razao){
     let s=(nome||"").replace(/\b(INSTRUMENTO DE INSCRI[ÇC][ÃA]O(?: CONSOLIDAD[OA])?|CONTRATO SOCIAL(?: CONSOLIDAD[OA])?|ALTERA[ÇC][ÃA]O(?: D[AO])?(?: INSTRUMENTO)?(?: DE INSCRI[ÇC][ÃA]O)?|TRANSFORMA[ÇC][ÃA]O|EMPRES[ÁA]RI[OA] INDIVIDUAL|EMPRESA I[MN]DIVIDUAL|SOCIEDADE(?: EMPRES[ÁA]RIA)?(?: LIMITADA)?|DE INSCRI[ÇC][ÃA]O|CONSOLIDAD[OA]|A FIRMA|NOME EMPRESARIAL)\b/gi,"").replace(/\s{2,}/g," ").trim();
     let w=s.split(/\s+/).filter(Boolean);
+    // o capturador de nome usa flag /i, então pega conectores minúsculos antes do nome ("representada por seu administrador NOME"): se há palavra Maiúscula à frente, descarta o prefixo 100% minúsculo
+    { let k=0; while(k<w.length && !/[A-ZÀ-Ú]/.test(w[k])) k++; if(k>0 && k<w.length) w=w.slice(k); }
     // se houver LTDA/LIMITADA/EIRELI/ME/EPP no MEIO do nome, o que vem antes é a razão colada → corta tudo até ali (nome de pessoa não contém LTDA)
     { let idxL=-1; for(let i=w.length-2;i>=0;i--){ if(/^(LTDA|LIMITADA|EIRELI)\.?$/i.test(w[i])){idxL=i;break;} }  // ÚLTIMA ocorrência
       if(idxL>=0 && (w.length-(idxL+1))>=2) w=w.slice(idxL+1); }
@@ -1594,6 +1596,7 @@ window.TINA=(function(){
     let raz=m1(t,/nome empresarial:?\s+([^\n]+?)\s+LTDA\b/i);
     if(!raz) raz=m1(t,/(?:denomina[çc][ãa]o social|gira sob a denomina[çc][ãa]o(?: social)?)\s*([^\n]+?)\s+LTDA\b/i);
     if(!raz) raz=m1(t,/sociedade (?:empres[áa]ria )?limitada\s+([A-ZÀ-Ú][A-ZÀ-Ú0-9 .&'\-]{2,60}?)\s+LTDA\b/i);  // "…SOCIEDADE LIMITADA RAZÃO LTDA" (distrato REGIN)
+    if(!raz) raz=m1(t,/(?:CONTRATO SOCIAL|CONSOLIDA[ÇC][ÃA]O|ALTERA[ÇC][ÃA]O|DISTRATO)\b[^.]{0,80}\bD[AEO]\s+([A-ZÀ-Ú][A-ZÀ-Ú0-9 .&'\-]{2,55}?)\s+LTDA\b/);  // razão no título do documento: "…ALTERAÇÃO … DA <RAZÃO> LTDA" (greedy p/ pegar o último "DA … LTDA")
     if(raz){const u=raz.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9 .&\-]{2,})$/);if(u)raz=u[1].trim(); raz=raz.replace(/^[\d.\-\s]+/,"").trim();}  // começa por letra (tira CPF/nº colado antes da razão)
     if(!raz){ // EI / sem sufixo LTDA — pega a ÚLTIMA ocorrência (na consolidação = nome NOVO).
       // aceita iniciais sem ponto ("J S SANTOS"), com ponto ("J. S. LIMA") e complemento ("... MARKETING"/mixed case)
@@ -1612,11 +1615,12 @@ window.TINA=(function(){
     { // fantasia: só declaração real ("(nome fantasia) X", "título de estabelecimento X", "adotar/usar o nome fantasia X") — nunca o cabeçalho da cláusula
       const bad=/^(A |O |As |Os |Uma |Um |Da |Do |De |E |Fica|Passa|Adot|Resolv|Sociedade|Empres|Nome)/i;
       const pats=[
-        /t[íi]tulo (?:de|do) estabelecimento\s*(?:\(nome fantasia\)\s*)?:?\s*["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|\s+em (?:todas|suas)|CL[ÁA]USULA|$)/i,
+        /t[íi]tulo (?:de|do) estabelecimento\s*(?:\(nome fantasia\)\s*)?(?:,?\s*(?:a\s+)?express[ãa]o\s+)?:?\s*["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|\s+em (?:todas|suas)|CL[ÁA]USULA|$)/i,
         /\(nome fantasia\)\s*:?\s*["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|CL[ÁA]USULA|$)/i,
         /(?:adotar?|usar?|utilizar?|ter[áa]?)[^.]{0,25}?(?:nome fantasia|t[íi]tulo (?:de|do) estabelecimento)(?:\s*\(nome fantasia\))?\s*(?:a express[ãa]o\s+|:\s*)?["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|\s+como |\s+em (?:todas|suas|todos|seus|sua|seu)\b|CL[ÁA]USULA|$)/i,
         /(?:a\s+)?express[ãa]o\s+["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s+como\s+(?:seu\s+)?(?:nome\s+)?fantasia/i,   // "(a) expressão X como (nome) fantasia"
-        /(?:nome fantasia|t[íi]tulo (?:de|do) estabelecimento|express[ãa]o)\s*:\s*["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|$)/i
+        /(?:nome fantasia|t[íi]tulo (?:de|do) estabelecimento|express[ãa]o)\s*:\s*["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|$)/i,
+        /\bnome\s+(?:de\s+)?fantasia\s*:?\s*["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|\s+em (?:todas|suas)|CL[ÁA]USULA|$)/i   // "…nome fantasia \"X\"" / "nome fantasia: X" (sem verbo nem parênteses)
       ];
       for(const p of pats){ const m=t.match(p); if(m){ const v=(m[1]||"").trim(); if(v.length>=2 && !bad.test(v)){ d.fantasia=v; inc.add("fantasia"); break; } } }
     }
@@ -1626,7 +1630,8 @@ window.TINA=(function(){
     const objFim="(?:\\.{1,2}\\s+[A-ZÀ-Ú]|Par[áa]grafo|CL[ÁA]USULA|Cl[áa]usula|$)";
     d.objeto=m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?|objeto(?: social)?)[^:]{0,45}?(?:atividades?\\s*:|:)\\s*([\\s\\S]+?)"+objFim,"i"))
       ||m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?)\\s+(?:o exerc[íi]cio d[ae]s?\\s+)?(?:as\\s+)?atividades?(?:\\s+econ[ôo]micas)?\\s+de\\s+([\\s\\S]+?)"+objFim,"i"))
-      ||m1(t,new RegExp("atividades econ[ôo]micas:?\\s*([\\s\\S]+?)"+objFim,"i"));
+      ||m1(t,new RegExp("atividades econ[ôo]micas:?\\s*([\\s\\S]+?)"+objFim,"i"))
+      ||m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?|constitui\\s+(?:o\\s+)?objeto(?: social)?|objeto(?: social)?\\s+(?:[ée]|consiste(?: em| n[oa])?|compreende|ser[áa]|abrange|constitui-se(?: em)?))\\s+(?:o exerc[íi]cio d[ae]s?\\s+)?(?:[oa]s?\\s+)?([\\s\\S]+?)"+objFim,"i"));  // objeto direto: "tem por objeto o comércio…" / "O objeto é o comércio…" (sem ":" nem "atividades")
     if(d.objeto){ d.objeto=limparObjeto(d.objeto); if(d.objeto)inc.add("objeto"); }
     // enquadramento: prioriza a DECLARAÇÃO ("se enquadra … Microempresa/EPP"), não o cabeçalho "(ME/EPP)"
     if(/enquadr\w+[^.]{0,70}?empresa de pequeno porte/i.test(t)) d.enquadramento="EPP";
@@ -1637,12 +1642,18 @@ window.TINA=(function(){
       const lastOf=re=>{let mm3,last;while((mm3=re.exec(t)))last=mm3[1];return last||"";};
       sedeStr=lastOf(/(?:endere[çc]o|sede e foro[^:]{0,25})\s*:\s*(.+?CEP[:\s]*[\d.\- ]{7,13})/gi)
         ||lastOf(/sede\s+(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/gi)
+        ||lastOf(/(?:sede|sediad[ao]|situad[ao]|localizad[ao]|estabelecid[ao])[^.]{0,25}?\b(?:na|à|no|em)\b\s+((?:Rua|Av\.?|Avenida|Pra[çc]a|Travessa|Alameda|Rodovia|Estrada|Quadra|Q\.?|Conjunto|Loteamento|Vila|Largo|Via|1[ºa°]|2[ºa°])\b[\s\S]+?CEP[:\s]*[\d.\- ]{7,13})/gi)   // "A sede está localizada na Avenida…" (verbo entre "sede" e o logradouro)
         ||m1(t,/sede[^.]{0,12}?(?::|na|à|no|em)\s+(.+?)(?:\bBRASIL\b|Par[áa]grafo|Cl[áa]usula|\bResolve\b)/i);
     }
     if(sedeStr){d.sede=parseEndereco(sedeStr); inc.add("sede");}
     d.foro=m1(t,/foro da comarca de\s+([A-Za-zÀ-ú .']+?)\s*[-–\/]/i)||m1(t,/foro d[eo]\s+([A-Za-zÀ-ú .']+?)\s*[-–\/]/i);
     d.dataInicioOrig=m1(t,/(?:produz(?:ir[áa])?\s+efeitos\s+a\s+partir\s+de|efeitos a partir de|in[íi]cio das atividades[^.\d]{0,20}|atividad[^.\d]{0,40}?)\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
-    const na=t.match(/(\d+)\s*[ªaº°]?\s*ALTERA[ÇC][ÃA]O/i); if(na){d.numAlteracao=String(parseInt(na[1],10)+1); inc.add("numAlteracao");}
+    let nAlt=0; const naD=t.match(/(\d+)\s*[ªaº°]?\s*ALTERA[ÇC][ÃA]O/i);
+    if(naD){ nAlt=parseInt(naD[1],10); }
+    else { const oMap={primeira:1,segunda:2,terceira:3,quarta:4,quinta:5,sexta:6,setima:7,oitava:8,nona:9,decima:10};
+      const oM=t.match(/\b(primeira|segunda|terceira|quarta|quinta|sexta|s[ée]tima|oitava|nona|d[ée]cima)\s+ALTERA[ÇC][ÃA]O/i);
+      if(oM){ const before=t.slice(0,oM.index).slice(-12); if(!/(?:d[ée]cima|vig[ée]sima|trig[ée]sima)\s+$/i.test(before)){ const key=oM[1].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,""); nAlt=oMap[key]||0; } } }  // ordinal por extenso; ignora compostos ("décima primeira") p/ não gerar nº errado
+    if(nAlt>0){ d.numAlteracao=String(nAlt+1); inc.add("numAlteracao"); }
     // acha "NOME , brasileiro/estrangeiro" em qualquer lugar (até 9 palavras de nome, com partículas de/dos/e); limparNome tira o lixo
     const socios=[]; const NW="(?:[A-ZÀ-Ú][A-Za-zÀ-ú'.\\-]*|d[eoa]s?|e)";
     const startRe=new RegExp("("+NW+"(?:\\s+"+NW+"){1,8})\\s*,?\\s*(?:nacionalidade\\s+)?(?:brasileir[oa]|estrangeir[oa]|naturalizad[oa])\\b","gi"); const found=[]; let mm;
@@ -1652,10 +1663,14 @@ window.TINA=(function(){
     const pjList=[]; { const pjRe=/([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .,&'\/\-–]{4,90}?(?:LTDA|LIMITADA|EIRELI|S\/A|S\.A\.))\s*,?\s*(?:sociedade[^,]{0,45},?\s*)?inscrita no CNPJ sob o n[º°o.]{1,4}\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\s*-?\s*\d{2})([\s\S]{0,400}?)representad[ao] por\s+(?:seu[ao]?\s+)?((?:s[óo]cio[- ])?administrador[a]?|s[óo]cio-administrador[a]?|procurador[a]?|representante legal|diretor[a]?|presidente)?\s*([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,55}?)\s*[,;]/gi; let pm;
       while((pm=pjRe.exec(t))){ let razao=pm[1].replace(/\s+/g," ").replace(/[,\s]+$/,"").trim();
         razao=razao.replace(/^.*\b(?:s[óo]cia|sociedade|empresa|pessoa jur[íi]dica|admitid[ao]|ingressa\w*)\b\s+/i,"").trim();  // tira prefixo de frase antes da razão
+        { let rw=razao.split(/\s+/); while(rw.length>1 && /^(?:NIRE|CNPJ|N[º°o.]|inscri\w*|sob|\d[\d.\-\/]*)$/i.test(rw[0])) rw.shift(); razao=rw.join(" ").trim(); }  // tira "NIRE/CNPJ ‹número›" grudado do cabeçalho no início da razão
         const cd=pm[2].replace(/\D/g,""); const cnpj=cd.length===14?cd.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,"$1.$2.$3/$4-$5"):pm[2].trim(); const mid=pm[3]||""; const cargo=(pm[4]||"administrador").toLowerCase().trim(); const rep=limparNome(pm[5],razao);
         let sede={}; const sm=mid.match(/sede\s+(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/i)||mid.match(/sede\s+(?:na|à|no|em)\s+(.+?)(?:,?\s*com\b|,\s*NIRE)/i); if(sm)sede=parseEndereco(sm[1]);
         const nireM=mid.match(/NIRE\s*([\d][\d. ]{8,16}\d)/i);
         pjList.push({tipoPessoa:"PJ",sexo:"F",nome:razao,pjCnpj:cnpj,pjNire:nireM?nireM[1].replace(/[^\d]/g,""):"",pjRep:rep,pjCargo:cargo,cep:sede.cep,log:sede.log,num:sede.num,comp:sede.comp,bairro:sede.bairro,mun:sede.mun,uf:sede.uf}); } }
+    // o representante de uma sócia PJ é qualificado ("brasileiro…") DENTRO da cláusula dela e é captado como se fosse sócio PF → remove esse fantasma
+    if(pjList.length && socios.length){ const reps=pjList.map(p=>(p.pjRep||"").toUpperCase().trim()).filter(r=>r.length>=5);
+      for(let i=socios.length-1;i>=0;i--){ const sn=(socios[i].nome||"").toUpperCase(); if(sn && reps.some(r=>sn.includes(r)||r.includes(sn))) socios.splice(i,1); } }
     // --- QUADRO RESULTANTE (tabela "Sócio Quotas Valor … Percentual … TOTAL") = quem FICA na sociedade ---
     let finalQuadro=[]; { const tbl=t.match(/S[óo]cios?\s+Quotas?\s+Valor[^%]{0,30}?Percentual\s+([\s\S]+?)\s+TOTAL\b/i);
       if(tbl){ const rowRe=/([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .,&'\/\-–]{3,80}?)\s+([\d.]{1,12})\s+(?:R\$\s*)?([\d.,]{2,18})\s+([\d.,]{1,7})\s*%/g; let rm;
@@ -1673,6 +1688,12 @@ window.TINA=(function(){
     // formato inline: "NOME: 24.000 quotas" / "NOME - 24.000 cotas"
     const qre2=/([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,60}?)\s*[:\-–]\s*([\d.]{1,10})\s*(?:quotas|cotas)\b/gi; let qm2;
     while((qm2=qre2.exec(t))){const so=acharSocio(qm2[1]); const q=parseInt(qm2[2].replace(/\./g,""),10); if(so&&q)so.quotas=q;}
+    // formato "NOME, 60.000 quotas" (vírgula como separador — muito comum na cláusula de capital)
+    const qre3=/([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,60}?)\s*,\s*(?:subscreve\w*\s+|possui\s+|det[ée]m\s+|titular\s+de\s+|com\s+|integraliza\w*\s+)?([\d.]{1,10})\s*(?:quotas|cotas)\b/gi; let qm3;
+    while((qm3=qre3.exec(t))){const so=acharSocio(qm3[1]); const q=parseInt(qm3[2].replace(/\./g,""),10); if(so&&q&&!(so.quotas>0))so.quotas=q;}
+    // formato "NOME subscreve/possui/detém 60.000 quotas" (verbo, sem separador)
+    const qre4=/([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,60}?)\s+(?:subscreve\w*|possui|det[ée]m|integraliza\w*|é\s+titular\s+de)\s+([\d.]{1,10})\s*(?:quotas|cotas)\b/gi; let qm4;
+    while((qm4=qre4.exec(t))){const so=acharSocio(qm4[1]); const q=parseInt(qm4[2].replace(/\./g,""),10); if(so&&q&&!(so.quotas>0))so.quotas=q;}
     const admBlk=m1(t,/administra[çc][ãa]o[\s\S]{0,160}?(?:exercida|caber[áa])[\s\S]{0,180}?([A-ZÀ-Ú][A-ZÀ-Ú'., \-]{4,180})/i);
     let algum=false; socios.forEach(so=>{const key=so.tipoPessoa==="PJ"?(so.pjRep||so.nome):so.nome; if(key&&admBlk&&admBlk.toUpperCase().includes(key.toUpperCase())){so.administrador=true;algum=true;}});
     if(!algum) socios.forEach(so=>so.administrador=true);
@@ -1700,7 +1721,7 @@ window.TINA=(function(){
     setf("dataInicioOrig",d.dataInicioOrig,true);
     setf("numAlteracao",d.numAlteracao,inc.has("numAlteracao"));
     setf("foro",d.foro,true);
-    if(d.sede){const s=d.sede; setf("s_cep",s.cep,true);setf("s_log",s.log,true);setf("s_num",s.num,true);setf("s_bairro",s.bairro,true);setf("s_mun",s.mun,true); if(s.uf&&$("s_uf")){$("s_uf").value=s.uf;$("s_uf").classList.add("revisar");}}
+    if(d.sede){const s=d.sede; setf("s_cep",s.cep,true);setf("s_log",s.log,true);setf("s_num",s.num,true);setf("s_comp",s.comp,true);setf("s_bairro",s.bairro,true);setf("s_mun",s.mun,true); if(s.uf&&$("s_uf")){$("s_uf").value=s.uf;$("s_uf").classList.add("revisar");}}
     setf("atoCidade",(d.foro||(d.sede&&d.sede.mun)||""),true);
     setf("atoData",hojeBR(),false);
     if(d.socios&&d.socios.length){$("socios").innerHTML=""; d.socios.forEach(so=>socioCard(so)); document.querySelectorAll(".socio input,.socio select").forEach(el=>{if(el.value)el.classList.add("revisar");});}
