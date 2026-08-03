@@ -111,14 +111,14 @@
   .foot{font-size:11px;color:var(--muted2);text-align:center;margin:8px 0 34px}
   .docxprev-wrapper{background:#e9edf3!important;padding:22px 0!important}
   .docxprev-wrapper>section.docxprev{box-shadow:0 6px 22px rgba(20,41,63,.16)!important;margin-bottom:18px!important}
-  @page{size:A4;margin:25mm}   /* margem de 2,5cm em TODAS as páginas (igual ao .docx). Some a margem/cabeçalho extra do navegador; a margem passa a vir da @page, não do padding da seção */
+  @page{size:A4;margin:0}   /* zera só a margem/cabeçalho EXTRA do navegador; a margem de 2,5cm continua vindo do padding que o docx-preview já desenha na seção (mantém as laterais certas) */
   @media print{
     header,.form-cards,.actions,.pv-head,.foot,.typebar,#validacaoBox,#avisoRevisao{display:none!important}
     body{background:#fff}.wrap{max-width:none;margin:0;padding:0}
     #previewCard{border:none;box-shadow:none;border-radius:0;margin:0;padding:0}
     #preview{max-height:none;overflow:visible;background:#fff;padding:0;margin:0}
     .docxprev-wrapper{background:#fff!important;padding:0!important;margin:0!important}
-    .docxprev-wrapper>section.docxprev{box-shadow:none!important;margin:0!important;width:auto!important;min-height:0!important;padding:0!important}   /* seção vira fluxo simples: margens vêm da @page, conteúdo mantém 160mm */
+    .docxprev-wrapper>section.docxprev{box-shadow:none!important;margin:0!important}   /* mantém o padding de 2,5cm da seção = margens iguais ao .docx nos 4 lados (1ª página) */
   }
   @media(max-width:760px){
     .g2,.g3,.g4,.gcep,.gorg{grid-template-columns:1fr}
