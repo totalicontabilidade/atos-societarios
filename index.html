@@ -109,6 +109,13 @@
   #preview{background:#e9edf3;max-height:80vh;overflow:auto}
   #preview .empty{padding:64px 20px;text-align:center;color:var(--muted2);font-size:13px}
   .foot{font-size:11px;color:var(--muted2);text-align:center;margin:8px 0 34px}
+  /* botão "voltar ao topo" — pequeno, sutil, aparece só ao rolar para baixo */
+  #btnTopo{position:fixed;right:18px;bottom:76px;z-index:45;width:42px;height:42px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:50%;background:var(--navy);color:#fff;font-size:20px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(20,41,63,.30);opacity:0;visibility:hidden;transform:translateY(10px);transition:opacity .22s ease,transform .22s ease,visibility .22s}
+  #btnTopo.show{opacity:.9;visibility:visible;transform:translateY(0)}
+  #btnTopo:hover{opacity:1;background:var(--navy2)}
+  #btnTopo:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  @media(max-width:760px){ #btnTopo{bottom:18px;right:14px} }
+  @media (prefers-reduced-motion: reduce){ #btnTopo{transition:opacity .15s} }
   .docxprev-wrapper{background:#e9edf3!important;padding:22px 0!important}
   .docxprev-wrapper>section.docxprev{box-shadow:0 6px 22px rgba(20,41,63,.16)!important;margin-bottom:18px!important}
   @page{size:A4;margin:0}   /* zera só a margem/cabeçalho EXTRA do navegador; a margem de 2,5cm continua vindo do padding que o docx-preview já desenha na seção (mantém as laterais certas) */
@@ -1868,10 +1875,17 @@ window.TINA=(function(){
     if(!window.docxLib){$("status").style.color="var(--err)";$("status").textContent="⚠ lib/docx.umd.min.js não carregou.";}
     socioCard();
     switchMode(MODE);
+    const bt=$("btnTopo");   // botão "voltar ao topo": aparece ao rolar >300px, rola suave até o topo, sem sobrepor a barra de ações sticky
+    if(bt){ const acts=document.querySelector(".actions");
+      const place=()=>{ if(!acts){bt.style.bottom="18px";return;} const r=acts.getBoundingClientRect(),vh=window.innerHeight; bt.style.bottom=(r.top<vh && r.bottom>vh-4)?((vh-r.top+10)+"px"):"18px"; };  // acima da barra quando ela está grudada no rodapé
+      const upd=()=>{ bt.classList.toggle("show",(window.scrollY||document.documentElement.scrollTop)>300); place(); };
+      window.addEventListener("scroll",upd,{passive:true}); window.addEventListener("resize",upd); upd();
+      bt.addEventListener("click",()=>window.scrollTo({top:0,behavior:"smooth"})); }
   }
   document.addEventListener("DOMContentLoaded",init);
   return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF},_pdf:{parseContratoTexto,aplicarDadosContrato}};
 })();
 </script>
+<button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
 </body>
 </html>
