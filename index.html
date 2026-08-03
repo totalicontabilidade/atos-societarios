@@ -1282,29 +1282,29 @@ window.TINA=(function(){
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);});}
   // ===== PDF NATIVO (pdfmake) — gerado a partir do que o docx-preview já renderiza: fonte única = o próprio .docx (não usa impressão) =====
   const _pt = s => { const m=/(-?[\d.]+)pt/.exec(s||""); return m?parseFloat(m[1]):0; };
-  const _WJ = String.fromCharCode(65279);   // U+FEFF word-joiner (zero-width no-break) — impede o justify do pdfmake de abrir gap
-  const _nb = s => (s||"").replace(/\//g,"/"+_WJ).replace(/([^\s])-(?=[^\s])/g,"$1"+_WJ+"-"+_WJ);   // em "/" e "-" dentro das palavras (Aracaju/SE, 111-35, pró-labore)
+  // tokeniza por PALAVRA: cada palavra vira um fragmento noWrap (não estica em "/" nem "-"); o justify estica só nos espaços reais — igual ao Word. Texto 100% limpo, sem caracteres invisíveis.
+  const _frag = runs => { const out=[]; runs.forEach(r=>{ (r.text||"").split(/(\s+)/).forEach(p=>{ if(!p)return; out.push(/^\s+$/.test(p)?{text:p,bold:r.bold}:{text:p,bold:r.bold,noWrap:true}); }); }); return out.length?out:[{text:" "}]; };
   function _runs(p){ const out=[]; p.querySelectorAll("span").forEach(sp=>{ const t=sp.textContent; if(!t)return; const bold=(parseInt(getComputedStyle(sp).fontWeight,10)||400)>=600;
       const last=out[out.length-1]; if(last&&last.b===bold) last.t+=t; else out.push({t,b:bold}); });
     if(!out.length){ const t=p.textContent; if(t) out.push({t,b:false}); }
-    for(let i=0;i<out.length-1;i++){ const m=out[i+1].t.match(/^[,.;:!?)\]]+/); if(m && out[i].t && !/\s$/.test(out[i].t)){ out[i].t+=m[0]; out[i+1].t=out[i+1].t.slice(m[0].length); } }   // move pontuação inicial p/ o fim do trecho anterior (ex.: negrito "LTDA" + ", inscrita" -> "LTDA," + " inscrita") — some o gap do justify na fronteira
-    return out.map(r=>({text:_nb(r.t),bold:r.b})); }
+    for(let i=0;i<out.length-1;i++){ const m=out[i+1].t.match(/^[,.;:!?)\]]+/); if(m && out[i].t && !/\s$/.test(out[i].t)){ out[i].t+=m[0]; out[i+1].t=out[i+1].t.slice(m[0].length); } }   // move pontuação inicial p/ o fim do trecho anterior (ex.: negrito "LTDA" + ", inscrita" -> "LTDA," + " inscrita")
+    return out.map(r=>({text:r.t,bold:r.b})); }
   function _domToPdfmake(){ const secs=[...document.querySelectorAll("section.docxprev")]; const content=[];
     secs.forEach((sec,si)=>{ const root=sec.querySelector("article")||sec; let first=(si>0);   // page break entre seções do Word
       [...root.children].forEach(node=>{ const brk=first||(node.style&&(node.style.pageBreakBefore==="always"||node.style.breakBefore==="page")); first=false;
         if(node.tagName==="P"){ const runs=_runs(node); const st=node.style; const al=(st.textAlign||"left").replace("start","left");
-          const o={ text: runs.length?runs:[{text:" "}], alignment:al, margin:[0,_pt(st.marginTop),0,_pt(st.marginBottom)], lineHeight:(parseFloat(st.lineHeight)||1.15)*1.045 };   // *1.045: a linha do pdfmake é ~4-5% mais baixa que a do Word; aproxima a paginação/aparência do .docx
+          const o={ text: _frag(runs), alignment:al, margin:[0,_pt(st.marginTop),0,_pt(st.marginBottom)], lineHeight:(parseFloat(st.lineHeight)||1.15) };   // espaçamento natural (sem forçar) — documento contínuo no padrão
           if(brk)o.pageBreak="before"; content.push(o);
         } else if(node.tagName==="TABLE"){ const rows=[...node.querySelectorAll("tr")]; if(!rows.length)return;
           const widths=[...rows[0].children].map((c,i)=> i===0?"*":(_pt(c.style.width)||60));
-          const body=rows.map(tr=>[...tr.children].map(td=>{ const pp=td.querySelector("p"); const rr=pp?_runs(pp):[{text:_nb(td.textContent),bold:false}]; const al=((pp&&pp.style.textAlign)||"left").replace("start","left");
-            return { text:rr, alignment:al, bold: rr.some(r=>r.bold) }; }));
+          const body=rows.map(tr=>[...tr.children].map(td=>{ const pp=td.querySelector("p"); const rr=pp?_runs(pp):[{text:td.textContent,bold:false}]; const al=((pp&&pp.style.textAlign)||"left").replace("start","left");
+            return { text:_frag(rr), alignment:al, bold: rr.some(r=>r.bold) }; }));
           const o={ table:{ headerRows:1, widths, body }, layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>"#000", vLineColor:()=>"#000", paddingLeft:()=>4.5, paddingRight:()=>4.5, paddingTop:()=>2, paddingBottom:()=>2 }, margin:[0,0,0,8] };
           if(brk)o.pageBreak="before"; content.push(o);
         } }); });
     return content; }
   function gerarPdfBlob(){ const content=_domToPdfmake(); if(!content.length) throw new Error("prévia vazia");
-    const dd={ pageSize:"A4", pageMargins:[70.87,70.87,70.87,70.87], defaultStyle:{font:"Times",fontSize:12,lineHeight:1.15}, content };
+    const dd={ pageSize:"A4", pageMargins:[70.87,70.87,70.87,70.87], defaultStyle:{font:"Times",fontSize:12,lineHeight:1.15}, language:"pt-BR", info:{title:(coletar().razao||"Ato societário"),producer:"Totali Soluções Contábeis",creator:"Totali Soluções Contábeis"}, content };
     return new Promise((res,rej)=>{ try{ pdfMake.createPdf(dd).getBlob(res); }catch(e){ rej(e); } }); }
   function baixarPDF(){ const d=coletar(); if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados (razão social e sócios) antes de baixar.";return;}
     $("status").className="status muted";$("status").textContent="Gerando PDF…";
