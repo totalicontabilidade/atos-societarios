@@ -1282,16 +1282,18 @@ window.TINA=(function(){
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);});}
   // ===== PDF NATIVO (pdfmake) — gerado a partir do que o docx-preview já renderiza: fonte única = o próprio .docx (não usa impressão) =====
   const _pt = s => { const m=/(-?[\d.]+)pt/.exec(s||""); return m?parseFloat(m[1]):0; };
-  const _nb = s => (s||"");   // (sem word-joiner: a fonte Tinos nao tem U+2060 e virava caixinha)
+  const _WJ = String.fromCharCode(65279);   // U+FEFF word-joiner (zero-width no-break) — impede o justify do pdfmake de abrir gap
+  const _nb = s => (s||"").replace(/\//g,"/"+_WJ).replace(/([^\s])-(?=[^\s])/g,"$1"+_WJ+"-"+_WJ);   // em "/" e "-" dentro das palavras (Aracaju/SE, 111-35, pró-labore)
   function _runs(p){ const out=[]; p.querySelectorAll("span").forEach(sp=>{ const t=sp.textContent; if(!t)return; const bold=(parseInt(getComputedStyle(sp).fontWeight,10)||400)>=600;
       const last=out[out.length-1]; if(last&&last.b===bold) last.t+=t; else out.push({t,b:bold}); });
     if(!out.length){ const t=p.textContent; if(t) out.push({t,b:false}); }
+    for(let i=0;i<out.length-1;i++){ const m=out[i+1].t.match(/^[,.;:!?)\]]+/); if(m && out[i].t && !/\s$/.test(out[i].t)){ out[i].t+=m[0]; out[i+1].t=out[i+1].t.slice(m[0].length); } }   // move pontuação inicial p/ o fim do trecho anterior (ex.: negrito "LTDA" + ", inscrita" -> "LTDA," + " inscrita") — some o gap do justify na fronteira
     return out.map(r=>({text:_nb(r.t),bold:r.b})); }
   function _domToPdfmake(){ const secs=[...document.querySelectorAll("section.docxprev")]; const content=[];
     secs.forEach((sec,si)=>{ const root=sec.querySelector("article")||sec; let first=(si>0);   // page break entre seções do Word
       [...root.children].forEach(node=>{ const brk=first||(node.style&&(node.style.pageBreakBefore==="always"||node.style.breakBefore==="page")); first=false;
         if(node.tagName==="P"){ const runs=_runs(node); const st=node.style; const al=(st.textAlign||"left").replace("start","left");
-          const o={ text: runs.length?runs:[{text:" "}], alignment:al, margin:[0,_pt(st.marginTop),0,_pt(st.marginBottom)], lineHeight:(parseFloat(st.lineHeight)||1.15) };
+          const o={ text: runs.length?runs:[{text:" "}], alignment:al, margin:[0,_pt(st.marginTop),0,_pt(st.marginBottom)], lineHeight:(parseFloat(st.lineHeight)||1.15)*1.045 };   // *1.045: a linha do pdfmake é ~4-5% mais baixa que a do Word; aproxima a paginação/aparência do .docx
           if(brk)o.pageBreak="before"; content.push(o);
         } else if(node.tagName==="TABLE"){ const rows=[...node.querySelectorAll("tr")]; if(!rows.length)return;
           const widths=[...rows[0].children].map((c,i)=> i===0?"*":(_pt(c.style.width)||60));
@@ -1306,7 +1308,7 @@ window.TINA=(function(){
     return new Promise((res,rej)=>{ try{ pdfMake.createPdf(dd).getBlob(res); }catch(e){ rej(e); } }); }
   function baixarPDF(){ const d=coletar(); if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados (razão social e sócios) antes de baixar.";return;}
     $("status").className="status muted";$("status").textContent="Gerando PDF…";
-    gerarPreview().then(()=>gerarPdfBlob()).then(blob=>{ const base=(d.razao||"documento").toUpperCase().replace(/[^A-Z0-9]+/g,"_"); const nome=base+".pdf";
+    gerarPreview().then(()=>gerarPdfBlob()).then(blob=>{ const nome=(_blob&&_blob.nomeArq)?_blob.nomeArq.replace(/\.docx$/i,".pdf"):((d.razao||"documento").toUpperCase().replace(/[^A-Z0-9]+/g,"_")+".pdf");   // mesmo nome do .docx (ex.: 3a_ALTERACAO_COMERCIAL_MODELO.pdf)
         const url=URL.createObjectURL(blob); const a=document.createElement("a");a.href=url;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),6000);
         $("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ PDF baixado: "+nome; })
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro ao gerar PDF: "+(e&&e.message||e);console.error(e);}); }
