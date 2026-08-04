@@ -40,6 +40,7 @@
   header .sys .sub{font-size:11.5px;opacity:.82;margin-top:1px}
   header .spacer{flex:1}
   .chip{font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);padding:4px 11px;border-radius:20px}
+  .offline-pill{background:rgba(194,162,80,.28);border-color:var(--gold);color:#fff;margin-right:8px}
   .wrap{max-width:1000px;margin:22px auto;padding:0 18px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;margin-bottom:18px;box-shadow:var(--shadow)}
   .card h2{font-size:14px;margin:0 0 15px;color:var(--ink);display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.1px}
@@ -63,7 +64,7 @@
   .row{margin-bottom:13px}
   .cepwrap,.cpfwrap{position:relative}
   .fldstat{font-size:10.5px;margin-top:4px;min-height:13px;font-weight:600}
-  .fldstat.ok{color:var(--ok)}.fldstat.bad{color:var(--err)}.fldstat.load{color:var(--muted)}
+  .fldstat.ok{color:var(--ok)}.fldstat.bad{color:var(--err)}.fldstat.load{color:var(--muted)}.fldstat.warn{color:var(--warn)}
   .socio{border:1px solid var(--line);border-radius:13px;padding:16px;margin-bottom:14px;background:linear-gradient(180deg,#fbfcfe,#fff);position:relative;box-shadow:0 1px 2px rgba(20,41,63,.03)}
   .socio .tag{position:absolute;top:-10px;left:14px;background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;font-size:10.5px;font-weight:700;padding:2px 11px;border-radius:12px;letter-spacing:.3px}
   .btn{border:none;border-radius:10px;padding:10px 16px;font:inherit;font-weight:650;cursor:pointer;transition:.14s;display:inline-flex;align-items:center;gap:7px}
@@ -189,6 +190,7 @@
   <div class="spacer"></div>
   <button class="head-install" id="btnInstalar" type="button" title="Instalar como aplicativo" style="display:none">⤓ Instalar app</button>
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
+  <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <span class="chip">v0.5 · beta</span>
 </header>
 
@@ -570,7 +572,7 @@ window.TINA=(function(){
       if(res.ok){const d=res.data;if(tg.log&&!tg.log.value)tg.log.value=d.logradouro||"";if(tg.bairro&&!tg.bairro.value)tg.bairro.value=d.bairro||"";
         if(tg.mun)tg.mun.value=d.localidade||"";if(tg.uf)tg.uf.value=d.uf||"";cepEl.classList.add("good");cepEl.classList.remove("bad");
         statEl.className="fldstat ok";statEl.textContent="✓ "+(d.localidade||"")+"/"+(d.uf||"");}
-      else if(res.offline){cepEl.classList.add("good");cepEl.classList.remove("bad");statEl.className="fldstat load";statEl.textContent="formato válido (offline)";}
+      else if(res.offline){cepEl.classList.remove("bad","good");statEl.className="fldstat warn";statEl.textContent="⚠ sem internet — busca de CEP indisponível; preencha o endereço manualmente";}
       else{cepEl.classList.add("bad");cepEl.classList.remove("good");statEl.className="fldstat bad";statEl.textContent="✗ "+res.msg;}});}
   function attachCpf(cpfEl,statEl){cpfEl.addEventListener("input",()=>cpfEl.value=fmtCpf(cpfEl.value));
     cpfEl.addEventListener("blur",()=>{const raw=cpfEl.value.trim();if(!raw){statEl.textContent="";cpfEl.classList.remove("good","bad");return;}
@@ -1651,9 +1653,18 @@ window.TINA=(function(){
     }
     return {txt,ocr,auth};
   }
+  // OCR 100% offline: worker, core (wasm) e idioma português vendorizados em lib/ — sem depender de CDN.
+  function _simdOK(){ try{ return WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11])); }catch(e){ return false; } }
+  function criarWorkerOCR(){
+    // URLs ABSOLUTAS: o worker resolve corePath/langPath relativo a si mesmo (lib/), então caminhos "lib/..." virariam "lib/lib/...".
+    const dir=new URL("lib/",document.baseURI||location.href).href;   // .../app/lib/
+    const core=_simdOK()?"tesseract-core-simd-lstm.wasm.js":"tesseract-core-lstm.wasm.js";
+    const opts={ workerPath:dir+"tesseract-worker.min.js", corePath:dir+core, langPath:dir.replace(/\/$/,""), workerBlobURL:false };
+    return Tesseract.createWorker("por",1,opts);   // OEM 1 (LSTM) = casa com os cores "-lstm"
+  }
   async function ocrFooters(pdf,pages,onp){ // OCR só da faixa inferior (rodapé) — onde fica o carimbo digital da Junta
     if(!window.Tesseract) return "";
-    let out=""; const worker=await Tesseract.createWorker("por");
+    let out=""; const worker=await criarWorkerOCR();
     try{
       for(let i=0;i<pages.length;i++){const p=pages[i];
         onp&&onp("OCR rodapé pág. "+p+" ("+(i+1)+"/"+pages.length+")…");
@@ -1671,7 +1682,7 @@ window.TINA=(function(){
   }
   async function ocrPages(pdf,pages,onp){
     if(!window.Tesseract) throw new Error("OCR (Tesseract) indisponível");
-    let out=""; const worker=await Tesseract.createWorker("por");
+    let out=""; const worker=await criarWorkerOCR();
     try{
       for(let i=0;i<pages.length;i++){const p=pages[i];
         onp&&onp("OCR página "+p+" ("+(i+1)+"/"+pages.length+")… pode demorar");
@@ -2161,6 +2172,12 @@ window.TINA=(function(){
       if($("btnDraftDiscard")) $("btnDraftDiscard").addEventListener("click",()=>{limparRascunho();$("draftBanner").classList.remove("show");toast("Rascunho descartado.","info");}); }
     document.addEventListener("input",salvarRascunhoDeb);
     document.addEventListener("change",salvarRascunhoDeb);
+    // Indicador de rede: o app funciona offline; consultas online (CEP) avisam quando indisponíveis
+    const off=$("offlinePill");
+    if(off){ const upd=()=>{off.style.display=navigator.onLine?"none":"";};
+      window.addEventListener("online",()=>{upd();toast("Conexão restabelecida.","ok",2200);});
+      window.addEventListener("offline",()=>{upd();toast("Sem internet — o app continua funcionando. Consultas online (como o CEP) ficam indisponíveis até a conexão voltar.","info",4500);});
+      upd(); }
     const bt=$("btnTopo");   // botão "voltar ao topo": aparece ao rolar >300px, rola suave até o topo, sem sobrepor a barra de ações sticky
     if(bt){ const acts=document.querySelector(".actions");
       const place=()=>{ if(!acts){bt.style.bottom="18px";return;} const r=acts.getBoundingClientRect(),vh=window.innerHeight; bt.style.bottom=(r.top<vh && r.bottom>vh-4)?((vh-r.top+10)+"px"):"18px"; };  // acima da barra quando ela está grudada no rodapé

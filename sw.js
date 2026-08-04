@@ -2,7 +2,7 @@
    Estratégia: precache do "app shell" essencial + cache em tempo de execução
    (cache-first) para o restante do mesmo domínio (libs grandes, assets).
    Recursos externos (ViaCEP, motor do Tesseract na CDN) passam direto pela rede. */
-const CACHE = "atos-shell-v1";
+const CACHE = "atos-shell-v2";
 const CORE = [
   "./",
   "./index.html",

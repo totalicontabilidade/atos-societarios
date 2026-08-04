@@ -3,5 +3,9 @@
 
 # Tratar como binário (sem conversão de fim de linha)
 *.png binary
+*.gz binary
+*.traineddata binary
+*.wasm binary
 *.min.js -text
 lib/docxtemplater.js -text
+lib/tesseract-core-*.wasm.js -text
