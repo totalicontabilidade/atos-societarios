@@ -1459,7 +1459,7 @@ window.TINA=(function(){
     let h=0; const seed=((d.razao||"")+(d.atoData||"")+(d.cnpj||"")); for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0; return ymd+"-"+String(1000+(h%9000));}
   function blocosEmail(d,sufixo){const L=[]; const CH=d.changed||new Set(); const isAltMode=MODE.endsWith("alt");
     if(isAltMode && CH.size){
-      if(CH.has("nome")) L.push("▸ NOME EMPRESARIAL\n    Passa a ser: "+(d.razao||"").toUpperCase()+sufixo);
+      if(CH.has("nome")){const ant=(d.razaoAnterior||"").toUpperCase();L.push("▸ NOME EMPRESARIAL\n"+(ant?"    De: "+ant+sufixo+"\n    Para: ":"    Passa a ser: ")+(d.razao||"").toUpperCase()+sufixo);}
       if(CH.has("fantasia")) L.push("▸ NOME FANTASIA\n    Passa a ser: "+(d.fantasia||"(supressão do nome fantasia)"));
       if(CH.has("sede")) L.push("▸ ENDEREÇO DA SEDE\n    Passa a ser: "+endLinha(d.sede));
       if(CH.has("objeto")) L.push("▸ OBJETO SOCIAL (ATIVIDADES)\n    Passa a ser: "+(d.objeto||""));
@@ -1501,6 +1501,9 @@ window.TINA=(function(){
     const sufixo=(MODE==="const"||MODE==="alt"||MODE==="transf_ei_ltda"||MODE==="transf_ei_slu"||MODE==="dist_ltda")?" LTDA":"";
     const ato=tipoAto(d);
     const razUP=(d.razao||"[RAZÃO SOCIAL]").toUpperCase();
+    const CH=d.changed||new Set();
+    const mudaNome=MODE.endsWith("alt") && CH.has("nome") && !!(d.razaoAnterior||"").trim();
+    const razHeaderUP=mudaNome ? (d.razaoAnterior||"").toUpperCase() : razUP;   // no cabeçalho cita o nome ATUAL; a mudança (De/Para) é detalhada no bloco abaixo
     const id=casoAtualId||idSolicitacao(d);   // se o caso já foi salvo no painel, usa o ID único do caso
     emailIdAtual=id;
     const contato=($("emailContato").value||"").trim()||"Cliente";
@@ -1509,7 +1512,7 @@ window.TINA=(function(){
     const SEP="──────────────────────────────────────────────";
     const tituloBloco=MODE.startsWith("dist")?"DADOS DO ENCERRAMENTO":MODE.startsWith("transf")?"DADOS DA TRANSFORMAÇÃO":(MODE==="const"||MODE==="ei_const")?"DADOS DO ATO":"ALTERAÇÕES SOLICITADAS";
     let b="Prezado(a) "+contato+",\n\n";
-    b+="Conforme alinhado, encaminhamos abaixo o resumo do ato societário a ser promovido na empresa "+razUP+sufixo+(d.cnpj?" (CNPJ "+d.cnpj+")":"")+", por meio da "+ato+", com posterior registro na Junta Comercial do Estado de Sergipe (JUCESE).\n\n";
+    b+="Conforme alinhado, encaminhamos abaixo o resumo do ato societário a ser promovido na empresa "+razHeaderUP+sufixo+(d.cnpj?" (CNPJ "+d.cnpj+")":"")+", por meio da "+ato+", com posterior registro na Junta Comercial do Estado de Sergipe (JUCESE).\n\n";
     if(d.atoData) b+="A data pretendida para o ato é "+d.atoData+".\n\n";
     b+="Solicitamos a gentileza de revisar com atenção as informações abaixo e, estando tudo correto, responder a este e-mail confirmando (basta \"Confirmado\" ou \"De acordo\") para que possamos prosseguir com a elaboração e o protocolo. Caso identifique algo a ajustar, é só indicar nesta mesma resposta.\n\n";
     b+=SEP+"\n"+tituloBloco+"\n"+SEP+"\n\n"+blocosEmail(d,sufixo)+"\n\n";
