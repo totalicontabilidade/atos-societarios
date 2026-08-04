@@ -235,7 +235,7 @@
         </div>
         <div>
           <label>O que muda nesta alteração <span class="hint">— frases separadas por ";"</span><span class="helpbtn" id="btnHelpRapido" title="Como escrever">?</span></label>
-          <textarea id="cmdRapido" placeholder="Ex.: razão social para PADARIA NOVA; fantasia para Pão Quente; capital para R$ 50.000; incluir atividade Lanchonete; excluir atividade Padaria; porte para EPP; endereço para Rua X, 100, Centro, Aracaju/SE, 49000-000  —  clique no ? para ver todos os formatos"></textarea>
+          <textarea id="cmdRapido" placeholder="Ex.: razão social para PADARIA NOVA; fantasia para Pão Quente; capital para R$ 50.000; porte para EPP; excluir todas as atividades; incluir atividades: Comércio varejista de alimentos; Padaria e confeitaria; Lanchonete  —  (tudo depois de 'incluir atividades:' vira a lista, separada por ';'). Clique no ? para todos os formatos."></textarea>
         </div>
       </div>
       <div class="bar">
@@ -385,9 +385,11 @@
         <tr><td>Razão social</td><td><code>razão social para NOVA RAZÃO SOCIAL</code></td></tr>
         <tr><td>Nome fantasia</td><td><code>fantasia para NOVO FANTASIA</code></td></tr>
         <tr><td>Endereço / sede</td><td><code>endereço para Rua X, 100, Bairro, Cidade/UF, 49000-000</code></td></tr>
-        <tr><td>Trocar o objeto</td><td><code>objeto para atividade 1; atividade 2</code></td></tr>
-        <tr><td>Incluir atividade</td><td><code>incluir atividade Lanchonete</code></td></tr>
-        <tr><td>Excluir atividade</td><td><code>excluir atividade Comércio de bolos</code></td></tr>
+        <tr><td>Trocar todo o objeto</td><td><code>objeto para: atividade 1; atividade 2; atividade 3</code> <span class="hint">(substitui tudo — tudo depois dos ":" vira a lista)</span></td></tr>
+        <tr><td>Trocar todas as atividades</td><td><code>excluir todas as atividades; incluir atividades: atividade 1; atividade 2; atividade 3</code> <span class="hint">(limpa as atuais e insere a lista)</span></td></tr>
+        <tr><td>Limpar as atividades</td><td><code>excluir todas as atividades</code></td></tr>
+        <tr><td>Incluir uma atividade</td><td><code>incluir atividade Lanchonete</code></td></tr>
+        <tr><td>Excluir uma atividade</td><td><code>excluir atividade Comércio de bolos</code></td></tr>
         <tr><td>Capital social</td><td><code>capital para R$ 50.000</code></td></tr>
         <tr><td>Porte / enquadramento</td><td><code>porte para ME</code> · <code>porte para EPP</code> · <code>porte para DEMAIS</code></td></tr>
         <tr><td>Incluir sócio</td><td><code>incluir sócio MARIA SOUZA LIMA, CPF 111.444.777-35</code></td></tr>
@@ -1947,8 +1949,18 @@ window.TINA=(function(){
     if(d.socios&&d.socios.length){$("socios").innerHTML=""; d.socios.forEach(so=>socioCard(so)); document.querySelectorAll(".socio input,.socio select").forEach(el=>{if(el.value)el.classList.add("revisar");});}
   }
   function parseComandos(txt){
-    const segs=txt.split(/[;\n]+/).map(s=>s.trim()).filter(Boolean);
     const applied=[]; const chk=id=>{if($(id))$(id).checked=true;};
+    // Lista de atividades no fim do comando: "incluir atividades: A; B; C" (ADICIONA à lista) ou
+    // "objeto para: A; B; C" / "atividades: A; B; C" (SUBSTITUI). Captura tudo após os dois-pontos e separa por ";".
+    let listaAtiv=null, listaModo=null, corpo=txt;
+    const tailRe=/(?:^|[;\n])\s*(?:(inclu\w+|adicion\w+|acrescent\w+)\s+(?:as?\s+)?atividades?|objeto(?:\s+social)?|atividades?)\s*(?:para\s*:?|:)\s*([\s\S]+)$/i;
+    const tm=txt.match(tailRe);
+    if(tm){
+      listaModo=/^(?:inclu|adicion|acrescent)/i.test(tm[1]||"")?"append":"replace";
+      listaAtiv=tm[2].split(/[;\n]+/).map(x=>x.replace(/^[\s.;]+|[\s.;]+$/g,"")).filter(Boolean);
+      corpo=txt.slice(0,tm.index);   // o resto vira comandos normais
+    }
+    const segs=corpo.split(/[;\n]+/).map(s=>s.trim()).filter(Boolean);
     for(const s of segs){
       let m;
       if(m=s.match(/inclu\w+\s+s[óo]cio\s+(.+)/i)){const rest=m[1];const cpf=(rest.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/)||[])[0]||"";const nome=rest.replace(/,?\s*cpf.*/i,"").replace(/,\s*\d.*/,"").trim();socioCard({nome,cpf});const last=[...document.querySelectorAll(".socio")].pop();if(last)last.querySelectorAll("[data-f=nome],[data-f=cpf]").forEach(el=>el.classList.add("revisar"));chk("alt_quadro");applied.push("incluir sócio: "+nome);continue;}
@@ -1957,10 +1969,20 @@ window.TINA=(function(){
       if(m=s.match(/(?:raz[aã]o\s+social|nome\s+empresarial)\s+(?:para|:)\s*(.+)/i)){$("razao").value=m[1].trim().replace(/\s+ltda\.?$/i,"");chk("alt_nome");applied.push("razão social → "+$("razao").value);continue;}
       if(m=s.match(/capital(?:\s+social)?\s+(?:para|:)\s*(?:r\$\s*)?([\d.,]+)/i)){$("capital").value=brNum(m[1]);chk("alt_capital");applied.push("capital → "+reais(brNum(m[1])));continue;}
       if(m=s.match(/(?:porte|enquadr\w*)\s+(?:para|como|:)\s*(.+)/i)){const v=m[1].toLowerCase();const e=(v.includes("epp")||v.includes("pequeno"))?"EPP":((v.includes("micro")||/\bme\b/.test(v))?"ME":"DEMAIS");$("enquadramento").value=e;chk("alt_enquadramento");applied.push("porte → "+e);continue;}
+      // limpar TODAS as atividades (sem um alvo específico depois) → zera o objeto
+      if(/^(?:exclu\w+|remov\w+|retir\w+|limp\w+|apag\w+|zer\w+)\s+(?:tod[oa]s?\s+)?(?:[oa]s?\s+)?(?:atividades?|objeto(?:\s+social)?|cnaes?)\s*$/i.test(s)){$("objeto").value="";chk("alt_objeto");applied.push("excluir todas as atividades");continue;}
       if(m=s.match(/(?:inclu\w+|adicion\w+|acrescent\w+)\s+(?:a |as |o |os |no )?(?:atividade|cnae|objeto)?s?\s*:?\s*(.+)/i)){const cur=$("objeto").value.trim();$("objeto").value=(cur?cur.replace(/[;.\s]*$/,"")+"; ":"")+m[1].trim();chk("alt_objeto");applied.push("incluir atividade: "+m[1].trim());continue;}
       if(m=s.match(/(?:exclu\w+|remov\w+|retir\w+)\s+(?:a |as |o |do )?(?:atividade|cnae|objeto)?s?\s*:?\s*(.+)/i)){const alvo=m[1].trim().toLowerCase();$("objeto").value=$("objeto").value.split(/;/).map(x=>x.trim()).filter(x=>x&&x.toLowerCase()!==alvo).join("; ");chk("alt_objeto");applied.push("excluir atividade: "+m[1].trim());continue;}
       if(m=s.match(/objeto(?:\s+social)?\s+(?:para|:)\s*(.+)/i)){$("objeto").value=m[1].trim();chk("alt_objeto");applied.push("objeto (novo)");continue;}
       if(m=s.match(/(?:endereç\w+|sede)\s+(?:para|:)\s*(.+)/i)){const raw=m[1].trim();chk("alt_sede");const cep=raw.match(/(\d{5}-?\d{3})/);if(cep&&$("s_cep"))$("s_cep").value=cep[1];if($("s_log"))$("s_log").value=raw;applied.push("sede → (revise os campos de endereço)");continue;}
+    }
+    // aplica a LISTA de atividades capturada no fim (depois dos comandos, p/ respeitar o "excluir todas" antes dela)
+    if(listaAtiv&&listaAtiv.length){
+      if(listaModo==="replace")$("objeto").value="";
+      const cur=$("objeto").value.trim();
+      $("objeto").value=(cur?cur.replace(/[;.\s]*$/,"")+"; ":"")+listaAtiv.join("; ");
+      chk("alt_objeto");
+      applied.push((listaModo==="replace"?"objeto redefinido":"incluir atividades")+" ("+listaAtiv.length+")");
     }
     return applied;
   }
