@@ -1,8 +1,10 @@
-/* Service worker — Atos Societários (PWA offline).
-   Estratégia: precache do "app shell" essencial + cache em tempo de execução
-   (cache-first) para o restante do mesmo domínio (libs grandes, assets).
-   Recursos externos (ViaCEP, motor do Tesseract na CDN) passam direto pela rede. */
-const CACHE = "atos-shell-v2";
+/* Service worker — Atos Societários (PWA offline + auto-atualização).
+   Estratégia:
+   - Navegação (abrir o app): REDE PRIMEIRO, ignorando o cache do navegador (cache:"no-store"),
+     e guarda a cópia mais nova para uso offline. Assim, abrir o app online = sempre a última versão.
+   - Demais recursos do mesmo domínio (libs grandes, ícones): cache primeiro (rápido/offline).
+   - Recursos externos (ViaCEP): passam direto pela rede. */
+const CACHE = "atos-shell-v3";
 const CORE = [
   "./",
   "./index.html",
@@ -28,14 +30,20 @@ self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  // só trata o mesmo domínio; externos (CDN/ViaCEP) seguem pela rede normal
+  // só trata o mesmo domínio; externos (ViaCEP etc.) seguem pela rede normal
   if (url.origin !== self.location.origin) return;
 
-  // navegação (abrir o app): rede primeiro, cai para o index.html cacheado offline
+  // navegação (abrir o app): rede primeiro SEM cache HTTP → sempre a versão mais nova; atualiza a cópia offline; cai para o cache se estiver sem internet
   if (req.mode === "navigate") {
-    e.respondWith(
-      fetch(req).catch(() => caches.match("./index.html").then(r => r || caches.match("./")))
-    );
+    e.respondWith((async () => {
+      try {
+        const fresh = await fetch(req.url, { cache: "no-store" });
+        caches.open(CACHE).then(c => c.put("./index.html", fresh.clone())).catch(() => {});
+        return fresh;
+      } catch (_) {
+        return (await caches.match("./index.html")) || (await caches.match("./")) || Response.error();
+      }
+    })());
     return;
   }
 

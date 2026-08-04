@@ -193,7 +193,8 @@
   <button class="head-install" id="btnInstalar" type="button" title="Instalar como aplicativo" style="display:none">⤓ Instalar app</button>
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
-  <span class="chip">v0.5 · beta</span>
+  <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
+  <span class="chip">v0.6 · beta</span>
 </header>
 
 <div class="wrap">
@@ -2248,11 +2249,34 @@ window.TINA=(function(){
   </div>
 </div>
 <script>
-/* PWA: registra o service worker (offline) e trata o convite de instalação.
+/* PWA: service worker (offline) + AUTO-ATUALIZAÇÃO + convite de instalação.
+   A navegação já busca a última versão da rede ao abrir (rede-primeiro no sw.js);
+   aqui checamos o próprio SW sem cache e avisamos se surgir versão nova com o app aberto.
    Só roda sob http/https — em file:// o service worker não é permitido. */
 (function(){
+  var abertoEm=Date.now();
+  function avisarNovaVersao(){
+    if(Date.now()-abertoEm<60000) return;        // logo após abrir já é a versão nova (rede-primeiro); só avisa se o app ficou aberto por um tempo
+    if(document.getElementById("swUpdate")) return;
+    var w=document.getElementById("toastWrap")||document.body;
+    var t=document.createElement("div"); t.id="swUpdate"; t.className="toast info show"; t.style.cursor="pointer";
+    t.textContent="✨ Nova versão disponível — toque para atualizar";
+    t.addEventListener("click",function(){ location.reload(); });
+    w.appendChild(t);
+  }
   if("serviceWorker" in navigator && (location.protocol==="https:"||location.protocol==="http:")){
-    window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
+    window.addEventListener("load",function(){
+      navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(function(reg){
+        reg.update().catch(function(){});                                   // checa atualização do SW a cada abertura (sem cache HTTP)
+        setInterval(function(){ reg.update().catch(function(){}); },3600000); // e a cada 1h enquanto o app fica aberto
+        reg.addEventListener("updatefound",function(){
+          var nw=reg.installing; if(!nw) return;
+          nw.addEventListener("statechange",function(){
+            if(nw.state==="installed" && navigator.serviceWorker.controller) avisarNovaVersao();
+          });
+        });
+      }).catch(function(){});
+    });
   }
   var deferred=null; var btn=document.getElementById("btnInstalar");
   window.addEventListener("beforeinstallprompt",function(e){ e.preventDefault(); deferred=e; if(btn)btn.style.display=""; });
