@@ -1459,13 +1459,16 @@ window.TINA=(function(){
     let h=0; const seed=((d.razao||"")+(d.atoData||"")+(d.cnpj||"")); for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0; return ymd+"-"+String(1000+(h%9000));}
   function blocosEmail(d,sufixo){const L=[]; const CH=d.changed||new Set(); const isAltMode=MODE.endsWith("alt");
     if(isAltMode && CH.size){
-      if(CH.has("nome")){const ant=(d.razaoAnterior||"").toUpperCase();L.push("▸ NOME EMPRESARIAL\n"+(ant?"    De: "+ant+sufixo+"\n    Para: ":"    Passa a ser: ")+(d.razao||"").toUpperCase()+sufixo);}
-      if(CH.has("fantasia")) L.push("▸ NOME FANTASIA\n    Passa a ser: "+(d.fantasia||"(supressão do nome fantasia)"));
-      if(CH.has("sede")) L.push("▸ ENDEREÇO DA SEDE\n    Passa a ser: "+endLinha(d.sede));
-      if(CH.has("objeto")) L.push("▸ OBJETO SOCIAL (ATIVIDADES)\n    Passa a ser: "+(d.objeto||""));
-      if(CH.has("capital")) L.push("▸ CAPITAL SOCIAL\n    Passa a ser: "+reais(d.capital)+" ("+extensoReais(d.capital)+")");
-      if(CH.has("quadro")) L.push("▸ QUADRO SOCIETÁRIO\n"+d.socios.map(s=>"    "+(s.nome||"").toUpperCase()+" — "+numBR(s.quotas||0)+" quotas ("+pct(s.percentual||0)+")").join("\n"));
-      if(CH.has("enquadramento")) L.push("▸ ENQUADRAMENTO (PORTE)\n    Passa a ser: "+(ENQ[d.enquadramento]||d.enquadramento));
+      const va=valoresAntes;   // estado ATUAL (do PDF) antes das mudanças; null se não veio de preenchimento rápido
+      const dp=(label,antes,depois)=> (antes!=null&&String(antes).trim()!=="") ? ("▸ "+label+"\n    De:   "+antes+"\n    Para: "+depois) : ("▸ "+label+"\n    Passa a ser: "+depois);
+      const fmtQuadro=socs=>socs.map(s=>"      "+(s.nome||"").toUpperCase()+" — "+numBR(s.quotas||0)+" quotas ("+pct(s.percentual||0)+")").join("\n");
+      if(CH.has("nome")){const ant=((d.razaoAnterior||(va&&va.razao))||"").toUpperCase(); L.push(dp("NOME EMPRESARIAL", ant?ant+sufixo:"", (d.razao||"").toUpperCase()+sufixo));}
+      if(CH.has("fantasia")) L.push(dp("NOME FANTASIA", (va&&va.fantasia)||"", d.fantasia||"(supressão do nome fantasia)"));
+      if(CH.has("sede")) L.push(dp("ENDEREÇO DA SEDE", (va&&va.sede&&(va.sede.log||va.sede.cep))?endLinha(va.sede):"", endLinha(d.sede)));
+      if(CH.has("objeto")) L.push(dp("OBJETO SOCIAL (ATIVIDADES)", (va&&va.objeto)||"", d.objeto||""));
+      if(CH.has("capital")) L.push(dp("CAPITAL SOCIAL", (va&&va.capital>0)?reais(va.capital)+" ("+extensoReais(va.capital)+")":"", reais(d.capital)+" ("+extensoReais(d.capital)+")"));
+      if(CH.has("quadro")){ if(va&&va.socios&&va.socios.length) L.push("▸ QUADRO SOCIETÁRIO\n    De:\n"+fmtQuadro(va.socios)+"\n    Para:\n"+fmtQuadro(d.socios)); else L.push("▸ QUADRO SOCIETÁRIO\n"+fmtQuadro(d.socios).replace(/^ {2}/gm,"")); }
+      if(CH.has("enquadramento")) L.push(dp("ENQUADRAMENTO (PORTE)", (va&&va.enquadramento)?(ENQ[va.enquadramento]||va.enquadramento):"", (ENQ[d.enquadramento]||d.enquadramento)));
       if(!L.length) L.push("(Marque em \"O que muda\" os itens alterados para detalhá-los aqui.)");
     } else if(MODE==="const"||MODE==="ei_const"){
       L.push("    "+(MODE==="ei_const"?"Nome empresarial":"Razão social")+": "+(d.razao||"").toUpperCase()+sufixo);
@@ -1534,6 +1537,7 @@ window.TINA=(function(){
   let CFG=cfgDefault();      // configurações do escritório (marca + padrões); definidas de fato no init via lerCfg()
   let _cfgLogoTmp="";        // logo escolhido no modal antes de salvar
   let _suppressDraft=false;  // evita autosave durante restauração programática
+  let valoresAntes=null;     // snapshot do estado ATUAL (do PDF) antes dos comandos — usado no e-mail p/ mostrar "De/Para"
   function tipoAto(d){const n=d.numAlteracao||"1"; return ATO_EMAIL[MODE]||(MODE==="alt"?(n+"ª Alteração Contratual"):MODE==="ei_alt"?(n+"ª Alteração de Empresário Individual"):"Ato societário");}
   function lerCasos(){try{return JSON.parse(localStorage.getItem("tinaCasos")||"[]");}catch(e){return [];}}
   function salvarCasos(a){try{localStorage.setItem("tinaCasos",JSON.stringify(a));}catch(e){}}
@@ -1625,6 +1629,7 @@ window.TINA=(function(){
     recalc();}
   function limparCampos(){  // zera os DADOS do formulário (não mexe no PDF anexado nem no texto de "o que muda")
     casoAtualId=null;       // formulário novo/zerado = caso novo (o próximo "salvar" cria outro registro)
+    valoresAntes=null;      // some com o estado "antes" ao limpar o formulário
     ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","clausulasExtra"].forEach(id=>{if($(id))$(id).value="";});
     document.querySelectorAll(".revisar").forEach(e=>e.classList.remove("revisar"));
     ["nome","fantasia","sede","objeto","capital","quadro","enquadramento"].forEach(k=>{if($("alt_"+k))$("alt_"+k).checked=false;});
@@ -2009,6 +2014,8 @@ window.TINA=(function(){
     if(f||cmdPre) limparCampos();  // ZERA os campos antes de aplicar — não mistura com o documento anterior
     if(f){try{const {txt,ocr,auth}=await extrairTextoPDF(f,m=>{$("pdfStat").className="fldstat load";$("pdfStat").textContent=m;});if($("pdfTexto")){$("pdfTexto").textContent=txt+(auth?"\n\n----- OCR rodapé (carimbo da Junta) -----\n"+auth:"")+(ocr?"\n\n----- OCR páginas escaneadas -----\n"+ocr:"");$("pdfTextoWrap").style.display="";}aplicarDadosContrato(parseContratoTexto(txt,ocr,auth));houvePDF=true;$("pdfStat").className="fldstat ok";$("pdfStat").textContent="✓ Dados do PDF extraídos — confira os campos em amarelo.";}catch(e){$("pdfStat").className="fldstat bad";$("pdfStat").textContent="Falha ao ler PDF: "+((e&&e.message)||(typeof e==="string"?e:"")||"erro desconhecido");console.error(e);}}
     const cmd=$("cmdRapido").value.trim();
+    // snapshot do estado ATUAL (do PDF) ANTES de aplicar os comandos → e-mail mostra "De/Para" de todas as alterações
+    if(houvePDF && cmd && (($("razao").value||"").trim()||($("objeto").value||"").trim())){ recalc(); valoresAntes=coletar(); }
     const applied=cmd?parseComandos(cmd):[];
     if(!$("atoData").value)$("atoData").value=hojeBR();
     recalc();
