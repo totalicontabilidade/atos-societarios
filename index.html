@@ -512,7 +512,7 @@
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
 <script>
-/* ================= TINA v0.3 — Contrato Social Ltda (modelo JUCESE/DRScale) ================= */
+/* ================= TINA v0.3 — Contrato Social Ltda (modelo JUCESE/REGIN) ================= */
 window.TINA=(function(){
   "use strict";
   const $=(id)=>document.getElementById(id);
@@ -1636,14 +1636,18 @@ window.TINA=(function(){
     if((total<40 || garbled) && window.Tesseract){ // PDF escaneado OU texto ilegível → OCR tudo (vira o texto principal)
       onp&&onp((garbled?"Texto do PDF ilegível — ":"PDF escaneado — ")+"rodando OCR (pode demorar)…");
       const all=[]; for(let p=1;p<=Math.min(pdf.numPages,12);p++)all.push(p);
-      txt=await ocrPages(pdf,all,onp);
+      try{ txt=await ocrPages(pdf,all,onp); }
+      catch(err){ console.warn("OCR indisponível:",err); throw new Error("Este PDF é uma imagem (escaneado) e o OCR não pôde ser executado. Verifique a conexão com a internet — o motor de OCR é baixado online — ou preencha os campos manualmente."); }
     } else if(window.Tesseract && !acharNIRE(txt)){ // texto digital sem NIRE → procurar na autenticação/chancela (imagem)
-      // 1) OCR do RODAPÉ (carimbo oficial da Junta: "CERTIFICO O REGISTRO ... NIRE: ...") — última página é a definitiva
-      const foot=[...new Set([pdf.numPages,pdf.numPages-1,1])].filter(x=>x>=1&&x<=pdf.numPages);
-      onp&&onp("Procurando NIRE na autenticação da Junta (OCR do rodapé)…");
-      auth=await ocrFooters(pdf,foot,onp);
-      // 2) fallback: se o rodapé não trouxe NIRE, OCR completo das páginas-imagem (chancela/cópia autenticada)
-      if(!acharNIRE(auth) && sparse.length){ onp&&onp("OCR das páginas escaneadas (pode demorar)…"); ocr=await ocrPages(pdf,sparse.slice(0,8),onp); }
+      // OCR do carimbo é OPCIONAL (só busca o NIRE): se falhar (ex.: sem internet p/ baixar o Tesseract), NÃO descarta o texto digital já lido.
+      try{
+        // 1) OCR do RODAPÉ (carimbo oficial da Junta: "CERTIFICO O REGISTRO ... NIRE: ...") — última página é a definitiva
+        const foot=[...new Set([pdf.numPages,pdf.numPages-1,1])].filter(x=>x>=1&&x<=pdf.numPages);
+        onp&&onp("Procurando NIRE na autenticação da Junta (OCR do rodapé)…");
+        auth=await ocrFooters(pdf,foot,onp);
+        // 2) fallback: se o rodapé não trouxe NIRE, OCR completo das páginas-imagem (chancela/cópia autenticada)
+        if(!acharNIRE(auth) && sparse.length){ onp&&onp("OCR das páginas escaneadas (pode demorar)…"); ocr=await ocrPages(pdf,sparse.slice(0,8),onp); }
+      }catch(err){ auth=""; ocr=""; console.warn("OCR do carimbo indisponível — seguindo só com o texto digital (o NIRE pode não ser preenchido):",err); }
     }
     return {txt,ocr,auth};
   }
@@ -1955,7 +1959,7 @@ window.TINA=(function(){
     const f=$("pdfContrato").files&&$("pdfContrato").files[0];
     const cmdPre=$("cmdRapido").value.trim();
     if(f||cmdPre) limparCampos();  // ZERA os campos antes de aplicar — não mistura com o documento anterior
-    if(f){try{const {txt,ocr,auth}=await extrairTextoPDF(f,m=>{$("pdfStat").className="fldstat load";$("pdfStat").textContent=m;});if($("pdfTexto")){$("pdfTexto").textContent=txt+(auth?"\n\n----- OCR rodapé (carimbo da Junta) -----\n"+auth:"")+(ocr?"\n\n----- OCR páginas escaneadas -----\n"+ocr:"");$("pdfTextoWrap").style.display="";}aplicarDadosContrato(parseContratoTexto(txt,ocr,auth));houvePDF=true;$("pdfStat").className="fldstat ok";$("pdfStat").textContent="✓ Dados do PDF extraídos — confira os campos em amarelo.";}catch(e){$("pdfStat").className="fldstat bad";$("pdfStat").textContent="Falha ao ler PDF: "+e.message;}}
+    if(f){try{const {txt,ocr,auth}=await extrairTextoPDF(f,m=>{$("pdfStat").className="fldstat load";$("pdfStat").textContent=m;});if($("pdfTexto")){$("pdfTexto").textContent=txt+(auth?"\n\n----- OCR rodapé (carimbo da Junta) -----\n"+auth:"")+(ocr?"\n\n----- OCR páginas escaneadas -----\n"+ocr:"");$("pdfTextoWrap").style.display="";}aplicarDadosContrato(parseContratoTexto(txt,ocr,auth));houvePDF=true;$("pdfStat").className="fldstat ok";$("pdfStat").textContent="✓ Dados do PDF extraídos — confira os campos em amarelo.";}catch(e){$("pdfStat").className="fldstat bad";$("pdfStat").textContent="Falha ao ler PDF: "+((e&&e.message)||(typeof e==="string"?e:"")||"erro desconhecido");console.error(e);}}
     const cmd=$("cmdRapido").value.trim();
     const applied=cmd?parseComandos(cmd):[];
     if(!$("atoData").value)$("atoData").value=hojeBR();
