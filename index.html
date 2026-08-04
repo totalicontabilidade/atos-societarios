@@ -114,6 +114,8 @@
   .pv-head{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line2);font-weight:700;font-size:13px}
   .pv-head .dot{width:8px;height:8px;border-radius:50%;background:var(--gold)}
   #preview{background:#e9edf3;max-height:80vh;overflow:auto}
+  /* o docx-preview aplica hyphens:auto e o navegador hifeniza nomes/palavras longas na prévia — desligamos (o .docx e o PDF já não hifenizam) */
+  #preview, #preview *{ -webkit-hyphens:none!important; -ms-hyphens:none!important; hyphens:none!important }
   #preview .empty{padding:64px 20px;text-align:center;color:var(--muted2);font-size:13px}
   .foot{font-size:11px;color:var(--muted2);text-align:center;margin:8px 0 34px}
   /* botão "voltar ao topo" — pequeno, sutil, aparece só ao rolar para baixo */
