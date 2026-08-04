@@ -728,6 +728,10 @@ window.TINA=(function(){
       else{let nxt=text.length;for(const p of ph){const k=text.indexOf(p,i+1);if(k>-1&&k<nxt)nxt=k;}out.push(new TextRun({text:text.slice(i,nxt)}));i=nxt;}}
     return out.length?out:[new TextRun({text})];}
 
+  // Nome de arquivo aceito pela JUCESE: só letras, dígitos, espaços, traços e pontos (SEM underline).
+  // Remove acentos (É→E, Ç→C), coloca em maiúsculas e troca qualquer outro caractere por traço.
+  function slugArq(s){ return (s||"").toUpperCase().replace(/[ÁÀÂÃÄ]/g,"A").replace(/[ÉÈÊË]/g,"E").replace(/[ÍÌÎÏ]/g,"I").replace(/[ÓÒÔÕÖ]/g,"O").replace(/[ÚÙÛÜ]/g,"U").replace(/Ç/g,"C").replace(/Ñ/g,"N").replace(/[^A-Z0-9]+/g,"-").replace(/^-+|-+$/g,"")||"EMPRESA"; }
+
   function gerar(md){
     const d=coletar();const X=window.docxLib;
     const {Document,Paragraph,TextRun,AlignmentType,Table,TableRow,TableCell,WidthType,BorderStyle,convertMillimetersToTwip,LineRuleType,TableLayoutType}=X;
@@ -907,8 +911,8 @@ window.TINA=(function(){
     const doc=new Document({creator:_autor(),title:(isAlt?"Alteração Contratual — ":isTransf?"Transformação — ":"Contrato Social — ")+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
-    const base=(d.razao||"EMPRESA").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
-    const nomeArq=(isAlt?(d.numAlteracao||"N")+"a_ALTERACAO_"+base:isTransf?("TRANSFORMACAO_"+(isSLU?"EI_SLU_":"EI_LTDA_")+base):"CONTRATO_SOCIAL_"+base)+".docx";
+    const base=slugArq(d.razao||"EMPRESA");
+    const nomeArq=(isAlt?(d.numAlteracao||"N")+"a-ALTERACAO-"+base:isTransf?("TRANSFORMACAO-"+(isSLU?"EI-SLU-":"EI-LTDA-")+base):"CONTRATO-SOCIAL-"+base)+".docx";
     return {doc,nomeArq};
   }
 
@@ -1020,8 +1024,8 @@ window.TINA=(function(){
     const doc=new Document({creator:_autor(),title:(isAlt?"Alteração EI — ":isTransf?"Transformação → EI — ":"Inscrição EI — ")+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
-    const base=(d.razao||"EMPRESARIO").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
-    const nomeArq=(isAlt?(d.numAlteracao||"N")+"a_ALTERACAO_EI_"+base:isTransf?("TRANSFORMACAO_LTDA_EI_"+base):"INSCRICAO_EI_"+base)+".docx";
+    const base=slugArq(d.razao||"EMPRESARIO");
+    const nomeArq=(isAlt?(d.numAlteracao||"N")+"a-ALTERACAO-EI-"+base:isTransf?("TRANSFORMACAO-LTDA-EI-"+base):"INSCRICAO-EI-"+base)+".docx";
     return {doc,nomeArq};
   }
 
@@ -1128,8 +1132,8 @@ window.TINA=(function(){
     const doc=new Document({creator:_autor(),title:"Transformação EI → "+(isSLU?"SLU":"Ltda")+" — "+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
-    const base=(d.razao||"EMPRESA").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
-    const nomeArq=("TRANSFORMACAO_EI_"+(isSLU?"SLU_":"LTDA_")+base)+".docx";
+    const base=slugArq(d.razao||"EMPRESA");
+    const nomeArq=("TRANSFORMACAO-EI-"+(isSLU?"SLU-":"LTDA-")+base)+".docx";
     return {doc,nomeArq};
   }
 
@@ -1193,8 +1197,8 @@ window.TINA=(function(){
     const doc=new Document({creator:_autor(),title:"Transformação Ltda → EI — "+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
-    const base=(d.razao||"EMPRESARIO").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
-    return {doc,nomeArq:"TRANSFORMACAO_LTDA_EI_"+base+".docx"};
+    const base=slugArq(d.razao||"EMPRESARIO");
+    return {doc,nomeArq:"TRANSFORMACAO-LTDA-EI-"+base+".docx"};
   }
 
   /* ===== Gerador Distrato (Ltda) / Extinção (EI) — modelo JUCESE REGIN ===== */
@@ -1267,8 +1271,8 @@ window.TINA=(function(){
     const doc=new Document({creator:_autor(),title:(isEI?"Extinção EI — ":"Distrato — ")+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
-    const base=(d.razao||"EMPRESA").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
-    return {doc,nomeArq:(isEI?"EXTINCAO_EI_":"DISTRATO_")+base+".docx"};
+    const base=slugArq(d.razao||"EMPRESA");
+    return {doc,nomeArq:(isEI?"EXTINCAO-EI-":"DISTRATO-")+base+".docx"};
   }
 
   /* build / preview / download */
@@ -1448,7 +1452,7 @@ window.TINA=(function(){
     return new Promise((res,rej)=>{ try{ pdfMake.createPdf(dd).getBlob(res); }catch(e){ rej(e); } }); }
   function baixarPDF(){ const d=coletar(); if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados (razão social e sócios) antes de baixar.";return;}
     $("status").className="status muted";$("status").textContent="Gerando PDF…";
-    gerarPreview().then(()=>gerarPdfBlob()).then(blob=>{ const nome=(_blob&&_blob.nomeArq)?_blob.nomeArq.replace(/\.docx$/i,".pdf"):((d.razao||"documento").toUpperCase().replace(/[^A-Z0-9]+/g,"_")+".pdf");   // mesmo nome do .docx (ex.: 3a_ALTERACAO_COMERCIAL_MODELO.pdf)
+    gerarPreview().then(()=>gerarPdfBlob()).then(blob=>{ const nome=(_blob&&_blob.nomeArq)?_blob.nomeArq.replace(/\.docx$/i,".pdf"):(slugArq(d.razao||"documento")+".pdf");   // mesmo nome do .docx (ex.: 3a-ALTERACAO-COMERCIAL-MODELO.pdf)
         const url=URL.createObjectURL(blob); const a=document.createElement("a");a.href=url;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),6000);
         $("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ PDF baixado: "+nome; registrarCasoAuto(); })
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro ao gerar PDF: "+(e&&e.message||e);console.error(e);}); }
@@ -1884,7 +1888,7 @@ window.TINA=(function(){
     if(naD){ nAlt=parseInt(naD[1],10); }
     else { const oMap={primeira:1,segunda:2,terceira:3,quarta:4,quinta:5,sexta:6,setima:7,oitava:8,nona:9,decima:10};
       const oM=t.match(/\b(primeira|segunda|terceira|quarta|quinta|sexta|s[ée]tima|oitava|nona|d[ée]cima)\s+ALTERA[ÇC][ÃA]O/i);
-      if(oM){ const before=t.slice(0,oM.index).slice(-12); if(!/(?:d[ée]cima|vig[ée]sima|trig[ée]sima)\s+$/i.test(before)){ const key=oM[1].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,""); nAlt=oMap[key]||0; } } }  // ordinal por extenso; ignora compostos ("décima primeira") p/ não gerar nº errado
+      if(oM){ const before=t.slice(0,oM.index).slice(-12); if(!/(?:d[ée]cima|vig[ée]sima|trig[ée]sima)\s+$/i.test(before)){ const key=oM[1].toLowerCase().normalize("NFD").replace(/[0300-036f]/g,""); nAlt=oMap[key]||0; } } }  // ordinal por extenso; ignora compostos ("décima primeira") p/ não gerar nº errado
     if(nAlt>0){ d.numAlteracao=String(nAlt+1); inc.add("numAlteracao"); }
     // acha "NOME , brasileiro/estrangeiro" em qualquer lugar (até 9 palavras de nome, com partículas de/dos/e); limparNome tira o lixo
     const socios=[]; const NW="(?:[A-ZÀ-Ú][A-Za-zÀ-ú'.\\-]*|d[eoa]s?|e)";
