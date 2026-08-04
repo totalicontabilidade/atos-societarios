@@ -1,0 +1,16 @@
+{
+  "name": "Atos Societários — gerador (JUCESE / DREI 81)",
+  "short_name": "Atos Societários",
+  "description": "Gerador de atos societários no padrão JUCESE / DREI 81 — 100% no navegador.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#14293f",
+  "theme_color": "#14293f",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

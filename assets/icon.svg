@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Atos Societários">
+  <rect width="512" height="512" fill="#14293f"/>
+  <g>
+    <rect x="106" y="76" width="300" height="360" rx="26" fill="#ffffff"/>
+    <rect x="140" y="116" width="232" height="26" fill="#c2a250"/>
+    <rect x="140" y="186" width="232" height="14" fill="#22456c"/>
+    <rect x="140" y="226" width="162" height="14" fill="#22456c"/>
+    <rect x="140" y="266" width="232" height="14" fill="#22456c"/>
+    <rect x="140" y="306" width="162" height="14" fill="#22456c"/>
+    <rect x="140" y="346" width="232" height="14" fill="#22456c"/>
+  </g>
+</svg>

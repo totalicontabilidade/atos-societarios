@@ -6,6 +6,12 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#14293f" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Atos Societários" />
+<link rel="apple-touch-icon" href="assets/icon.svg" />
+<link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
 <title>Atos Societários — Totali Soluções Contábeis</title>
 <style>
   :root{
@@ -161,6 +167,9 @@
   #draftBanner .dbtxt{font-size:13px;color:var(--navy);line-height:1.35}
   #draftBanner .btn{padding:7px 12px;font-size:12.5px}
   /* botão engrenagem (configurações) no cabeçalho */
+  .head-install{background:var(--gold);border:1px solid var(--gold2);color:var(--navy3);font-weight:700;font-size:12.5px;padding:7px 12px;border-radius:9px;cursor:pointer;margin-right:10px;transition:filter .18s}
+  .head-install:hover{filter:brightness(1.06)}
+  .head-install:focus-visible{outline:2px solid #fff;outline-offset:2px}
   .head-gear{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);color:#fff;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .18s;margin-right:10px}
   .head-gear:hover{background:rgba(255,255,255,.24)}
   .head-gear:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
@@ -178,6 +187,7 @@
     <div class="sub">padrão JUCESE / DREI 81</div>
   </div>
   <div class="spacer"></div>
+  <button class="head-install" id="btnInstalar" type="button" title="Instalar como aplicativo" style="display:none">⤓ Instalar app</button>
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip">v0.5 · beta</span>
 </header>
@@ -1393,7 +1403,7 @@ window.TINA=(function(){
     if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados (razão social e sócios) antes de baixar.";return;}
     $("status").className="status muted";$("status").textContent="Gerando .docx…";
     buildBlob().then(({blob,nomeArq})=>{const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),6000);$("status").style.color="var(--ok)";$("status").textContent="✓ Baixado: "+nomeArq;})
+      setTimeout(()=>URL.revokeObjectURL(url),6000);$("status").style.color="var(--ok)";$("status").textContent="✓ Baixado: "+nomeArq;registrarCasoAuto();})
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);});}
   // ===== PDF NATIVO (pdfmake) — gerado a partir do que o docx-preview já renderiza: fonte única = o próprio .docx (não usa impressão) =====
   const _pt = s => { const m=/(-?[\d.]+)pt/.exec(s||""); return m?parseFloat(m[1]):0; };
@@ -1425,7 +1435,7 @@ window.TINA=(function(){
     $("status").className="status muted";$("status").textContent="Gerando PDF…";
     gerarPreview().then(()=>gerarPdfBlob()).then(blob=>{ const nome=(_blob&&_blob.nomeArq)?_blob.nomeArq.replace(/\.docx$/i,".pdf"):((d.razao||"documento").toUpperCase().replace(/[^A-Z0-9]+/g,"_")+".pdf");   // mesmo nome do .docx (ex.: 3a_ALTERACAO_COMERCIAL_MODELO.pdf)
         const url=URL.createObjectURL(blob); const a=document.createElement("a");a.href=url;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),6000);
-        $("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ PDF baixado: "+nome; })
+        $("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ PDF baixado: "+nome; registrarCasoAuto(); })
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro ao gerar PDF: "+(e&&e.message||e);console.error(e);}); }
 
   /* ===== E-mail de confirmação ===== */
@@ -2042,6 +2052,9 @@ window.TINA=(function(){
   /* ===== Limpar com confirmação ===== */
   function limparComConfirmacao(){if(draftTemConteudo(snapshotForm())){if(!confirm("Limpar todos os campos do formulário? O preenchimento atual será apagado."))return;}limpar();aplicarPadroesForm();limparRascunho();toast("Formulário limpo.","info");}
 
+  /* ===== Registrar caso automaticamente ao baixar (docx/PDF) — o download sinaliza que o preenchimento foi finalizado ===== */
+  function registrarCasoAuto(){ const d=coletar(); if(!d.razao) return null; const jaExistia=!!casoAtualId; const c=registrarCaso(); if(document.getElementById("painelModal") && document.getElementById("painelModal").classList.contains("open")) renderPainel(); toast((jaExistia?"✓ Ato atualizado no painel de casos — ID #":"✓ Ato salvo no painel de casos — ID #")+c.id,"ok"); return c; }
+
   /* ===== Biblioteca de objetos sociais (localStorage) ===== */
   const SUGESTOES_OBJ=[
     "Comércio varejista de artigos do vestuário e acessórios",
@@ -2164,5 +2177,18 @@ window.TINA=(function(){
     <button class="btn s mini" id="btnDraftDiscard" type="button">Descartar</button>
   </div>
 </div>
+<script>
+/* PWA: registra o service worker (offline) e trata o convite de instalação.
+   Só roda sob http/https — em file:// o service worker não é permitido. */
+(function(){
+  if("serviceWorker" in navigator && (location.protocol==="https:"||location.protocol==="http:")){
+    window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
+  }
+  var deferred=null; var btn=document.getElementById("btnInstalar");
+  window.addEventListener("beforeinstallprompt",function(e){ e.preventDefault(); deferred=e; if(btn)btn.style.display=""; });
+  if(btn) btn.addEventListener("click",function(){ if(!deferred)return; deferred.prompt(); deferred.userChoice.finally(function(){ deferred=null; btn.style.display="none"; }); });
+  window.addEventListener("appinstalled",function(){ if(btn)btn.style.display="none"; deferred=null; });
+})();
+</script>
 </body>
 </html>
