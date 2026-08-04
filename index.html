@@ -264,7 +264,7 @@
     <div class="card" id="cardRegistro" style="display:none">
       <h2><span class="n">R</span> <span id="lblRegistro">Registro na Junta (alteração)</span></h2>
       <div class="grid g4 row">
-        <div class="transfonly" style="display:none"><label>Nome empresarial ANTERIOR <span class="hint">— o de origem</span></label><input type="text" id="razaoAnterior" placeholder="Ex.: J. S. LIMA"></div>
+        <div id="wrapRazaoAnt" style="display:none"><label id="lblRazaoAnt">Nome empresarial ANTERIOR <span class="hint">— o de origem</span></label><input type="text" id="razaoAnterior" placeholder="Ex.: J. S. LIMA"></div>
         <div class="transfltdaeionly" style="display:none"><label>Sócio que se retira <span class="hint">— se a Ltda tinha 2+ sócios (vazio = já era único)</span></label><div style="display:flex;gap:6px"><input type="text" id="socioRetira" placeholder="Nome do sócio que sai" style="flex:1"><select id="socioRetiraSexo" title="Sexo do sócio que se retira" style="width:auto"><option value="M">M</option><option value="F">F</option></select></div></div>
         <div><label>CNPJ <span class="hint transfonly" style="display:none">— mantido</span></label><input type="text" id="cnpj" placeholder="00.000.000/0001-00"></div>
         <div><label>NIRE</label><input type="text" id="nire" placeholder="28XXXXXXXXX"></div>
@@ -396,8 +396,9 @@
         <tr><td>Excluir sócio</td><td><code>excluir sócio JOÃO DA COSTA</code></td></tr>
       </table>
       <p style="margin-top:12px"><b>Exemplo completo:</b><br>
-        <code>razão social para PADARIA NOVA; fantasia para Pão Quente; endereço para Rua das Flores, 120, Centro, Aracaju/SE, 49000-000; incluir atividade Lanchonete; excluir atividade Comércio de bolos; capital para R$ 50.000; porte para EPP; incluir sócio Maria Souza, CPF 111.444.777-35; excluir sócio João Costa</code></p>
-      <p class="hint" style="margin-top:10px">Observações: cada instrução também marca automaticamente a caixa correspondente em "O que muda". Endereço e sócios são preenchidos com o que o sistema consegue e ficam <b style="color:var(--warn)">destacados em amarelo</b> para você revisar. Entrada/saída de sócio: complete a qualificação (RG, endereço, quotas) na seção "Quadro societário".</p>
+        <code>razão social para PADARIA NOVA; fantasia para Pão Quente; endereço para Rua das Flores, 120, Centro, Aracaju/SE, 49000-000; capital para R$ 50.000; porte para EPP; incluir sócio Maria Souza, CPF 111.444.777-35; excluir sócio João Costa; excluir todas as atividades; incluir atividades: Lanchonete; Padaria; Confeitaria</code></p>
+      <p class="hint" style="margin-top:10px"><b style="color:var(--navy)">⚠ Importante — comandos de LISTA vêm por ÚLTIMO:</b> em <code>incluir atividades:</code>, <code>objeto para:</code> e <code>atividades:</code>, <b>tudo o que vier depois dos dois-pontos é tratado como a lista de atividades</b> (separadas por ";"). Por isso, coloque esse comando <b>no fim</b>. Ex.: em <code>atividades para: A; B; C; razão para X</code>, o "razão para X" seria entendido como mais uma atividade — o certo é <code>razão para X; atividades para: A; B; C</code>.</p>
+      <p class="hint" style="margin-top:8px">Observações: cada instrução também marca automaticamente a caixa correspondente em "O que muda". Endereço e sócios são preenchidos com o que o sistema consegue e ficam <b style="color:var(--warn)">destacados em amarelo</b> para você revisar. Entrada/saída de sócio: complete a qualificação (RG, endereço, quotas) na seção "Quadro societário".</p>
     </div>
   </div>
 </div>
@@ -731,7 +732,9 @@ window.TINA=(function(){
     const mm=convertMillimetersToTwip,JUST=AlignmentType.JUSTIFIED,CEN=AlignmentType.CENTER,LEFT=AlignmentType.LEFT,AUTO=LineRuleType.AUTO;
     const SP15={after:120,line:360,lineRule:AUTO},SP10={after:120,line:240,lineRule:AUTO},SP10_0={after:0,line:240,lineRule:AUTO},SPLINE15_0={after:0,line:360,lineRule:AUTO};
     const razaoUP=(d.razao||"[RAZÃO SOCIAL]").toUpperCase(),fantUP=(d.fantasia||"").toUpperCase(),razAntUP=(d.razaoAnterior||"[NOME ANTERIOR]").toUpperCase();
-    const BOLDS=[razaoUP+" LTDA",razaoUP,razAntUP,fantUP,...d.socios.map(s=>(s.nome||"").toUpperCase())].filter(Boolean);
+    const mudouNome=(md==="alt") && (d.changed&&d.changed.has("nome")) && !!(d.razaoAnterior||"").trim();   // a razão social está mudando nesta alteração
+    const nomeCabUP=mudouNome?razAntUP:razaoUP;   // nome ATUAL (anterior) no título e no preâmbulo da alteração; o NOVO só na cláusula "Da alteração do nome" e no consolidado
+    const BOLDS=[razaoUP+" LTDA",razaoUP,razAntUP+" LTDA",razAntUP,fantUP,...d.socios.map(s=>(s.nome||"").toUpperCase())].filter(Boolean);
     const R=(t)=>makeRuns(t,BOLDS,TextRun);
     const P=(ch,al,sp)=>new Paragraph({alignment:al||JUST,spacing:sp||SP15,children:ch});
     const T=(t,o)=>new TextRun(Object.assign({text:t},o||{}));
@@ -758,7 +761,8 @@ window.TINA=(function(){
 
     const ch=[];
     if(isAlt){
-      ch.push(tituloDoc((d.numAlteracao?d.numAlteracao+"ª ":"")+"ALTERAÇÃO E CONSOLIDAÇÃO DO CONTRATO SOCIAL DA SOCIEDADE "+razaoUP+" LTDA"));
+      ch.push(tituloDoc((d.numAlteracao?d.numAlteracao+"ª ":"")+"ALTERAÇÃO E CONSOLIDAÇÃO DO CONTRATO SOCIAL"));
+      ch.push(tituloDoc(nomeCabUP+" LTDA"));
     }else if(isTransf){
       ch.push(tituloDoc(isSLU?"TRANSFORMAÇÃO DE EMPRESÁRIO INDIVIDUAL EM SOCIEDADE LIMITADA UNIPESSOAL":"TRANSFORMAÇÃO DE EMPRESÁRIO INDIVIDUAL EM SOCIEDADE EMPRESÁRIA LIMITADA"));
       ch.push(tituloDoc(razaoUP+" LTDA"));
@@ -772,7 +776,7 @@ window.TINA=(function(){
     d.socios.forEach(s=>ch.push(P(R((s.nome||"[NOME]").toUpperCase()+", "+qualificacao(s)),JUST,SP10)));
 
     if(isAlt){
-      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+razaoUP+" LTDA, inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+", com NIRE "+(d.nire||"[NIRE]")+", com seus atos constitutivos arquivados na Junta Comercial do Estado de Sergipe, resolve"+(plural?"m":"")+" promover a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual, mediante as cláusulas e condições seguintes:"),JUST,SP15));
+      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+", com NIRE "+(d.nire||"[NIRE]")+", com seus atos constitutivos arquivados na Junta Comercial do Estado de Sergipe, resolve"+(plural?"m":"")+" promover a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual, mediante as cláusulas e condições seguintes:"),JUST,SP15));
       let dci=0;const delib=(tema,texto)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(texto)],JUST,SP15));
       if(CH.has("nome")) delib("Da alteração do nome empresarial",resolvem+" alterar o nome empresarial da sociedade, que passa a ser "+razaoUP+" LTDA.");
       if(CH.has("fantasia")) delib("Do título do estabelecimento",d.fantasia?resolvem+" adotar como título de estabelecimento (nome fantasia) a expressão "+fantUP+".":resolvem+" suprimir o nome fantasia da sociedade.");
@@ -1290,7 +1294,11 @@ window.TINA=(function(){
     if($("cardRapido"))$("cardRapido").style.display=showReg?"":"none";
     if($("cardRegistro"))$("cardRegistro").style.display=showReg?"":"none";
     if($("lblRegistro"))$("lblRegistro").textContent=isTransf?"Origem da transformação (CNPJ mantido)":(isDist?"Registro na Junta":"Registro na Junta (alteração)");
-    if($("lblRazao"))$("lblRazao").textContent=formEI?(isTransf?"Nome empresarial (novo)":"Nome empresarial"):(isTransf?"Razão social (nova)":"Razão social");
+    // campo "razão anterior": aparece em transformação (nome de origem) e em alteração (nome atual, quando muda a razão)
+    if($("wrapRazaoAnt"))$("wrapRazaoAnt").style.display=(isTransf||isAlt)?"":"none";
+    if($("lblRazaoAnt"))$("lblRazaoAnt").innerHTML=isAlt?'Razão social ANTERIOR <span class="hint">— a atual, antes da mudança (preencha se alterar a razão)</span>':'Nome empresarial ANTERIOR <span class="hint">— o de origem</span>';
+    if($("razaoAnterior"))$("razaoAnterior").placeholder=isAlt?"Ex.: COMERCIAL MODELO (nome atual)":"Ex.: J. S. LIMA";
+    if($("lblRazao"))$("lblRazao").textContent=formEI?(isTransf?"Nome empresarial (novo)":"Nome empresarial"):(isTransf?"Razão social (nova)":(isAlt?"Razão social (nova, se mudar)":"Razão social"));
     if($("razao"))$("razao").placeholder=formEI?"Ex.: J. S. LIMA (iniciais + sobrenome)":"Ex.: COMERCIAL MODELO";
     if($("lblQuadro"))$("lblQuadro").textContent=formEI?"Titular":"Quadro societário";
     if($("lblCapital"))$("lblCapital").textContent=formEI?"Capital":"Capital social";
@@ -1356,6 +1364,7 @@ window.TINA=(function(){
       if(!d.nire) f.push("NIRE");
       if(!d.numAlteracao) f.push("Número desta alteração");
       if(!d.dataInicioOrig) f.push("Início original das atividades");
+      if(d.changed&&d.changed.has("nome")&&!(d.razaoAnterior||"").trim()) f.push("Razão social ANTERIOR (atual) — necessária p/ o título e o preâmbulo (a nova vai só na cláusula e no consolidado)");
       if(!d.changed || d.changed.size===0) f.push("Marque em \"O que muda\" o que está sendo alterado");
     }
     if(isTransf){
@@ -1786,8 +1795,9 @@ window.TINA=(function(){
     return w.join(" ").trim();
   }
   function limparObjeto(o){ return (o||"")
-    .replace(/^\s*(?:a\s*s|as|o|a)\s+(?:seguinte\s*s?|seguintes)\s+atividade\s*s?\s*:?\s*/i,"")   // "as seguintes atividades:"
-    .replace(/^\s*(?:seguinte\s*s?|seguintes)\s+atividade\s*s?\s*:?\s*/i,"")
+    .replace(/^\s*(?:a\s*s|as|o|a)\s+(?:seguinte\s*s?|seguintes)\s+atividade\s*s?(?:\s+econ[ôo]mic[ao]s?)?\s*:?\s*/i,"")   // "as seguintes atividades (econômicas):"
+    .replace(/^\s*(?:seguinte\s*s?|seguintes)\s+atividade\s*s?(?:\s+econ[ôo]mic[ao]s?)?\s*:?\s*/i,"")
+    .replace(/^\s*atividade\s*s?\s+econ[ôo]mic[ao]s?\s*:?\s*/i,"")                                 // "atividades econômica:" (adjetivo entre "atividades" e ":", singular/plural)
     .replace(/^\s*a sociedade[^:]{0,45}?(?::|\bde\b)\s+/i,"")
     .replace(/\d{2}\s*\.\s*\d{2}\s*[-–\/]\s*\d\s*[-–\/]\s*\d{2}\s*[-–]\s*/g,"; ")                  // CNAE "56.20-1-04 -"
     .replace(/\b\d{4}\s*[-–]\s*\d\s*\/\s*\d{2}\s*[-–]\s*/g,"; ")                                   // CNAE "5620-1/04 -"
@@ -1842,7 +1852,7 @@ window.TINA=(function(){
     const objFim="(?:\\.{1,2}\\s+[A-ZÀ-Ú]|Par[áa]grafo|CL[ÁA]USULA|Cl[áa]usula|$)";
     d.objeto=m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?|objeto(?: social)?)[^:]{0,45}?(?:atividades?\\s*:|:)\\s*([\\s\\S]+?)"+objFim,"i"))
       ||m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?)\\s+(?:o exerc[íi]cio d[ae]s?\\s+)?(?:as\\s+)?atividades?(?:\\s+econ[ôo]micas)?\\s+de\\s+([\\s\\S]+?)"+objFim,"i"))
-      ||m1(t,new RegExp("atividades econ[ôo]micas:?\\s*([\\s\\S]+?)"+objFim,"i"))
+      ||m1(t,new RegExp("atividades?\\s+econ[ôo]mica[s]?\\s*:?\\s*([\\s\\S]+?)"+objFim,"i"))
       ||m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?|constitui\\s+(?:o\\s+)?objeto(?: social)?|objeto(?: social)?\\s+(?:[ée]|consiste(?: em| n[oa])?|compreende|ser[áa]|abrange|constitui-se(?: em)?))\\s+(?:o exerc[íi]cio d[ae]s?\\s+)?(?:[oa]s?\\s+)?([\\s\\S]+?)"+objFim,"i"));  // objeto direto: "tem por objeto o comércio…" / "O objeto é o comércio…" (sem ":" nem "atividades")
     if(d.objeto){ d.objeto=limparObjeto(d.objeto); if(d.objeto)inc.add("objeto"); }
     // enquadramento: prioriza a DECLARAÇÃO ("se enquadra … Microempresa/EPP"), não o cabeçalho "(ME/EPP)"
@@ -1966,7 +1976,7 @@ window.TINA=(function(){
       if(m=s.match(/inclu\w+\s+s[óo]cio\s+(.+)/i)){const rest=m[1];const cpf=(rest.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/)||[])[0]||"";const nome=rest.replace(/,?\s*cpf.*/i,"").replace(/,\s*\d.*/,"").trim();socioCard({nome,cpf});const last=[...document.querySelectorAll(".socio")].pop();if(last)last.querySelectorAll("[data-f=nome],[data-f=cpf]").forEach(el=>el.classList.add("revisar"));chk("alt_quadro");applied.push("incluir sócio: "+nome);continue;}
       if(m=s.match(/(?:exclu\w+|remov\w+|retir\w+)\s+s[óo]cio\s+(.+)/i)){const alvo=m[1].trim().toLowerCase();const card=[...document.querySelectorAll(".socio")].find(c=>((c.querySelector("[data-f=nome]")||{}).value||"").toLowerCase().includes(alvo));if(card)card.remove();chk("alt_quadro");applied.push("excluir sócio: "+m[1].trim());continue;}
       if(m=s.match(/(?:nome\s+)?fantasia\s+(?:para|:)\s*(.+)/i)){$("fantasia").value=m[1].trim();chk("alt_fantasia");applied.push("fantasia → "+m[1].trim());continue;}
-      if(m=s.match(/(?:raz[aã]o\s+social|nome\s+empresarial)\s+(?:para|:)\s*(.+)/i)){$("razao").value=m[1].trim().replace(/\s+ltda\.?$/i,"");chk("alt_nome");applied.push("razão social → "+$("razao").value);continue;}
+      if(m=s.match(/(?:raz[aã]o\s+social|nome\s+empresarial)\s+(?:para|:)\s*(.+)/i)){const atual=($("razao").value||"").trim();if(atual&&$("razaoAnterior")&&!($("razaoAnterior").value||"").trim())$("razaoAnterior").value=atual;/* preserva o nome ATUAL como "anterior" p/ o título/preâmbulo */ $("razao").value=m[1].trim().replace(/\s+ltda\.?$/i,"");chk("alt_nome");applied.push("razão social → "+$("razao").value);continue;}
       if(m=s.match(/capital(?:\s+social)?\s+(?:para|:)\s*(?:r\$\s*)?([\d.,]+)/i)){$("capital").value=brNum(m[1]);chk("alt_capital");applied.push("capital → "+reais(brNum(m[1])));continue;}
       if(m=s.match(/(?:porte|enquadr\w*)\s+(?:para|como|:)\s*(.+)/i)){const v=m[1].toLowerCase();const e=(v.includes("epp")||v.includes("pequeno"))?"EPP":((v.includes("micro")||/\bme\b/.test(v))?"ME":"DEMAIS");$("enquadramento").value=e;chk("alt_enquadramento");applied.push("porte → "+e);continue;}
       // limpar TODAS as atividades (sem um alvo específico depois) → zera o objeto
