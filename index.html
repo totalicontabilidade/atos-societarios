@@ -1753,8 +1753,9 @@ window.TINA=(function(){
     let m=t.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/); if(m)return m[0];
     const ns=t.replace(/\s+/g,"");
     m=ns.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/); if(m)return m[0];
-    m=ns.match(/CNPJ(?:\/MF)?[^0-9]{0,14}(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})/i);
-    if(m){const g=m[1].replace(/\D/g,""); if(g.length===14)return g.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,"$1.$2.$3/$4-$5");}
+    // "CNPJ … <14 dígitos>" — NÃO quando é o rótulo "CPF/CNPJ" do bloco de assinantes (ali os números são CPFs) e só se os dígitos verificadores conferem (evita juntar 2 CPFs)
+    m=ns.match(/(?<!CPF\/)CNPJ(?:\/MF)?[^0-9]{0,14}(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})/i);
+    if(m){const g=m[1].replace(/\D/g,""); if(g.length===14 && validaCNPJ(g))return g.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,"$1.$2.$3/$4-$5");}
     return "";
   }
   function acharNIRE(t){
