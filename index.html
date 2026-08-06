@@ -194,7 +194,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.6 · beta</span>
+  <span class="chip">v0.7 · beta</span>
 </header>
 
 <div class="wrap">
@@ -673,6 +673,8 @@ window.TINA=(function(){
     $("numQuotas").value=vq>0?numBR(Math.round(cap/vq)):"";let somaV=0;
     [...document.querySelectorAll(".socio")].forEach(c=>{const q=Number(c.querySelector("[data-f=quotas]").value)||0,v=q*vq,p=cap>0?(v/cap*100):0;
       c.querySelector("[data-f=valorQuotas]").value=q?reais(v):"";c.querySelector("[data-f=percentual]").value=q?pct(p):"";somaV+=v;});
+    // EI / transformação→EI / distrato: sem quotas → não mostra a aritmética de capital (evita "soma das quotas ≠ capital")
+    if(typeof MODE!=="undefined" && MODE && (MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE.startsWith("dist"))){ const b=$("valCapital"); if(b)b.style.display="none"; return; }
     const socios=readSocios(),somaP=cap>0?(somaV/cap*100):0,box=$("valCapital"),prob=[];
     if(socios.length===0)prob.push("Nenhum sócio cadastrado.");
     if(cap<=0)prob.push("Capital social não informado.");
@@ -1734,7 +1736,8 @@ window.TINA=(function(){
     if(m=str.match(/bairro\s+([A-Za-zÀ-ú .']+?)\s*(?:,|\.|no munic|munic|estado|CEP|$)/i))e.bairro=m[1].trim();
     if(m=str.match(/n[º°o.]{1,3}\s*(\d+[A-Za-z]?)\b/i))e.num=m[1];
     if(!e.num){ if(m=str.match(/,\s*(\d{1,6}[A-Za-z]?)\s*[,;]/))e.num=m[1]; else if(/\bs\/?n[º°.]?\b/i.test(str))e.num="s/n"; }  // número solto entre vírgulas ou "s/n"
-    if(!e.comp){const cm=str.match(/,\s*((?:sala|bloco|apto?|apartamento|andar|loja|quadra|lote|conjunto|conj|galp[ãa]o|sobreloja|casa|km|sl)\.?\s*[\wº°\/\-]*)\s*,/i); if(cm)e.comp=cm[1].trim();}  // complemento (Sala/Bloco/Andar…)
+    if(!e.comp){const CKW="(?:sala|bloco|apto?|apartamento|andar|loja|quadra|lote|conjunto|conj|galp[ãa]o|sobreloja|casa|km|sl|edif[íi]cio|pavimento|torre|box|sobrado)";
+      const cm=str.match(new RegExp(",\\s*("+CKW+"\\b\\.?[^,;]*(?:,\\s*"+CKW+"\\b\\.?[^,;]*)*)\\s*(?:,|;|$)","i")); if(cm)e.comp=cm[1].replace(/\s+/g," ").replace(/[,;\s]+$/,"").trim();}  // complemento — pode ter VÁRIAS partes: "Quadra 20, Lote 16"; "Sala 2, Bloco B"
     if(m=str.match(/^(.+?)(?:,|\s+n[º°o.]{1,3}\s*\d)/))e.log=m[1].replace(/^[,\s]+|[,\s]+$/g,"").trim();
     if(!e.uf||!e.mun||!e.bairro||!e.log){
       const parts=str.split(",").map(p=>p.trim()).filter(Boolean);
@@ -1817,6 +1820,7 @@ window.TINA=(function(){
     .replace(/^\s*a sociedade[^:]{0,45}?(?::|\bde\b)\s+/i,"")
     .replace(/\d{2}\s*\.\s*\d{2}\s*[-–\/]\s*\d\s*[-–\/]\s*\d{2}\s*[-–]\s*/g,"; ")                  // CNAE "56.20-1-04 -"
     .replace(/\b\d{4}\s*[-–]\s*\d\s*\/\s*\d{2}\s*[-–]\s*/g,"; ")                                   // CNAE "5620-1/04 -"
+    .replace(/\s*[\(\[]\s*atividade[s]?\s+(?:econ[ôo]mica\s+)?(?:principal|prim[áa]ria|secund[áa]ri[ao]s?)\s*[\)\]]/gi,"")  // remove marcador "(atividade principal)"/"(atividades secundárias)" — não faz parte do objeto no modelo da Junta
     .replace(/\bITEM\s+[IVXL][IVXL ]*[-–][\s\S]*$/i,"")                                            // corta deliberações "ITEM VI - Incluir…"
     .replace(/\s+([;,])/g,"$1").replace(/;\s*;/g,";").replace(/\s{2,}/g," ").replace(/^[\s;,.\-]+/,"").replace(/[\s;,]+$/,"").trim(); }
   function parseContratoTexto(t,extra,auth){
@@ -1890,13 +1894,17 @@ window.TINA=(function(){
     if(naD){ nAlt=parseInt(naD[1],10); }
     else { const oMap={primeira:1,segunda:2,terceira:3,quarta:4,quinta:5,sexta:6,setima:7,oitava:8,nona:9,decima:10};
       const oM=t.match(/\b(primeira|segunda|terceira|quarta|quinta|sexta|s[ée]tima|oitava|nona|d[ée]cima)\s+ALTERA[ÇC][ÃA]O/i);
-      if(oM){ const before=t.slice(0,oM.index).slice(-12); if(!/(?:d[ée]cima|vig[ée]sima|trig[ée]sima)\s+$/i.test(before)){ const key=oM[1].toLowerCase().normalize("NFD").replace(/[0300-036f]/g,""); nAlt=oMap[key]||0; } } }  // ordinal por extenso; ignora compostos ("décima primeira") p/ não gerar nº errado
+      if(oM){ const before=t.slice(0,oM.index).slice(-12); if(!/(?:d[ée]cima|vig[ée]sima|trig[ée]sima)\s+$/i.test(before)){ const key=oM[1].toLowerCase().replace(/[áàâã]/g,"a").replace(/[éèê]/g,"e").replace(/[íï]/g,"i").replace(/[óôõ]/g,"o").replace(/[úü]/g,"u").replace(/ç/g,"c"); nAlt=oMap[key]||0; } } }  // ordinal por extenso; ignora compostos ("décima primeira") p/ não gerar nº errado
     if(nAlt>0){ d.numAlteracao=String(nAlt+1); inc.add("numAlteracao"); }
     // acha "NOME , brasileiro/estrangeiro" em qualquer lugar (até 9 palavras de nome, com partículas de/dos/e); limparNome tira o lixo
     const socios=[]; const NW="(?:[A-ZÀ-Ú][A-Za-zÀ-ú'.\\-]*|d[eoa]s?|e)";
     const startRe=new RegExp("("+NW+"(?:\\s+"+NW+"){1,8})\\s*,?\\s*(?:nacionalidade\\s+)?(?:brasileir[oa]|estrangeir[oa]|naturalizad[oa])\\b","gi"); const found=[]; let mm;
     while((mm=startRe.exec(t))){const ns=mm.index+mm[0].indexOf(mm[1]); found.push({start:ns,nome:mm[1].replace(/\s+/g," ").trim()});}
     for(let i=0;i<found.length;i++){const seg=t.slice(found[i].start,(found[i+1]?found[i+1].start:found[i].start+700)); const so=parseSocioQualif(seg); so.nome=limparNome(found[i].nome,d.razao); if(so.nome && !socios.some(x=>x.nome===so.nome)) socios.push(so);}
+    // consolida: quando o MESMO nome aparece "limpo" e também com lixo do título/cabeçalho no início (ex.: 5+ palavras), mantém só o mais limpo (menos palavras)
+    { const _nk=s=>(s||"").toUpperCase().replace(/[.\-]/g,"").replace(/\s+/g," ").trim();
+      for(let i=socios.length-1;i>=0;i--){ const ni=_nk(socios[i].nome), wi=ni.split(" ").length;
+        if(wi>=5 && socios.some((s,j)=>{ if(j===i)return false; const nj=_nk(s.nome); return nj && ni!==nj && ni.endsWith(" "+nj) && wi>nj.split(" ").length; })) socios.splice(i,1); } }
     // --- SÓCIOS PESSOA JURÍDICA: "RAZÃO LTDA, … inscrita no CNPJ … representada por seu administrador NOME" ---
     const pjList=[]; { const pjRe=/([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .,&'\/\-–]{4,90}?(?:LTDA|LIMITADA|EIRELI|S\/A|S\.A\.|INC\.?|LLC|LTD\.?|GMBH|CORP\.?|PLC|N\.V\.|B\.V\.|S\.R\.L\.|S\.A\.S\.))\s*,?\s*(?:[^;]{0,160}?)?inscrit[ao] no CNPJ sob o n[º°o.]{1,4}\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\s*-?\s*\d{2})([\s\S]{0,400}?)representad[ao] por\s+(?:seu[ao]?\s+)?((?:s[óo]cio[- ])?administrador[a]?|s[óo]cio-administrador[a]?|procurador[a]?|representante legal|diretor[a]?|presidente)?\s*([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,55}?)\s*[,;]/gi; let pm;
       while((pm=pjRe.exec(t))){ let razao=pm[1].replace(/\s+/g," ").replace(/[,\s]+$/,"").trim();
@@ -1920,6 +1928,9 @@ window.TINA=(function(){
         if(/\b(LTDA|LIMITADA|EIRELI|S\/A|S\.A\.)\b/i.test(row.nome))novos.push({tipoPessoa:"PJ",sexo:"F",nome:row.nome,quotas:row.quotas}); else novos.push({nome:row.nome,quotas:row.quotas}); }
       socios.length=0; socios.push(...novos);
     } else { for(const p of pjList){ if(!socios.some(s=>matchNome(s.nome,p.nome))) socios.push(p); } }
+    // Empresário Individual PURO (instrumento de inscrição, sem transformação/quadro/PJ) tem UM titular só: descarta detecções espúrias, ficando com o nome mais limpo (menos palavras)
+    if(socios.length>1 && /INSTRUMENTO DE INSCRI[ÇC][ÃA]O/i.test(t) && !/TRANSFORMA[ÇC][ÃA]O/i.test(t) && !finalQuadro.length && !pjList.length){
+      socios.sort((a,b)=>(a.nome||"").split(/\s+/).filter(Boolean).length-(b.nome||"").split(/\s+/).filter(Boolean).length); socios.length=1; }
     const acharSocio=nome=>{nome=nome.replace(/\s+/g," ").trim(); if(/total|s[óo]cio|nome|percentual|quota/i.test(nome)||nome.length<4)return null; return socios.find(x=>x.nome&&(x.nome.toUpperCase().includes(nome.toUpperCase())||nome.toUpperCase().includes(x.nome.toUpperCase())));};
     const qre=/([A-ZÀ-Ú][A-ZÀ-Ú .'\-]{4,60}?)\s+([\d.]{1,12})\s+(?:R\$\s*)?([\d.,]{2,15})\s+(?:R\$\s*)?([\d.,]{1,7})\s*%?/g; let qm;
     while((qm=qre.exec(t))){const so=acharSocio(qm[1]); const q=parseInt(qm[2].replace(/\./g,""),10); if(so&&q)so.quotas=q;}
