@@ -194,7 +194,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.7 · beta</span>
+  <span class="chip">v0.8 · beta</span>
 </header>
 
 <div class="wrap">
@@ -795,7 +795,7 @@ window.TINA=(function(){
       if(CH.has("quadro")){delib("Do quadro societário",resolvem+" alterar a composição do quadro societário e a distribuição das quotas, que passa a ficar assim constituído:");ch.push(tabelaQuotas(d,X));ch.push(gap());}
       if(CH.has("enquadramento")) delib("Do reenquadramento","A sociedade passa a se enquadrar como "+(d.enquadramento==="DEMAIS"?"sociedade não enquadrada como ME ou EPP":ENQ[d.enquadramento])+", nos termos da Lei Complementar nº 123/2006.");
       if((d.clausulasExtra||"").trim()) delib("Outras deliberações",d.clausulasExtra.trim());
-      ch.push(P([T("Cláusula "+ordExt[dci++]+" – Da ratificação. ",{bold:true}),T("Permanecem inalteradas e em pleno vigor todas as demais cláusulas e condições do Contrato Social que não tenham sido expressamente modificadas por este instrumento.")],JUST,SP15));
+      // Consolida OU ratifica ("permanecem inalteradas"), nunca os dois (contraditório). Como consolidamos, NÃO incluímos a ratificação.
       ch.push(P([T("Cláusula "+ordExt[dci++]+" – Da consolidação. ",{bold:true}),...R("Em decorrência das alterações ora deliberadas, "+(plural?"os sócios resolvem":gSole("o sócio resolve","a sócia resolve"))+" consolidar o Contrato Social, que passa a vigorar com a seguinte e única redação, revogadas todas as versões anteriores:")],JUST,SP15));
       ch.push(space());
       ch.push(tituloDoc("CONTRATO SOCIAL CONSOLIDADO"));
@@ -972,8 +972,8 @@ window.TINA=(function(){
       if(CH.has("capital")) delib("Da alteração do capital",resolve+" alterar o capital, que passa a ser de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado "+formaIntegr(d,"em moeda corrente nacional")+".");
       if(CH.has("enquadramento")) delib("Do reenquadramento","A atividade passa a se enquadrar como "+(d.enquadramento==="DEMAIS"?"não enquadrada como ME ou EPP":ENQ[d.enquadramento])+", nos termos da Lei Complementar nº 123/2006.");
       if((d.clausulasExtra||"").trim()) delib("Outras deliberações",d.clausulasExtra.trim());
-      ch.push(P([T("Cláusula "+ordExt[dci++]+" – Da ratificação. ",{bold:true}),T("Permanecem inalteradas e em pleno vigor as demais disposições do instrumento de inscrição não expressamente modificadas por este ato.")],JUST,SP15));
-      ch.push(P([T("Cláusula "+ordExt[dci++]+" – Da consolidação. ",{bold:true}),...R("Em decorrência das alterações ora deliberadas, "+resolve.toLowerCase()+" consolidar o instrumento de inscrição, que passa a vigorar com a seguinte e única redação:")],JUST,SP15));
+      // A JUCESE exige CONSOLIDAR *ou* ratificar ("permanecem inalteradas"), nunca os dois (contraditório). Como consolidamos, NÃO incluímos a ratificação. (IN DREI 81/2020, Manual de EI, item 3, Seção II, Cap. II)
+      ch.push(P([T("Cláusula "+ordExt[dci++]+" – Da consolidação. ",{bold:true}),...R("Em decorrência das alterações ora deliberadas, "+resolve.toLowerCase()+" consolidar o instrumento de inscrição, que passa a vigorar com a seguinte e única redação, revogadas as disposições anteriores:")],JUST,SP15));
       ch.push(space()); ch.push(tituloDoc("INSTRUMENTO DE INSCRIÇÃO CONSOLIDADO")); ch.push(tituloDoc(nomeUP)); ch.push(space());
     } else if(isTransf){
       ch.push(P(R("na qualidade de "+g("sócio único remanescente","sócia única remanescente")+" da sociedade empresária limitada "+razAntUP+" LTDA, inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+", na forma do art. 1.033, parágrafo único, do Código Civil, resolve transformá-la em Empresário Individual, mantida a mesma personalidade jurídica e a continuidade integral dos direitos e obrigações, mediante as cláusulas seguintes:"),JUST,SP15));
