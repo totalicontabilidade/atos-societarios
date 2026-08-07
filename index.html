@@ -194,7 +194,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.9 · beta</span>
+  <span class="chip">v0.10 · beta</span>
 </header>
 
 <div class="wrap">
@@ -1014,7 +1014,7 @@ window.TINA=(function(){
       : g("O titular declara","A titular declara")+" que a atividade se enquadra como "+ENQ[d.enquadramento]+", nos termos da Lei Complementar nº 123, de 14 de dezembro de 2006, e que não se enquadra em qualquer das hipóteses de exclusão relacionadas no § 4º do art. 3º da mencionada lei."));
     // VII - DESIMPEDIMENTO
     ch.push(heading(nx(),"DECLARAÇÃO DE CAPACIDADE E DESIMPEDIMENTO"));
-    ch.push(corpo(g("O titular declara","A titular declara")+", sob as penas da lei, não estar "+g("incurso","incursa")+" em quaisquer dos crimes previstos em lei ou impedimento que "+g("o","a")+" iniba do exercício da atividade empresarial, conforme art. 1.011, § 1º, do Código Civil, e que possui plena capacidade civil para exercer pessoalmente a empresa."));
+    ch.push(corpo(g("O titular declara","A titular declara")+", sob as penas da lei, não estar "+g("incurso","incursa")+" em quaisquer dos crimes previstos em lei ou impedimento que "+g("o","a")+" iniba do exercício da atividade empresarial, conforme art. 1.011, § 1º, do Código Civil, que possui plena capacidade civil para exercer pessoalmente a empresa e que não possui outra inscrição de empresário individual no País."));
     // SUCESSÃO (transformação)
     if(isTransf){
       ch.push(heading(nx(),"DA SUCESSÃO E CONTINUIDADE"));
@@ -1248,6 +1248,9 @@ window.TINA=(function(){
         +", com registro na Junta Comercial do Estado de Sergipe"+(d.nire?" sob NIRE "+d.nire:"")+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")
         +", resolve, por não mais interessar a sua continuidade, promover a EXTINÇÃO definitiva da empresa, mediante a seguinte cláusula:"),JUST,SP10));
       cl("A empresa iniciou suas atividades em "+inicio+" e encerrou todas as suas operações e atividades em "+encer+".");
+      cl("Procedida a liquidação, "+g("o titular assume","a titular assume")+" o ativo e o passivo porventura remanescentes da empresa ora extinta, respondendo por eventuais direitos e obrigações supervenientes.");
+      const guardaEI=(d.guardiaoLivros||tit.nome||"[TITULAR]").toUpperCase();
+      cl("Fica a cargo d"+g("o","a")+" titular "+guardaEI+" manter em boa guarda os livros e documentos da empresa ora extinta, pelo prazo legal de 5 (cinco) anos ou pelo prazo de prescrição dos tributos, o que for maior.");
       ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
       ch.push(corpo("E, por estar assim ajustado, "+g("o empresário individual assina","a empresária individual assina")+" o presente Instrumento de Extinção, em via única, que será destinado ao registro e arquivamento na Junta Comercial do Estado de Sergipe."));
       ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
