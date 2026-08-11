@@ -194,7 +194,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.10 · beta</span>
+  <span class="chip">v0.11 · beta</span>
 </header>
 
 <div class="wrap">
@@ -428,9 +428,46 @@
         <button class="btn g mini" id="btnEmailGmail">Abrir no Gmail</button>
         <button class="btn o mini" id="btnEmailSalvarCaso">📁 Salvar no painel</button>
         <button class="btn o mini" id="btnEmailLocalizar" title="Abrir seu Gmail filtrado neste ID para achar a resposta do cliente">🔎 Localizar no Gmail</button>
+        <button class="btn g mini" id="btnEmailConfirmou" title="Registrar o 'De acordo' do cliente e liberar a geração do documento">✓ Cliente confirmou</button>
         <span class="hint" id="emailStat"></span>
       </div>
       <div class="hint" style="margin-top:8px">O rascunho abre na sua conta do Gmail — antes de enviar, confira o campo <b>"De:"</b> (se usar um alias de envio, selecione-o em "Contas e Importação"). O <b>ID</b> no assunto amarra a resposta do cliente à solicitação — não o remova.</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="gateModal">
+  <div class="modal">
+    <div class="mh"><span>🔒 Confirmação do cliente</span><button class="x" id="btnGateClose">Fechar</button></div>
+    <div class="mb">
+      <div id="gateAviso" class="hint" style="background:#fff8e6;border:1px solid #f0d98a;border-radius:8px;padding:10px 12px;color:#7a5a00"></div>
+
+      <div style="margin-top:14px">
+        <div style="font-weight:700;color:var(--navy);margin-bottom:6px">1. Envie o e-mail de confirmação</div>
+        <div class="hint" style="margin-bottom:6px">O app monta o rascunho com as alterações e um ID que amarra a resposta do cliente.</div>
+        <button class="btn p mini" id="btnGateEmail">✉ Abrir e-mail de confirmação</button>
+      </div>
+
+      <div style="margin-top:16px">
+        <div style="font-weight:700;color:var(--navy);margin-bottom:6px">2. Registre a resposta do cliente</div>
+        <div class="grid g2 row">
+          <div><label>Data da confirmação</label><input type="text" id="gateData" placeholder="DD/MM/AAAA"></div>
+          <div><label>Quem confirmou (contato)</label><input type="text" id="gateContato" placeholder="Nome do contato"></div>
+        </div>
+        <div class="row"><label>Cole o "De acordo" do cliente <span class="hint">— ou uma observação</span></label>
+          <textarea id="gateNota" style="min-height:90px;font-size:12px"></textarea></div>
+        <button class="btn g" id="btnGateRegistrar">✓ Registrar confirmação e liberar</button>
+      </div>
+
+      <details style="margin-top:16px">
+        <summary style="cursor:pointer;font-weight:600;color:var(--warn)">Liberar sem e-mail (emergência)</summary>
+        <div class="hint" style="margin:6px 0">Use apenas quando o cliente já confirmou por outro canal (WhatsApp, telefone, presencial). A justificativa fica <b>gravada no caso</b> para auditoria.</div>
+        <div class="row"><label>Justificativa <span class="hint">(obrigatória)</span></label>
+          <textarea id="gateEmerg" style="min-height:64px;font-size:12px" placeholder="Ex.: cliente confirmou por WhatsApp em DD/MM às HH:MM"></textarea></div>
+        <button class="btn del mini" id="btnGateEmergencia">⚠ Liberar sob minha responsabilidade</button>
+      </details>
+
+      <div class="hint" id="gateStat" style="margin-top:10px"></div>
     </div>
   </div>
 </div>
@@ -1433,12 +1470,11 @@ window.TINA=(function(){
       return window.docx.renderAsync(blob,c,null,{className:"docxprev",inWrapper:true})
         .then(async()=>{fitPreview();renderValidacao(await validar(blob));$("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ Prévia atualizada.";});})
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);});}
-  function baixarDocx(){const d=coletar();
-    if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados (razão social e sócios) antes de baixar.";return;}
+  function baixarDocx(){ comConfirmacao(()=>{
     $("status").className="status muted";$("status").textContent="Gerando .docx…";
     buildBlob().then(({blob,nomeArq})=>{const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),6000);$("status").style.color="var(--ok)";$("status").textContent="✓ Baixado: "+nomeArq;registrarCasoAuto();})
-      .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);});}
+      .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);}); }); }
   // ===== PDF NATIVO (pdfmake) — gerado a partir do que o docx-preview já renderiza: fonte única = o próprio .docx (não usa impressão) =====
   const _pt = s => { const m=/(-?[\d.]+)pt/.exec(s||""); return m?parseFloat(m[1]):0; };
   // tokeniza por PALAVRA: cada palavra vira um fragmento noWrap (não estica em "/" nem "-"); o justify estica só nos espaços reais — igual ao Word. Texto 100% limpo, sem caracteres invisíveis.
@@ -1465,12 +1501,12 @@ window.TINA=(function(){
   function gerarPdfBlob(){ const content=_domToPdfmake(); if(!content.length) throw new Error("prévia vazia");
     const dd={ pageSize:"A4", pageMargins:[70.87,70.87,70.87,70.87], defaultStyle:{font:"Times",fontSize:12,lineHeight:1.15}, language:"pt-BR", info:{title:(coletar().razao||"Ato societário"),producer:_autor(),creator:_autor()}, content };
     return new Promise((res,rej)=>{ try{ pdfMake.createPdf(dd).getBlob(res); }catch(e){ rej(e); } }); }
-  function baixarPDF(){ const d=coletar(); if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados (razão social e sócios) antes de baixar.";return;}
+  function baixarPDF(){ comConfirmacao(()=>{ const d=coletar();
     $("status").className="status muted";$("status").textContent="Gerando PDF…";
     gerarPreview().then(()=>gerarPdfBlob()).then(blob=>{ const nome=(_blob&&_blob.nomeArq)?_blob.nomeArq.replace(/\.docx$/i,".pdf"):(slugArq(d.razao||"documento")+".pdf");   // mesmo nome do .docx (ex.: 3a-ALTERACAO-COMERCIAL-MODELO.pdf)
         const url=URL.createObjectURL(blob); const a=document.createElement("a");a.href=url;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),6000);
         $("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ PDF baixado: "+nome; registrarCasoAuto(); })
-      .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro ao gerar PDF: "+(e&&e.message||e);console.error(e);}); }
+      .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro ao gerar PDF: "+(e&&e.message||e);console.error(e);}); }); }
 
   /* ===== E-mail de confirmação ===== */
   const ATO_EMAIL={const:"Constituição de Sociedade Limitada",ei_const:"Inscrição de Empresário Individual",transf_ei_ltda:"Transformação de Empresário Individual em Sociedade Limitada",transf_ei_slu:"Transformação de Empresário Individual em Sociedade Limitada Unipessoal",transf_ltda_ei:"Transformação de Sociedade Limitada em Empresário Individual",dist_ltda:"Distrato de Sociedade Limitada",dist_ei:"Extinção de Empresário Individual"};
@@ -1567,6 +1603,78 @@ window.TINA=(function(){
     if(c){ c.empresa=(d.razao||"").toUpperCase(); c.cnpj=d.cnpj||""; c.tipo=tipoAto(d); c.data=data; c.modo=MODE; }
     else { c={id:novoIdCaso(data),empresa:(d.razao||"").toUpperCase(),cnpj:d.cnpj||"",tipo:tipoAto(d),data:data,modo:MODE,criadoEm:Date.now()}; cs.push(c); casoAtualId=c.id; }
     salvarCasos(cs); return c;}
+
+  /* ===== Portão de confirmação do cliente (obrigatório antes de gerar o documento final) ===== */
+  function _hashStr(s){let h=5381;for(let i=0;i<s.length;i++)h=((h*33)^s.charCodeAt(i))>>>0;return h.toString(36);}
+  // hash do CONTEÚDO que o cliente aprova — se qualquer campo relevante mudar depois, a confirmação "vence"
+  function hashConfirmacao(d){
+    const soc=(d.socios||[]).map(s=>[(s.nome||"").trim().toUpperCase(),s.cpf||"",s.tipoPessoa||"PF",s.quotas||0,s.administrador?1:0,s.pjRep||"",s.pjCnpj||""].join("|")).join("~");
+    const chg=d.changed?[...d.changed].sort().join(","):"";
+    return _hashStr([MODE,d.razao,d.fantasia,d.cnpj,d.nire,d.numAlteracao,d.capital,d.numQuotas,d.valorQuota,d.objeto,
+      JSON.stringify(d.sede),d.enquadramento,d.modoAdm,d.integralizacao,d.atoData,d.atoCidade,d.foro,
+      d.dataInicioOrig,d.retifica?1:0,d.retificaRef,d.clausulasExtra,d.acervo,d.dataEncerramento,d.guardiaoLivros,chg,soc]
+      .map(x=>x==null?"":String(x)).join("§"));
+  }
+  let _gateAcao=null, _gateHash="";
+  // executa `acao` só se o caso atual já estiver confirmado com o conteúdo intacto; senão abre o portão
+  function comConfirmacao(acao){
+    const d=coletar();
+    if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados (razão social e sócios) antes de baixar.";return;}
+    const c=registrarCaso();                       // garante o caso + casoAtualId
+    const h=hashConfirmacao(d);
+    _gateAcao=acao; _gateHash=h;
+    if(c.confirmado && c.confirmHash===h){ _liberar(null); return; }   // já confirmado e conteúdo intacto → libera direto
+    abrirPortao(!!(c.confirmado && c.confirmHash!==h));
+  }
+  function abrirGateSoRegistro(){    // chamado pelo botão "Cliente confirmou" do e-mail (sem download pendente)
+    const d=coletar(); if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados antes de registrar a confirmação.";return;}
+    const c=registrarCaso(); _gateAcao=null; _gateHash=hashConfirmacao(d);
+    if($("emailModal"))$("emailModal").classList.remove("open");
+    abrirPortao(!!(c.confirmado && c.confirmHash!==_gateHash));
+  }
+  function abrirPortao(vencida){
+    const c=lerCasos().find(x=>x.id===casoAtualId)||{};
+    if($("gateData") && !$("gateData").value) $("gateData").value=hojeBR();
+    if($("gateContato") && !$("gateContato").value) $("gateContato").value=($("emailContato")&&$("emailContato").value)||"";
+    const av=$("gateAviso");
+    if(av) av.innerHTML = vencida
+      ? "⚠ <b>Os dados mudaram depois da confirmação</b> (o cliente havia confirmado em "+(c.confirmadoEm||"—")+"). Como o cliente aprova uma versão específica, é preciso <b>reenviar e reconfirmar</b> antes de gerar o documento."
+      : "Este documento só é gerado <b>após o cliente confirmar as alterações</b>. Envie o e-mail, e quando o cliente responder, registre aqui para liberar o .docx/PDF.";
+    if($("gateStat"))$("gateStat").textContent="";
+    if($("gateEmerg"))$("gateEmerg").value="";
+    $("gateModal").classList.add("open");
+  }
+  function _fecharGate(){ if($("gateModal"))$("gateModal").classList.remove("open"); }
+  function _gravarConfirmacao(via,nota){
+    const cs=lerCasos(); const c=cs.find(x=>x.id===casoAtualId); if(!c) return null;
+    c.confirmado=true; c.confirmHash=_gateHash;
+    c.confirmadoEm=($("gateData")&&$("gateData").value.trim())||hojeBR();
+    c.confirmadoVia=via; c.confirmadoPor=(($("gateContato")&&$("gateContato").value)||"").trim();
+    c.confirmadoNota=(nota||"").trim(); c.confirmadoTs=Date.now();
+    salvarCasos(cs);
+    if($("painelModal")&&$("painelModal").classList.contains("open")) renderPainel();
+    return c;
+  }
+  function registrarConfirmacaoEmail(){
+    const nota=(($("gateNota")&&$("gateNota").value)||"").trim();
+    if(!nota){ if($("gateStat")){$("gateStat").style.color="var(--warn)";$("gateStat").textContent="Cole a resposta do cliente (ou uma observação) para registrar.";} if($("gateNota"))$("gateNota").focus(); return; }
+    _gravarConfirmacao("email",nota);
+    _liberar("✓ Confirmação do cliente registrada.");
+  }
+  function registrarConfirmacaoEmergencia(){
+    const just=(($("gateEmerg")&&$("gateEmerg").value)||"").trim();
+    if(just.length<8){ if($("gateStat")){$("gateStat").style.color="var(--warn)";$("gateStat").textContent="Descreva a justificativa da liberação de emergência.";} if($("gateEmerg"))$("gateEmerg").focus(); return; }
+    _gravarConfirmacao("emergencia",just);
+    _liberar("⚠ Liberado sem e-mail — justificativa gravada no caso.");
+  }
+  // executa a ação pendente (download) e fecha o portão; msg=null quando já estava confirmado (sem toast extra)
+  function _liberar(msg){
+    const acao=_gateAcao; _gateAcao=null; _fecharGate();
+    if(msg) toast(msg,"ok");
+    if($("gateNota"))$("gateNota").value=""; if($("gateEmerg"))$("gateEmerg").value="";
+    if(typeof acao==="function") acao();
+  }
+
   function renderPainel(){const box=$("painelLista"); if(!box)return; let casos=lerCasos();
     const todos=casos.length;
     const q=(($("painelBusca")&&$("painelBusca").value)||"").trim().toLowerCase();
@@ -1578,12 +1686,17 @@ window.TINA=(function(){
     if(!todos){box.innerHTML="<p class='hint'>Nenhum caso salvo ainda. Preencha um ato e clique em \"+ Salvar caso atual\" (ou salve pelo e-mail de confirmação).</p>";return;}
     if(!casos.length){box.innerHTML="<p class='hint'>Nenhum caso corresponde à busca \""+escHtml(q)+"\".</p>";return;}
     box.innerHTML="<div style='overflow-x:auto'><table style='width:100%;font-size:12px;border-collapse:collapse' class='casostbl'>"+
-      "<tr><th style='text-align:left'>ID</th><th style='text-align:left'>Empresa</th><th style='text-align:left'>Tipo</th><th>Data</th><th></th></tr>"+
+      "<tr><th style='text-align:left'>ID</th><th style='text-align:left'>Empresa</th><th style='text-align:left'>Tipo</th><th>Data</th><th>Situação</th><th></th></tr>"+
       casos.map(c=>"<tr data-id='"+escHtml(c.id)+"'"+(c.id===casoAtualId?" style='background:#f2f7ff'":"")+">"+
         "<td><code>#"+escHtml(c.id)+"</code></td>"+
         "<td>"+escHtml(c.empresa||"—")+(c.cnpj?"<br><span class='hint'>"+escHtml(c.cnpj)+"</span>":"")+"</td>"+
         "<td>"+escHtml(c.tipo||"")+"</td>"+
         "<td style='text-align:center'>"+escHtml(c.data||"")+"</td>"+
+        "<td style='text-align:center;white-space:nowrap'>"+(c.confirmado
+          ?(c.confirmadoVia==="emergencia"
+             ?"<span style='color:var(--warn);font-weight:600' title='Liberado sem e-mail — justificativa gravada no caso'>⚠ "+escHtml(c.confirmadoEm||"")+"</span>"
+             :"<span style='color:var(--ok);font-weight:600' title='Confirmado pelo cliente'>✓ "+escHtml(c.confirmadoEm||"")+"</span>")
+          :"<span class='hint'>⏳ pendente</span>")+"</td>"+
         "<td style='white-space:nowrap'><button class='btn s mini' data-dup title='Iniciar um novo ato para esta empresa'>⧉ Duplicar</button> <button class='btn o mini' data-loc title='Localizar a resposta deste caso no seu Gmail'>🔎 Gmail</button> <button class='btn del mini' data-del title='Remover'>×</button></td></tr>").join("")+"</table></div>"+
       "<p class='hint' style='margin-top:8px'>"+casos.length+" caso(s) salvo(s) neste navegador. Use ⧉ para começar outro ato da mesma empresa; 🔎 para achar a resposta no Gmail; × para remover.</p>";
     box.querySelectorAll("tr[data-id]").forEach(tr=>{const id=tr.dataset.id;
@@ -2200,6 +2313,12 @@ window.TINA=(function(){
     if($("btnEmailGmail")) $("btnEmailGmail").addEventListener("click",()=>{const u="https://mail.google.com/mail/?view=cm&fs=1&tf=1&su="+encodeURIComponent($("emailAssunto").value)+"&body="+encodeURIComponent($("emailCorpo").value);window.open(u,"_blank","noopener,noreferrer");if($("emailStat")){$("emailStat").style.color="var(--navy)";$("emailStat").textContent="Abrindo o Gmail — confira o remetente no campo \"De:\" antes de enviar.";}});
     if($("btnEmailSalvarCaso")) $("btnEmailSalvarCaso").addEventListener("click",()=>{const c=registrarCaso(); gerarEmail(); if($("emailStat")){$("emailStat").style.color="var(--ok)";$("emailStat").textContent="✓ Caso salvo no painel — ID #"+c.id;}});
     if($("btnEmailLocalizar")) $("btnEmailLocalizar").addEventListener("click",()=>{localizarGmail(emailIdAtual); if($("emailStat")){$("emailStat").style.color="var(--navy)";$("emailStat").textContent="Abrindo o Gmail filtrado no ID #"+emailIdAtual+" — a resposta do cliente aparece aqui.";}});
+    if($("btnEmailConfirmou")) $("btnEmailConfirmou").addEventListener("click",abrirGateSoRegistro);
+    if($("btnGateClose")) $("btnGateClose").addEventListener("click",_fecharGate);
+    if($("gateModal")) $("gateModal").addEventListener("click",e=>{if(e.target.id==="gateModal")_fecharGate();});
+    if($("btnGateEmail")) $("btnGateEmail").addEventListener("click",()=>{_fecharGate(); gerarEmail();});
+    if($("btnGateRegistrar")) $("btnGateRegistrar").addEventListener("click",registrarConfirmacaoEmail);
+    if($("btnGateEmergencia")) $("btnGateEmergencia").addEventListener("click",registrarConfirmacaoEmergencia);
     if($("btnPainel")) $("btnPainel").addEventListener("click",()=>{renderPainel();$("painelModal").classList.add("open");});
     if($("btnPainelClose")) $("btnPainelClose").addEventListener("click",()=>$("painelModal").classList.remove("open"));
     if($("painelModal")) $("painelModal").addEventListener("click",e=>{if(e.target.id==="painelModal")$("painelModal").classList.remove("open");});
