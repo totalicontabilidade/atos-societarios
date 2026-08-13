@@ -4,7 +4,7 @@
      e guarda a cópia mais nova para uso offline. Assim, abrir o app online = sempre a última versão.
    - Demais recursos do mesmo domínio (libs grandes, ícones): cache primeiro (rápido/offline).
    - Recursos externos (ViaCEP): passam direto pela rede. */
-const CACHE = "atos-shell-v11";
+const CACHE = "atos-shell-v12";
 const CORE = [
   "./",
   "./index.html",
@@ -38,7 +38,11 @@ self.addEventListener("fetch", e => {
     e.respondWith((async () => {
       try {
         const fresh = await fetch(req.url, { cache: "no-store" });
-        caches.open(CACHE).then(c => c.put("./index.html", fresh.clone())).catch(() => {});
+        // só guarda cópia offline se a resposta for BOA: um 404/502 (ex.: durante um deploy) viraria
+        // a "versão offline" do app e passaria a ser servida no lugar da página real.
+        if (fresh && fresh.ok && fresh.type === "basic") {
+          caches.open(CACHE).then(c => c.put("./index.html", fresh.clone())).catch(() => {});
+        }
         return fresh;
       } catch (_) {
         return (await caches.match("./index.html")) || (await caches.match("./")) || Response.error();

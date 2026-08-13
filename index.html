@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <!-- Blindagem (defesa em profundidade). script-src precisa de 'unsafe-inline'/'unsafe-eval' porque o app é single-file inline + wasm (pdf.js/Tesseract). connect-src https: cobre o viacep e o CDN do OCR; img-src bloqueia exfiltração por imagem externa; object/base/form fechados. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="manifest" href="manifest.webmanifest" />
@@ -194,7 +194,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.14 · beta</span>
+  <span class="chip">v0.15 · beta</span>
 </header>
 
 <div class="wrap">
@@ -1471,7 +1471,9 @@ window.TINA=(function(){
       const txt=xml.replace(/<[^>]+>/g," ");
       const ph=[...new Set((txt.match(/\[[^\]]{2,40}\]/g)||[]))];
       if(ph.length) f.push("Variáveis ainda no documento: "+ph.join(" "));
-    }catch(e){}
+    }catch(e){ // falhar em silêncio aqui exibiria "Validação OK" com [CNPJ]/[NOME] ainda no documento
+      f.push("Não foi possível verificar se sobraram variáveis no documento — confira o texto antes de protocolar.");
+      console.warn("checagem de placeholders indisponível:",e); }
     f.consist = checarConsistencia(d);   // avisos de consistência (não bloqueiam, mas evitam exigência na Junta)
     return f;
   }
@@ -1673,7 +1675,7 @@ window.TINA=(function(){
     if($("gateContato") && !$("gateContato").value) $("gateContato").value=($("emailContato")&&$("emailContato").value)||"";
     const av=$("gateAviso");
     if(av) av.innerHTML = vencida
-      ? "⚠ <b>Os dados mudaram depois da confirmação</b> (o cliente havia confirmado em "+(c.confirmadoEm||"—")+"). Como o cliente aprova uma versão específica, é preciso <b>reenviar e reconfirmar</b> antes de gerar o documento."
+      ? "⚠ <b>Os dados mudaram depois da confirmação</b> (o cliente havia confirmado em "+escHtml(c.confirmadoEm||"—")+"). Como o cliente aprova uma versão específica, é preciso <b>reenviar e reconfirmar</b> antes de gerar o documento."
       : "Este documento só é gerado <b>após o cliente confirmar as alterações</b>. Envie o e-mail, e quando o cliente responder, registre aqui para liberar o .docx/PDF.";
     if($("gateStat"))$("gateStat").textContent="";
     if($("gateEmerg"))$("gateEmerg").value="";
@@ -1743,7 +1745,7 @@ window.TINA=(function(){
   function exemplo(){limpar();$("socios").innerHTML="";
     if(MODE&&MODE.startsWith("dist")){
       $("s_cep").value="49000-000";$("s_log").value="Rua Exemplo";$("s_num").value="100";$("s_bairro").value="Centro";$("s_mun").value="Aracaju";$("s_uf").value="SE";
-      $("atoCidade").value="Aracaju";$("atoData").value=hojeBR();$("cnpj").value="12.345.678/0001-90";$("nire").value="28200123456";
+      $("atoCidade").value="Aracaju";$("atoData").value=hojeBR();$("cnpj").value="12.345.678/0001-95";$("nire").value="28200123456";
       $("dataInicioOrig").value="10/05/2015";if($("dataEncerramento"))$("dataEncerramento").value=hojeBR();
       if(MODE==="dist_ei"){
         $("razao").value="J. S. LIMA";
@@ -1762,14 +1764,14 @@ window.TINA=(function(){
       $("atoCidade").value="Aracaju";$("atoData").value=hojeBR();$("dataInicioOrig").value="01/06/2018";
       if(MODE!=="transf_ltda_ei"&&$("acervo"))$("acervo").value="1000";
       if(MODE==="transf_ei_ltda"){
-        $("razao").value="J S LIMA";$("razaoAnterior").value="J. S. LIMA";$("cnpj").value="12.345.678/0001-00";$("nire").value="28100000001";$("capital").value="20000";$("valorQuota").value="1.00";
+        $("razao").value="J S LIMA";$("razaoAnterior").value="J. S. LIMA";$("cnpj").value="12.345.678/0001-95";$("nire").value="28100000001";$("capital").value="20000";$("valorQuota").value="1.00";
         socioCard({nome:"João da Silva Lima",cpf:"111.444.777-35",sexo:"M",nacionalidade:"brasileiro",estadoCivil:"solteiro",profissao:"empresário",nascimento:"12/04/1988",naturalCidade:"Aracaju",naturalUF:"SE",rg:"1234567",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"100",bairro:"Centro",mun:"Aracaju",uf:"SE",quotas:12000,administrador:true});
         socioCard({nome:"Maria de Souza Lima",cpf:"529.982.247-25",sexo:"F",nacionalidade:"brasileiro",estadoCivil:"casado",regime:"comunhão parcial de bens",profissao:"administradora",nascimento:"22/03/1988",naturalCidade:"Aracaju",naturalUF:"SE",rg:"7654321",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"100",comp:"ap. 2",bairro:"Centro",mun:"Aracaju",uf:"SE",quotas:8000,administrador:true});
       } else if(MODE==="transf_ei_slu"){
-        $("razao").value="J S LIMA";$("razaoAnterior").value="J. S. LIMA";$("cnpj").value="12.345.678/0001-00";$("nire").value="28100000001";$("capital").value="20000";$("valorQuota").value="1.00";
+        $("razao").value="J S LIMA";$("razaoAnterior").value="J. S. LIMA";$("cnpj").value="12.345.678/0001-95";$("nire").value="28100000001";$("capital").value="20000";$("valorQuota").value="1.00";
         socioCard({nome:"João da Silva Lima",cpf:"111.444.777-35",sexo:"M",nacionalidade:"brasileiro",estadoCivil:"solteiro",profissao:"empresário",nascimento:"12/04/1988",naturalCidade:"Aracaju",naturalUF:"SE",rg:"1234567",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"100",bairro:"Centro",mun:"Aracaju",uf:"SE",quotas:20000,administrador:true});
       } else { // transf_ltda_ei
-        $("razao").value="João da Silva Santos";$("razaoAnterior").value="COMERCIAL MODELO";$("cnpj").value="12.345.678/0001-90";$("nire").value="28100000002";$("capital").value="20000";
+        $("razao").value="João da Silva Santos";$("razaoAnterior").value="COMERCIAL MODELO";$("cnpj").value="12.345.678/0001-95";$("nire").value="28100000002";$("capital").value="20000";
         if($("socioRetira"))$("socioRetira").value="Maria de Souza Lima";if($("socioRetiraSexo"))$("socioRetiraSexo").value="F";
         socioCard({nome:"João da Silva Santos",cpf:"111.444.777-35",sexo:"M",nacionalidade:"brasileiro",estadoCivil:"solteiro",profissao:"empresário",nascimento:"10/05/1990",naturalCidade:"Aracaju",naturalUF:"SE",rg:"1234567",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"100",bairro:"Centro",mun:"Aracaju",uf:"SE"});
       }
@@ -1781,7 +1783,7 @@ window.TINA=(function(){
       $("s_cep").value="49000-000";$("s_log").value="Rua Exemplo";$("s_num").value="50";$("s_bairro").value="Centro";$("s_mun").value="Aracaju";$("s_uf").value="SE";
       $("capital").value="5000";$("atoCidade").value="Aracaju";$("atoData").value=hojeBR();
       socioCard({nome:"João da Silva Lima",cpf:"111.444.777-35",sexo:"M",nacionalidade:"brasileiro",estadoCivil:"solteiro",profissao:"empresário",nascimento:"12/04/1988",naturalCidade:"Aracaju",naturalUF:"SE",rg:"1234567",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"50",bairro:"Centro",mun:"Aracaju",uf:"SE"});
-      if(MODE==="ei_alt"){$("cnpj").value="12.345.678/0001-00";$("nire").value="28200123456";$("numAlteracao").value="2";$("dataInicioOrig").value="01/06/2018";if($("alt_sede"))$("alt_sede").checked=true;}
+      if(MODE==="ei_alt"){$("cnpj").value="12.345.678/0001-95";$("nire").value="28200123456";$("numAlteracao").value="2";$("dataInicioOrig").value="01/06/2018";if($("alt_sede"))$("alt_sede").checked=true;}
       recalc(); return;
     }
     $("razao").value="COMERCIAL MODELO";$("fantasia").value="Loja Modelo";$("enquadramento").value="ME";$("foro").value="Aracaju";
@@ -1790,7 +1792,7 @@ window.TINA=(function(){
     $("capital").value="10000";$("valorQuota").value="1.00";$("atoCidade").value="Aracaju";$("atoData").value="15/12/2025";
     socioCard({nome:"João da Silva Santos",cpf:"111.444.777-35",sexo:"M",nacionalidade:"brasileiro",estadoCivil:"solteiro",profissao:"empresário",nascimento:"10/05/1990",naturalCidade:"Aracaju",naturalUF:"SE",rg:"1234567",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"100",bairro:"Centro",mun:"Aracaju",uf:"SE",quotas:6000,administrador:true});
     socioCard({nome:"Maria de Souza Lima",cpf:"529.982.247-25",sexo:"F",nacionalidade:"brasileiro",estadoCivil:"casado",regime:"comunhão parcial de bens",profissao:"administradora",nascimento:"22/03/1988",naturalCidade:"Aracaju",naturalUF:"SE",rg:"7654321",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"100",comp:"ap. 2",bairro:"Centro",mun:"Aracaju",uf:"SE",quotas:4000,administrador:true});
-    $("cnpj").value="12.345.678/0001-90";$("nire").value="28200123456";$("numAlteracao").value="3";$("dataInicioOrig").value="10/05/2015";
+    $("cnpj").value="12.345.678/0001-95";$("nire").value="28200123456";$("numAlteracao").value="3";$("dataInicioOrig").value="10/05/2015";
     ["nome","fantasia","capital","quadro","enquadramento"].forEach(k=>{if($("alt_"+k))$("alt_"+k).checked=false;});
     if($("alt_sede"))$("alt_sede").checked=true; if($("alt_objeto"))$("alt_objeto").checked=true;
     recalc();}
@@ -1815,7 +1817,9 @@ window.TINA=(function(){
   async function extrairTextoPDF(file,onp){
     if(!window.pdfjsLib) throw new Error("pdf.js não carregou");
     const buf=await file.arrayBuffer();
-    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    // isEvalSupported:false — desliga o new Function() usado no desenho de glifos (CVE-2024-4367): um PDF
+    // preparado poderia executar código pelo FontMatrix. A entrada aqui é arquivo de terceiro, então nunca reabilitar.
+    const pdf=await pdfjsLib.getDocument({data:buf,isEvalSupported:false}).promise;
     let txt=""; const sparse=[]; const itens=[];   // itens = texto COM posição (x,y) — usado pelos parsers de formulário (CCMEI/cartão CNPJ), onde rótulo e valor são colunas
     for(let p=1;p<=pdf.numPages;p++){onp&&onp("Lendo página "+p+"/"+pdf.numPages+"…");const pg=await pdf.getPage(p);const tc=await pg.getTextContent();const s=tc.items.map(i=>i.str).join(" ");txt+=s+"\n";if(s.replace(/\s/g,"").length<20)sparse.push(p);
       tc.items.forEach(i=>{const v=(i.str||"").trim(); if(v&&i.transform)itens.push({s:v,x:Math.round(i.transform[4]),y:Math.round(i.transform[5]),p});});}
