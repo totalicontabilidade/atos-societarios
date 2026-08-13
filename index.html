@@ -2,7 +2,10 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
-<!-- Blindagem (defesa em profundidade). script-src precisa de 'unsafe-inline'/'unsafe-eval' porque o app é single-file inline + wasm (pdf.js/Tesseract). connect-src https: cobre o viacep e o CDN do OCR; img-src bloqueia exfiltração por imagem externa; object/base/form fechados. -->
+<!-- Blindagem (defesa em profundidade). 'unsafe-inline' é necessário porque o app é single-file com JS inline;
+     'wasm-unsafe-eval' (e NÃO 'unsafe-eval') basta para o wasm do pdf.js/Tesseract — 'unsafe-eval' era o que
+     permitia a CVE-2024-4367 do pdf.js, então não reintroduzir. connect-src é restrito ao ViaCEP: aberto em
+     "https:" ele seria o canal de exfiltração. object/base/form fechados. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -194,7 +197,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.18 · beta</span>
+  <span class="chip">v0.19 · beta</span>
 </header>
 
 <div class="wrap">
@@ -354,7 +357,7 @@
           <label class="checkline"><input type="checkbox" id="cl_exclusao"> Exclusão extrajudicial de sócio <span class="hint">(art. 1.085)</span></label>
         </div>
         <div id="wrapConselho" style="display:none;margin-top:8px" class="grid g3">
-          <div><label for="conselhoMembros">Membros do conselho fiscal</label><input type="number" id="conselhoMembros" min="3" value="3"></div>
+          <div><label for="conselhoMembros">Membros do conselho fiscal</label><input type="number" id="conselhoMembros" min="3" step="1" value="3"></div>
         </div>
       </div>
       <div id="valCapital"></div>
@@ -807,11 +810,11 @@ window.TINA=(function(){
       div.querySelectorAll(".pjonly").forEach(e=>e.style.display=on?"":"none");
       const ln=div.querySelector(".lblNome"); if(ln)ln.textContent=on?"Razão social da sócia":"Nome completo";
       const sl=div.querySelector(".sedelbl"); if(sl)sl.textContent="Endereço"+(on?" (sede da empresa sócia)":"");
-      const tg=div.querySelector(".tag"); if(tg && !(typeof MODE!=="undefined"&&MODE&&(MODE.startsWith("ei")||MODE==="transf_ltda_ei")))tg.textContent=on?"Sócia (PJ)":"Sócio";
+      const tg=div.querySelector(".tag"); if(tg && !(typeof MODE!=="undefined"&&MODE&&(MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE==="dist_ei")))tg.textContent=on?"Sócia (PJ)":"Sócio";
       if(on)tglOrg();};
     pj.addEventListener("change",tglPJ); tglPJ();
     const adm=q("administrador"); if(adm)adm.addEventListener("change",recalc);  // atualiza a linha "Modo de administração"
-    if(typeof MODE!=="undefined"&&MODE&&(MODE.startsWith("ei")||MODE==="transf_ltda_ei")){div.querySelectorAll(".ltdaonly").forEach(e=>e.style.display="none");const tg=div.querySelector(".tag");if(tg)tg.textContent="Titular";const pt=div.querySelector(".pjtoggle");if(pt)pt.style.display="none";}
+    if(typeof MODE!=="undefined"&&MODE&&(MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE==="dist_ei")){div.querySelectorAll(".ltdaonly").forEach(e=>e.style.display="none");const tg=div.querySelector(".tag");if(tg)tg.textContent="Titular";const pt=div.querySelector(".pjtoggle");if(pt)pt.style.display="none";}
     recalc();
   }
   function removeSocio(idx){const el=document.querySelector(".socio[data-idx='"+idx+"']");if(el)el.remove();recalc();}
@@ -862,7 +865,12 @@ window.TINA=(function(){
     div.querySelector("[data-rem]").addEventListener("click",()=>{div.remove();if(typeof salvarRascunhoDeb==="function")salvarRascunhoDeb();});
     const q=s=>div.querySelector('[data-g="'+s+'"]');
     attachCep(q("cep"), q("cepstat"), {log:q("log"),bairro:q("bairro"),mun:q("mun"),uf:q("uf")});
-    $("filiais").appendChild(div); rotularCard(div); return div;}
+    $("filiais").appendChild(div); rotularCard(div);
+    // quem mostra .altonly é o switchMode; sem isto, filial criada com o app já em "Alteração"
+    // nasceria com o campo de CNPJ escondido até o usuário trocar de aba e voltar
+    const alt=(typeof MODE!=="undefined"&&MODE&&MODE.endsWith("alt"));
+    div.querySelectorAll(".altonly").forEach(el=>el.style.display=alt?"":"none");
+    return div;}
   function readFiliais(){return[...document.querySelectorAll(".filial")].map(c=>{const o={};
     c.querySelectorAll("[data-g]").forEach(inp=>{o[inp.dataset.g]=(inp.value||"").trim();});
     o.uf=(o.uf||"").toUpperCase(); return o;}).filter(f=>f.log||f.mun);}
@@ -891,7 +899,7 @@ window.TINA=(function(){
 
   function coletar(){const socios=readSocios(),cap=Number($("capital").value)||0,vq=Number($("valorQuota").value)||0;
     const v=(id)=>{const e=$(id);return e?(e.value||"").trim():"";};
-    const CHG=new Set();["nome","fantasia","sede","objeto","capital","quadro","enquadramento"].forEach(k=>{const e=$("alt_"+k);if(e&&e.checked)CHG.add(k);});
+    const CHG=new Set();["nome","fantasia","sede","objeto","capital","quadro","enquadramento","cessao"].forEach(k=>{const e=$("alt_"+k);if(e&&e.checked)CHG.add(k);});
     return{razao:v("razao"),fantasia:v("fantasia"),enquadramento:$("enquadramento").value,foro:v("foro"),objeto:v("objeto"),
       sede:{cep:v("s_cep"),log:v("s_log"),num:v("s_num"),comp:v("s_comp"),bairro:v("s_bairro"),mun:v("s_mun"),uf:v("s_uf").toUpperCase()},
       filiais:readFiliais(),
@@ -1023,8 +1031,11 @@ window.TINA=(function(){
       if(d.cessao && (d.cedNome||"").trim() && (d.cessNome||"").trim()){
         const q=d.cedQuotas>0?d.cedQuotas:0, vl=d.cedValor>0?d.cedValor:(q*(d.valorQuota||0));
         // gênero vem do quadro societário quando o nome bater; o cedente costuma já ter saído da lista
-        const achaS=(nm)=>{const a=(nm||"").trim().toLowerCase(); if(!a)return null;
-          return (d.socios||[]).find(s=>{const b=(s.nome||"").trim().toLowerCase(); return b&&(b===a||b.includes(a)||a.includes(b));})||null;};
+        // casamento por nome COMPLETO normalizado (sem acento/caixa). "includes" casava errado:
+        // "Lima" batia com "Maria de Souza Lima" e definiria o gênero da cláusula pela pessoa errada.
+        const norm=x=>(x||"").normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"").toLowerCase().replace(/\s+/g," ").trim();
+        const achaS=(nm)=>{const a=norm(nm); if(!a)return null;
+          return (d.socios||[]).find(s=>norm(s.nome)===a)||null;};
         const sCed=achaS(d.cedNome), sCess=achaS(d.cessNome);
         const artCed=sCed?(sCed.sexo==="F"?"A sócia ":"O sócio "):"";          // sem o nome no quadro, cita só o nome
         const artCess=sCess?(sCess.sexo==="F"?"à sócia ":"ao sócio "):"a ";
@@ -1068,7 +1079,7 @@ window.TINA=(function(){
       d.filiais.forEach((f,i)=>{
         const at=(f.objeto||"").trim()||d.objeto||"[ATIVIDADES]";
         ch.push(paragN("Em estabelecimento eleito como Filial situado na "+endLinha(f)+(f.cnpj?", inscrita no CNPJ sob o nº "+f.cnpj:"")+", no qual "+(fut("sede")?"serão exercidas":"são exercidas")+" as atividades de "+at+"."
-          +(Number(f.capital)>0?" O destaque do capital para esta filial é de "+reais(Number(f.capital))+" ("+extensoReais(Number(f.capital))+").":""), ORD_PARAG[i]||("Parágrafo "+(i+1)+"º. ")));
+          +(Number(f.capital)>0?" O destaque do capital para esta filial é de "+reais(Number(f.capital))+" ("+extensoReais(Number(f.capital))+").":""), ORD_PARAG[i]||("Parágrafo "+ROMANOS[i]+". ")));
       });
     }
     // III - OBJETO
@@ -1284,7 +1295,7 @@ window.TINA=(function(){
       ch.push(corpo("Sem prejuízo da possibilidade de abrir ou fechar filial, ou qualquer dependência, mediante alteração deste ato, na forma da lei, o Empresário Individual "+(fut("sede")?"atuará":"atua")+" também no(s) seguinte(s) estabelecimento(s):"));
       d.filiais.forEach((f,i)=>{
         const at=(f.objeto||"").trim()||d.objeto||"[ATIVIDADES]";
-        ch.push(P([T(ORD_PARAG[i]||("Parágrafo "+(i+1)+"º. "),{bold:true}),...R("Em estabelecimento eleito como Filial situado na "+endLinha(f)+(f.cnpj?", inscrita no CNPJ sob o nº "+f.cnpj:"")+", no qual "+(fut("sede")?"serão exercidas":"são exercidas")+" as atividades de "+at+"."
+        ch.push(P([T(ORD_PARAG[i]||("Parágrafo "+ROMANOS[i]+". "),{bold:true}),...R("Em estabelecimento eleito como Filial situado na "+endLinha(f)+(f.cnpj?", inscrita no CNPJ sob o nº "+f.cnpj:"")+", no qual "+(fut("sede")?"serão exercidas":"são exercidas")+" as atividades de "+at+"."
           +(Number(f.capital)>0?" O destaque do capital para esta filial é de "+reais(Number(f.capital))+" ("+extensoReais(Number(f.capital))+").":""))],JUST,SP15));
       });
     }
@@ -1680,12 +1691,19 @@ window.TINA=(function(){
       if(!d.dataInicioOrig) f.push("Início original das atividades");
       if(d.changed&&d.changed.has("nome")&&!(d.razaoAnterior||"").trim()) f.push("Razão social ANTERIOR (atual) — necessária p/ o título e o preâmbulo (a nova vai só na cláusula e no consolidado)");
       if(!d.changed || d.changed.size===0) f.push("Marque em \"O que muda\" o que está sendo alterado");
+      // marcar a caixa e deixar o nome em branco fazia a cláusula sumir do ato sem nenhum aviso
+      if(d.cessao){ if(!(d.cedNome||"").trim()) f.push("Cessão de quotas: nome do cedente");
+        if(!(d.cessNome||"").trim()) f.push("Cessão de quotas: nome do cessionário");
+        if(!(d.cedQuotas>0)) f.push("Cessão de quotas: quantidade de quotas cedidas"); }
     }
     if(isTransf){
       if(!d.razaoAnterior) f.push("Nome empresarial anterior (origem)");
       if(!d.cnpj) f.push("CNPJ de origem (mantido na transformação)");
       if(!d.dataInicioOrig) f.push("Início original das atividades");
     }
+    if(d.admNaoSocio){ if(!(d.admnsNome||"").trim()) f.push("Administrador não sócio: nome");
+      if(!(d.admnsQualif||"").trim()) f.push("Administrador não sócio: qualificação (exigida pela IN)"); }
+    (d.filiais||[]).forEach((fl,i)=>{ if(!(fl.log||"").trim()||!(fl.mun||"").trim()) f.push("Filial "+(i+1)+": logradouro e município"); });
     try{ let blob=blobOpt; if(!blob)blob=(await buildBlob()).blob;
       const zip=await window.JSZip.loadAsync(blob); const xml=await zip.file("word/document.xml").async("string");
       const txt=xml.replace(/<[^>]+>/g," ");
@@ -1820,7 +1838,10 @@ window.TINA=(function(){
     const CH=d.changed||new Set();
     const mudaNome=MODE.endsWith("alt") && CH.has("nome") && !!(d.razaoAnterior||"").trim();
     const razHeaderUP=mudaNome ? (d.razaoAnterior||"").toUpperCase() : razUP;   // no cabeçalho cita o nome ATUAL; a mudança (De/Para) é detalhada no bloco abaixo
-    const id=casoAtualId||idSolicitacao(d);   // se o caso já foi salvo no painel, usa o ID único do caso
+    // cria o caso já aqui: o ID que vai no assunto precisa ser o MESMO que o painel usa depois para
+    // localizar a resposta no Gmail — antes o e-mail saía com um ID de hash e o caso nascia com outro.
+    if(!casoAtualId && (d.razao||"").trim()) { try{ registrarCaso(); }catch(e){} }
+    const id=casoAtualId||idSolicitacao(d);
     emailIdAtual=id;
     const contato=($("emailContato").value||"").trim()||"Cliente";
     const paralegal=($("emailParalegal").value||"").trim()||"[Nome do paralegal]";
@@ -1828,7 +1849,7 @@ window.TINA=(function(){
     const SEP="──────────────────────────────────────────────";
     const tituloBloco=MODE.startsWith("dist")?"DADOS DO ENCERRAMENTO":MODE.startsWith("transf")?"DADOS DA TRANSFORMAÇÃO":(MODE==="const"||MODE==="ei_const")?"DADOS DO ATO":"ALTERAÇÕES SOLICITADAS";
     let b="Prezado(a) "+contato+",\n\n";
-    b+="Conforme alinhado, encaminhamos abaixo o resumo do ato societário a ser promovido na empresa "+razHeaderUP+sufixo+(d.cnpj?" (CNPJ "+d.cnpj+")":"")+", por meio da "+ato+", com posterior registro na "+_junta()+" (JUCESE).\n\n";
+    b+="Conforme alinhado, encaminhamos abaixo o resumo do ato societário a ser promovido na empresa "+razHeaderUP+sufixo+(d.cnpj?" (CNPJ "+d.cnpj+")":"")+", por meio da "+ato+", com posterior registro na "+_junta()+".\n\n";
     if(d.atoData) b+="A data pretendida para o ato é "+d.atoData+".\n\n";
     b+="Solicitamos a gentileza de revisar com atenção as informações abaixo e, estando tudo correto, responder a este e-mail confirmando (basta \"Confirmado\" ou \"De acordo\") para que possamos prosseguir com a elaboração e o protocolo. Caso identifique algo a ajustar, é só indicar nesta mesma resposta.\n\n";
     b+=SEP+"\n"+tituloBloco+"\n"+SEP+"\n\n"+blocosEmail(d,sufixo)+"\n\n";
@@ -1838,9 +1859,9 @@ window.TINA=(function(){
     $("emailCorpo").value=b;
     $("emailModal").classList.add("open");
   }
-  function copiar(txt,msg){ const done=()=>{if($("emailStat")){$("emailStat").style.color="var(--ok)";$("emailStat").textContent=msg;}};
+  function copiar(txt,msg){ const done=(ok)=>{if($("emailStat")){const bom=(ok!==false);$("emailStat").style.color=bom?"var(--ok)":"var(--err)";$("emailStat").textContent=bom?msg:"Não foi possível copiar — selecione o texto e use Ctrl+C.";}};
     if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,()=>fallbackCopy(txt,done));} else fallbackCopy(txt,done);}
-  function fallbackCopy(txt,done){const ta=document.createElement("textarea");ta.value=txt;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}ta.remove();done&&done();}
+  function fallbackCopy(txt,done){const ta=document.createElement("textarea");ta.value=txt;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand("copy");}catch(e){}ta.remove();done&&done(ok);}   // só avisa "copiado" se copiou mesmo
   // Abre o Gmail do próprio usuário já filtrado no ID do caso (aspas evitam o hífen virar operador de exclusão).
   function localizarGmail(id){id=(id||"").replace(/^#/,"").trim(); if(!id)return; const q='"'+id+'"'; window.open("https://mail.google.com/mail/u/0/#search/"+encodeURIComponent(q),"_blank","noopener,noreferrer");}
 
@@ -1853,7 +1874,7 @@ window.TINA=(function(){
   let valoresAntes=null;     // snapshot do estado ATUAL (do PDF) antes dos comandos — usado no e-mail p/ mostrar "De/Para"
   function tipoAto(d){const n=d.numAlteracao||"1"; return ATO_EMAIL[MODE]||(MODE==="alt"?(n+"ª Alteração Contratual"):MODE==="ei_alt"?(n+"ª Alteração de Empresário Individual"):"Ato societário");}
   function lerCasos(){try{return JSON.parse(localStorage.getItem("tinaCasos")||"[]");}catch(e){return [];}}
-  function salvarCasos(a){try{localStorage.setItem("tinaCasos",JSON.stringify(a));}catch(e){}}
+  function salvarCasos(a){try{localStorage.setItem("tinaCasos",JSON.stringify(a));return true;}catch(e){console.warn("localStorage indisponível/cheio:",e);return false;}}
   function novoIdCaso(dataStr){const dp=(dataStr||hojeBR()).split("/"); const ymd=dp.length===3?(dp[2]+String(dp[1]).padStart(2,"0")+String(dp[0]).padStart(2,"0")):"00000000";
     // usa o MAIOR sequencial do dia, não a contagem: apagar um caso deixaria buracos e geraria ID repetido
     // (com ID repetido, a confirmação do cliente acabaria gravada no caso errado).
@@ -1873,7 +1894,13 @@ window.TINA=(function(){
     const chg=d.changed?[...d.changed].sort().join(","):"";
     return _hashStr([MODE,d.razao,d.fantasia,d.cnpj,d.nire,d.numAlteracao,d.capital,d.capitalAnterior,d.numQuotas,d.valorQuota,d.objeto,
       JSON.stringify(d.sede),d.enquadramento,d.modoAdm,d.integralizacao,d.atoData,d.atoCidade,d.foro,
-      d.dataInicioOrig,d.retifica?1:0,d.retificaRef,d.clausulasExtra,d.acervo,d.dataEncerramento,d.guardiaoLivros,chg,soc]
+      d.dataInicioOrig,d.retifica?1:0,d.retificaRef,d.clausulasExtra,d.acervo,d.dataEncerramento,d.guardiaoLivros,
+      // tudo o que entra no documento precisa entrar aqui: senão dá para acrescentar uma cessão de quotas,
+      // um administrador ou uma filial DEPOIS de o cliente confirmar, e o portão libera sem reconfirmar.
+      d.cessao?1:0,d.cedNome,d.cessNome,d.cedQuotas,d.cedValor,d.cedRetira?1:0,
+      d.admNaoSocio?1:0,d.admnsNome,d.admnsQualif,
+      d.clRegencia?1:0,d.clConselho?1:0,d.clExclusao?1:0,d.conselhoMembros,
+      d.socioRetira,d.socioRetiraSexo,JSON.stringify(d.filiais||[]),chg,soc]
       .map(x=>x==null?"":String(x)).join("§"));
   }
   let _gateAcao=null, _gateHash="";
@@ -1905,27 +1932,27 @@ window.TINA=(function(){
     if($("gateEmerg"))$("gateEmerg").value="";
     $("gateModal").classList.add("open");
   }
-  function _fecharGate(){ if($("gateModal"))$("gateModal").classList.remove("open"); }
+  function _fecharGate(){ if($("gateModal"))$("gateModal").classList.remove("open"); _gateAcao=null; }   // fechar no X não deixa download pendurado
   function _gravarConfirmacao(via,nota){
     const cs=lerCasos(); const c=cs.find(x=>x.id===casoAtualId); if(!c) return null;
     c.confirmado=true; c.confirmHash=_gateHash;
     c.confirmadoEm=($("gateData")&&$("gateData").value.trim())||hojeBR();
     c.confirmadoVia=via; c.confirmadoPor=(($("gateContato")&&$("gateContato").value)||"").trim();
     c.confirmadoNota=(nota||"").trim(); c.confirmadoTs=Date.now();
-    salvarCasos(cs);
+    if(!salvarCasos(cs)) return null;   // não persistiu (armazenamento cheio/bloqueado): não dá para dizer que registrou
     if($("painelModal")&&$("painelModal").classList.contains("open")) renderPainel();
     return c;
   }
   function registrarConfirmacaoEmail(){
     const nota=(($("gateNota")&&$("gateNota").value)||"").trim();
     if(!nota){ if($("gateStat")){$("gateStat").style.color="var(--warn)";$("gateStat").textContent="Cole a resposta do cliente (ou uma observação) para registrar.";} if($("gateNota"))$("gateNota").focus(); return; }
-    _gravarConfirmacao("email",nota);
+    if(!_gravarConfirmacao("email",nota)){ if($("gateStat")){$("gateStat").style.color="var(--err)";$("gateStat").textContent="Não foi possível gravar a confirmação (armazenamento cheio ou bloqueado). Exporte um backup e remova casos antigos.";} return; }
     _liberar("✓ Confirmação do cliente registrada.");
   }
   function registrarConfirmacaoEmergencia(){
     const just=(($("gateEmerg")&&$("gateEmerg").value)||"").trim();
     if(just.length<8){ if($("gateStat")){$("gateStat").style.color="var(--warn)";$("gateStat").textContent="Descreva a justificativa da liberação de emergência.";} if($("gateEmerg"))$("gateEmerg").focus(); return; }
-    _gravarConfirmacao("emergencia",just);
+    if(!_gravarConfirmacao("emergencia",just)){ if($("gateStat")){$("gateStat").style.color="var(--err)";$("gateStat").textContent="Não foi possível gravar a justificativa (armazenamento cheio ou bloqueado). Exporte um backup e remova casos antigos.";} return; }
     _liberar("⚠ Liberado sem e-mail — justificativa gravada no caso.");
   }
   // executa a ação pendente (download) e fecha o portão; msg=null quando já estava confirmado (sem toast extra)
@@ -2027,6 +2054,11 @@ window.TINA=(function(){
     ["admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","alt_cessao","cedRetira"].forEach(id=>{if($(id))$(id).checked=false;});
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach(id=>{if($(id))$(id).style.display="none";});
     if($("filiais"))$("filiais").innerHTML=""; if($("conselhoMembros"))$("conselhoMembros").value="3";
+    // e-mail e portão também: o contato do cliente ANTERIOR ficava aqui e ia para o e-mail do próximo,
+    // além de ser gravado como "confirmadoPor" do caso novo (auditoria com a pessoa errada).
+    ["emailContato","emailAssunto","emailCorpo","gateContato","gateData","gateNota","gateEmerg"].forEach(id=>{if($(id))$(id).value="";});
+    if($("emailStat"))$("emailStat").textContent=""; if($("gateStat"))$("gateStat").textContent="";
+    _emailEditado=false; emailIdAtual="";
     document.querySelectorAll(".revisar").forEach(e=>e.classList.remove("revisar"));
     ["nome","fantasia","sede","objeto","capital","quadro","enquadramento"].forEach(k=>{if($("alt_"+k))$("alt_"+k).checked=false;});
     if($("altRetifica"))$("altRetifica").checked=false; if($("retificaRef"))$("retificaRef").value=""; if($("wrapRetifica"))$("wrapRetifica").style.display="none";
@@ -2563,9 +2595,12 @@ window.TINA=(function(){
     // bairro
     m=corta(/\b(?:no\s+bairro|bairro)\s*:?\s*([^,]{2,60}?)\s*(?=,|$)/i);
     if(m)o.bairro=m[1].trim();
-    // complemento
-    m=corta(/\b((?:sala|bloco|apto?|apartamento|andar|conjunto|loja|galpão|galpao|quadra|lote|casa|box|sobrado|fundos)\b\.?\s*[^,]{0,30}?)\s*(?=,|$)/i);
-    if(m)o.comp=m[1].trim();
+    // complemento — nunca no PRIMEIRO segmento: em "Quadra 104 Norte, Lote 5, Palmas/TO" a Quadra é o logradouro
+    {
+      const reC=/\b((?:sala|bloco|apto?|apartamento|andar|conjunto|loja|galpão|galpao|quadra|lote|casa|box|sobrado|fundos)\b\.?\s*[^,]{0,30}?)\s*(?=,|$)/i;
+      const mc=t.match(reC), primeiro=(t.split(",")[0]||"");
+      if(mc && primeiro.indexOf(mc[0].trim())<0){ o.comp=mc[1].trim(); t=t.replace(mc[0]," , "); }
+    }
     // número — "número 891", "nº 891", "n. 891" ou um número solto entre vírgulas
     m=corta(/\b(?:n[ºo°]?\.?|n[uú]mero)\s*[:.]?\s*(\d{1,6}[A-Za-z]?)\b/i);
     if(!m)m=corta(/,\s*(\d{1,6}[A-Za-z]?)\s*(?=,|$)/);
@@ -2576,6 +2611,8 @@ window.TINA=(function(){
     const restos=t.split(",").map(x=>x.trim()).filter(x=>x&&!/^[-\/]+$/.test(x)&&!LIXO.test(x));
     if(restos.length)o.log=restos[0].replace(/^(?:na?|no|em|para)\s+/i,"").trim();
     if(!o.mun&&restos.length>1)o.mun=restos[restos.length-1].replace(/^(?:na?|no|em)\s+/i,"").trim();
+    // formato sem a palavra "bairro" — "Rua X, 120, Centro, Aracaju/SE": o do meio é o bairro
+    if(!o.bairro&&restos.length>=3)o.bairro=restos[1].replace(/^(?:na?|no|em)\s+/i,"").trim();
     return o;}
 
   function parseComandos(txt){
@@ -2726,9 +2763,9 @@ window.TINA=(function(){
   function resetConfig(){CFG=cfgDefault();salvarCfg(CFG);aplicarCfg();abrirConfig();toast("Configurações restauradas ao padrão.","info");}
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
-  const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","retificaRef"];
-  const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica"];
-  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios()};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
+  const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros"];
+  const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao"];
+  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(),filiais:readFiliais()};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
   // passadas 24h sem uso, é descartado sozinho, para não ficar legível num computador compartilhado.
   const DRAFT_VALIDADE_MS=24*60*60*1000;
@@ -2742,6 +2779,8 @@ window.TINA=(function(){
     DRAFT_FIELDS.forEach(id=>{if($(id)&&o.fields&&(id in o.fields))$(id).value=o.fields[id];});
     DRAFT_CHECKS.forEach(id=>{if($(id)&&o.checks&&(id in o.checks))$(id).checked=!!o.checks[id];});
     $("socios").innerHTML="";const arr=(o.socios&&o.socios.length)?o.socios:[undefined];arr.forEach(s=>socioCard(s));
+    if($("filiais")){$("filiais").innerHTML=""; (o.filiais||[]).forEach(f=>filialCard(f));}
+    ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach((w,i)=>{const ck=["admNaoSocio","cl_conselho","alt_cessao"][i]; if($(w)&&$(ck))$(w).style.display=$(ck).checked?"":"none";});
     if(typeof recalc==="function")recalc();
   }finally{_suppressDraft=false;}salvarRascunho();}
 
