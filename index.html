@@ -194,7 +194,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.12 · beta</span>
+  <span class="chip">v0.13 · beta</span>
 </header>
 
 <div class="wrap">
@@ -270,7 +270,7 @@
         <div id="wrapRazaoAnt" style="display:none"><label id="lblRazaoAnt">Nome empresarial ANTERIOR <span class="hint">— o de origem</span></label><input type="text" id="razaoAnterior" placeholder="Ex.: J. S. LIMA"></div>
         <div class="transfltdaeionly" style="display:none"><label>Sócio que se retira <span class="hint">— se a Ltda tinha 2+ sócios (vazio = já era único)</span></label><div style="display:flex;gap:6px"><input type="text" id="socioRetira" placeholder="Nome do sócio que sai" style="flex:1"><select id="socioRetiraSexo" title="Sexo do sócio que se retira" style="width:auto"><option value="M">M</option><option value="F">F</option></select></div></div>
         <div><label>CNPJ <span class="hint transfonly" style="display:none">— mantido</span></label><input type="text" id="cnpj" placeholder="00.000.000/0001-00"></div>
-        <div><label>NIRE</label><input type="text" id="nire" placeholder="28XXXXXXXXX"></div>
+        <div><label>NIRE <span class="hint">(opcional — em branco, é omitido do texto)</span></label><input type="text" id="nire" placeholder="28XXXXXXXXX"></div>
         <div class="altonly"><label>Nº desta alteração</label><input type="text" id="numAlteracao" placeholder="Ex.: 3"></div>
         <div><label>Início original das atividades</label><input type="text" id="dataInicioOrig" placeholder="DD/MM/AAAA"></div>
         <div class="transfeionly" style="display:none"><label>Acervo (R$) <span class="hint">— capital atual do EI</span></label><input type="number" id="acervo" step="0.01" placeholder="1.00"></div>
@@ -852,7 +852,7 @@ window.TINA=(function(){
     d.socios.forEach(s=>ch.push(P(R((s.nome||"[NOME]").toUpperCase()+", "+qualificacao(s)),JUST,SP10)));
 
     if(isAlt){
-      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+", com NIRE "+(d.nire||"[NIRE]")+", com seus atos constitutivos arquivados na Junta Comercial do Estado de Sergipe, resolve"+(plural?"m":"")+" promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
+      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?", com NIRE "+d.nire:"")+", com seus atos constitutivos arquivados na Junta Comercial do Estado de Sergipe, resolve"+(plural?"m":"")+" promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
       const tmud=isRetifica?"Da retificação":"Da alteração", av=isRetifica?"retificar":"alterar", pass=isRetifica?"que por erro material passa a constar":"que passa a ser";
       let dci=0;const delib=(tema,texto)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(texto)],JUST,SP15));
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolvem+" "+av+" o nome empresarial da sociedade, "+pass+" "+razaoUP+" LTDA.");
@@ -872,7 +872,7 @@ window.TINA=(function(){
     }else if(isTransf){
       const exTit=d.socios[0]||{}; const gT=(mm2,ff)=>gsex(exTit,mm2,ff);
       const admissao = isSLU ? "mantendo-se como "+gT("único sócio","única sócia") : "com a admissão d"+(plural?"os demais sócios acima qualificados":"e novo sócio acima qualificado");
-      ch.push(P(R(gT("O titular","A titular")+" do Empresário Individual "+razAntUP+", inscrit"+gT("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+" e NIRE "+(d.nire||"[NIRE]")+", na forma do art. 968, § 3º, do Código Civil, resolve transformá-lo em "+(isSLU?"sociedade limitada unipessoal":"sociedade empresária limitada")+", "+admissao+", mantida a mesma personalidade jurídica e a continuidade integral dos direitos e obrigações, passando a sociedade a reger-se pelas cláusulas e condições seguintes:"),JUST,SP15));
+      ch.push(P(R(gT("O titular","A titular")+" do Empresário Individual "+razAntUP+", inscrit"+gT("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", na forma do art. 968, § 3º, do Código Civil, resolve transformá-lo em "+(isSLU?"sociedade limitada unipessoal":"sociedade empresária limitada")+", "+admissao+", mantida a mesma personalidade jurídica e a continuidade integral dos direitos e obrigações, passando a sociedade a reger-se pelas cláusulas e condições seguintes:"),JUST,SP15));
     }else{
       ch.push(P(R((plural?"Resolvem, em comum acordo,":"Resolve")+" constituir uma sociedade "+(plural?"empresária limitada, nos termos da Lei nº 10.406/2002,":"limitada unipessoal, na forma do art. 1.052, §§ 1º e 2º, da Lei nº 10.406/2002,")+" mediante as condições e cláusulas seguintes:"),JUST,SP15));
     }
@@ -1033,7 +1033,7 @@ window.TINA=(function(){
     ch.push(space());
     ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit)),JUST,SP10));
     if(isAlt){
-      ch.push(P(R("na qualidade de "+g("titular","titular")+" do Empresário Individual que gira sob o nome empresarial "+nomeCabUP+", com sede à "+endLinha(d.sede)+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+" e NIRE "+(d.nire||"[NIRE]")+", resolve promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração do instrumento de inscrição,"))+" mediante as cláusulas seguintes:"),JUST,SP15));
+      ch.push(P(R("na qualidade de "+g("titular","titular")+" do Empresário Individual que gira sob o nome empresarial "+nomeCabUP+", com sede à "+endLinha(d.sede)+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração do instrumento de inscrição,"))+" mediante as cláusulas seguintes:"),JUST,SP15));
       const resolve=g("O titular resolve","A titular resolve");
       const tmud=isRetifica?"Da retificação":"Da alteração", av=isRetifica?"retificar":"alterar", pass=isRetifica?"que por erro material passa a constar":"que passa a ser";
       let dci=0; const delib=(tema,txt)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(txt)],JUST,SP15));
@@ -1127,7 +1127,7 @@ window.TINA=(function(){
     const cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"");
     const qualifTit=(comNire)=> (tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")
       +", com sede na "+endLinha(d.sede)+", com Instrumento de Inscrição de Empresário Individual arquivado na Junta Comercial do Estado de Sergipe – JUCESE"
-      +(comNire?", NIRE nº "+(d.nire||"[NIRE]"):"")+", inscrit"+gT("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]");
+      +((comNire&&d.nire)?", NIRE nº "+d.nire:"")+", inscrit"+gT("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]");
 
     const ch=[];
     /* ---------- PARTE 1: instrumento de transformação (com NIRE) + assinatura ---------- */
@@ -1235,7 +1235,7 @@ window.TINA=(function(){
     ch.push(tituloDoc("ALTERAÇÃO DE CONTRATO SOCIAL — TRANSFORMAÇÃO EM EMPRESÁRIO INDIVIDUAL"));
     ch.push(tituloDoc(razAntUP+" LTDA"));
     ch.push(space());
-    ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")+", "+(retira?g("sócio remanescente","sócia remanescente"):g("único sócio","única sócia"))+" da sociedade empresária limitada "+razAntUP+" LTDA, com sede na "+endLinha(d.sede)+", com contrato social arquivado na Junta Comercial do Estado de Sergipe, inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+" e NIRE "+(d.nire||"[NIRE]")+", resolve:"),JUST,SP10));
+    ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")+", "+(retira?g("sócio remanescente","sócia remanescente"):g("único sócio","única sócia"))+" da sociedade empresária limitada "+razAntUP+" LTDA, com sede na "+endLinha(d.sede)+", com contrato social arquivado na Junta Comercial do Estado de Sergipe, inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve:"),JUST,SP10));
     const retiraF=(d.socioRetiraSexo==="F");
     if(retira) ch.push(P([T("Item de alteração: ",{bold:true}),...R("Retira-se da sociedade "+(retiraF?"a sócia ":"o sócio ")+retira.toUpperCase()+", que cede e transfere a totalidade de suas quotas para "+g("o sócio remanescente","a sócia remanescente")+" "+(tit.nome||"[TITULAR]").toUpperCase()+", dando-se mutuamente plena, geral e irrevogável quitação.")],JUST,SP15));
     const ord1=["Primeira","Segunda","Terceira"]; let o1=0;
@@ -1445,7 +1445,7 @@ window.TINA=(function(){
     }
     if(isAlt){
       if(!d.cnpj) f.push("CNPJ (obrigatório em alteração)");
-      if(!d.nire) f.push("NIRE");
+      // NIRE não é obrigatório no instrumento: se estiver vazio, a menção é omitida do texto (não vira placeholder)
       if(!d.numAlteracao) f.push("Número desta alteração");
       if(!d.dataInicioOrig) f.push("Início original das atividades");
       if(d.changed&&d.changed.has("nome")&&!(d.razaoAnterior||"").trim()) f.push("Razão social ANTERIOR (atual) — necessária p/ o título e o preâmbulo (a nova vai só na cláusula e no consolidado)");
@@ -1454,7 +1454,6 @@ window.TINA=(function(){
     if(isTransf){
       if(!d.razaoAnterior) f.push("Nome empresarial anterior (origem)");
       if(!d.cnpj) f.push("CNPJ de origem (mantido na transformação)");
-      if(!d.nire) f.push("NIRE");
       if(!d.dataInicioOrig) f.push("Início original das atividades");
     }
     try{ let blob=blobOpt; if(!blob)blob=(await buildBlob()).blob;
@@ -2132,7 +2131,7 @@ window.TINA=(function(){
     }
     if(meta.semCapital) avisos.push("O cartão CNPJ não informa <b>capital social</b> — preencha manualmente.");
     if(meta.semQualificacao) avisos.push("Este documento não traz <b>RG, estado civil, profissão, nascimento e naturalidade</b> do titular — complete no cartão do sócio.");
-    if(meta.semNIRE) avisos.push("<b>NIRE não preenchido</b>: o registro do MEI não vale como NIRE de EI/Ltda — informe o NIRE atual da Junta.");
+    if(meta.semNIRE) avisos.push("<b>NIRE</b>: este documento não traz o número (o CCMEI não exibe NIRE). Ele <b>não é obrigatório</b> no instrumento — deixando em branco, a menção é omitida do texto. O NIRE do MEI continua sendo o mesmo do Empresário Individual; só muda na transformação em Ltda.");
     return avisos;
   }
 
