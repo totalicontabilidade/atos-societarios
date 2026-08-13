@@ -197,7 +197,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.19 · beta</span>
+  <span class="chip">v0.20 · beta</span>
 </header>
 
 <div class="wrap">
@@ -587,6 +587,13 @@
         <div><label for="cfgParalegal">Paralegal responsável <span class="hint">(assinatura do e-mail)</span></label><input type="text" id="cfgParalegal" placeholder="Seu nome"></div>
         <div><label for="cfgRemetente">E-mail do remetente</label><input type="text" id="cfgRemetente" placeholder="voce@seuescritorio.com.br"></div>
       </div>
+      <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Licença</div>
+      <div class="row">
+        <label for="cfgLicenca">Chave de licença</label>
+        <textarea id="cfgLicenca" style="min-height:70px;font-size:11.5px;font-family:ui-monospace,Consolas,monospace" placeholder="Cole aqui a chave recebida"></textarea>
+        <div class="hint" id="licStatus" style="margin-top:6px"></div>
+      </div>
+
       <div class="row">
         <label for="cfgJunta">Junta Comercial <span class="hint">— nome que aparece nos documentos; troque para o seu estado</span></label>
         <input type="text" id="cfgJunta" placeholder="Junta Comercial do Estado de Sergipe" list="listaJuntas">
@@ -810,11 +817,11 @@ window.TINA=(function(){
       div.querySelectorAll(".pjonly").forEach(e=>e.style.display=on?"":"none");
       const ln=div.querySelector(".lblNome"); if(ln)ln.textContent=on?"Razão social da sócia":"Nome completo";
       const sl=div.querySelector(".sedelbl"); if(sl)sl.textContent="Endereço"+(on?" (sede da empresa sócia)":"");
-      const tg=div.querySelector(".tag"); if(tg && !(typeof MODE!=="undefined"&&MODE&&(MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE==="dist_ei")))tg.textContent=on?"Sócia (PJ)":"Sócio";
+      const tg=div.querySelector(".tag"); if(tg && !(ehFormEI()))tg.textContent=on?"Sócia (PJ)":"Sócio";
       if(on)tglOrg();};
     pj.addEventListener("change",tglPJ); tglPJ();
     const adm=q("administrador"); if(adm)adm.addEventListener("change",recalc);  // atualiza a linha "Modo de administração"
-    if(typeof MODE!=="undefined"&&MODE&&(MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE==="dist_ei")){div.querySelectorAll(".ltdaonly").forEach(e=>e.style.display="none");const tg=div.querySelector(".tag");if(tg)tg.textContent="Titular";const pt=div.querySelector(".pjtoggle");if(pt)pt.style.display="none";}
+    if(ehFormEI()){div.querySelectorAll(".ltdaonly").forEach(e=>e.style.display="none");const tg=div.querySelector(".tag");if(tg)tg.textContent="Titular";const pt=div.querySelector(".pjtoggle");if(pt)pt.style.display="none";}
     recalc();
   }
   function removeSocio(idx){const el=document.querySelector(".socio[data-idx='"+idx+"']");if(el)el.remove();recalc();}
@@ -829,6 +836,13 @@ window.TINA=(function(){
       }});}
 
   /* ===== Filiais (opcional) — cláusula "DAS FILIAIS" dos modelos JUCESE ===== */
+  /* Modos: três perguntas diferentes que viviam repetidas como condições soltas pelo arquivo.
+     Foi assim que o card de "Extinção de EI" acabou mostrando "Sócio" e campos de quotas. */
+  const _m=()=>(typeof MODE!=="undefined"&&MODE)?MODE:"";
+  const ehFormEI=(m)=>{m=m||_m(); return m.startsWith("ei")||m==="transf_ltda_ei"||m==="dist_ei";};        // documento de TITULAR único (formato EI)
+  const semQuotasPorSocio=(m)=>{m=m||_m(); return ehFormEI(m)||m.startsWith("dist");};                      // não exibe quotas/capital por sócio
+  const umComponenteSo=(m)=>{m=m||_m(); return ehFormEI(m)||m==="transf_ei_slu";};                          // um único componente (inclui SLU)
+
   const ORD_PARAG=["Parágrafo primeiro. ","Parágrafo segundo. ","Parágrafo terceiro. ","Parágrafo quarto. ","Parágrafo quinto. ","Parágrafo sexto. "];
   // Numeração das cláusulas: array indexado que NUNCA devolve undefined — um "CLÁUSULA undefined"
   // num ato protocolado seria erro grave, e o nº de cláusulas cresce com as opcionais/filiais.
@@ -880,12 +894,12 @@ window.TINA=(function(){
 
   function recalc(){const cap=Number($("capital").value)||0,vq=Number($("valorQuota").value)||0;
     // "Modo de administração" só faz sentido com 2+ administradores (com 1, é sempre isoladamente)
-    if($("modoAdmRow")){const nAdm=[...document.querySelectorAll(".socio:not(.filial) [data-f=administrador]")].filter(c=>c.checked).length; const semAdm=typeof MODE!=="undefined"&&MODE&&(MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE.startsWith("dist")); $("modoAdmRow").style.display=(nAdm>=2&&!semAdm)?"":"none";}  // só com 2+ administradores e onde há cláusula de administração (não no distrato)
+    if($("modoAdmRow")){const nAdm=[...document.querySelectorAll(".socio:not(.filial) [data-f=administrador]")].filter(c=>c.checked).length; const semAdm=semQuotasPorSocio(); $("modoAdmRow").style.display=(nAdm>=2&&!semAdm)?"":"none";}  // só com 2+ administradores e onde há cláusula de administração (não no distrato)
     $("numQuotas").value=vq>0?numBR(Math.round(cap/vq)):"";let somaV=0;
     [...document.querySelectorAll(".socio:not(.filial)")].forEach(c=>{const q=Number(c.querySelector("[data-f=quotas]").value)||0,v=q*vq,p=cap>0?(v/cap*100):0;
       c.querySelector("[data-f=valorQuotas]").value=q?reais(v):"";c.querySelector("[data-f=percentual]").value=q?pct(p):"";somaV+=v;});
     // EI / transformação→EI / distrato: sem quotas → não mostra a aritmética de capital (evita "soma das quotas ≠ capital")
-    if(typeof MODE!=="undefined" && MODE && (MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE.startsWith("dist"))){ const b=$("valCapital"); if(b)b.style.display="none"; return; }
+    if(semQuotasPorSocio()){ const b=$("valCapital"); if(b)b.style.display="none"; return; }
     const socios=readSocios(),somaP=cap>0?(somaV/cap*100):0,box=$("valCapital"),prob=[];
     if(socios.length===0)prob.push("Nenhum sócio cadastrado.");
     if(cap<=0)prob.push("Capital social não informado.");
@@ -1642,7 +1656,7 @@ window.TINA=(function(){
     if(pageW>0 && avail>0 && avail<pageW){const sc=avail/pageW; secs.forEach(s=>{s.style.zoom=sc;});}
   }
   async function validar(blobOpt){
-    const d=coletar(); const f=[]; const isTransf=MODE.startsWith("transf"); const isDist=MODE.startsWith("dist"); const isAlt=MODE.endsWith("alt"), isEI=MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE==="dist_ei";
+    const d=coletar(); const f=[]; const isTransf=MODE.startsWith("transf"); const isDist=MODE.startsWith("dist"); const isAlt=MODE.endsWith("alt"), isEI=ehFormEI();
     if(!d.razao) f.push(isEI?"Nome empresarial":"Razão social");
     if(!isDist && !d.objeto) f.push("Objeto social");
     if(!isDist && !d.foro) f.push("Foro (comarca)");
@@ -1719,7 +1733,7 @@ window.TINA=(function(){
   function _parseBR(s){const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec((s||"").trim());if(!m)return null;const dd=+m[1],mm=+m[2],yy=+m[3];const dt=new Date(yy,mm-1,dd);return (dt.getFullYear()===yy&&dt.getMonth()===mm-1&&dt.getDate()===dd)?dt:null;}
   const CEP_UF=[[1000,19999,"SP"],[20000,28999,"RJ"],[29000,29999,"ES"],[30000,39999,"MG"],[40000,48999,"BA"],[49000,49999,"SE"],[50000,56999,"PE"],[57000,57999,"AL"],[58000,58999,"PB"],[59000,59999,"RN"],[60000,63999,"CE"],[64000,64999,"PI"],[65000,65999,"MA"],[66000,68899,"PA"],[68900,68999,"AP"],[69000,69299,"AM"],[69300,69389,"RR"],[69400,69899,"AM"],[69900,69999,"AC"],[70000,72799,"DF"],[72800,72999,"GO"],[73000,73699,"DF"],[73700,76799,"GO"],[76800,76999,"RO"],[77000,77999,"TO"],[78000,78899,"MT"],[79000,79999,"MS"],[80000,87999,"PR"],[88000,89999,"SC"],[90000,99999,"RS"]];
   function cepUF(cep){const d=(cep||"").replace(/\D/g,"");if(d.length<5)return null;const p=parseInt(d.slice(0,5),10);if(isNaN(p))return null;for(let i=0;i<CEP_UF.length;i++){if(p>=CEP_UF[i][0]&&p<=CEP_UF[i][1])return CEP_UF[i][2];}return null;}
-  function checarConsistencia(d){const w=[];const isDist=MODE.startsWith("dist");const isEI=MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE==="dist_ei";const isAlt=MODE.endsWith("alt");const isTransf=MODE.startsWith("transf");
+  function checarConsistencia(d){const w=[];const isDist=MODE.startsWith("dist");const isEI=ehFormEI();const isAlt=MODE.endsWith("alt");const isTransf=MODE.startsWith("transf");
     const ato=_parseBR(d.atoData);
     (d.socios||[]).forEach((so,i)=>{ if(so.tipoPessoa==="PJ")return; const rot=(isEI?"Titular":"Sócio "+(i+1))+(so.nome?" ("+so.nome+")":"");
       const nasc=_parseBR(so.nascimento); if(nasc&&ato&&nasc>=ato)w.push(rot+": nascimento posterior à data do ato — verifique.");
@@ -1906,6 +1920,12 @@ window.TINA=(function(){
   let _gateAcao=null, _gateHash="";
   // executa `acao` só se o caso atual já estiver confirmado com o conteúdo intacto; senão abre o portão
   function comConfirmacao(acao){
+    // trava de licença: a prévia continua livre; o que exige licença é gerar o arquivo final
+    if(!licenciado()){
+      toast("Sem licença ativa — a geração de documentos está bloqueada. Informe a chave em Configurações.","err");
+      abrirConfig(); const cl=$("cfgLicenca"); if(cl){ cl.focus(); }
+      return;
+    }
     const d=coletar();
     if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados (razão social e sócios) antes de baixar.";return;}
     const c=registrarCaso();                       // garante o caso + casoAtualId
@@ -2064,7 +2084,7 @@ window.TINA=(function(){
     if($("altRetifica"))$("altRetifica").checked=false; if($("retificaRef"))$("retificaRef").value=""; if($("wrapRetifica"))$("wrapRetifica").style.display="none";
     $("valorQuota").value="1.00";$("enquadramento").value="ME";$("modoAdm").value="ISOLADAMENTE e/ou CONJUNTAMENTE";if($("integralizacao"))$("integralizacao").value="moeda";if($("socioRetiraSexo"))$("socioRetiraSexo").value="M";
     $("socios").innerHTML="";$("numQuotas").value="";if($("s_cep_stat"))$("s_cep_stat").textContent="";const b=$("valCapital");if(b)b.style.display="none";
-    if(typeof MODE!=="undefined"&&(MODE.startsWith("ei")||MODE==="transf_ltda_ei"||MODE==="transf_ei_slu"||MODE==="dist_ei"))socioCard();}  // modos de titular único: recria o card
+    if(umComponenteSo())socioCard();}  // modos de titular único: recria o card
   function limpar(){ limparCampos();
     if($("cmdRapido"))$("cmdRapido").value="";
     if($("pdfContrato"))$("pdfContrato").value="";if($("pdfStat"))$("pdfStat").textContent="";if($("rapidoStat"))$("rapidoStat").textContent="";
@@ -2735,6 +2755,55 @@ window.TINA=(function(){
   function salvarCfg(c){try{localStorage.setItem("tinaCfg",JSON.stringify(c));}catch(e){}}
   function _autor(){return (CFG&&CFG.escritorio)||"Atos Societários";}   // vai nos metadados do .docx/PDF — neutro até o escritório se identificar nas Configurações
   // Junta Comercial do ato: configurável (o app não é preso a um estado). Padrão: Sergipe.
+  /* ===== Licença =====
+     A chave é um texto assinado (ECDSA P-256) que o app confere OFFLINE com a chave pública abaixo.
+     Publicar a chave pública é seguro: com ela só dá para VERIFICAR, não para emitir licença — emitir
+     exige a privada, que fica fora deste repositório (ferramenta `licenciamento/emitir.html`).
+     Honestidade sobre o alcance: como todo app client-side de código aberto, isto impede a cópia casual
+     (passar o arquivo adiante), não um adversário decidido com o navegador aberto. */
+  const LIC_PUBKEY={kty:"EC",crv:"P-256",x:"pOCEcP8pM1uZ9JRnvqqgpnBwXZpJ4DJsV6Vym_HHCVw",y:"FNFHjwOeDE3Hp1TVxf1SzZzvqdPHaZfQKmGP5C95QLs"};
+  const LIC_DIAS_AVALIACAO=15;
+  let LIC={ok:false,motivo:"sem licença",dados:null};
+  const _b64u=s=>{s=String(s||"").replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4)s+="="; const b=atob(s); const u=new Uint8Array(b.length); for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i); return u;};
+  function lerLicencaBruta(){ try{ return localStorage.getItem("tinaLic")||""; }catch(e){ return ""; } }
+  // formato: <payload em base64url>.<assinatura em base64url>
+  async function validarLicenca(txt){
+    txt=String(txt||"").trim().replace(/\s+/g,"");
+    if(!txt) return {ok:false,motivo:"sem licença",dados:null};
+    const p=txt.split("."); if(p.length!==2) return {ok:false,motivo:"formato inválido",dados:null};
+    let dados;
+    try{ dados=JSON.parse(new TextDecoder().decode(_b64u(p[0]))); }catch(e){ return {ok:false,motivo:"conteúdo ilegível",dados:null}; }
+    let assinaturaOk=false;
+    try{
+      const chave=await crypto.subtle.importKey("jwk",LIC_PUBKEY,{name:"ECDSA",namedCurve:"P-256"},false,["verify"]);
+      assinaturaOk=await crypto.subtle.verify({name:"ECDSA",hash:"SHA-256"},chave,_b64u(p[1]),new TextEncoder().encode(p[0]));
+    }catch(e){ return {ok:false,motivo:"não foi possível verificar (navegador sem suporte)",dados:null}; }
+    if(!assinaturaOk) return {ok:false,motivo:"assinatura não confere",dados:null};
+    if(dados.exp){ const hoje=new Date().toISOString().slice(0,10); if(String(dados.exp)<hoje) return {ok:false,motivo:"licença vencida em "+dados.exp,dados:dados}; }
+    return {ok:true,motivo:"",dados:dados};
+  }
+  // primeira execução marca o início da avaliação
+  function diasAvaliacaoRestantes(){
+    let ini; try{ ini=localStorage.getItem("tinaIni"); if(!ini){ ini=new Date().toISOString().slice(0,10); localStorage.setItem("tinaIni",ini); } }catch(e){ return LIC_DIAS_AVALIACAO; }
+    const d=Math.floor((Date.now()-Date.parse(ini+"T00:00:00"))/86400000);
+    return Math.max(0,LIC_DIAS_AVALIACAO-d);
+  }
+  function licenciado(){ return LIC.ok || diasAvaliacaoRestantes()>0; }
+  function mostrarStatusLicenca(){
+    const el=$("licStatus"); if(!el) return;
+    if(LIC.ok){ const q=LIC.dados||{}; el.style.color="var(--ok)";
+      el.innerHTML="✓ Licenciado para <b>"+escHtml(q.para||"—")+"</b>"+(q.exp?" · válida até "+escHtml(q.exp):" · sem prazo"); }
+    else { const r=diasAvaliacaoRestantes();
+      el.style.color=r>0?"var(--warn)":"var(--err)";
+      el.textContent=r>0 ? ("Avaliação: faltam "+r+" dia(s). Informe a chave de licença para continuar gerando documentos.")
+                         : ("Sem licença ativa"+(LIC.motivo?" ("+LIC.motivo+")":"")+" — a geração de documentos está bloqueada."); }
+  }
+  async function aplicarLicenca(txt,salvar){
+    LIC=await validarLicenca(txt);
+    if(salvar){ try{ if(LIC.ok) localStorage.setItem("tinaLic",String(txt).trim()); }catch(e){} }
+    mostrarStatusLicenca(); return LIC;
+  }
+
   const JUNTA_PADRAO="Junta Comercial do Estado de Sergipe";
   function _junta(){ const j=((CFG&&CFG.junta)||"").trim(); return j||JUNTA_PADRAO; }
   function cfgSocioDefaults(){const o={};if(CFG.defMun)o.mun=CFG.defMun;if(CFG.defUF){o.uf=CFG.defUF;o.naturalUF=CFG.defUF;}if(CFG.defOrgao)o.orgao=CFG.defOrgao;if(CFG.defOrgaoUF)o.orgaoUF=CFG.defOrgaoUF;return o;}
@@ -2755,6 +2824,7 @@ window.TINA=(function(){
     if($("emailRemetente")&&!$("emailRemetente").value&&CFG.remetente)$("emailRemetente").value=CFG.remetente;}
   function abrirConfig(){$("cfgUF").innerHTML=ufOpts(CFG.defUF);$("cfgOrgaoUF").innerHTML=ufOpts(CFG.defOrgaoUF);$("cfgOrgao").innerHTML=orgaoOpts(CFG.defOrgao||"");
     $("cfgEscritorio").value=CFG.escritorio||"";$("cfgCor").value=CFG.cor||"#14293f";$("cfgParalegal").value=CFG.paralegal||"";$("cfgRemetente").value=CFG.remetente||"";$("cfgMun").value=CFG.defMun||"";$("cfgForo").value=CFG.foro||"";if($("cfgJunta"))$("cfgJunta").value=CFG.junta||"";
+    if($("cfgLicenca")){$("cfgLicenca").value=lerLicencaBruta();mostrarStatusLicenca();}
     _cfgLogoTmp=CFG.logo||"";const prev=$("cfgLogoPrev");if(_cfgLogoTmp){prev.src=_cfgLogoTmp;prev.style.display="";}else prev.style.display="none";
     if($("cfgLogoFile"))$("cfgLogoFile").value="";$("cfgStat").textContent="";$("configModal").classList.add("open");}
   function salvarConfigForm(){const cor=($("cfgCor").value||"").toLowerCase();
@@ -2876,6 +2946,10 @@ window.TINA=(function(){
   var cnpjLiveCheck=null;
   function init(){
     CFG=lerCfg(); aplicarCfg();
+    aplicarLicenca(lerLicencaBruta(),false).then(()=>{ const r=diasAvaliacaoRestantes();
+      if(!LIC.ok && r>0 && r<=5) toast("Avaliação termina em "+r+" dia(s). Informe a chave de licença em Configurações.","warn");
+      else if(!LIC.ok && r===0) toast("Sem licença ativa — a geração de documentos está bloqueada.","err"); });
+    if($("cfgLicenca")) $("cfgLicenca").addEventListener("input",function(){ const v=this.value; clearTimeout(this._t); this._t=setTimeout(()=>aplicarLicenca(v,true),400); });
     $("btnAddSocio").addEventListener("click",()=>socioCard());
     if($("btnAddFilial")) $("btnAddFilial").addEventListener("click",()=>filialCard());
     if($("admNaoSocio")) $("admNaoSocio").addEventListener("change",function(){const w=$("wrapAdmNaoSocio"); if(w)w.style.display=this.checked?"":"none";});
