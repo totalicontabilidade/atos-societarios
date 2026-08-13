@@ -507,7 +507,7 @@
         <button class="btn o mini" id="btnImportarCasos" title="Restaurar casos de um arquivo de backup">⬆ Importar backup</button>
         <input type="file" id="fileImportCasos" accept="application/json,.json" style="display:none">
       </div>
-      <div class="hint" style="margin-top:2px">Guarda <b>só metadados</b> neste navegador (ID, empresa, CNPJ, tipo, data) — nenhum dado pessoal, endereço, sócio ou o documento. Como fica só neste navegador, <b>exporte um backup</b> de tempos em tempos (limpar o navegador apaga os casos).</div>
+      <div class="hint" style="margin-top:2px">Guarda neste navegador <b>apenas o cadastro do ato</b>: ID, empresa, CNPJ, tipo e data — <b>não</b> guarda o documento, os sócios nem os endereços. Se você registrar a confirmação do cliente, ficam salvos também <b>o nome do contato e o texto que você colar</b> (para auditoria) — evite colar dados desnecessários. Tudo isso vai junto no backup exportado. Como fica só neste navegador, <b>exporte um backup</b> de tempos em tempos (limpar o navegador apaga os casos).</div>
       <div class="grid g2 row" style="margin-top:10px">
         <div><input type="text" id="painelBusca" placeholder="🔎 Buscar por empresa, CNPJ, ID ou tipo…"></div>
         <div><select id="painelOrdem"><option value="recente">Mais recentes primeiro</option><option value="antigo">Mais antigos primeiro</option><option value="empresa">Empresa (A–Z)</option></select></div>
@@ -541,6 +541,20 @@
       <div class="grid g2 row">
         <div><label>Paralegal responsável <span class="hint">(assinatura do e-mail)</span></label><input type="text" id="cfgParalegal" placeholder="Seu nome"></div>
         <div><label>E-mail do remetente</label><input type="text" id="cfgRemetente" placeholder="voce@seuescritorio.com.br"></div>
+      </div>
+      <div class="row">
+        <label>Junta Comercial <span class="hint">— nome que aparece nos documentos; troque para o seu estado</span></label>
+        <input type="text" id="cfgJunta" placeholder="Junta Comercial do Estado de Sergipe" list="listaJuntas">
+        <datalist id="listaJuntas">
+          <option value="Junta Comercial do Estado de Sergipe"></option>
+          <option value="Junta Comercial do Estado da Bahia"></option>
+          <option value="Junta Comercial do Estado de Alagoas"></option>
+          <option value="Junta Comercial do Estado de Pernambuco"></option>
+          <option value="Junta Comercial do Estado de São Paulo"></option>
+          <option value="Junta Comercial do Estado do Rio de Janeiro"></option>
+          <option value="Junta Comercial do Estado de Minas Gerais"></option>
+        </datalist>
+        <div class="hint" style="margin-top:4px">A lista é só sugestão — digite o nome oficial da sua Junta. Em branco, usa a de Sergipe.</div>
       </div>
 
       <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Padrões de preenchimento <span class="hint" style="font-weight:400">(usados em formulários novos)</span></div>
@@ -771,7 +785,7 @@ window.TINA=(function(){
     if(s.tipoPessoa==="PJ"){ // sócio pessoa jurídica: razão vem antes (no chamador); aqui só o restante
       const pp=["sociedade empresária limitada","inscrita no CNPJ sob o nº "+(s.pjCnpj||"[CNPJ]")];
       pp.push("com sede na "+endLinha({log:s.log,num:s.num,comp:s.comp,bairro:s.bairro,mun:s.mun,uf:s.uf,cep:s.cep}));
-      if(s.pjNire)pp.push("com seus atos constitutivos registrados na Junta Comercial do Estado de Sergipe sob NIRE "+s.pjNire);
+      if(s.pjNire)pp.push("com seus atos constitutivos registrados na "+_junta()+" sob NIRE "+s.pjNire);
       pp.push("neste ato representada por seu "+(s.pjCargo||"administrador")+" "+((s.pjRep||"[REPRESENTANTE]").toUpperCase()));
       return pp.join(", ")+";"; }
     const p=[];
@@ -854,7 +868,7 @@ window.TINA=(function(){
     d.socios.forEach(s=>ch.push(P(R((s.nome||"[NOME]").toUpperCase()+", "+qualificacao(s)),JUST,SP10)));
 
     if(isAlt){
-      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?", com NIRE "+d.nire:"")+", com seus atos constitutivos arquivados na Junta Comercial do Estado de Sergipe, resolve"+(plural?"m":"")+" promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
+      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?", com NIRE "+d.nire:"")+", com seus atos constitutivos arquivados na "+_junta()+", resolve"+(plural?"m":"")+" promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
       const tmud=isRetifica?"Da retificação":"Da alteração", av=isRetifica?"retificar":"alterar", pass=isRetifica?"que por erro material passa a constar":"que passa a ser";
       let dci=0;const delib=(tema,texto)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(texto)],JUST,SP15));
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolvem+" "+av+" o nome empresarial da sociedade, "+pass+" "+razaoUP+" LTDA.");
@@ -968,10 +982,10 @@ window.TINA=(function(){
     // Fecho
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(corpo(isAlt
-      ? "E por estarem assim justos e contratados, "+(plural?"assinam":"assina")+" o presente instrumento de alteração e consolidação contratual em uma única via, que será destinada ao registro e arquivamento na Junta Comercial do Estado de Sergipe."
+      ? "E por estarem assim justos e contratados, "+(plural?"assinam":"assina")+" o presente instrumento de alteração e consolidação contratual em uma única via, que será destinada ao registro e arquivamento na "+_junta()+"."
       : isTransf
-      ? "E por estarem assim justos e acordados com a transformação ora deliberada, "+(plural?"assinam":"assina")+" o presente instrumento em uma única via, que será destinada ao registro e arquivamento na Junta Comercial do Estado de Sergipe."
-      : "E por estarem em perfeito acordo, em tudo que neste instrumento particular foi lavrado, "+(plural?"obrigam-se":"obriga-se")+" a cumprir o presente ato constitutivo, e "+(plural?"assinam":"assina")+" o presente instrumento em uma única via que será destinada ao registro e arquivamento na Junta Comercial do Estado de Sergipe."));
+      ? "E por estarem assim justos e acordados com a transformação ora deliberada, "+(plural?"assinam":"assina")+" o presente instrumento em uma única via, que será destinada ao registro e arquivamento na "+_junta()+"."
+      : "E por estarem em perfeito acordo, em tudo que neste instrumento particular foi lavrado, "+(plural?"obrigam-se":"obriga-se")+" a cumprir o presente ato constitutivo, e "+(plural?"assinam":"assina")+" o presente instrumento em uma única via que será destinada ao registro e arquivamento na "+_junta()+"."));
     ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+" - "+(d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
     // Assinaturas — linha (1,5) para não colar no nome; nome (1,0) negrito; papel (1,0)
@@ -1099,7 +1113,7 @@ window.TINA=(function(){
     ch.push(corpo("Fica eleito o foro da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" – "+(d.sede.uf||"")+" para dirimir quaisquer questões oriundas do exercício da presente atividade empresarial, com renúncia a qualquer outro, por mais privilegiado que seja."));
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(corpo(isTransf
-      ? "E, por estar assim "+g("justo","justa")+" e acordado com a transformação ora deliberada, "+g("o titular assina","a titular assina")+" o presente instrumento, em via única, que será destinado ao registro e arquivamento na Junta Comercial do Estado de Sergipe."
+      ? "E, por estar assim "+g("justo","justa")+" e acordado com a transformação ora deliberada, "+g("o titular assina","a titular assina")+" o presente instrumento, em via única, que será destinado ao registro e arquivamento na "+_junta()+"."
       : "E, por estar assim "+g("justo","justa")+" e "+g("firmado","firmada")+", "+g("o titular assina","a titular assina")+" o presente instrumento, em via única."));
     ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+" – "+(d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
@@ -1136,7 +1150,7 @@ window.TINA=(function(){
     const acervo=d.acervo>0?d.acervo:d.capital, newCap=d.capital, aumentou=(newCap-acervo)>0.005;
     const cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"");
     const qualifTit=(comNire)=> (tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")
-      +", com sede na "+endLinha(d.sede)+", com Instrumento de Inscrição de Empresário Individual arquivado na Junta Comercial do Estado de Sergipe – JUCESE"
+      +", com sede na "+endLinha(d.sede)+", com Instrumento de Inscrição de Empresário Individual arquivado na "+_junta()
       +((comNire&&d.nire)?", NIRE nº "+d.nire:"")+", inscrit"+gT("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]");
 
     const ch=[];
@@ -1245,7 +1259,7 @@ window.TINA=(function(){
     ch.push(tituloDoc("ALTERAÇÃO DE CONTRATO SOCIAL — TRANSFORMAÇÃO EM EMPRESÁRIO INDIVIDUAL"));
     ch.push(tituloDoc(razAntUP+" LTDA"));
     ch.push(space());
-    ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")+", "+(retira?g("sócio remanescente","sócia remanescente"):g("único sócio","única sócia"))+" da sociedade empresária limitada "+razAntUP+" LTDA, com sede na "+endLinha(d.sede)+", com contrato social arquivado na Junta Comercial do Estado de Sergipe, inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve:"),JUST,SP10));
+    ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")+", "+(retira?g("sócio remanescente","sócia remanescente"):g("único sócio","única sócia"))+" da sociedade empresária limitada "+razAntUP+" LTDA, com sede na "+endLinha(d.sede)+", com contrato social arquivado na "+_junta()+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve:"),JUST,SP10));
     const retiraF=(d.socioRetiraSexo==="F");
     if(retira) ch.push(P([T("Item de alteração: ",{bold:true}),...R("Retira-se da sociedade "+(retiraF?"a sócia ":"o sócio ")+retira.toUpperCase()+", que cede e transfere a totalidade de suas quotas para "+g("o sócio remanescente","a sócia remanescente")+" "+(tit.nome||"[TITULAR]").toUpperCase()+", dando-se mutuamente plena, geral e irrevogável quitação.")],JUST,SP15));
     const ord1=["Primeira","Segunda","Terceira"]; let o1=0;
@@ -1318,14 +1332,14 @@ window.TINA=(function(){
       ch.push(space());
       ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")
         +", na qualidade de "+g("titular","titular")+" da empresa "+razaoUP+", com sede na "+sedeStr
-        +", com registro na Junta Comercial do Estado de Sergipe"+(d.nire?" sob NIRE "+d.nire:"")+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")
+        +", com registro na "+_junta()+(d.nire?" sob NIRE "+d.nire:"")+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")
         +", resolve, por não mais interessar a sua continuidade, promover a EXTINÇÃO definitiva da empresa, mediante a seguinte cláusula:"),JUST,SP10));
       cl("A empresa iniciou suas atividades em "+inicio+" e encerrou todas as suas operações e atividades em "+encer+".");
       cl("Procedida a liquidação, "+g("o titular assume","a titular assume")+" o ativo e o passivo porventura remanescentes da empresa ora extinta, respondendo por eventuais direitos e obrigações supervenientes.");
       const guardaEI=(d.guardiaoLivros||tit.nome||"[TITULAR]").toUpperCase();
       cl("Fica a cargo d"+g("o","a")+" titular "+guardaEI+" manter em boa guarda os livros e documentos da empresa ora extinta, pelo prazo legal de 5 (cinco) anos ou pelo prazo de prescrição dos tributos, o que for maior.");
       ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
-      ch.push(corpo("E, por estar assim ajustado, "+g("o empresário individual assina","a empresária individual assina")+" o presente Instrumento de Extinção, em via única, que será destinado ao registro e arquivamento na Junta Comercial do Estado de Sergipe."));
+      ch.push(corpo("E, por estar assim ajustado, "+g("o empresário individual assina","a empresária individual assina")+" o presente Instrumento de Extinção, em via única, que será destinado ao registro e arquivamento na "+_junta()+"."));
       ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
       ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
       ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
@@ -1338,17 +1352,17 @@ window.TINA=(function(){
       ch.push(space());
       socios.forEach(s=>ch.push(P(R((s.nome||"[NOME]").toUpperCase()+", "+qualificacao(s)),JUST,SP10)));
       const gS=(m,f)=>plural?m:g(m,f);
-      ch.push(P(R((plural?"Os sócios":gS("O sócio","A sócia"))+" acima qualificad"+(plural?"os":g("o","a"))+", únic"+(plural?"os componentes":g("o componente","a componente"))+" da sociedade empresária limitada "+razaoUP+" LTDA, com sede na "+sedeStr+", com registro na Junta Comercial do Estado de Sergipe"+(d.nire?" sob NIRE "+d.nire:"")+", inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+", resolve"+(plural?"m":"")+", por não mais "+(plural?"lhes":"lhe")+" interessar a continuidade da sociedade, dissolvê-la e extingui-la, mediante as seguintes cláusulas:"),JUST,SP15));
+      ch.push(P(R((plural?"Os sócios":gS("O sócio","A sócia"))+" acima qualificad"+(plural?"os":g("o","a"))+", únic"+(plural?"os componentes":g("o componente","a componente"))+" da sociedade empresária limitada "+razaoUP+" LTDA, com sede na "+sedeStr+", com registro na "+_junta()+(d.nire?" sob NIRE "+d.nire:"")+", inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+", resolve"+(plural?"m":"")+", por não mais "+(plural?"lhes":"lhe")+" interessar a continuidade da sociedade, dissolvê-la e extingui-la, mediante as seguintes cláusulas:"),JUST,SP15));
       cl("A sociedade iniciou suas atividades em "+inicio+" e encerrou todas as suas operações e atividades em "+encer+".");
       cl("Procedida a liquidação da sociedade, não há valores a serem restituídos "+(plural?"aos sócios":gS("ao sócio","à sócia"))+".");
-      cl((plural?"Os sócios dão entre si e à sociedade":gS("O sócio dá","A sócia dá")+" à sociedade")+" plena, geral e irrevogável quitação, para nada mais reclamar"+(plural?(nS>2?"em uns dos outros":"em um do outro"):"")+", seja a que título for, com fundamento no contrato social e suas alterações, declarando, ainda, extinta, para todos os efeitos, a sociedade em referência, com o arquivamento deste distrato na Junta Comercial do Estado de Sergipe.");
+      cl((plural?"Os sócios dão entre si e à sociedade":gS("O sócio dá","A sócia dá")+" à sociedade")+" plena, geral e irrevogável quitação, para nada mais reclamar"+(plural?(nS>2?"em uns dos outros":"em um do outro"):"")+", seja a que título for, com fundamento no contrato social e suas alterações, declarando, ainda, extinta, para todos os efeitos, a sociedade em referência, com o arquivamento deste distrato na "+_junta()+".");
       const guarda=(d.guardiaoLivros||(tit.nome||"[SÓCIO]")).toUpperCase();
       const guardaS=(d.guardiaoLivros?socios.find(s=>{const a=(s.nome||"").toUpperCase(),b=d.guardiaoLivros.toUpperCase();return a&&(a.includes(b)||b.includes(a));}):null)||tit;   // gênero do guardião = do sócio escolhido, não do 1º
       cl("Fica a cargo d"+gsex(guardaS,"o","a")+" ex-"+gsex(guardaS,"sócio","sócia")+" "+guarda+" manter em boa guarda os livros e documentos da sociedade ora distratada, pelo prazo legal de 5 (cinco) anos ou pelo prazo de prescrição dos tributos, o que for maior.");
       const nomes=socios.map(s=>(s.nome||"").toUpperCase()).join(plural?(nS>2?", ":" e "):"");
       cl("A responsabilidade pelo ativo e passivo, porventura supervenientes, fica a cargo d"+(plural?"os ex-sócios":g("o ex-sócio","a ex-sócia"))+" "+nomes+".");
       ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
-      ch.push(corpo("E, por estarem assim justos e acertados, "+(plural?"assinam":"assina")+" o presente Distrato Social, em via única, que será destinad"+(plural?"o":"o")+" ao registro e arquivamento na Junta Comercial do Estado de Sergipe."));
+      ch.push(corpo("E, por estarem assim justos e acertados, "+(plural?"assinam":"assina")+" o presente Distrato Social, em via única, que será destinad"+(plural?"o":"o")+" ao registro e arquivamento na "+_junta()+"."));
       ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
       ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
       socios.forEach(s=>{ ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
@@ -1607,7 +1621,7 @@ window.TINA=(function(){
     const SEP="──────────────────────────────────────────────";
     const tituloBloco=MODE.startsWith("dist")?"DADOS DO ENCERRAMENTO":MODE.startsWith("transf")?"DADOS DA TRANSFORMAÇÃO":(MODE==="const"||MODE==="ei_const")?"DADOS DO ATO":"ALTERAÇÕES SOLICITADAS";
     let b="Prezado(a) "+contato+",\n\n";
-    b+="Conforme alinhado, encaminhamos abaixo o resumo do ato societário a ser promovido na empresa "+razHeaderUP+sufixo+(d.cnpj?" (CNPJ "+d.cnpj+")":"")+", por meio da "+ato+", com posterior registro na Junta Comercial do Estado de Sergipe (JUCESE).\n\n";
+    b+="Conforme alinhado, encaminhamos abaixo o resumo do ato societário a ser promovido na empresa "+razHeaderUP+sufixo+(d.cnpj?" (CNPJ "+d.cnpj+")":"")+", por meio da "+ato+", com posterior registro na "+_junta()+" (JUCESE).\n\n";
     if(d.atoData) b+="A data pretendida para o ato é "+d.atoData+".\n\n";
     b+="Solicitamos a gentileza de revisar com atenção as informações abaixo e, estando tudo correto, responder a este e-mail confirmando (basta \"Confirmado\" ou \"De acordo\") para que possamos prosseguir com a elaboração e o protocolo. Caso identifique algo a ajustar, é só indicar nesta mesma resposta.\n\n";
     b+=SEP+"\n"+tituloBloco+"\n"+SEP+"\n\n"+blocosEmail(d,sufixo)+"\n\n";
@@ -2389,10 +2403,13 @@ window.TINA=(function(){
     return calc(12)===dg[12]&&calc(13)===dg[13];}
 
   /* ===== Configurações do escritório (marca + padrões) — só neste navegador ===== */
-  function cfgDefault(){return {escritorio:"",logo:"",cor:"",paralegal:"",remetente:"",defMun:"",defUF:"",defOrgao:"",defOrgaoUF:"",foro:""};}
+  function cfgDefault(){return {escritorio:"",logo:"",cor:"",paralegal:"",remetente:"",defMun:"",defUF:"",defOrgao:"",defOrgaoUF:"",foro:"",junta:""};}
   function lerCfg(){try{return Object.assign(cfgDefault(),JSON.parse(localStorage.getItem("tinaCfg")||"{}"));}catch(e){return cfgDefault();}}
   function salvarCfg(c){try{localStorage.setItem("tinaCfg",JSON.stringify(c));}catch(e){}}
-  function _autor(){return (CFG&&CFG.escritorio)||"Totali Soluções Contábeis";}
+  function _autor(){return (CFG&&CFG.escritorio)||"Atos Societários";}   // vai nos metadados do .docx/PDF — neutro até o escritório se identificar nas Configurações
+  // Junta Comercial do ato: configurável (o app não é preso a um estado). Padrão: Sergipe.
+  const JUNTA_PADRAO="Junta Comercial do Estado de Sergipe";
+  function _junta(){ const j=((CFG&&CFG.junta)||"").trim(); return j||JUNTA_PADRAO; }
   function cfgSocioDefaults(){const o={};if(CFG.defMun)o.mun=CFG.defMun;if(CFG.defUF){o.uf=CFG.defUF;o.naturalUF=CFG.defUF;}if(CFG.defOrgao)o.orgao=CFG.defOrgao;if(CFG.defOrgaoUF)o.orgaoUF=CFG.defOrgaoUF;return o;}
   function aplicarPadroesForm(){if(CFG.defMun&&$("s_mun")&&!$("s_mun").value)$("s_mun").value=CFG.defMun;if(CFG.defUF&&$("s_uf")&&!$("s_uf").value)$("s_uf").value=CFG.defUF;if(CFG.foro&&$("foro")&&!$("foro").value)$("foro").value=CFG.foro;}
   function shade(hex,pct){hex=String(hex||"").replace("#","");if(hex.length===3)hex=hex.split("").map(c=>c+c).join("");const n=parseInt(hex,16);if(isNaN(n)||hex.length!==6)return "#"+hex;let r=(n>>16)&255,g=(n>>8)&255,b=n&255;const f=pct/100,ad=v=>Math.max(0,Math.min(255,Math.round(v+(pct>=0?(255-v):v)*f)));return "#"+[ad(r),ad(g),ad(b)].map(v=>v.toString(16).padStart(2,"0")).join("");}
@@ -2410,18 +2427,22 @@ window.TINA=(function(){
     if($("emailParalegal")&&!$("emailParalegal").value&&CFG.paralegal)$("emailParalegal").value=CFG.paralegal;
     if($("emailRemetente")&&!$("emailRemetente").value&&CFG.remetente)$("emailRemetente").value=CFG.remetente;}
   function abrirConfig(){$("cfgUF").innerHTML=ufOpts(CFG.defUF);$("cfgOrgaoUF").innerHTML=ufOpts(CFG.defOrgaoUF);$("cfgOrgao").innerHTML=orgaoOpts(CFG.defOrgao||"");
-    $("cfgEscritorio").value=CFG.escritorio||"";$("cfgCor").value=CFG.cor||"#14293f";$("cfgParalegal").value=CFG.paralegal||"";$("cfgRemetente").value=CFG.remetente||"";$("cfgMun").value=CFG.defMun||"";$("cfgForo").value=CFG.foro||"";
+    $("cfgEscritorio").value=CFG.escritorio||"";$("cfgCor").value=CFG.cor||"#14293f";$("cfgParalegal").value=CFG.paralegal||"";$("cfgRemetente").value=CFG.remetente||"";$("cfgMun").value=CFG.defMun||"";$("cfgForo").value=CFG.foro||"";if($("cfgJunta"))$("cfgJunta").value=CFG.junta||"";
     _cfgLogoTmp=CFG.logo||"";const prev=$("cfgLogoPrev");if(_cfgLogoTmp){prev.src=_cfgLogoTmp;prev.style.display="";}else prev.style.display="none";
     if($("cfgLogoFile"))$("cfgLogoFile").value="";$("cfgStat").textContent="";$("configModal").classList.add("open");}
   function salvarConfigForm(){const cor=($("cfgCor").value||"").toLowerCase();
-    CFG={escritorio:$("cfgEscritorio").value.trim(),logo:_cfgLogoTmp||"",cor:(cor==="#14293f"||!cor)?"":cor,paralegal:$("cfgParalegal").value.trim(),remetente:$("cfgRemetente").value.trim(),defMun:$("cfgMun").value.trim(),defUF:$("cfgUF").value,defOrgao:$("cfgOrgao").value,defOrgaoUF:$("cfgOrgaoUF").value,foro:$("cfgForo").value.trim()};
+    CFG={escritorio:$("cfgEscritorio").value.trim(),logo:_cfgLogoTmp||"",cor:(cor==="#14293f"||!cor)?"":cor,paralegal:$("cfgParalegal").value.trim(),remetente:$("cfgRemetente").value.trim(),defMun:$("cfgMun").value.trim(),defUF:$("cfgUF").value,defOrgao:$("cfgOrgao").value,defOrgaoUF:$("cfgOrgaoUF").value,foro:$("cfgForo").value.trim(),junta:(($("cfgJunta")&&$("cfgJunta").value)||"").trim()};
     salvarCfg(CFG);aplicarCfg();$("cfgStat").style.color="var(--ok)";$("cfgStat").textContent="✓ Salvo.";toast("Configurações salvas.","ok");}
   function resetConfig(){CFG=cfgDefault();salvarCfg(CFG);aplicarCfg();abrirConfig();toast("Configurações restauradas ao padrão.","info");}
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
   const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","retificaRef"];
   const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica"];
-  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),fields:{},checks:{},socios:readSocios()};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
+  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios()};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
+  // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
+  // passadas 24h sem uso, é descartado sozinho, para não ficar legível num computador compartilhado.
+  const DRAFT_VALIDADE_MS=24*60*60*1000;
+  function draftVencido(o){ return !o || !o.ts || (Date.now()-o.ts)>DRAFT_VALIDADE_MS; }
   function draftTemConteudo(o){if(!o)return false;const f=o.fields||{};if((f.razao||"").trim())return true;if((f.objeto||"").trim())return true;if(o.socios&&o.socios.some(s=>(s.nome||"").trim()))return true;return false;}
   function salvarRascunho(){if(_suppressDraft)return;try{const snap=snapshotForm();if(draftTemConteudo(snap))localStorage.setItem("tinaDraft",JSON.stringify(snap));else localStorage.removeItem("tinaDraft");}catch(e){}}
   const salvarRascunhoDeb=debounce(salvarRascunho,700);
@@ -2463,7 +2484,9 @@ window.TINA=(function(){
   function limparComConfirmacao(){if(draftTemConteudo(snapshotForm())){if(!confirm("Limpar todos os campos do formulário? O preenchimento atual será apagado."))return;}limpar();aplicarPadroesForm();limparRascunho();toast("Formulário limpo.","info");}
 
   /* ===== Registrar caso automaticamente ao baixar (docx/PDF) — o download sinaliza que o preenchimento foi finalizado ===== */
-  function registrarCasoAuto(){ const d=coletar(); if(!d.razao) return null; const jaExistia=!!casoAtualId; const c=registrarCaso(); if(document.getElementById("painelModal") && document.getElementById("painelModal").classList.contains("open")) renderPainel(); toast((jaExistia?"✓ Ato atualizado no painel de casos — ID #":"✓ Ato salvo no painel de casos — ID #")+c.id,"ok"); return c; }
+  function registrarCasoAuto(){ const d=coletar(); if(!d.razao) return null; const jaExistia=!!casoAtualId; const c=registrarCaso(); if(document.getElementById("painelModal") && document.getElementById("painelModal").classList.contains("open")) renderPainel();
+    limparRascunho();   // documento entregue: o rascunho (com CPF/RG/endereço dos sócios) sai do navegador. Os campos seguem na tela para reuso.
+    toast((jaExistia?"✓ Ato atualizado no painel de casos — ID #":"✓ Ato salvo no painel de casos — ID #")+c.id,"ok"); return c; }
 
   /* ===== Biblioteca de objetos sociais (localStorage) ===== */
   const SUGESTOES_OBJ=[
@@ -2569,6 +2592,7 @@ window.TINA=(function(){
       cnpjEl.addEventListener("input",cnpjLiveCheck); }
     // Auto-save (rascunho) + recuperação
     let draftSalvo=null; try{draftSalvo=JSON.parse(localStorage.getItem("tinaDraft")||"null");}catch(e){}
+    if(draftVencido(draftSalvo)){ limparRascunho(); draftSalvo=null; }   // rascunho velho (24h+) é apagado sozinho — contém dados pessoais
     if(draftTemConteudo(draftSalvo) && $("draftBanner")){ $("draftBanner").classList.add("show");
       if($("btnDraftRestore")) $("btnDraftRestore").addEventListener("click",()=>{restaurarForm(draftSalvo);$("draftBanner").classList.remove("show");toast("Rascunho restaurado.","ok");});
       if($("btnDraftDiscard")) $("btnDraftDiscard").addEventListener("click",()=>{limparRascunho();$("draftBanner").classList.remove("show");toast("Rascunho descartado.","info");}); }
@@ -2594,7 +2618,7 @@ window.TINA=(function(){
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
 <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 <div id="draftBanner">
-  <span class="dbtxt">📝 Encontramos um <b>rascunho não salvo</b> da última vez. Deseja restaurar?</span>
+  <span class="dbtxt">📝 Encontramos um <b>rascunho não salvo</b> da última vez. Deseja restaurar? <span class="hint">(contém os dados do cliente; é apagado após 24h ou ao gerar o documento)</span></span>
   <div class="bar" style="margin:0">
     <button class="btn p mini" id="btnDraftRestore" type="button">Restaurar</button>
     <button class="btn s mini" id="btnDraftDiscard" type="button">Descartar</button>
