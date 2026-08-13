@@ -194,7 +194,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.15 · beta</span>
+  <span class="chip">v0.16 · beta</span>
 </header>
 
 <div class="wrap">
@@ -603,7 +603,27 @@
 <script>window.docxLib = window.docx;</script>
 <script src="lib/jszip.min.js"></script>
 <script src="lib/docx-preview.min.js"></script>
-<script src="lib/pdf.min.js"></script>
+<script>
+/* pdf.js 4.x só existe como módulo (ESM). Módulo não carrega em file:// (bloqueio de CORS),
+   então: tenta o 4.x e, se falhar, cai para o 3.x clássico que continua na pasta.
+   Quem espera a lib usa `await window.__pdfjsReady`. */
+window.__pdfjsReady=new Promise(function(res,rej){ window.__pdfjsOk=res; window.__pdfjsFail=rej; });
+window.__pdfjsFallback=function(){
+  var s=document.createElement("script"); s.src="lib/pdf.min.js";
+  s.onload=function(){ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc="lib/pdf.worker.min.js"; }catch(e){}
+    console.warn("pdf.js 4.x indisponível (provavelmente file://) — usando o 3.x com isEvalSupported:false.");
+    window.__pdfjsOk(window.pdfjsLib); };
+  s.onerror=function(){ window.__pdfjsFail(new Error("pdf.js não carregou")); };
+  document.head.appendChild(s);
+};
+</script>
+<script type="module">
+  try{
+    const m=await import("./lib/pdf.min.mjs");
+    m.GlobalWorkerOptions.workerSrc=new URL("lib/pdf.worker.min.mjs",document.baseURI).href;
+    window.pdfjsLib=m; window.__pdfjsOk(m);
+  }catch(e){ window.__pdfjsFallback(); }
+</script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -1913,6 +1933,7 @@ window.TINA=(function(){
   /* ===== Preenchimento rápido (regras + PDF/OCR, sem IA) ===== */
   function brNum(s){s=String(s||"").replace(/\./g,"").replace(",",".").replace(/[^\d.]/g,"");return parseFloat(s)||0;}
   async function extrairTextoPDF(file,onp){
+    if(!window.pdfjsLib){ try{ await window.__pdfjsReady; }catch(e){ throw new Error("pdf.js não carregou"); } }   // carregamento do módulo é assíncrono
     if(!window.pdfjsLib) throw new Error("pdf.js não carregou");
     const buf=await file.arrayBuffer();
     // isEvalSupported:false — desliga o new Function() usado no desenho de glifos (CVE-2024-4367): um PDF
@@ -2660,7 +2681,7 @@ window.TINA=(function(){
     $("btnBaixar").addEventListener("click",baixarDocx);
     $("btnPDF").addEventListener("click",baixarPDF);
     $("s_uf").innerHTML=ufOpts();
-    if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc="lib/pdf.worker.min.js";
+    // workerSrc é definido junto com o carregamento da lib (ESM ou fallback) — nada a fazer aqui
     if($("btnRapido")) $("btnRapido").addEventListener("click",processarRapido);
     if($("btnValidar")) $("btnValidar").addEventListener("click",acaoValidar);
     if($("btnHelpRapido")) $("btnHelpRapido").addEventListener("click",()=>$("helpRapido").classList.add("open"));
