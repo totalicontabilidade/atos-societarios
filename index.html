@@ -194,7 +194,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.11 · beta</span>
+  <span class="chip">v0.12 · beta</span>
 </header>
 
 <div class="wrap">
@@ -468,6 +468,30 @@
       </details>
 
       <div class="hint" id="gateStat" style="margin-top:10px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="meiModal">
+  <div class="modal">
+    <div class="mh"><span>Esta empresa é (ou era) MEI?</span><button class="x" id="btnMeiClose">Fechar</button></div>
+    <div class="mb">
+      <div class="hint" style="background:#eef4ff;border:1px solid #c6d8f5;border-radius:8px;padding:10px 12px;color:var(--navy)">
+        O nome empresarial tem <b id="meiDigitos">números</b> junto ao nome e a natureza jurídica é <b>Empresário (Individual)</b> — padrão de MEI.
+        Como o MEI não tem contrato social, isso muda o que o sistema preenche.
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div style="font-weight:600;color:var(--navy);margin-bottom:4px">Nome empresarial no cartão</div>
+        <div class="hint"><code id="meiNomeOrig"></code></div>
+        <div style="font-weight:600;color:var(--navy);margin:10px 0 4px">Como ficaria após o desenquadramento</div>
+        <div class="hint"><code id="meiNomeLimpo"></code></div>
+      </div>
+      <div class="bar" style="margin-top:14px;flex-wrap:wrap">
+        <button class="btn p mini" id="btnMeiDesenq">Foi desenquadrado do MEI (virou ME/EPP)</button>
+        <button class="btn o mini" id="btnMeiAtivo">Ainda é MEI</button>
+        <button class="btn s mini" id="btnMeiNao">Não é / nunca foi MEI</button>
+      </div>
+      <div class="hint" style="margin-top:10px">Ao confirmar o desenquadramento, o sistema já retira os números do nome e marca <b>nome empresarial</b> como alteração.</div>
     </div>
   </div>
 </div>
@@ -996,18 +1020,20 @@ window.TINA=(function(){
     const g=(m,f)=>gsex(tit,m,f);
     const isAlt=(md==="ei_alt"), isTransf=(md==="transf_ltda_ei"), cons=isAlt||isTransf, CH=d.changed||new Set();
     const isRetifica=isAlt && !!d.retifica;   // rerratificação (correção de erro em ato arquivado) — art. 118 IN DREI 81/2020
+    const mudouNome=isAlt && CH.has("nome") && !!(d.razaoAnterior||"").trim();   // o nome empresarial está mudando nesta alteração
+    const nomeCabUP=mudouNome?razAntUP:nomeUP;   // título e preâmbulo citam o nome ATUAL (registrado); o NOVO vai na cláusula e no consolidado
     const fut=(k)=>isTransf?false:(isAlt?CH.has(k):true);
     const space=()=>new Paragraph({spacing:{after:120,line:240,lineRule:AUTO}});
     const roman=["I","II","III","IV","V","VI","VII","VIII","IX"]; let ri=0; const nx=()=>roman[ri++];
     const ordExt=["Primeira","Segunda","Terceira","Quarta","Quinta","Sexta","Sétima","Oitava","Nona","Décima"];
     const ch=[];
-    if(isAlt){ ch.push(tituloDoc((d.numAlteracao?d.numAlteracao+"ª ":"")+(isRetifica?"RERRATIFICAÇÃO E CONSOLIDAÇÃO DO INSTRUMENTO DE INSCRIÇÃO DE EMPRESÁRIO INDIVIDUAL":"ALTERAÇÃO DO INSTRUMENTO DE INSCRIÇÃO DE EMPRESÁRIO INDIVIDUAL"))); ch.push(tituloDoc(nomeUP)); }
+    if(isAlt){ ch.push(tituloDoc((d.numAlteracao?d.numAlteracao+"ª ":"")+(isRetifica?"RERRATIFICAÇÃO E CONSOLIDAÇÃO DO INSTRUMENTO DE INSCRIÇÃO DE EMPRESÁRIO INDIVIDUAL":"ALTERAÇÃO DO INSTRUMENTO DE INSCRIÇÃO DE EMPRESÁRIO INDIVIDUAL"))); ch.push(tituloDoc(nomeCabUP)); }
     else if(isTransf){ ch.push(tituloDoc("TRANSFORMAÇÃO DE SOCIEDADE LIMITADA EM EMPRESÁRIO INDIVIDUAL")); ch.push(tituloDoc(nomeUP)); }
     else { ch.push(tituloDoc("INSTRUMENTO DE INSCRIÇÃO DE EMPRESÁRIO INDIVIDUAL")); ch.push(tituloDoc(nomeUP)); }
     ch.push(space());
     ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit)),JUST,SP10));
     if(isAlt){
-      ch.push(P(R("na qualidade de "+g("titular","titular")+" do Empresário Individual que gira sob o nome empresarial "+nomeUP+", com sede à "+endLinha(d.sede)+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+" e NIRE "+(d.nire||"[NIRE]")+", resolve promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração do instrumento de inscrição,"))+" mediante as cláusulas seguintes:"),JUST,SP15));
+      ch.push(P(R("na qualidade de "+g("titular","titular")+" do Empresário Individual que gira sob o nome empresarial "+nomeCabUP+", com sede à "+endLinha(d.sede)+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+" e NIRE "+(d.nire||"[NIRE]")+", resolve promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração do instrumento de inscrição,"))+" mediante as cláusulas seguintes:"),JUST,SP15));
       const resolve=g("O titular resolve","A titular resolve");
       const tmud=isRetifica?"Da retificação":"Da alteração", av=isRetifica?"retificar":"alterar", pass=isRetifica?"que por erro material passa a constar":"que passa a ser";
       let dci=0; const delib=(tema,txt)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(txt)],JUST,SP15));
@@ -1781,8 +1807,9 @@ window.TINA=(function(){
     if(!window.pdfjsLib) throw new Error("pdf.js não carregou");
     const buf=await file.arrayBuffer();
     const pdf=await pdfjsLib.getDocument({data:buf}).promise;
-    let txt=""; const sparse=[];
-    for(let p=1;p<=pdf.numPages;p++){onp&&onp("Lendo página "+p+"/"+pdf.numPages+"…");const pg=await pdf.getPage(p);const tc=await pg.getTextContent();const s=tc.items.map(i=>i.str).join(" ");txt+=s+"\n";if(s.replace(/\s/g,"").length<20)sparse.push(p);}
+    let txt=""; const sparse=[]; const itens=[];   // itens = texto COM posição (x,y) — usado pelos parsers de formulário (CCMEI/cartão CNPJ), onde rótulo e valor são colunas
+    for(let p=1;p<=pdf.numPages;p++){onp&&onp("Lendo página "+p+"/"+pdf.numPages+"…");const pg=await pdf.getPage(p);const tc=await pg.getTextContent();const s=tc.items.map(i=>i.str).join(" ");txt+=s+"\n";if(s.replace(/\s/g,"").length<20)sparse.push(p);
+      tc.items.forEach(i=>{const v=(i.str||"").trim(); if(v&&i.transform)itens.push({s:v,x:Math.round(i.transform[4]),y:Math.round(i.transform[5]),p});});}
     const total=txt.replace(/\s/g,"").length;
     // texto embutido ILEGÍVEL (fonte sem ToUnicode → sai como caracteres de controle) também exige OCR
     let ctrl=0;for(let _i=0;_i<txt.length;_i++){const _c=txt.charCodeAt(_i);if(_c<9||(_c>13&&_c<32)||(_c>=127&&_c<160))ctrl++;}
@@ -1794,7 +1821,7 @@ window.TINA=(function(){
       const all=[]; for(let p=1;p<=Math.min(pdf.numPages,12);p++)all.push(p);
       try{ txt=await ocrPages(pdf,all,onp); }
       catch(err){ console.warn("OCR indisponível:",err); throw new Error("Este PDF é uma imagem (escaneado) e o OCR não pôde ser executado. Verifique a conexão com a internet — o motor de OCR é baixado online — ou preencha os campos manualmente."); }
-    } else if(window.Tesseract && !acharNIRE(txt)){ // texto digital sem NIRE → procurar na autenticação/chancela (imagem)
+    } else if(window.Tesseract && !acharNIRE(txt) && detectarTipoDoc(txt)==="contrato"){ // texto digital sem NIRE → procurar na autenticação/chancela (imagem). CCMEI/cartão CNPJ não têm NIRE: pular o OCR (seria só demora).
       // OCR do carimbo é OPCIONAL (só busca o NIRE): se falhar (ex.: sem internet p/ baixar o Tesseract), NÃO descarta o texto digital já lido.
       try{
         // 1) OCR do RODAPÉ (carimbo oficial da Junta: "CERTIFICO O REGISTRO ... NIRE: ...") — última página é a definitiva
@@ -1805,7 +1832,7 @@ window.TINA=(function(){
         if(!acharNIRE(auth) && sparse.length){ onp&&onp("OCR das páginas escaneadas (pode demorar)…"); ocr=await ocrPages(pdf,sparse.slice(0,8),onp); }
       }catch(err){ auth=""; ocr=""; console.warn("OCR do carimbo indisponível — seguindo só com o texto digital (o NIRE pode não ser preenchido):",err); }
     }
-    return {txt,ocr,auth};
+    return {txt,ocr,auth,itens};
   }
   // OCR 100% offline: worker, core (wasm) e idioma português vendorizados em lib/ — sem depender de CDN.
   function _simdOK(){ try{ return WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11])); }catch(e){ return false; } }
@@ -1949,6 +1976,166 @@ window.TINA=(function(){
     .replace(/\s*[\(\[]\s*atividade[s]?\s+(?:econ[ôo]mica\s+)?(?:principal|prim[áa]ria|secund[áa]ri[ao]s?)\s*[\)\]]/gi,"")  // remove marcador "(atividade principal)"/"(atividades secundárias)" — não faz parte do objeto no modelo da Junta
     .replace(/\bITEM\s+[IVXL][IVXL ]*[-–][\s\S]*$/i,"")                                            // corta deliberações "ITEM VI - Incluir…"
     .replace(/\s+([;,])/g,"$1").replace(/;\s*;/g,";").replace(/\s{2,}/g," ").replace(/^[\s;,.\-]+/,"").replace(/[\s;,]+$/,"").trim(); }
+  /* ===== Documentos de FORMULÁRIO (CCMEI e cartão CNPJ) =====
+     Nesses PDFs o rótulo e o valor são COLUNAS: o valor fica no mesmo x, na linha logo abaixo.
+     Ler pelo texto corrido embaralha bairro/município — por isso o parser é POSICIONAL (x,y). */
+  const VAZIO_FORM=/^(?:\*+|-+|n[ãa]o informad[ao]|nenhuma?)$/i;         // campos em branco vêm como "********" / "Não informada"
+  function _limpo(v){ v=(v||"").trim(); return VAZIO_FORM.test(v)?"":v; }
+  // valor de um rótulo: mesmo x (±tolX), y logo abaixo (dentro de maxGap). linhas=quantas linhas colar.
+  function campoPos(itens,reRot,opt){
+    opt=opt||{}; const tolX=opt.tolX!=null?opt.tolX:14, maxGap=opt.maxGap||26, nl=opt.linhas||1;
+    const rot=itens.find(i=>reRot.test(i.s)); if(!rot) return "";
+    const cand=itens.filter(i=>i!==rot && i.p===rot.p && Math.abs(i.x-rot.x)<=tolX && i.y<rot.y && (rot.y-i.y)<=maxGap+(nl-1)*16)
+                    .sort((a,b)=>b.y-a.y);
+    if(!cand.length) return "";
+    const out=[]; let ly=null;
+    for(const c of cand){ if(out.length>=nl) break; if(ly!=null && Math.abs(ly-c.y)>16) break; out.push(c.s); ly=c.y; }
+    return _limpo(out.join(" ").replace(/\s+/g," "));
+  }
+  // bloco de várias linhas sob um rótulo (atividades secundárias): junta e separa por código CNAE.
+  // Para no próximo rótulo do formulário ou em campo vazio ("Não informada") — senão o bloco vaza para a seção seguinte.
+  const CNAE_INI=/^\d{2}\.?\d{2}-?\d[-/]?\d{2}\s*-/;
+  const ROT_SEG=/^(?:C[ÓO]DIGO E DESCRI|LOGRADOURO|CEP\b|BAIRRO|MUNIC[ÍI]PIO|ENDERE[ÇC]O|ENTE FEDERATIVO|SITUA[ÇC][ÃA]O|MOTIVO|T[ÍI]TULO DO|PORTE|TELEFONE|DATA D|NOME EMPRESARIAL|N[ÚU]MERO DE|Situa[çc][ãa]o|Per[íi]odos|Termo de|Este Certificado|Forma de|Ocupa[çc]|Atividade)/;
+  function blocoPos(itens,reRot,opt){
+    opt=opt||{}; const tolX=opt.tolX!=null?opt.tolX:14, ate=opt.ate||60;
+    const rot=itens.find(i=>reRot.test(i.s)); if(!rot) return [];
+    const cand=itens.filter(i=>i!==rot && i.p===rot.p && Math.abs(i.x-rot.x)<=tolX && i.y<rot.y && (rot.y-i.y)<=ate)
+                    .sort((a,b)=>b.y-a.y).map(i=>i.s);
+    const linhas=[];
+    for(const s of cand){
+      if(VAZIO_FORM.test(s) || ROT_SEG.test(s)) break;                 // fim do bloco
+      if(CNAE_INI.test(s)) linhas.push(s);                             // nova atividade
+      else if(linhas.length) linhas[linhas.length-1]+=" "+s;           // continuação da anterior
+      else break;                                                     // texto solto antes de qualquer CNAE → não é o bloco
+    }
+    return linhas.map(s=>_limpo(s)).filter(Boolean);
+  }
+  const semCNAE=s=>(s||"").replace(/^\s*\d{2}\.?\d{2}-?\d[-/]?\d{2}\s*-\s*/,"").trim();   // tira "47.51-2-01 - " da descrição
+
+  // Nome empresarial de MEI: dígitos ANTES (raiz do CNPJ, formato novo) ou DEPOIS (CPF, formato antigo).
+  // Só remove/aproveita se os dígitos forem CPF válido OU baterem com a raiz do CNPJ — senão podem ser parte real do nome.
+  function limparNomeEmpresarial(razao,cnpj){
+    const r={nome:(razao||"").trim(),cpf:"",tipo:"",removeu:false};
+    const raiz=(cnpj||"").replace(/\D/g,"").slice(0,8);
+    const testa=(bloco,resto)=>{
+      const n=bloco.replace(/\D/g,"");
+      if(n.length===11 && validaCPF(n)){ r.nome=resto.trim(); r.cpf=n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4"); r.tipo="cpf"; r.removeu=true; return true; }
+      if(n.length>=8 && raiz && n.slice(0,8)===raiz){ r.nome=resto.trim(); r.tipo="cnpj"; r.removeu=true; return true; }   // raiz do CNPJ: remove do nome, NÃO usa como dado pessoal
+      return false;
+    };
+    let m=r.nome.match(/^([\d.\-/]{8,20})\s+(.+)$/);            // dígitos à FRENTE
+    if(m && testa(m[1],m[2])) return r;
+    m=r.nome.match(/^(.+?)\s+([\d.\-/]{8,20})$/);               // dígitos ao FINAL
+    if(m && testa(m[2],m[1])) return r;
+    return r;
+  }
+
+  function detectarTipoDoc(t){
+    const s=(t||"").replace(/\s+/g," ");
+    if(/Certificado da Condi[çc][ãa]o de\s*Microempreendedor Individual|CCMEI/i.test(s)) return "ccmei";
+    if(/COMPROVANTE DE INSCRI[ÇC][ÃA]O E DE SITUA[ÇC][ÃA]O\s*CADASTRAL|CADASTRO NACIONAL DA PESSOA JUR[ÍI]DICA/i.test(s)) return "cnpj";
+    return "contrato";
+  }
+
+  // ---- CCMEI: certificado do MEI (é sempre MEI; traz capital, CPF e nome civil; NÃO traz NIRE) ----
+  function parseCCMEI(itens,txt){
+    const d={},inc=new Set(),meta={tipoDoc:"ccmei",ehMEI:true};
+    d.cnpj=campoPos(itens,/^CNPJ$/i);
+    const razBruta=campoPos(itens,/^Nome Empresarial$/i);
+    const lim=limparNomeEmpresarial(razBruta,d.cnpj);
+    d.razao=lim.nome; if(lim.removeu){inc.add("razao"); meta.nomeOriginal=razBruta; meta.digitos=lim.tipo;}
+    const nomeCivil=campoPos(itens,/^Nome Civil$/i);
+    const cpf=campoPos(itens,/^CPF$/i)||lim.cpf;
+    d.dataInicioOrig=campoPos(itens,/^Data de Abertura$/i);
+    const cap=campoPos(itens,/^Capital Social$/i); if(cap)d.capital=brNum(cap);
+    d.sede={ cep:campoPos(itens,/^CEP$/i), log:campoPos(itens,/^Logradouro$/i), num:campoPos(itens,/^N[úu]mero$/i),
+             comp:campoPos(itens,/^Complemento$/i), bairro:campoPos(itens,/^Bairro$/i),
+             mun:campoPos(itens,/^Mun[íi]c[íi]pio$/i), uf:(campoPos(itens,/^UF$/i)||"").toUpperCase() };
+    const princ=campoPos(itens,/^Atividade Principal \(CNAE\)$/i,{linhas:2});
+    const secs=blocoPos(itens,/^Atividades Secund[áa]rias \(CNAE\)$/i,{ate:400});
+    const ativ=[semCNAE(princ),...secs.map(semCNAE)].filter(Boolean);
+    if(ativ.length){ d.objeto=limparObjeto(ativ.join("; ")); inc.add("objeto"); }
+    if(nomeCivil||cpf) d.socios=[{nome:nomeCivil||d.razao,cpf:cpf||"",administrador:true}];
+    meta.semNIRE=true; meta.semQualificacao=true;
+    return {d,inc,meta};
+  }
+
+  // ---- Cartão CNPJ: serve para QUALQUER empresa (Ltda inclusive). Não traz capital, NIRE nem qualificação ----
+  function parseCartaoCNPJ(itens,txt){
+    const d={},inc=new Set(),meta={tipoDoc:"cnpj"};
+    d.cnpj=campoPos(itens,/^N[ÚU]MERO DE INSCRI[ÇC][ÃA]O$/i);
+    d.dataInicioOrig=campoPos(itens,/^DATA DE ABERTURA$/i);
+    const razBruta=campoPos(itens,/^NOME EMPRESARIAL$/i,{linhas:2});
+    const nat=campoPos(itens,/^C[ÓO]DIGO E DESCRI[ÇC][ÃA]O DA NATUREZA JUR[ÍI]DICA$/i);
+    meta.natureza=nat; meta.naturezaCod=(nat.match(/^(\d{3}-?\d)/)||[])[1]||"";
+    meta.ehEI=/^213/.test(meta.naturezaCod)||/empres[áa]rio\s*\(?\s*individual/i.test(nat);
+    meta.ehLtda=/^206|^230/.test(meta.naturezaCod)||/limitada/i.test(nat);
+    const lim=limparNomeEmpresarial(razBruta,d.cnpj);
+    // suspeita de MEI/ex-MEI: Empresário Individual + dígitos (CPF ou raiz do CNPJ) no nome empresarial
+    meta.suspeitaMEI=!!(meta.ehEI&&lim.removeu);
+    meta.nomeOriginal=razBruta; meta.nomeLimpo=lim.nome; meta.cpfDoNome=lim.cpf; meta.digitos=lim.tipo;
+    d.razao=razBruta; if(razBruta)inc.add("razao");            // limpeza só é aplicada se o usuário confirmar que era MEI
+    const fant=campoPos(itens,/^T[ÍI]TULO DO ESTABELECIMENTO/i); if(fant){d.fantasia=fant;inc.add("fantasia");}
+    const porte=campoPos(itens,/^PORTE$/i).toUpperCase();
+    if(/EPP|PEQUENO/.test(porte))d.enquadramento="EPP"; else if(/\bME\b|MICRO/.test(porte))d.enquadramento="ME"; else if(porte)d.enquadramento="DEMAIS";
+    meta.porte=porte;
+    d.sede={ cep:(campoPos(itens,/^CEP$/i)||"").replace(/\./g,""), log:campoPos(itens,/^LOGRADOURO$/i),
+             num:campoPos(itens,/^N[ÚU]MERO$/i), comp:campoPos(itens,/^COMPLEMENTO$/i),
+             bairro:campoPos(itens,/^BAIRRO\/?DISTRITO$/i), mun:campoPos(itens,/^MUNIC[ÍI]PIO$/i),
+             uf:(campoPos(itens,/^UF$/i)||"").toUpperCase() };
+    const princ=campoPos(itens,/^C[ÓO]DIGO E DESCRI[ÇC][ÃA]O DA ATIVIDADE ECON[ÔO]MICA PRINCIPAL$/i,{linhas:2});
+    const secs=blocoPos(itens,/^C[ÓO]DIGO E DESCRI[ÇC][ÃA]O DAS ATIVIDADES ECON[ÔO]MICAS SECUND[ÁA]RIAS$/i,{ate:300});
+    const ativ=[semCNAE(princ),...secs.map(semCNAE)].filter(Boolean);
+    if(ativ.length){ d.objeto=limparObjeto(ativ.join("; ")); inc.add("objeto"); }
+    meta.semCapital=true; meta.semNIRE=true; meta.semQualificacao=true;
+    return {d,inc,meta};
+  }
+
+  // pergunta ao usuário (só quando há padrão de MEI no cartão CNPJ) → "desenq" | "mei" | "nao"
+  function perguntarMEI(meta){
+    return new Promise(res=>{
+      const mm=$("meiModal"); if(!mm){res("nao");return;}
+      if($("meiDigitos"))$("meiDigitos").textContent = meta.digitos==="cpf" ? "os dígitos do CPF" : "a raiz do CNPJ";
+      if($("meiNomeOrig"))$("meiNomeOrig").textContent=meta.nomeOriginal||"";
+      if($("meiNomeLimpo"))$("meiNomeLimpo").textContent=meta.nomeLimpo||"";
+      const fim=(r)=>{mm.classList.remove("open"); limpaHandlers(); res(r);};
+      const h1=()=>fim("desenq"), h2=()=>fim("mei"), h3=()=>fim("nao"), hx=()=>fim("nao");
+      function limpaHandlers(){ if($("btnMeiDesenq"))$("btnMeiDesenq").removeEventListener("click",h1);
+        if($("btnMeiAtivo"))$("btnMeiAtivo").removeEventListener("click",h2);
+        if($("btnMeiNao"))$("btnMeiNao").removeEventListener("click",h3);
+        if($("btnMeiClose"))$("btnMeiClose").removeEventListener("click",hx); }
+      if($("btnMeiDesenq"))$("btnMeiDesenq").addEventListener("click",h1);
+      if($("btnMeiAtivo"))$("btnMeiAtivo").addEventListener("click",h2);
+      if($("btnMeiNao"))$("btnMeiNao").addEventListener("click",h3);
+      if($("btnMeiClose"))$("btnMeiClose").addEventListener("click",hx);
+      mm.classList.add("open");
+    });
+  }
+  // aplica CCMEI/cartão CNPJ nos campos e devolve os avisos do que o documento NÃO tem
+  async function aplicarDocFormulario(par){
+    const {d,inc,meta}=par; const avisos=[];
+    if(meta.tipoDoc==="cnpj" && meta.suspeitaMEI){
+      const r=await perguntarMEI(meta);
+      meta.respostaMEI=r;
+      if(r==="desenq"||r==="mei"){ d.razao=meta.nomeLimpo; meta.ehMEI=true;
+        if(meta.cpfDoNome && !(d.socios&&d.socios.length)) d.socios=[{nome:meta.nomeLimpo,cpf:meta.cpfDoNome,administrador:true}];
+        if(r==="desenq") avisos.push("Desenquadrado do MEI: o nome empresarial já foi ajustado (números removidos) e marcado como alteração.");
+        else avisos.push("Ainda MEI: os números do nome foram removidos para a redação do ato.");
+      }
+    }
+    if(meta.tipoDoc==="ccmei") avisos.push("CCMEI lido: o MEI não tem contrato social, então este certificado é a base do estado atual.");
+    aplicarDadosContrato({d,inc});
+    // nome empresarial mudou (saíram os números do MEI): o ANTERIOR é o que está registrado — vai no título/preâmbulo; o novo, na cláusula e no consolidado
+    if(meta.ehMEI && meta.nomeOriginal && meta.nomeOriginal!==d.razao){
+      const c=$("alt_nome"); if(c)c.checked=true;
+      const ra=$("razaoAnterior"); if(ra){ ra.value=meta.nomeOriginal; ra.classList.add("revisar"); }
+    }
+    if(meta.semCapital) avisos.push("O cartão CNPJ não informa <b>capital social</b> — preencha manualmente.");
+    if(meta.semQualificacao) avisos.push("Este documento não traz <b>RG, estado civil, profissão, nascimento e naturalidade</b> do titular — complete no cartão do sócio.");
+    if(meta.semNIRE) avisos.push("<b>NIRE não preenchido</b>: o registro do MEI não vale como NIRE de EI/Ltda — informe o NIRE atual da Junta.");
+    return avisos;
+  }
+
   function parseContratoTexto(t,extra,auth){
     t=(t||"").replace(/\s+/g," ").replace(/P[áa]gina\s+\d+\s+de\s+\d+\s*\/?/gi," ");  // tira marcador de rodapé "Página X de Y" (+ a "/" que costuma segui-lo)
     // repara espaçamento entre letras do pdf.js em stems que NÃO são palavras isoladas (seguro): "Brasileir a"→"Brasileira", "nascid a"→"nascida", "atividade s"→"atividades"
@@ -2151,11 +2338,18 @@ window.TINA=(function(){
   }
   async function processarRapido(){
     const stat=$("rapidoStat");stat.style.color="var(--muted)";stat.textContent="Processando…";
-    let houvePDF=false;
+    let houvePDF=false, avisosDoc=[], nomeDoc="";
     const f=$("pdfContrato").files&&$("pdfContrato").files[0];
     const cmdPre=$("cmdRapido").value.trim();
     if(f||cmdPre) limparCampos();  // ZERA os campos antes de aplicar — não mistura com o documento anterior
-    if(f){try{const {txt,ocr,auth}=await extrairTextoPDF(f,m=>{$("pdfStat").className="fldstat load";$("pdfStat").textContent=m;});if($("pdfTexto")){$("pdfTexto").textContent=txt+(auth?"\n\n----- OCR rodapé (carimbo da Junta) -----\n"+auth:"")+(ocr?"\n\n----- OCR páginas escaneadas -----\n"+ocr:"");$("pdfTextoWrap").style.display="";}aplicarDadosContrato(parseContratoTexto(txt,ocr,auth));houvePDF=true;$("pdfStat").className="fldstat ok";$("pdfStat").textContent="✓ Dados do PDF extraídos — confira os campos em amarelo.";}catch(e){$("pdfStat").className="fldstat bad";$("pdfStat").textContent="Falha ao ler PDF: "+((e&&e.message)||(typeof e==="string"?e:"")||"erro desconhecido");console.error(e);}}
+    if(f){try{const {txt,ocr,auth,itens}=await extrairTextoPDF(f,m=>{$("pdfStat").className="fldstat load";$("pdfStat").textContent=m;});if($("pdfTexto")){$("pdfTexto").textContent=txt+(auth?"\n\n----- OCR rodapé (carimbo da Junta) -----\n"+auth:"")+(ocr?"\n\n----- OCR páginas escaneadas -----\n"+ocr:"");$("pdfTextoWrap").style.display="";}
+      const tipoDoc=detectarTipoDoc(txt);
+      if(tipoDoc!=="contrato" && itens && itens.length){                    // CCMEI ou cartão CNPJ: parser POSICIONAL (rótulo/valor em colunas)
+        const par=(tipoDoc==="ccmei")?parseCCMEI(itens,txt):parseCartaoCNPJ(itens,txt);
+        avisosDoc=await aplicarDocFormulario(par);
+        nomeDoc=(tipoDoc==="ccmei")?"CCMEI":"cartão CNPJ";
+      } else aplicarDadosContrato(parseContratoTexto(txt,ocr,auth));
+      houvePDF=true;$("pdfStat").className="fldstat ok";$("pdfStat").textContent="✓ "+(nomeDoc?nomeDoc+" lido":"Dados do PDF extraídos")+" — confira os campos em amarelo.";}catch(e){$("pdfStat").className="fldstat bad";$("pdfStat").textContent="Falha ao ler PDF: "+((e&&e.message)||(typeof e==="string"?e:"")||"erro desconhecido");console.error(e);}}
     const cmd=$("cmdRapido").value.trim();
     // snapshot do estado ATUAL (do PDF) ANTES de aplicar os comandos → e-mail mostra "De/Para" de todas as alterações
     if(houvePDF && cmd && (($("razao").value||"").trim()||($("objeto").value||"").trim())){ recalc(); valoresAntes=coletar(); }
@@ -2166,7 +2360,8 @@ window.TINA=(function(){
     stat.style.color=(applied.length||houvePDF)?"var(--ok)":"var(--warn)";
     stat.textContent=(houvePDF?"PDF lido. ":"")+(applied.length?("Aplicado: "+applied.join(" · ")):(cmd?"Nenhum comando reconhecido — veja o ? de ajuda.":(houvePDF?"":"Anexe um PDF e/ou escreva o que muda.")));
     const av=$("avisoRevisao");
-    if(houvePDF||applied.length){av.style.display="block";av.innerHTML="⚠ <b>Confira tudo antes de gerar.</b> O preenchimento automático é apenas uma ajuda — revise todas as informações e as alterações marcadas em \"O que muda\"."+(incCount?(" Há <b>"+incCount+" campo(s) destacado(s) em amarelo</b> que precisam de conferência.") : "");}
+    if(houvePDF||applied.length){av.style.display="block";av.innerHTML="⚠ <b>Confira tudo antes de gerar.</b> O preenchimento automático é apenas uma ajuda — revise todas as informações e as alterações marcadas em \"O que muda\"."+(incCount?(" Há <b>"+incCount+" campo(s) destacado(s) em amarelo</b> que precisam de conferência.") : "")
+      +(avisosDoc.length?("<ul style='margin:8px 0 0 18px;padding:0'>"+avisosDoc.map(a=>"<li>"+a+"</li>").join("")+"</ul>"):"");}
     else{av.style.display="none";}
   }
 
