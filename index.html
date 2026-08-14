@@ -197,7 +197,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.20 · beta</span>
+  <span class="chip">v0.21 · beta</span>
 </header>
 
 <div class="wrap">
@@ -267,7 +267,12 @@
         <div></div>
       </div>
       <div class="row disthide"><label for="objeto" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Objeto social <span class="hint">— atividades separadas por ";"</span><button type="button" class="btn s mini" id="btnObjetos" title="Inserir ou salvar modelos de objeto social" style="margin-left:auto">📋 Modelos</button></label>
-        <textarea id="objeto" placeholder="Ex.: Comércio varejista de artigos diversos; Prestação de serviços de consultoria"></textarea></div>
+        <textarea id="objeto" placeholder="Ex.: Comércio varejista de artigos diversos; Prestação de serviços de consultoria"></textarea>
+        <div class="bar" style="margin-top:6px;align-items:center">
+          <label class="checkline"><input type="checkbox" id="objComCnae"> Manter os códigos CNAE no objeto</label>
+          <span class="hint">Por padrão o sistema retira os códigos e a expressão <b>“não especificadas anteriormente”</b>, que a Junta não aceita. Pode colar a lista do CNAE que ele ajusta.</span>
+        </div>
+        <div class="fldstat" id="objStat"></div></div>
     </div>
 
     <div class="card" id="cardRegistro" style="display:none">
@@ -716,6 +721,44 @@ window.TINA=(function(){
 
   /* CPF / CEP */
   function fmtCep(v){const d=(v||"").replace(/\D/g,"").slice(0,8);return d.length>5?d.slice(0,5)+"-"+d.slice(5):d;}
+  // Máscara enquanto digita: "12041988" vai virando 12/04/1988. Não mexe em nada além de pôr as barras.
+  function fmtData(v){
+    const d=String(v||"").replace(/\D/g,"").slice(0,8);
+    if(d.length>4) return d.slice(0,2)+"/"+d.slice(2,4)+"/"+d.slice(4);
+    if(d.length>2) return d.slice(0,2)+"/"+d.slice(2);
+    return d;}
+  // Ao sair do campo (ou colar): entende 7/3/1990, 1988-04-12, 12.04.1988, 12-04-88 e completa com zeros.
+  function fmtDataFinal(v){
+    const s=String(v||"").trim(); if(!s) return "";
+    const iso=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/);
+    if(iso) return String(iso[3]).padStart(2,"0")+"/"+String(iso[2]).padStart(2,"0")+"/"+iso[1];
+    const par=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
+    if(par){ let a=par[3];
+      if(a.length===2) a=(+a>30?"19":"20")+a;                    // 90 -> 1990, 25 -> 2025
+      else if(a.length===3) a="2"+a;                             // digitação incompleta: mantém plausível
+      return par[1].padStart(2,"0")+"/"+par[2].padStart(2,"0")+"/"+a; }
+    return fmtData(s);}
+  function dataValida(v){
+    const m=String(v||"").match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(!m) return false;
+    const dd=+m[1], mm=+m[2], aa=+m[3];
+    if(mm<1||mm>12||dd<1||aa<1900||aa>2200) return false;
+    const ult=new Date(aa,mm,0).getDate();                                  // dia 0 do mês seguinte = último do mês
+    return dd<=ult;}
+  // liga a máscara num campo de data e sinaliza data impossível (31/02, mês 13…)
+  function attachData(el,statEl){
+    if(!el) return;
+    el.setAttribute("inputmode","numeric");
+    el.addEventListener("input",function(){
+      // texto que já veio separado (colado: 7/3/1990, 1988-04-12) fica intacto aqui — quem normaliza é o blur
+      if(/^\d{1,4}[-\/.]\d{1,2}([-\/.]\d{0,4})?$/.test(this.value)) return;
+      const p=this.selectionStart===this.value.length; const v=fmtData(this.value);
+      if(v!==this.value){ this.value=v; if(p) try{ this.setSelectionRange(v.length,v.length); }catch(e){} } });
+    el.addEventListener("paste",function(){ const el2=this; setTimeout(function(){ el2.value=fmtDataFinal(el2.value); },0); });
+    el.addEventListener("blur",function(){
+      const v=fmtDataFinal(this.value); if(v!==this.value) this.value=v;
+      const vazio=!this.value.trim(), ok=vazio||dataValida(this.value);
+      this.classList.toggle("bad",!ok); this.classList.toggle("good",!vazio&&ok);
+      if(statEl){ statEl.className="fldstat"+(ok?"":" bad"); statEl.textContent=ok?"":"✗ data inválida"; } });}
   function fmtCpf(v){let d=(v||"").replace(/\D/g,"").slice(0,11);let o=d;if(d.length>9)o=d.slice(0,3)+"."+d.slice(3,6)+"."+d.slice(6,9)+"-"+d.slice(9);
     else if(d.length>6)o=d.slice(0,3)+"."+d.slice(3,6)+"."+d.slice(6);else if(d.length>3)o=d.slice(0,3)+"."+d.slice(3);return o;}
   function validaCPF(cpf){cpf=(cpf||"").replace(/\D/g,"");if(cpf.length!==11||/^(\d)\1{10}$/.test(cpf))return false;
@@ -805,6 +848,7 @@ window.TINA=(function(){
     const q=(f)=>div.querySelector("[data-f="+f+"]");
     if(q("temProc")) q("temProc").addEventListener("change",function(){const w=div.querySelector(".procwrap"); if(w)w.style.display=this.checked?"":"none";});
     if(q("procCpf")) q("procCpf").addEventListener("input",function(){this.value=fmtCpf(this.value);});
+    attachData(q("nascimento"),null);
     q("quotas").addEventListener("input",recalc);
     attachCep(q("cep"),div.querySelector("[data-f=cepstat]"),{log:q("log"),bairro:q("bairro"),mun:q("mun"),uf:q("uf")});
     attachCpf(q("cpf"),div.querySelector("[data-f=cpfstat]"));
@@ -914,7 +958,10 @@ window.TINA=(function(){
   function coletar(){const socios=readSocios(),cap=Number($("capital").value)||0,vq=Number($("valorQuota").value)||0;
     const v=(id)=>{const e=$(id);return e?(e.value||"").trim():"";};
     const CHG=new Set();["nome","fantasia","sede","objeto","capital","quadro","enquadramento","cessao"].forEach(k=>{const e=$("alt_"+k);if(e&&e.checked)CHG.add(k);});
-    return{razao:v("razao"),fantasia:v("fantasia"),enquadramento:$("enquadramento").value,foro:v("foro"),objeto:v("objeto"),
+    // objeto e texto livre passam pela normalização aqui: mesmo digitado à mão, nenhum documento
+    // sai com "não especificadas anteriormente" nem com código CNAE quando a opção está desligada
+    return{razao:v("razao"),fantasia:v("fantasia"),enquadramento:$("enquadramento").value,foro:v("foro"),
+      objeto:normalizarAtividades(v("objeto"),manterCnaeAtivo()),
       sede:{cep:v("s_cep"),log:v("s_log"),num:v("s_num"),comp:v("s_comp"),bairro:v("s_bairro"),mun:v("s_mun"),uf:v("s_uf").toUpperCase()},
       filiais:readFiliais(),
       capital:cap,valorQuota:vq,numQuotas:vq>0?Math.round(cap/vq):0,modoAdm:$("modoAdm").value,integralizacao:v("integralizacao"),
@@ -927,7 +974,7 @@ window.TINA=(function(){
       cessao:!!($("alt_cessao")&&$("alt_cessao").checked), cedNome:v("cedNome"), cessNome:v("cessNome"),
       cedQuotas:Number($("cedQuotas")&&$("cedQuotas").value)||0, cedValor:Number($("cedValor")&&$("cedValor").value)||0,
       cedRetira:!!($("cedRetira")&&$("cedRetira").checked),
-      cnpj:v("cnpj"),nire:v("nire"),numAlteracao:v("numAlteracao"),dataInicioOrig:v("dataInicioOrig"),razaoAnterior:v("razaoAnterior"),socioRetira:v("socioRetira"),socioRetiraSexo:v("socioRetiraSexo"),acervo:Number($("acervo")&&$("acervo").value)||0,dataEncerramento:v("dataEncerramento"),guardiaoLivros:v("guardiaoLivros"),clausulasExtra:v("clausulasExtra"),
+      cnpj:v("cnpj"),nire:v("nire"),numAlteracao:v("numAlteracao"),dataInicioOrig:v("dataInicioOrig"),razaoAnterior:v("razaoAnterior"),socioRetira:v("socioRetira"),socioRetiraSexo:v("socioRetiraSexo"),acervo:Number($("acervo")&&$("acervo").value)||0,dataEncerramento:v("dataEncerramento"),guardiaoLivros:v("guardiaoLivros"),clausulasExtra:semNEA(v("clausulasExtra")),
       retifica:!!($("altRetifica")&&$("altRetifica").checked),retificaRef:v("retificaRef"),changed:CHG};}
 
   function endLinha(e){let s="";if(e.log)s+=e.log;if(e.num)s+=", nº "+e.num;if(e.comp)s+=", "+e.comp;if(e.bairro)s+=", "+e.bairro;
@@ -2261,7 +2308,35 @@ window.TINA=(function(){
       break; }
     return w.join(" ").trim();
   }
-  function limparObjeto(o){ return (o||"")
+  /* ===== Atividades do objeto social =====
+     Duas regras da Junta:
+     1) a expressão "não especificadas anteriormente" (que faz parte do nome oficial de vários CNAEs)
+        NÃO pode aparecer em nenhuma atividade do ato — nem no objeto, nem nas deliberações;
+     2) o objeto é textual: os códigos CNAE saem por padrão, ficando só a descrição.
+        Quem quiser mantê-los marca a opção e eles voltam no formato "Descrição (CNAE 4751-2/01)". */
+  const RE_NEA=/\s*[,;]?\s*n[ãa]o\s+especificad[oa]s?\s+anteriormente\b\.?/gi;
+  const RE_CNAE_G=/(?:\bCNAE[\s:.]*)?\b\d{2}\s*\.?\s*\d{2}\s*[-–]?\s*\d\s*[\/-]\s*\d{2}\b/g;
+  const RE_CNAE_1=/(?:\bCNAE[\s:.]*)?\b(\d{2}\s*\.?\s*\d{2}\s*[-–]?\s*\d\s*[\/-]\s*\d{2})\b/;
+  function semNEA(t){ return String(t||"").replace(RE_NEA,""); }
+  function fmtCnae(c){ const d=String(c||"").replace(/\D/g,""); return d.length===7 ? (d.slice(0,4)+"-"+d.slice(4,5)+"/"+d.slice(5,7)) : String(c||"").trim(); }
+  function normalizarAtividades(txt,manterCnae){
+    const partes=String(txt||"").split(/\s*;\s*|\s*[\r\n]+\s*/);
+    const out=[];
+    partes.forEach(function(p){
+      let s=String(p||"").trim(); if(!s) return;
+      const mc=s.match(RE_CNAE_1); const cod=mc?fmtCnae(mc[1]):"";
+      s=s.replace(RE_CNAE_G,"");                    // tira o código de onde estiver
+      s=s.replace(RE_NEA,"");                       // tira a expressão proibida
+      s=s.replace(/^[\s;,.:\-–—]+/,"").replace(/[\s;,.:\-–—]+$/,"").replace(/\s{2,}/g," ").trim();
+      if(!s) return;
+      if(manterCnae&&cod) s+=" (CNAE "+cod+")";
+      out.push(s);
+    });
+    return out.join("; ");
+  }
+  const manterCnaeAtivo=()=>!!($("objComCnae")&&$("objComCnae").checked);
+
+  function limparObjeto(o){ return normalizarAtividades((o||"")
     .replace(/^\s*(?:a\s*s|as|o|a)\s+(?:seguinte\s*s?|seguintes)\s+atividade\s*s?(?:\s+econ[ôo]mic[ao]s?)?\s*:?\s*/i,"")   // "as seguintes atividades (econômicas):"
     .replace(/^\s*(?:seguinte\s*s?|seguintes)\s+atividade\s*s?(?:\s+econ[ôo]mic[ao]s?)?\s*:?\s*/i,"")
     .replace(/^\s*atividade\s*s?\s+econ[ôo]mic[ao]s?\s*:?\s*/i,"")                                 // "atividades econômica:" (adjetivo entre "atividades" e ":", singular/plural)
@@ -2270,7 +2345,7 @@ window.TINA=(function(){
     .replace(/\b\d{4}\s*[-–]\s*\d\s*\/\s*\d{2}\s*[-–]\s*/g,"; ")                                   // CNAE "5620-1/04 -"
     .replace(/\s*[\(\[]\s*atividade[s]?\s+(?:econ[ôo]mica\s+)?(?:principal|prim[áa]ria|secund[áa]ri[ao]s?)\s*[\)\]]/gi,"")  // remove marcador "(atividade principal)"/"(atividades secundárias)" — não faz parte do objeto no modelo da Junta
     .replace(/\bITEM\s+[IVXL][IVXL ]*[-–][\s\S]*$/i,"")                                            // corta deliberações "ITEM VI - Incluir…"
-    .replace(/\s+([;,])/g,"$1").replace(/;\s*;/g,";").replace(/\s{2,}/g," ").replace(/^[\s;,.\-]+/,"").replace(/[\s;,]+$/,"").trim(); }
+    .replace(/\s+([;,])/g,"$1").replace(/;\s*;/g,";").replace(/\s{2,}/g," ").replace(/^[\s;,.\-]+/,"").replace(/[\s;,]+$/,"").trim(), manterCnaeAtivo()); }
   /* ===== Documentos de FORMULÁRIO (CCMEI e cartão CNPJ) =====
      Nesses PDFs o rótulo e o valor são COLUNAS: o valor fica no mesmo x, na linha logo abaixo.
      Ler pelo texto corrido embaralha bairro/município — por isso o parser é POSICIONAL (x,y). */
@@ -2658,9 +2733,9 @@ window.TINA=(function(){
       if(m=s.match(/(?:porte|enquadr\w*)\s+(?:para|como|:)\s*(.+)/i)){const v=m[1].toLowerCase();const e=(v.includes("epp")||v.includes("pequeno"))?"EPP":((v.includes("micro")||/\bme\b/.test(v))?"ME":"DEMAIS");$("enquadramento").value=e;chk("alt_enquadramento");applied.push("porte → "+e);continue;}
       // limpar TODAS as atividades (sem um alvo específico depois) → zera o objeto
       if(/^(?:exclu\w+|remov\w+|retir\w+|limp\w+|apag\w+|zer\w+)\s+(?:tod[oa]s?\s+)?(?:[oa]s?\s+)?(?:atividades?|objeto(?:\s+social)?|cnaes?)\s*$/i.test(s)){$("objeto").value="";chk("alt_objeto");applied.push("excluir todas as atividades");continue;}
-      if(m=s.match(/(?:inclu\w+|adicion\w+|acrescent\w+)\s+(?:a |as |o |os |no )?(?:atividade|cnae|objeto)?s?\s*:?\s*(.+)/i)){const cur=$("objeto").value.trim();$("objeto").value=(cur?cur.replace(/[;.\s]*$/,"")+"; ":"")+m[1].trim();chk("alt_objeto");applied.push("incluir atividade: "+m[1].trim());continue;}
+      if(m=s.match(/(?:inclu\w+|adicion\w+|acrescent\w+)\s+(?:a |as |o |os |no )?(?:atividade|cnae|objeto)?s?\s*:?\s*(.+)/i)){const cur=$("objeto").value.trim();const nova=normalizarAtividades(m[1],manterCnaeAtivo());if(!nova){applied.push("atividade ignorada (vazia após o ajuste)");continue;}$("objeto").value=normalizarAtividades((cur?cur.replace(/[;.\s]*$/,"")+"; ":"")+nova,manterCnaeAtivo());chk("alt_objeto");applied.push("incluir atividade: "+nova);continue;}
       if(m=s.match(/(?:exclu\w+|remov\w+|retir\w+)\s+(?:a |as |o |do )?(?:atividade|cnae|objeto)?s?\s*:?\s*(.+)/i)){const alvo=m[1].trim().toLowerCase();$("objeto").value=$("objeto").value.split(/;/).map(x=>x.trim()).filter(x=>x&&x.toLowerCase()!==alvo).join("; ");chk("alt_objeto");applied.push("excluir atividade: "+m[1].trim());continue;}
-      if(m=s.match(/objeto(?:\s+social)?\s+(?:para|:)\s*(.+)/i)){$("objeto").value=m[1].trim();chk("alt_objeto");applied.push("objeto (novo)");continue;}
+      if(m=s.match(/objeto(?:\s+social)?\s+(?:para|:)\s*(.+)/i)){$("objeto").value=normalizarAtividades(m[1],manterCnaeAtivo());chk("alt_objeto");applied.push("objeto (novo)");continue;}
       if(m=s.match(/(?:endereç\w+|sede)\s+(?:para|:)\s*(.+)/i)){
         const e=parseEnderecoComando(m[1]); chk("alt_sede");
         // endereço novo SUBSTITUI o anterior: sem isso, bairro/município do documento lido antes ficariam misturados
@@ -2685,9 +2760,13 @@ window.TINA=(function(){
     if(listaAtiv&&listaAtiv.length){
       if(listaModo==="replace")$("objeto").value="";
       const cur=$("objeto").value.trim();
-      $("objeto").value=(cur?cur.replace(/[;.\s]*$/,"")+"; ":"")+listaAtiv.join("; ");
+      // normaliza o que foi colado: tira "não especificadas anteriormente" e os códigos CNAE
+      const bruto=(cur?cur.replace(/[;.\s]*$/,"")+"; ":"")+listaAtiv.join("; ");
+      const limpo=normalizarAtividades(bruto,manterCnaeAtivo());
+      $("objeto").value=limpo;
       chk("alt_objeto");
-      applied.push((listaModo==="replace"?"objeto redefinido":"incluir atividades")+" ("+listaAtiv.length+")");
+      const mexeu=(limpo!==bruto);
+      applied.push((listaModo==="replace"?"objeto redefinido":"incluir atividades")+" ("+limpo.split(";").filter(x=>x.trim()).length+")"+(mexeu?" · texto ajustado ao padrão da Junta":""));
     }
     return applied;
   }
@@ -2834,7 +2913,7 @@ window.TINA=(function(){
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
   const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros"];
-  const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao"];
+  const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae"];
   function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(),filiais:readFiliais()};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
   // passadas 24h sem uso, é descartado sozinho, para não ficar legível num computador compartilhado.
@@ -2943,7 +3022,7 @@ window.TINA=(function(){
   function inserirObjeto(t){const el=$("objeto");if(!el)return;const cur=el.value.trim();el.value=cur?(cur.replace(/;\s*$/,"")+"; "+t):t;el.dispatchEvent(new Event("input",{bubbles:true}));$("objetoModal").classList.remove("open");toast("Objeto inserido no formulário.","ok");}
   function salvarObjetoNovo(){const t=(($("objetoNovo")&&$("objetoNovo").value)||"").trim();if(!t){toast("Digite ou cole um objeto para salvar.","info");return;}const l=lerObjetos();if(l.some(x=>x===t)){toast("Esse modelo já está na biblioteca.","info");return;}l.unshift(t);salvarObjetos(l);$("objetoNovo").value="";renderObjetos();toast("Modelo salvo na biblioteca.","ok");}
 
-  var cnpjLiveCheck=null;
+  var cnpjLiveCheck=null, TINA_ajustarObjeto=null;
   function init(){
     CFG=lerCfg(); aplicarCfg();
     aplicarLicenca(lerLicencaBruta(),false).then(()=>{ const r=diasAvaliacaoRestantes();
@@ -2952,6 +3031,25 @@ window.TINA=(function(){
     if($("cfgLicenca")) $("cfgLicenca").addEventListener("input",function(){ const v=this.value; clearTimeout(this._t); this._t=setTimeout(()=>aplicarLicenca(v,true),400); });
     $("btnAddSocio").addEventListener("click",()=>socioCard());
     if($("btnAddFilial")) $("btnAddFilial").addEventListener("click",()=>filialCard());
+    // objeto: ao sair do campo (ou ao trocar a opção de CNAE) o texto já aparece como sairá no documento
+    function ajustarObjeto(avisar){
+      const el=$("objeto"); if(!el) return;
+      const antes=el.value, depois=normalizarAtividades(antes,manterCnaeAtivo());
+      if(depois!==antes) el.value=depois;
+      const st=$("objStat"); if(!st) return;
+      if(!antes.trim()){ st.textContent=""; st.className="fldstat"; return; }
+      const tinhaNEA=RE_NEA.test(antes); RE_NEA.lastIndex=0;
+      const tinhaCnae=RE_CNAE_G.test(antes); RE_CNAE_G.lastIndex=0;
+      if(avisar&&(tinhaNEA||(tinhaCnae&&!manterCnaeAtivo()))){
+        st.className="fldstat ok";
+        st.textContent="✓ Ajustado ao padrão da Junta"+(tinhaNEA?" — retirada a expressão “não especificadas anteriormente”":"")+((tinhaCnae&&!manterCnaeAtivo())?(tinhaNEA?" e os códigos CNAE":" — retirados os códigos CNAE"):"")+".";
+      } else if(!avisar){ st.textContent=""; st.className="fldstat"; }
+    }
+    // máscara nos campos de data fixos (o do sócio é ligado no socioCard)
+    ["dataInicioOrig","dataEncerramento","atoData","gateData"].forEach(id=>{ if($(id)) attachData($(id),null); });
+    if($("objeto")) $("objeto").addEventListener("blur",()=>ajustarObjeto(true));
+    if($("objComCnae")) $("objComCnae").addEventListener("change",()=>ajustarObjeto(false));
+    TINA_ajustarObjeto=ajustarObjeto;
     if($("admNaoSocio")) $("admNaoSocio").addEventListener("change",function(){const w=$("wrapAdmNaoSocio"); if(w)w.style.display=this.checked?"":"none";});
     if($("cl_conselho")) $("cl_conselho").addEventListener("change",function(){const w=$("wrapConselho"); if(w)w.style.display=this.checked?"":"none";});
     if($("alt_cessao")) $("alt_cessao").addEventListener("change",function(){const w=$("wrapCessao"); if(w)w.style.display=this.checked?"":"none";});

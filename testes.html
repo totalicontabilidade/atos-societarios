@@ -180,6 +180,39 @@
     reg("CNPJ alfanumérico aceito (IN RFB 2.229/2024)", V("12.ABC.345/01DE-35")===true && V("12.ABC.345/01DE-00")===false);
     reg("CPF validado", W.TINA._u.validaCPF("111.444.777-35")===true && W.TINA._u.validaCPF("111.444.777-00")===false);
 
+    // ---------- 6b. Objeto social: regra da Junta ----------
+    grupo("Objeto social");
+    modo("alt"); await espera(160);
+    val("cmdRapido","atividades para: 8599-6/99 Outras atividades de ensino; 8599-6/04 Treinamento em desenvolvimento profissional e gerencial; 8230-0/01 - Serviços de organização de feiras, congressos, exposições e festas");
+    $("btnRapido").click(); await espera(1200);
+    var obj=$("objeto").value;
+    reg("Retira os códigos CNAE colados no comando", !/\d{4}\s*-\s*\d\s*\/\s*\d{2}/.test(obj), obj.slice(0,80));
+    reg("Mantém as descrições e a separação por ponto e vírgula", obj.split(";").length===3, obj.split(";").length+" atividade(s)");
+    // a expressão proibida não pode sobreviver em lugar nenhum
+    val("objeto","Atividades de limpeza não especificadas anteriormente; Comércio varejista de outros produtos não especificados anteriormente");
+    $("objeto").dispatchEvent(new W.Event("blur",{bubbles:true})); await espera(300);
+    reg("Retira “não especificadas anteriormente” do campo", !/especificad/i.test($("objeto").value), $("objeto").value.slice(0,70));
+    // e mesmo se o texto for forçado direto no campo, não pode chegar ao documento
+    $("btnExemplo").click(); await espera(260);
+    $("objeto").value="Outras atividades de ensino não especificadas anteriormente; Serviços não especificados anteriormente";
+    try{ await W.TINA.gerarPreview(); }catch(e){}
+    await espera(900);
+    reg("Documento gerado nunca contém a expressão proibida", !/especificad[oa]s?\s+anteriormente/i.test(texto()));
+    reg("Documento gerado não contém código CNAE", !/CNAE|\d{4}-\d\/\d{2}/.test(texto()));
+
+    // ---------- 6c. Campos de data ----------
+    grupo("Datas");
+    modo("const"); await espera(160);
+    var nasc=D.querySelector('.socio [data-f="nascimento"]');
+    function dtTeste(v){ nasc.value=v; nasc.dispatchEvent(new W.Event("input",{bubbles:true})); nasc.dispatchEvent(new W.Event("blur",{bubbles:true})); return nasc.value; }
+    reg("Digitar só números vira DD/MM/AAAA", dtTeste("12041988")==="12/04/1988", dtTeste("12041988"));
+    reg("Colar 7/3/1990 completa os zeros", dtTeste("7/3/1990")==="07/03/1990", dtTeste("7/3/1990"));
+    reg("Colar no formato ISO é convertido", dtTeste("1988-04-12")==="12/04/1988", dtTeste("1988-04-12"));
+    dtTeste("31/02/2024");
+    reg("Data impossível é sinalizada", nasc.classList.contains("bad"), "31/02/2024");
+    var at=$("atoData"); at.value="15122025"; at.dispatchEvent(new W.Event("input",{bubbles:true})); at.dispatchEvent(new W.Event("blur",{bubbles:true}));
+    reg("Máscara vale também nos campos de data do ato", at.value==="15/12/2025", at.value);
+
     // ---------- 7. Segurança ----------
     grupo("Segurança");
     W.__xss=0;
