@@ -214,6 +214,26 @@
     var at=$("atoData"); at.value="15122025"; at.dispatchEvent(new W.Event("input",{bubbles:true})); at.dispatchEvent(new W.Event("blur",{bubbles:true}));
     reg("Máscara vale também nos campos de data do ato", at.value==="15/12/2025", at.value);
 
+    // ---------- 6c2. Preâmbulo cita o estado ANTERIOR ----------
+    grupo("Preâmbulo x alteração");
+    try{
+      modo("ei_alt"); await espera(180);
+      $("btnExemplo").click(); await espera(300);
+      val("s_log","Rua NOVA do Endereco"); val("s_num","999"); val("s_bairro","Bairro Novo");
+      val("sedeAnterior","Rua Antiga, nº 10, Centro, Aracaju - SE, CEP: 49000-000");
+      var ck=$("alt_sede"); if(ck){ ck.checked=true; ck.dispatchEvent(new W.Event("change",{bubbles:true})); }
+      await W.TINA.gerarPreview(); await espera(1000);
+      var t2=texto();
+      var pre=t2.slice(Math.max(0,t2.search(/com sede à/i)), t2.search(/com sede à/i)+70);
+      reg("Preâmbulo cita o endereço ANTERIOR", /Rua Antiga/.test(pre) && !/Rua NOVA/.test(pre), pre.replace(/\n+/g," "));
+      reg("Cláusula de alteração cita o endereço NOVO", /transferir a sede[\s\S]{0,80}Rua NOVA/i.test(t2));
+      reg("Consolidado cita o endereço NOVO", /DA SEDE[\s\S]{0,90}Rua NOVA/.test(t2));
+      // sem o anterior informado, a validação avisa
+      val("sedeAnterior","");
+      var fv=await W.TINA.validar();
+      reg("Validação cobra o endereço anterior", (fv||[]).some(function(x){ return /Endere[çc]o ANTERIOR/i.test(x); }));
+    }catch(e){ reg("Bateria de preâmbulo",false,String(e&&e.message||e).slice(0,110)); }
+
     // ---------- 6d. CEP manda no endereço ----------
     grupo("CEP");
     var fetchOrig=W.fetch;

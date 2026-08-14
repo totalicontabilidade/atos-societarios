@@ -197,7 +197,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.22 · beta</span>
+  <span class="chip">v0.23 · beta</span>
 </header>
 
 <div class="wrap">
@@ -305,6 +305,10 @@
         <div><label for="s_bairro">Bairro</label><input type="text" id="s_bairro"></div>
         <div><label for="s_mun">Município</label><input type="text" id="s_mun"></div>
         <div><label for="s_uf">UF</label><select id="s_uf"></select></div>
+      </div>
+      <div class="row altonly" style="display:none">
+        <label for="sedeAnterior">Endereço ANTERIOR <span class="hint">— o que está registrado hoje; aparece no preâmbulo. Preenchido sozinho pelo comando de endereço.</span></label>
+        <input type="text" id="sedeAnterior" placeholder="Rua Antiga, nº 10, Centro, Aracaju - SE, CEP: 49000-000">
       </div>
       <div class="row" style="margin-top:12px">
         <div class="bar" style="margin:0">
@@ -965,7 +969,7 @@ window.TINA=(function(){
     return{razao:v("razao"),fantasia:v("fantasia"),enquadramento:$("enquadramento").value,foro:v("foro"),
       objeto:normalizarAtividades(v("objeto"),manterCnaeAtivo()),
       sede:{cep:v("s_cep"),log:v("s_log"),num:v("s_num"),comp:v("s_comp"),bairro:v("s_bairro"),mun:v("s_mun"),uf:v("s_uf").toUpperCase()},
-      filiais:readFiliais(),
+      filiais:readFiliais(), sedeAnterior:v("sedeAnterior"),
       capital:cap,valorQuota:vq,numQuotas:vq>0?Math.round(cap/vq):0,modoAdm:$("modoAdm").value,integralizacao:v("integralizacao"),
       socios:socios.map(s=>{const q=Number(s.quotas)||0;return{...s,quotas:q,valorQuotas:q*vq,percentual:cap>0?(q*vq/cap*100):0};}),
       atoCidade:v("atoCidade"),atoData:v("atoData"),
@@ -1310,6 +1314,9 @@ window.TINA=(function(){
     const isRetifica=isAlt && !!d.retifica;   // rerratificação (correção de erro em ato arquivado) — art. 118 IN DREI 81/2020
     const mudouNome=isAlt && CH.has("nome") && !!(d.razaoAnterior||"").trim();   // o nome empresarial está mudando nesta alteração
     const nomeCabUP=mudouNome?razAntUP:nomeUP;   // título e preâmbulo citam o nome ATUAL (registrado); o NOVO vai na cláusula e no consolidado
+    // mesma regra para a sede: no preâmbulo vai o endereço ATUAL; o novo só na cláusula e no consolidado
+    const mudouSede=isAlt && CH.has("sede") && !!(d.sedeAnterior||"").trim();
+    const sedeCab=mudouSede?d.sedeAnterior.trim():endLinha(d.sede);
     const fut=(k)=>isTransf?false:(isAlt?CH.has(k):true);
     const space=()=>new Paragraph({spacing:{after:120,line:240,lineRule:AUTO}});
     const roman=ROMANOS; let ri=0; const nx=()=>roman[ri++];
@@ -1321,7 +1328,7 @@ window.TINA=(function(){
     ch.push(space());
     ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit)),JUST,SP10));
     if(isAlt){
-      ch.push(P(R("na qualidade de "+g("titular","titular")+" do Empresário Individual que gira sob o nome empresarial "+nomeCabUP+", com sede à "+endLinha(d.sede)+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração do instrumento de inscrição,"))+" mediante as cláusulas seguintes:"),JUST,SP15));
+      ch.push(P(R("na qualidade de "+g("titular","titular")+" do Empresário Individual que gira sob o nome empresarial "+nomeCabUP+", com sede à "+sedeCab+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração do instrumento de inscrição,"))+" mediante as cláusulas seguintes:"),JUST,SP15));
       const resolve=g("O titular resolve","A titular resolve");
       const tmud=isRetifica?"Da retificação":"Da alteração", av=isRetifica?"retificar":"alterar", pass=isRetifica?"que por erro material passa a constar":"que passa a ser";
       let dci=0; const delib=(tema,txt)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(txt)],JUST,SP15));
@@ -1753,6 +1760,7 @@ window.TINA=(function(){
       if(!d.numAlteracao) f.push("Número desta alteração");
       if(!d.dataInicioOrig) f.push("Início original das atividades");
       if(d.changed&&d.changed.has("nome")&&!(d.razaoAnterior||"").trim()) f.push("Razão social ANTERIOR (atual) — necessária p/ o título e o preâmbulo (a nova vai só na cláusula e no consolidado)");
+      if(ehFormEI()&&d.changed&&d.changed.has("sede")&&!(d.sedeAnterior||"").trim()) f.push("Endereço ANTERIOR (atual) — vai no preâmbulo; o novo fica só na cláusula e no consolidado");
       if(!d.changed || d.changed.size===0) f.push("Marque em \"O que muda\" o que está sendo alterado");
       // marcar a caixa e deixar o nome em branco fazia a cláusula sumir do ato sem nenhum aviso
       if(d.cessao){ if(!(d.cedNome||"").trim()) f.push("Cessão de quotas: nome do cedente");
@@ -1963,7 +1971,7 @@ window.TINA=(function(){
       d.cessao?1:0,d.cedNome,d.cessNome,d.cedQuotas,d.cedValor,d.cedRetira?1:0,
       d.admNaoSocio?1:0,d.admnsNome,d.admnsQualif,
       d.clRegencia?1:0,d.clConselho?1:0,d.clExclusao?1:0,d.conselhoMembros,
-      d.socioRetira,d.socioRetiraSexo,JSON.stringify(d.filiais||[]),chg,soc]
+      d.socioRetira,d.socioRetiraSexo,d.sedeAnterior,JSON.stringify(d.filiais||[]),chg,soc]
       .map(x=>x==null?"":String(x)).join("§"));
   }
   let _gateAcao=null, _gateHash="";
@@ -2126,7 +2134,7 @@ window.TINA=(function(){
   function limparCampos(){  // zera os DADOS do formulário (não mexe no PDF anexado nem no texto de "o que muda")
     casoAtualId=null;       // formulário novo/zerado = caso novo (o próximo "salvar" cria outro registro)
     valoresAntes=null;      // some com o estado "antes" ao limpar o formulário
-    ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor"].forEach(id=>{if($(id))$(id).value="";});
+    ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor"].forEach(id=>{if($(id))$(id).value="";});
     ["admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","alt_cessao","cedRetira"].forEach(id=>{if($(id))$(id).checked=false;});
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach(id=>{if($(id))$(id).style.display="none";});
     if($("filiais"))$("filiais").innerHTML=""; if($("conselhoMembros"))$("conselhoMembros").value="3";
@@ -2747,6 +2755,12 @@ window.TINA=(function(){
       if(m=s.match(/objeto(?:\s+social)?\s+(?:para|:)\s*(.+)/i)){$("objeto").value=normalizarAtividades(m[1],manterCnaeAtivo());chk("alt_objeto");applied.push("objeto (novo)");continue;}
       if(m=s.match(/(?:endereç\w+|sede)\s+(?:para|:)\s*(.+)/i)){
         const e=parseEnderecoComando(m[1]); chk("alt_sede");
+        // guarda o endereço ATUAL como "anterior" — é ele que vai no preâmbulo (mesmo padrão da razão social)
+        if($("sedeAnterior") && !($("sedeAnterior").value||"").trim()){
+          const q=id=>(($(id)||{}).value||"").trim();
+          const atual=endLinha({log:q("s_log"),num:q("s_num"),comp:q("s_comp"),bairro:q("s_bairro"),mun:q("s_mun"),uf:q("s_uf"),cep:q("s_cep")});
+          if(atual.replace(/[\s,;-]/g,"")) { $("sedeAnterior").value=atual; $("sedeAnterior").classList.add("revisar"); }
+        }
         // endereço novo SUBSTITUI o anterior: sem isso, bairro/município do documento lido antes ficariam misturados
         ["s_log","s_num","s_comp","s_bairro","s_mun","s_cep"].forEach(id=>{if($(id))$(id).value="";});
         const põe=(id,v)=>{if(v&&$(id)){$(id).value=v;$(id).classList.add("revisar");}};
@@ -2928,7 +2942,7 @@ window.TINA=(function(){
   function resetConfig(){CFG=cfgDefault();salvarCfg(CFG);aplicarCfg();abrirConfig();toast("Configurações restauradas ao padrão.","info");}
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
-  const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros"];
+  const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros"];
   const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae"];
   function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(),filiais:readFiliais()};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
