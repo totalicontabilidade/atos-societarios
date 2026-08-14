@@ -105,6 +105,20 @@
         [].slice.call(D.querySelectorAll("label[for]")).filter(function(l){ return !D.getElementById(l.getAttribute("for")); }).length===0);
     var ids={},dup=[]; D.querySelectorAll("[id]").forEach(function(e){ ids[e.id]=(ids[e.id]||0)+1; if(ids[e.id]===2)dup.push(e.id); });
     reg("Sem identificadores duplicados", dup.length===0, dup.join(", "));
+    // a tela de carregamento tem de sumir quando o app fica pronto (senão bloqueia tudo)
+    var sumiu=false;
+    try{ await ate(function(){ var b=D.getElementById("bootLoad"); return !b || b.classList.contains("pronto"); },6000); sumiu=true; }catch(e){}
+    reg("Tela de carregamento some quando o app fica pronto", sumiu, sumiu?"":"continuou na tela após 6s");
+    // e tem de aparecer no começo, senão o usuário clica antes da hora
+    try{
+      var fx=D.createElement("iframe"); fx.style.cssText="position:fixed;left:-9999px;width:800px;height:500px";
+      D.body.appendChild(fx); fx.src="index.html?boot="+Date.now();
+      await espera(130);
+      var blD=fx.contentDocument?fx.contentDocument.getElementById("bootLoad"):null;
+      reg("Tela de carregamento aparece durante a abertura", !!(blD && blD.querySelector(".bl-spin")),
+          blD?((blD.innerText||"").replace(/\n+/g," | ").slice(0,50)):"não apareceu");
+      await espera(2500); fx.remove();
+    }catch(e){ reg("Tela de carregamento aparece durante a abertura",null,String(e&&e.message||e).slice(0,60)); }
 
     // ---------- 2. Documentos ----------
     grupo("Documentos");
@@ -280,9 +294,12 @@
         // tem de ficar À FRENTE do painel, senão parece que o botão não funcionou
         var zJ=parseInt(W.getComputedStyle($("justModal")).zIndex,10)||0,
             zP=parseInt(W.getComputedStyle($("painelModal")).zIndex,10)||0;
+        // o que vale é a ordem de empilhamento; elementFromPoint só confirma quando o quadro
+        // de teste é grande o bastante para o modal ocupar o centro
         var noTopo=D.elementFromPoint(Math.round(W.innerWidth/2),Math.round(W.innerHeight/2));
         noTopo=noTopo?((noTopo.closest(".modal-bg")||{}).id||""):"";
-        reg("O registro aparece à frente do painel", zJ>zP && noTopo==="justModal", "z "+zJ+" vs "+zP+" · topo: "+(noTopo||"?"));
+        reg("O registro aparece à frente do painel", zJ>zP && (!noTopo || noTopo==="justModal"),
+            "z "+zJ+" vs "+zP+(noTopo?(" · topo: "+noTopo):" (quadro pequeno: só a ordem foi conferida)"));
         $("justModal").classList.remove("open");
       } else { reg("Mostra a justificativa da liberação de emergência",null,"pulado"); reg("O registro aparece à frente do painel",null,"pulado"); }
       var lEmail=ls.filter(function(tr){ return !/EMERGENCIA/.test(tr.textContent); })[0];
@@ -337,6 +354,12 @@
       }
       await ate(function(){ return $("enviarModal").classList.contains("open"); }, 15000);
       reg("Após gerar o PDF, o sistema oferece enviar ao cliente", true);
+      reg("Aviso do envio sem a frase retirada", !/menos exig[êe]ncia na Junta/i.test((($("enviarModal")||{}).innerText||"")));
+      // no desktop o compartilhamento com arquivo falha: o botão não pode aparecer
+      var ehCelular=(W.navigator.maxTouchPoints||0)>0 && /Android|iPhone|iPad|iPod/i.test(W.navigator.userAgent||"");
+      reg("Botão de anexar só aparece onde funciona (celular)",
+          ehCelular ? true : ($("btnEnvArquivo").style.display==="none"),
+          ehCelular?"ambiente é celular":"desktop: botão oculto");
       reg("Mensagem já vem pronta e sem erro de concordância",
           /Segue o documento de/.test($("envMsg").value||"") && !/Segue o \d/.test($("envMsg").value||""),
           ($("envMsg").value||"").slice(0,60));

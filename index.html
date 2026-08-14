@@ -93,6 +93,17 @@
   @media (prefers-reduced-motion: reduce){ .val-flash{animation:none} }
   input.revisar,select.revisar,textarea.revisar{border-color:var(--warnln)!important;background:#fffdf4;box-shadow:inset 3px 0 0 var(--warn)}
   .helpbtn{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--navy);color:#fff;font-size:11px;font-weight:800;cursor:pointer;margin-left:4px;vertical-align:middle;user-select:none}
+  /* ===== tela de carregamento ===== */
+  #bootLoad{position:fixed;inset:0;z-index:200;background:var(--navy);display:flex;align-items:center;justify-content:center;transition:opacity .35s ease,visibility .35s}
+  #bootLoad.pronto{opacity:0;visibility:hidden;pointer-events:none}
+  #bootLoad .bl-box{text-align:center;color:#fff;padding:20px}
+  #bootLoad .bl-spin{width:44px;height:44px;margin:0 auto 16px;border:3px solid rgba(255,255,255,.22);border-top-color:#fff;border-radius:50%;animation:blgira .9s linear infinite}
+  #bootLoad .bl-txt{font-size:15px;font-weight:600;letter-spacing:.01em}
+  #bootLoad .bl-sub{font-size:12.5px;opacity:.72;margin-top:4px;min-height:1.2em}
+  @keyframes blgira{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion: reduce){ #bootLoad .bl-spin{animation-duration:2.4s} }
+  body:has(#bootLoad:not(.pronto)){overflow:hidden}   /* não deixa rolar nem clicar atrás enquanto carrega */
+
   .modal-bg{position:fixed;inset:0;background:rgba(15,25,40,.55);z-index:50;display:none;align-items:center;justify-content:center;padding:16px}
   body:has(.modal-bg.open){overflow:hidden}   /* trava o scroll do fundo enquanto um modal está aberto (evita scroll bleed no mobile) */
   .modal-bg.open{display:flex}
@@ -184,6 +195,15 @@
 </style>
 </head>
 <body>
+<!-- Tela de carregamento: as bibliotecas (docx, pdf.js, OCR) levam um instante e, sem sinal nenhum,
+     o usuário clicava em Painel de casos antes de o app estar pronto e parecia que nada respondia. -->
+<div id="bootLoad" role="status" aria-live="polite">
+  <div class="bl-box">
+    <div class="bl-spin" aria-hidden="true"></div>
+    <div class="bl-txt">Carregando o sistema…</div>
+    <div class="bl-sub" id="bootSub">preparando os componentes</div>
+  </div>
+</div>
 <header>
   <img class="logo" src="assets/totali-logo-branca.png" alt="Totali Soluções Contábeis" onerror="this.style.display='none';document.getElementById('lf').style.display='inline'">
   <span class="fallback" id="lf">Totali Soluções Contábeis</span>
@@ -197,7 +217,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.25 · beta</span>
+  <span class="chip">v0.26 · beta</span>
 </header>
 
 <div class="wrap">
@@ -557,7 +577,7 @@
     <div class="mh"><span>📤 Enviar ao cliente</span><button class="x" id="btnEnviarClose">Fechar</button></div>
     <div class="mb">
       <div class="hint" style="background:#eef4ff;border:1px solid #c6d8f5;border-radius:8px;padding:10px 12px;color:var(--navy)">
-        Mande o documento para o cliente conferir <b>antes de assinar</b>. Quanto mais ele valida, menos exigência na Junta.
+        Mande o documento para o cliente conferir <b>antes de assinar</b>.
       </div>
       <div class="grid g2 row" style="margin-top:12px">
         <div><label for="envTel">WhatsApp do cliente <span class="hint">(DDD + número)</span></label><input type="text" id="envTel" placeholder="(79) 90000-0000" inputmode="numeric"></div>
@@ -3045,11 +3065,14 @@ window.TINA=(function(){
     if($("envMsg") && !($("envMsg").value||"").trim()) $("envMsg").value=msgEnvio();
     if($("envNome") && !($("envNome").value||"").trim()) $("envNome").value=(($("emailContato")&&$("emailContato").value)||"").trim();
     if($("envStat")) $("envStat").textContent="";
-    const podeArquivo=!!(navigator.canShare && _ultimoArquivo && (function(){ try{ return navigator.canShare({files:[new File([_ultimoArquivo.blob],_ultimoArquivo.nome,{type:_ultimoArquivo.tipo})]}); }catch(e){ return false; } })());
+    // Compartilhar COM ARQUIVO só é confiável em celular/tablet. No desktop (Windows sobretudo) o
+    // navegador diz que aceita e depois falha, o que dava um erro sem saída ao usuário — ali o botão não aparece.
+    const noCelular=(navigator.maxTouchPoints||0)>0 && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||"");
+    const podeArquivo=!!(noCelular && navigator.canShare && _ultimoArquivo && (function(){ try{ return navigator.canShare({files:[new File([_ultimoArquivo.blob],_ultimoArquivo.nome,{type:_ultimoArquivo.tipo})]}); }catch(e){ return false; } })());
     if($("btnEnvArquivo")) $("btnEnvArquivo").style.display=podeArquivo?"":"none";
     if($("envAviso")) $("envAviso").innerHTML = podeArquivo
-      ? "“Enviar o arquivo” abre o compartilhamento do aparelho com o PDF já anexado — escolha o WhatsApp, o e-mail ou outro aplicativo."
-      : "Este navegador não anexa arquivo pelo compartilhamento. Use os botões abaixo para abrir a conversa com o texto pronto e <b>anexe o PDF que acabou de ser baixado</b>.";
+      ? "“Enviar o arquivo” abre o compartilhamento do celular com o PDF já anexado — escolha o WhatsApp, o e-mail ou outro aplicativo."
+      : "O documento <b>já foi baixado</b>. Abra a conversa pelos botões acima (o texto vai pronto) e <b>anexe o arquivo baixado</b> antes de enviar.";
     m.classList.add("open");
   }
   async function enviarArquivo(){
@@ -3059,7 +3082,10 @@ window.TINA=(function(){
       await navigator.share({files:[f], title:_ultimoArquivo.nome, text:(($("envMsg")&&$("envMsg").value)||"").trim()});
       if($("envStat")){$("envStat").style.color="var(--ok)";$("envStat").textContent="✓ Compartilhamento aberto.";}
     }catch(e){ if(e&&e.name==="AbortError") return;                       // usuário desistiu: não é erro
-      if($("envStat")){$("envStat").style.color="var(--err)";$("envStat").textContent="Não foi possível compartilhar o arquivo — use os outros botões e anexe o PDF.";} }
+      // falhou mesmo no celular: esconde o botão e explica o caminho que sempre funciona
+      if($("btnEnvArquivo")) $("btnEnvArquivo").style.display="none";
+      if($("envAviso")) $("envAviso").innerHTML="Este aparelho não conseguiu anexar o arquivo pelo compartilhamento. O documento <b>já está baixado</b>: abra a conversa pelos botões acima e anexe-o antes de enviar.";
+      if($("envStat")){$("envStat").style.color="var(--warn)";$("envStat").textContent="Use o WhatsApp ou o e-mail e anexe o arquivo baixado.";} }
   }
   function abrirWhats(){
     const tel=telInternacional(($("envTel")&&$("envTel").value)||"");
@@ -3364,7 +3390,26 @@ window.TINA=(function(){
       window.addEventListener("scroll",upd,{passive:true}); window.addEventListener("resize",upd); upd();
       bt.addEventListener("click",()=>window.scrollTo({top:0,behavior:"smooth"})); }
   }
-  document.addEventListener("DOMContentLoaded",init);
+  /* Some com a tela de carregamento. Chamada no fim do init e também por um prazo de segurança:
+     se algo falhar ao iniciar, o usuário não pode ficar preso olhando o spinner. */
+  let _bootFeito=false;
+  function bootPronto(msg){
+    if(_bootFeito) return; _bootFeito=true;
+    const el=document.getElementById("bootLoad"); if(!el) return;
+    const sub=document.getElementById("bootSub"); if(sub&&msg) sub.textContent=msg;
+    el.classList.add("pronto");
+    setTimeout(()=>{ if(el.parentNode) el.parentNode.removeChild(el); },450);
+  }
+  function bootAviso(t){ const s=document.getElementById("bootSub"); if(s&&!_bootFeito) s.textContent=t; }
+  document.addEventListener("DOMContentLoaded",function(){
+    bootAviso("montando o formulário");
+    try{ init(); }
+    catch(e){ console.error("falha ao iniciar:",e); bootPronto("iniciado com aviso — recarregue se algo não responder"); throw e; }
+    // dá um quadro para a tela pintar antes de liberar, senão o usuário vê um salto
+    requestAnimationFrame(()=>requestAnimationFrame(()=>bootPronto()));
+  });
+  window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
+  setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
   return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
