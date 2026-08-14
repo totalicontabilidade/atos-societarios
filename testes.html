@@ -277,8 +277,14 @@
       if(lEm){ lEm.querySelector("[data-just]").click(); await espera(500);
         var txtJ=(($("justCorpo")||{}).innerText||"");
         reg("Mostra a justificativa da liberação de emergência", /telefone as 14h30/.test(txtJ), txtJ.replace(/\n+/g," ").slice(0,80));
+        // tem de ficar À FRENTE do painel, senão parece que o botão não funcionou
+        var zJ=parseInt(W.getComputedStyle($("justModal")).zIndex,10)||0,
+            zP=parseInt(W.getComputedStyle($("painelModal")).zIndex,10)||0;
+        var noTopo=D.elementFromPoint(Math.round(W.innerWidth/2),Math.round(W.innerHeight/2));
+        noTopo=noTopo?((noTopo.closest(".modal-bg")||{}).id||""):"";
+        reg("O registro aparece à frente do painel", zJ>zP && noTopo==="justModal", "z "+zJ+" vs "+zP+" · topo: "+(noTopo||"?"));
         $("justModal").classList.remove("open");
-      } else reg("Mostra a justificativa da liberação de emergência",null,"pulado");
+      } else { reg("Mostra a justificativa da liberação de emergência",null,"pulado"); reg("O registro aparece à frente do painel",null,"pulado"); }
       var lEmail=ls.filter(function(tr){ return !/EMERGENCIA/.test(tr.textContent); })[0];
       if(lEmail){ lEmail.querySelector("[data-just]").click(); await espera(500);
         var txtE=(($("justCorpo")||{}).innerText||"");

@@ -197,7 +197,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.24 · beta</span>
+  <span class="chip">v0.25 · beta</span>
 </header>
 
 <div class="wrap">
@@ -3282,6 +3282,17 @@ window.TINA=(function(){
     if($("btnGateEmergencia")) $("btnGateEmergencia").addEventListener("click",registrarConfirmacaoEmergencia);
     if($("btnPainel")) $("btnPainel").addEventListener("click",()=>{renderPainel();checarBackup();$("painelModal").classList.add("open");});
     if($("btnPainelClose")) $("btnPainelClose").addEventListener("click",()=>$("painelModal").classList.remove("open"));
+    // Um modal aberto POR CIMA de outro (o registro da confirmação sobre o painel de casos) ficava
+    // atrás, porque todos compartilham o mesmo z-index e vence quem vem depois no HTML.
+    // Em vez de escalonar à mão, o último a abrir vai para a frente — vale para qualquer combinação.
+    (function(){
+      let z=50;
+      const obs=new MutationObserver(ms=>ms.forEach(m=>{
+        const el=m.target;
+        if(el.classList && el.classList.contains("modal-bg") && el.classList.contains("open")) el.style.zIndex=String(++z);
+      }));
+      document.querySelectorAll(".modal-bg").forEach(m=>obs.observe(m,{attributes:true,attributeFilter:["class"]}));
+    })();
     if($("btnJustClose")) $("btnJustClose").addEventListener("click",()=>$("justModal").classList.remove("open"));
     if($("btnEnviarClose")) $("btnEnviarClose").addEventListener("click",()=>$("enviarModal").classList.remove("open"));
     if($("enviarModal")) $("enviarModal").addEventListener("click",e=>{if(e.target.id==="enviarModal")$("enviarModal").classList.remove("open");});
