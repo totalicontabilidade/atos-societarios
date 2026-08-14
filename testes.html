@@ -78,12 +78,23 @@
       await ate(function(){ return W.TINA && D.getElementById("btnGerar"); });
     }catch(e){ grupo("Carregamento"); reg("App carrega no quadro de teste",false,String(e.message||e)); fim(); return; }
 
+    // Recarrega o app no quadro e reaponta os atalhos. Grupos pesados começam com isto:
+    // sem estado limpo, uma requisição ainda em voo do grupo anterior pendura a bateria.
+    async function recarregar(){
+      fr.src="index.html?teste="+Date.now();
+      await new Promise(function(r){ fr.onload=r; });
+      W=fr.contentWindow; D=fr.contentDocument;
+      await ate(function(){ return W.TINA && D.getElementById("btnGerar"); });
+    }
     var $=function(id){ return D.getElementById(id); };
     var modo=function(m){ var el=D.querySelector('[data-mode="'+m+'"]'); if(el) el.click(); };
     var val=function(id,v){ var e=$(id); if(e){ e.value=v; e.dispatchEvent(new W.Event("input",{bubbles:true})); } };
     var mark=function(id,v){ var e=$(id); if(e){ e.checked=v!==false; e.dispatchEvent(new W.Event("change",{bubbles:true})); } };
     var texto=function(){ var t=""; D.querySelectorAll("section.docxprev").forEach(function(c){ t+=(c.innerText||""); }); return t; };
 
+    // começa do zero: sobra de uma execução interrompida (licença vencida, casos, rascunho)
+    // faria testes falharem por motivo que não é do app
+    try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
     try{
     // ---------- 1. Carregamento ----------
     grupo("Carregamento");
@@ -234,6 +245,50 @@
       reg("Validação cobra o endereço anterior", (fv||[]).some(function(x){ return /Endere[çc]o ANTERIOR/i.test(x); }));
     }catch(e){ reg("Bateria de preâmbulo",false,String(e&&e.message||e).slice(0,110)); }
 
+    // ---------- 6c3. Preâmbulo da Ltda cita a sede ----------
+    try{
+      modo("alt"); await espera(180);
+      $("btnExemplo").click(); await espera(300);
+      await W.TINA.gerarPreview(); await espera(900);
+      var tL=texto();
+      reg("Preâmbulo da Ltda cita a sede", /sociedade empres[áa]ria limitada[\s\S]{0,60}com sede à/i.test(tL));
+      val("s_log","Rua NOVA da Ltda"); val("s_num","777");
+      val("sedeAnterior","Rua Antiga Ltda, nº 10, Centro, Aracaju - SE, CEP: 49000-000");
+      var ckL=$("alt_sede"); if(ckL){ ckL.checked=true; ckL.dispatchEvent(new W.Event("change",{bubbles:true})); }
+      await W.TINA.gerarPreview(); await espera(1000);
+      var tL2=texto(), iL=tL2.search(/sociedade empres[áa]ria limitada/i);
+      var preL=tL2.slice(iL,iL+150);
+      reg("Alterando a sede, o preâmbulo da Ltda usa a ANTERIOR", /Rua Antiga Ltda/.test(preL) && !/Rua NOVA da Ltda/.test(preL), preL.replace(/\n+/g," ").slice(0,90));
+      reg("Cláusula da Ltda cita a sede NOVA", /transferir a sede[\s\S]{0,70}Rua NOVA da Ltda/i.test(tL2));
+    }catch(e){ reg("Bateria de preâmbulo da Ltda",false,String(e&&e.message||e).slice(0,110)); }
+
+    // ---------- 6c4. Registro da confirmação consultável ----------
+    grupo("Registro da confirmação");
+    try{
+      W.localStorage.setItem("tinaCasos",JSON.stringify([
+        {id:"20260814-0001",empresa:"EMPRESA CONFIRMADA",cnpj:"12.345.678/0001-95",tipo:"3ª Alteração Contratual",data:"14/08/2026",criadoEm:1,
+         confirmado:true,confirmadoVia:"email",confirmadoEm:"14/08/2026",confirmadoPor:"Fulano do Cliente",confirmadoNota:"De acordo, pode seguir.",confirmadoTs:Date.now()},
+        {id:"20260814-0002",empresa:"EMPRESA EMERGENCIA",cnpj:"12.345.678/0001-95",tipo:"3ª Alteração Contratual",data:"14/08/2026",criadoEm:2,
+         confirmado:true,confirmadoVia:"emergencia",confirmadoEm:"14/08/2026",confirmadoPor:"",confirmadoNota:"Cliente confirmou por telefone as 14h30.",confirmadoTs:Date.now()}]));
+      $("btnPainel").click(); await espera(600);
+      var ls=[].slice.call(D.querySelectorAll("#painelLista tr[data-id]"));
+      reg("Situação vira botão consultável", ls.length===2 && ls.every(function(tr){ return !!tr.querySelector("[data-just]"); }));
+      var lEm=ls.filter(function(tr){ return /EMERGENCIA/.test(tr.textContent); })[0];
+      if(lEm){ lEm.querySelector("[data-just]").click(); await espera(500);
+        var txtJ=(($("justCorpo")||{}).innerText||"");
+        reg("Mostra a justificativa da liberação de emergência", /telefone as 14h30/.test(txtJ), txtJ.replace(/\n+/g," ").slice(0,80));
+        $("justModal").classList.remove("open");
+      } else reg("Mostra a justificativa da liberação de emergência",null,"pulado");
+      var lEmail=ls.filter(function(tr){ return !/EMERGENCIA/.test(tr.textContent); })[0];
+      if(lEmail){ lEmail.querySelector("[data-just]").click(); await espera(500);
+        var txtE=(($("justCorpo")||{}).innerText||"");
+        reg("Mostra a resposta do cliente e quem confirmou", /De acordo, pode seguir/.test(txtE) && /Fulano do Cliente/.test(txtE));
+        $("justModal").classList.remove("open");
+      } else reg("Mostra a resposta do cliente e quem confirmou",null,"pulado");
+      if($("painelModal")) $("painelModal").classList.remove("open");
+      try{ W.localStorage.removeItem("tinaCasos"); }catch(e){}
+    }catch(e){ reg("Bateria do registro da confirmação",false,String(e&&e.message||e).slice(0,110)); }
+
     // ---------- 6d. CEP manda no endereço ----------
     grupo("CEP");
     var fetchOrig=W.fetch;
@@ -252,6 +307,45 @@
     $("btnRapido").click(); await espera(1800);
     reg("CEP inexistente não apaga o endereço digitado", $("s_log").value==="Rua Manual" && $("s_mun").value==="Aracaju", [$("s_log").value,$("s_mun").value].join(" · "));
     W.fetch=fetchOrig;
+
+    // ---------- 6d2. Envio ao cliente ----------
+    grupo("Envio ao cliente");
+    try{
+      // isola: o grupo do CEP deixa uma busca em voo que pendura esta bateria
+      fr.src="index.html?teste="+Date.now();
+      await new Promise(function(r){ fr.onload=r; });
+      W=fr.contentWindow; D=fr.contentDocument;
+      await ate(function(){ return W.TINA && D.getElementById("btnGerar"); });
+      $=function(id){ return D.getElementById(id); };
+      modo=function(m){ var el=D.querySelector('[data-mode="'+m+'"]'); if(el) el.click(); };
+      val=function(id,v){ var e=$(id); if(e){ e.value=v; e.dispatchEvent(new W.Event("input",{bubbles:true})); } };
+      texto=function(){ var t=""; D.querySelectorAll("section.docxprev").forEach(function(c){ t+=(c.innerText||""); }); return t; };
+      modo("alt"); await espera(180);
+      $("btnExemplo").click(); await espera(300);
+      var openOrig=W.open, aberto=null;
+      W.open=function(u){ aberto=u; return {focus:function(){}}; };
+      $("btnPDF").click(); await espera(700);
+      if($("gateModal").classList.contains("open")){
+        val("gateData","14/08/2026"); val("gateContato","Cliente Teste"); val("gateNota","De acordo");
+        $("btnGateRegistrar").click();
+      }
+      await ate(function(){ return $("enviarModal").classList.contains("open"); }, 15000);
+      reg("Após gerar o PDF, o sistema oferece enviar ao cliente", true);
+      reg("Mensagem já vem pronta e sem erro de concordância",
+          /Segue o documento de/.test($("envMsg").value||"") && !/Segue o \d/.test($("envMsg").value||""),
+          ($("envMsg").value||"").slice(0,60));
+      var tl=$("envTel"); tl.value="79988887777"; tl.dispatchEvent(new W.Event("input",{bubbles:true}));
+      reg("Telefone recebe máscara", tl.value==="(79) 98888-7777", tl.value);
+      aberto=null; $("btnEnvWhats").click(); await espera(300);
+      reg("WhatsApp abre com DDI e mensagem", /^https:\/\/wa\.me\/5579988887777\?text=/.test(aberto||""), (aberto||"").slice(0,50));
+      aberto=null; $("btnEnvEmail").click(); await espera(300);
+      reg("E-mail abre com assunto do ato", /mail\.google\.com/.test(aberto||"") && /su=/.test(aberto||""));
+      tl.value="799"; tl.dispatchEvent(new W.Event("input",{bubbles:true}));
+      aberto=null; $("btnEnvWhats").click(); await espera(300);
+      reg("Número incompleto é barrado", !aberto && /incompleto/i.test($("envStat").textContent||""));
+      W.open=openOrig;
+      if($("enviarModal")) $("enviarModal").classList.remove("open");
+    }catch(e){ reg("Bateria de envio ao cliente",false,String(e&&e.message||e).slice(0,110)); }
 
     // ---------- 6e. Trabalhos em espera ----------
     grupo("Trabalhos em espera");
@@ -297,6 +391,7 @@
 
     // ---------- 7. Segurança ----------
     grupo("Segurança");
+    await recarregar();
     W.__xss=0;
     var P='<img src=x onerror="window.__xss=1">';
     modo("alt"); await espera(160);

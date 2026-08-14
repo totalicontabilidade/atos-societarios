@@ -197,7 +197,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.23 · beta</span>
+  <span class="chip">v0.24 · beta</span>
 </header>
 
 <div class="wrap">
@@ -549,6 +549,38 @@
       </div>
       <div class="hint" style="margin-top:10px">Ao confirmar o desenquadramento, o sistema já retira os números do nome e marca <b>nome empresarial</b> como alteração.</div>
     </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="enviarModal">
+  <div class="modal">
+    <div class="mh"><span>📤 Enviar ao cliente</span><button class="x" id="btnEnviarClose">Fechar</button></div>
+    <div class="mb">
+      <div class="hint" style="background:#eef4ff;border:1px solid #c6d8f5;border-radius:8px;padding:10px 12px;color:var(--navy)">
+        Mande o documento para o cliente conferir <b>antes de assinar</b>. Quanto mais ele valida, menos exigência na Junta.
+      </div>
+      <div class="grid g2 row" style="margin-top:12px">
+        <div><label for="envTel">WhatsApp do cliente <span class="hint">(DDD + número)</span></label><input type="text" id="envTel" placeholder="(79) 90000-0000" inputmode="numeric"></div>
+        <div><label for="envNome">Nome do contato</label><input type="text" id="envNome" placeholder="Nome de quem vai receber"></div>
+      </div>
+      <div class="row"><label for="envMsg">Mensagem <span class="hint">— revise antes de enviar</span></label>
+        <textarea id="envMsg" style="min-height:150px;font-size:12.5px"></textarea></div>
+      <div class="bar" style="flex-wrap:wrap">
+        <button class="btn g mini" id="btnEnvArquivo">📎 Enviar o arquivo</button>
+        <button class="btn p mini" id="btnEnvWhats">💬 Abrir no WhatsApp</button>
+        <button class="btn o mini" id="btnEnvEmail">✉ Abrir no e-mail</button>
+        <button class="btn s mini" id="btnEnvCopiar">Copiar mensagem</button>
+        <span class="hint" id="envStat"></span>
+      </div>
+      <div class="hint" id="envAviso" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="justModal">
+  <div class="modal">
+    <div class="mh"><span>Registro da confirmação</span><button class="x" id="btnJustClose">Fechar</button></div>
+    <div class="mb"><div id="justCorpo"></div></div>
   </div>
 </div>
 
@@ -1037,6 +1069,9 @@ window.TINA=(function(){
     const razaoUP=(d.razao||"[RAZÃO SOCIAL]").toUpperCase(),fantUP=(d.fantasia||"").toUpperCase(),razAntUP=(d.razaoAnterior||"[NOME ANTERIOR]").toUpperCase();
     const mudouNome=(md==="alt") && (d.changed&&d.changed.has("nome")) && !!(d.razaoAnterior||"").trim();   // a razão social está mudando nesta alteração
     const nomeCabUP=mudouNome?razAntUP:razaoUP;   // nome ATUAL (anterior) no título e no preâmbulo da alteração; o NOVO só na cláusula "Da alteração do nome" e no consolidado
+    // idem para a sede: o preâmbulo qualifica a sociedade pelo endereço REGISTRADO hoje
+    const mudouSedeL=(md==="alt") && (d.changed&&d.changed.has("sede")) && !!(d.sedeAnterior||"").trim();
+    const sedeCabL=mudouSedeL?d.sedeAnterior.trim():endLinha(d.sede);
     const BOLDS=[razaoUP+" LTDA",razaoUP,razAntUP+" LTDA",razAntUP,fantUP,...d.socios.map(s=>(s.nome||"").toUpperCase())].filter(Boolean);
     const R=(t)=>makeRuns(t,BOLDS,TextRun);
     const P=(ch,al,sp)=>new Paragraph({alignment:al||JUST,spacing:sp||SP15,children:ch});
@@ -1081,7 +1116,7 @@ window.TINA=(function(){
     d.socios.forEach(s=>ch.push(P(R((s.nome||"[NOME]").toUpperCase()+", "+qualificacao(s)),JUST,SP10)));
 
     if(isAlt){
-      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?", com NIRE "+d.nire:"")+", com seus atos constitutivos arquivados na "+_junta()+", resolve"+(plural?"m":"")+" promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
+      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, com sede à "+sedeCabL+", inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?", com NIRE "+d.nire:"")+", com seus atos constitutivos arquivados na "+_junta()+", resolve"+(plural?"m":"")+" promover"+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
       const tmud=isRetifica?"Da retificação":"Da alteração", av=isRetifica?"retificar":"alterar", pass=isRetifica?"que por erro material passa a constar":"que passa a ser";
       let dci=0;const delib=(tema,texto)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(texto)],JUST,SP15));
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolvem+" "+av+" o nome empresarial da sociedade, "+pass+" "+razaoUP+" LTDA.");
@@ -1760,7 +1795,7 @@ window.TINA=(function(){
       if(!d.numAlteracao) f.push("Número desta alteração");
       if(!d.dataInicioOrig) f.push("Início original das atividades");
       if(d.changed&&d.changed.has("nome")&&!(d.razaoAnterior||"").trim()) f.push("Razão social ANTERIOR (atual) — necessária p/ o título e o preâmbulo (a nova vai só na cláusula e no consolidado)");
-      if(ehFormEI()&&d.changed&&d.changed.has("sede")&&!(d.sedeAnterior||"").trim()) f.push("Endereço ANTERIOR (atual) — vai no preâmbulo; o novo fica só na cláusula e no consolidado");
+      if(d.changed&&d.changed.has("sede")&&!(d.sedeAnterior||"").trim()) f.push("Endereço ANTERIOR (atual) — vai no preâmbulo; o novo fica só na cláusula e no consolidado");
       if(!d.changed || d.changed.size===0) f.push("Marque em \"O que muda\" o que está sendo alterado");
       // marcar a caixa e deixar o nome em branco fazia a cláusula sumir do ato sem nenhum aviso
       if(d.cessao){ if(!(d.cedNome||"").trim()) f.push("Cessão de quotas: nome do cedente");
@@ -1819,7 +1854,8 @@ window.TINA=(function(){
   function baixarDocx(){ comConfirmacao(()=>{
     $("status").className="status muted";$("status").textContent="Gerando .docx…";
     buildBlob().then(({blob,nomeArq})=>{const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),6000);$("status").style.color="var(--ok)";$("status").textContent="✓ Baixado: "+nomeArq;registrarCasoAuto();})
+      setTimeout(()=>URL.revokeObjectURL(url),6000);$("status").style.color="var(--ok)";$("status").textContent="✓ Baixado: "+nomeArq;registrarCasoAuto();
+      _ultimoArquivo={blob,nome:nomeArq,tipo:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}; abrirEnviar();})
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);}); }); }
   // ===== PDF NATIVO (pdfmake) — gerado a partir do que o docx-preview já renderiza: fonte única = o próprio .docx (não usa impressão) =====
   const _pt = s => { const m=/(-?[\d.]+)pt/.exec(s||""); return m?parseFloat(m[1]):0; };
@@ -1851,7 +1887,8 @@ window.TINA=(function(){
     $("status").className="status muted";$("status").textContent="Gerando PDF…";
     gerarPreview().then(()=>gerarPdfBlob()).then(blob=>{ const nome=(_blob&&_blob.nomeArq)?_blob.nomeArq.replace(/\.docx$/i,".pdf"):(slugArq(d.razao||"documento")+".pdf");   // mesmo nome do .docx (ex.: 3a-ALTERACAO-COMERCIAL-MODELO.pdf)
         const url=URL.createObjectURL(blob); const a=document.createElement("a");a.href=url;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),6000);
-        $("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ PDF baixado: "+nome; registrarCasoAuto(); })
+        $("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ PDF baixado: "+nome; registrarCasoAuto();
+        _ultimoArquivo={blob,nome,tipo:"application/pdf"}; abrirEnviar(); })
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro ao gerar PDF: "+(e&&e.message||e);console.error(e);}); }); }
 
   /* ===== E-mail de confirmação ===== */
@@ -2058,9 +2095,8 @@ window.TINA=(function(){
         "<td>"+escHtml(c.tipo||"")+"</td>"+
         "<td style='text-align:center'>"+escHtml(c.data||"")+"</td>"+
         "<td style='text-align:center;white-space:nowrap'>"+(c.confirmado
-          ?(c.confirmadoVia==="emergencia"
-             ?"<span style='color:var(--warn);font-weight:600' title='Liberado sem e-mail — justificativa gravada no caso'>⚠ "+escHtml(c.confirmadoEm||"")+"</span>"
-             :"<span style='color:var(--ok);font-weight:600' title='Confirmado pelo cliente'>✓ "+escHtml(c.confirmadoEm||"")+"</span>")
+          ?("<button type='button' class='btn s mini' data-just style='padding:2px 8px;color:"+(c.confirmadoVia==="emergencia"?"var(--warn)":"var(--ok)")+";font-weight:600' title='Ver o registro da confirmação'>"
+             +(c.confirmadoVia==="emergencia"?"⚠ ":"✓ ")+escHtml(c.confirmadoEm||"")+" 🔎</button>")
           :"<span class='hint'>⏳ pendente</span>")+"</td>"+
         "<td style='white-space:nowrap'>"
           +(temTrabalho(c.id)?"<button class='btn p mini' data-abrir title='Retomar este ato com todos os dados preenchidos'>▸ Retomar</button> ":"")
@@ -2068,6 +2104,7 @@ window.TINA=(function(){
       "<p class='hint' style='margin-top:8px'>"+casos.length+" caso(s) salvo(s) neste navegador. Use ▸ para retomar um ato guardado; ⧉ para começar outro ato da mesma empresa; 🔎 para achar a resposta no Gmail; × para remover.</p>"
       +(Object.keys(lerTrabalhos()).length?"<p class='hint' style='margin-top:4px'>Os atos com <b>▸ Retomar</b> guardam os <b>dados preenchidos</b> do cliente neste navegador (some ao gerar o documento ou após 60 dias).</p>":"");
     box.querySelectorAll("tr[data-id]").forEach(tr=>{const id=tr.dataset.id;
+      const ju=tr.querySelector("[data-just]"); if(ju)ju.addEventListener("click",()=>verJustificativa(id));
       const ab=tr.querySelector("[data-abrir]"); if(ab)ab.addEventListener("click",()=>abrirTrabalho(id));
       const dup=tr.querySelector("[data-dup]"); if(dup)dup.addEventListener("click",()=>duplicarCaso(id));
       const loc=tr.querySelector("[data-loc]"); if(loc)loc.addEventListener("click",()=>localizarGmail(id));
@@ -2978,6 +3015,87 @@ window.TINA=(function(){
     return gravarTrabalhos(o);
   }
   function excluirTrabalho(casoId){ const o=lerTrabalhos(); if(o[casoId]){ delete o[casoId]; gravarTrabalhos(o); } }
+  /* ===== Enviar ao cliente (WhatsApp / e-mail) =====
+     Depois de gerar o PDF, oferece mandar para o cliente conferir antes de assinar.
+     Quando o navegador suporta compartilhar arquivos (celular e boa parte dos desktops),
+     o próprio PDF vai junto; senão, abre a conversa com o texto pronto e avisa que o
+     arquivo — que acabou de ser baixado — precisa ser anexado à mão. */
+  let _ultimoArquivo=null;
+  function fmtTel(v){ const d=String(v||"").replace(/\D/g,"").slice(0,11);
+    if(d.length>10) return "("+d.slice(0,2)+") "+d.slice(2,7)+"-"+d.slice(7);
+    if(d.length>6)  return "("+d.slice(0,2)+") "+d.slice(2,6)+"-"+d.slice(6);
+    if(d.length>2)  return "("+d.slice(0,2)+") "+d.slice(2);
+    return d; }
+  function telInternacional(v){ let d=String(v||"").replace(/\D/g,"");
+    if(d.length===10||d.length===11) d="55"+d;            // celular/fixo brasileiro sem DDI
+    return d; }
+  function msgEnvio(){
+    const d=coletar(), c=(($("envNome")&&$("envNome").value)||"").trim();
+    const emp=(d.razao||"a empresa").toUpperCase();
+    const quem=((CFG&&CFG.paralegal)||"").trim(), esc=((CFG&&CFG.escritorio)||"").trim();
+    return (c?"Olá, "+c+"! ":"Olá! ")
+      +"Segue o documento de "+tipoAto(d)+" de "+emp+" para sua conferência.\n\n"   // "documento de X" evita erro de concordância com o tipo do ato
+      +"Por favor, confira com atenção os dados (nome empresarial, endereço, atividades, capital e a qualificação dos sócios) "
+      +"e responda confirmando, para que possamos seguir com as assinaturas e o protocolo na "+_junta()+".\n\n"
+      +"Se algo precisar de ajuste, é só indicar nesta mesma conversa."
+      +(quem?"\n\n"+quem:"")+(esc?(quem?" — ":"\n\n")+esc:"");
+  }
+  function abrirEnviar(){
+    const m=$("enviarModal"); if(!m) return;
+    if($("envMsg") && !($("envMsg").value||"").trim()) $("envMsg").value=msgEnvio();
+    if($("envNome") && !($("envNome").value||"").trim()) $("envNome").value=(($("emailContato")&&$("emailContato").value)||"").trim();
+    if($("envStat")) $("envStat").textContent="";
+    const podeArquivo=!!(navigator.canShare && _ultimoArquivo && (function(){ try{ return navigator.canShare({files:[new File([_ultimoArquivo.blob],_ultimoArquivo.nome,{type:_ultimoArquivo.tipo})]}); }catch(e){ return false; } })());
+    if($("btnEnvArquivo")) $("btnEnvArquivo").style.display=podeArquivo?"":"none";
+    if($("envAviso")) $("envAviso").innerHTML = podeArquivo
+      ? "“Enviar o arquivo” abre o compartilhamento do aparelho com o PDF já anexado — escolha o WhatsApp, o e-mail ou outro aplicativo."
+      : "Este navegador não anexa arquivo pelo compartilhamento. Use os botões abaixo para abrir a conversa com o texto pronto e <b>anexe o PDF que acabou de ser baixado</b>.";
+    m.classList.add("open");
+  }
+  async function enviarArquivo(){
+    if(!_ultimoArquivo){ if($("envStat")){$("envStat").style.color="var(--warn)";$("envStat").textContent="Gere o PDF primeiro.";} return; }
+    try{
+      const f=new File([_ultimoArquivo.blob],_ultimoArquivo.nome,{type:_ultimoArquivo.tipo});
+      await navigator.share({files:[f], title:_ultimoArquivo.nome, text:(($("envMsg")&&$("envMsg").value)||"").trim()});
+      if($("envStat")){$("envStat").style.color="var(--ok)";$("envStat").textContent="✓ Compartilhamento aberto.";}
+    }catch(e){ if(e&&e.name==="AbortError") return;                       // usuário desistiu: não é erro
+      if($("envStat")){$("envStat").style.color="var(--err)";$("envStat").textContent="Não foi possível compartilhar o arquivo — use os outros botões e anexe o PDF.";} }
+  }
+  function abrirWhats(){
+    const tel=telInternacional(($("envTel")&&$("envTel").value)||"");
+    const msg=encodeURIComponent((($("envMsg")&&$("envMsg").value)||"").trim());
+    if(tel && tel.length<12){ if($("envStat")){$("envStat").style.color="var(--warn)";$("envStat").textContent="Número incompleto — informe DDD + número.";} return; }
+    window.open("https://wa.me/"+(tel||"")+(msg?"?text="+msg:""),"_blank","noopener,noreferrer");
+    if($("envStat")){$("envStat").style.color="var(--navy)";$("envStat").textContent="WhatsApp aberto — anexe o PDF baixado antes de enviar.";}
+  }
+  function abrirEmailEnvio(){
+    const d=coletar(); const assunto=encodeURIComponent(tipoAto(d)+" — "+(d.razao||"").toUpperCase()+" — para conferência");
+    const corpo=encodeURIComponent((($("envMsg")&&$("envMsg").value)||"").trim());
+    window.open("https://mail.google.com/mail/?view=cm&fs=1&su="+assunto+"&body="+corpo,"_blank","noopener,noreferrer");
+    if($("envStat")){$("envStat").style.color="var(--navy)";$("envStat").textContent="E-mail aberto — anexe o PDF baixado antes de enviar.";}
+  }
+
+  // Mostra o registro da confirmação: quem, quando, por qual via e o texto guardado.
+  // Antes o painel só dizia que a justificativa estava gravada, sem deixar consultá-la.
+  function verJustificativa(casoId){
+    const c=lerCasos().find(x=>x.id===casoId); const box=$("justCorpo"); if(!c||!box) return;
+    const emerg=c.confirmadoVia==="emergencia";
+    const linha=(rot,val)=>"<div style='margin-bottom:8px'><div class='hint' style='font-weight:700;color:var(--navy)'>"+rot+"</div><div>"+val+"</div></div>";
+    const nota=(c.confirmadoNota||"").trim();
+    box.innerHTML=
+      "<div class='val "+(emerg?"warn":"")+"' style='margin-bottom:12px'>"
+        +(emerg?"⚠ <b>Liberado sem o e-mail de confirmação</b> — sob responsabilidade de quem gerou o documento."
+               :"✓ <b>Confirmado pelo cliente</b> por resposta ao e-mail.")+"</div>"
+      +linha("Caso","<code>#"+escHtml(c.id)+"</code> — "+escHtml(c.empresa||"—")+(c.cnpj?" ("+escHtml(c.cnpj)+")":""))
+      +linha("Ato",escHtml(c.tipo||"—"))
+      +linha("Data do registro",escHtml(c.confirmadoEm||"—")+(c.confirmadoTs?" <span class='hint'>(gravado em "+escHtml(new Date(c.confirmadoTs).toLocaleString("pt-BR"))+")</span>":""))
+      +linha(emerg?"Informado por":"Contato que confirmou",escHtml(c.confirmadoPor||"—"))
+      +linha(emerg?"Justificativa da liberação":"Resposta do cliente",
+             nota?("<div style='white-space:pre-wrap;background:#f6f7f9;border:1px solid var(--line);border-radius:8px;padding:10px'>"+escHtml(nota)+"</div>")
+                 :"<span class='hint'>— nada registrado —</span>");
+    $("justModal").classList.add("open");
+  }
+
   function abrirTrabalho(casoId){
     const t=lerTrabalhos()[casoId]; if(!t||!t.snap){ toast("Este caso não tem trabalho guardado.","warn"); return false; }
     restaurarForm(t.snap);
@@ -3164,6 +3282,17 @@ window.TINA=(function(){
     if($("btnGateEmergencia")) $("btnGateEmergencia").addEventListener("click",registrarConfirmacaoEmergencia);
     if($("btnPainel")) $("btnPainel").addEventListener("click",()=>{renderPainel();checarBackup();$("painelModal").classList.add("open");});
     if($("btnPainelClose")) $("btnPainelClose").addEventListener("click",()=>$("painelModal").classList.remove("open"));
+    if($("btnJustClose")) $("btnJustClose").addEventListener("click",()=>$("justModal").classList.remove("open"));
+    if($("btnEnviarClose")) $("btnEnviarClose").addEventListener("click",()=>$("enviarModal").classList.remove("open"));
+    if($("enviarModal")) $("enviarModal").addEventListener("click",e=>{if(e.target.id==="enviarModal")$("enviarModal").classList.remove("open");});
+    if($("btnEnvArquivo")) $("btnEnvArquivo").addEventListener("click",enviarArquivo);
+    if($("btnEnvWhats")) $("btnEnvWhats").addEventListener("click",abrirWhats);
+    if($("btnEnvEmail")) $("btnEnvEmail").addEventListener("click",abrirEmailEnvio);
+    if($("btnEnvCopiar")) $("btnEnvCopiar").addEventListener("click",()=>{const t=(($("envMsg")&&$("envMsg").value)||"");
+      const ok=()=>{if($("envStat")){$("envStat").style.color="var(--ok)";$("envStat").textContent="✓ Mensagem copiada.";}};
+      if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok,()=>fallbackCopy(t,ok)); else fallbackCopy(t,ok);});
+    if($("envTel")) $("envTel").addEventListener("input",function(){this.value=fmtTel(this.value);});
+    if($("justModal")) $("justModal").addEventListener("click",e=>{if(e.target.id==="justModal")$("justModal").classList.remove("open");});
     if($("painelModal")) $("painelModal").addEventListener("click",e=>{if(e.target.id==="painelModal")$("painelModal").classList.remove("open");});
     if($("btnSalvarCaso")) $("btnSalvarCaso").addEventListener("click",()=>{const d=coletar(); if(!d.razao){alert("Preencha ao menos a razão social / nome empresarial antes de salvar o caso.");return;} registrarCaso(); renderPainel();});
     document.addEventListener("input",e=>{if(e.target&&e.target.classList&&e.target.classList.contains("revisar"))e.target.classList.remove("revisar");});
