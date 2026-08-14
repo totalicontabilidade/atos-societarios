@@ -84,6 +84,7 @@
     var mark=function(id,v){ var e=$(id); if(e){ e.checked=v!==false; e.dispatchEvent(new W.Event("change",{bubbles:true})); } };
     var texto=function(){ var t=""; D.querySelectorAll("section.docxprev").forEach(function(c){ t+=(c.innerText||""); }); return t; };
 
+    try{
     // ---------- 1. Carregamento ----------
     grupo("Carregamento");
     reg("Bibliotecas carregadas", !!(W.docxLib && W.JSZip && W.pdfMake), "docx/jszip/pdfmake");
@@ -213,6 +214,67 @@
     var at=$("atoData"); at.value="15122025"; at.dispatchEvent(new W.Event("input",{bubbles:true})); at.dispatchEvent(new W.Event("blur",{bubbles:true}));
     reg("Máscara vale também nos campos de data do ato", at.value==="15/12/2025", at.value);
 
+    // ---------- 6d. CEP manda no endereço ----------
+    grupo("CEP");
+    var fetchOrig=W.fetch;
+    W.fetch=function(u){ if(String(u).indexOf("viacep")>=0) return Promise.resolve(new W.Response(JSON.stringify({cep:"49503-390",logradouro:"Rua Oficial dos Correios",bairro:"Bairro Oficial",localidade:"Itabaiana",uf:"SE"}),{status:200,headers:{"Content-Type":"application/json"}})); return fetchOrig.apply(this,arguments); };
+    modo("alt"); await espera(160);
+    val("cmdRapido","endereço para Rua Digitada Pelo Usuario, número 891, no bairro Bairro Digitado, CEP 49.503-390, no Estado de Sergipe");
+    $("btnRapido").click(); await espera(2000);
+    reg("Endereço do CEP prevalece sobre o digitado",
+        $("s_log").value==="Rua Oficial dos Correios" && $("s_bairro").value==="Bairro Oficial" && $("s_mun").value==="Itabaiana",
+        [$("s_log").value,$("s_bairro").value,$("s_mun").value].join(" · "));
+    reg("Número informado é preservado", $("s_num").value==="891", $("s_num").value);
+    reg("Usuário é avisado do que foi sobreposto", /sobrep[ôo]s o digitado/.test($("rapidoStat").textContent||""), ($("rapidoStat").textContent||"").slice(-90));
+    // CEP que não existe: mantém o que foi digitado
+    W.fetch=function(u){ if(String(u).indexOf("viacep")>=0) return Promise.resolve(new W.Response(JSON.stringify({erro:true}),{status:200,headers:{"Content-Type":"application/json"}})); return fetchOrig.apply(this,arguments); };
+    val("cmdRapido","endereço para Rua Manual, 10, Centro, Aracaju/SE, 49999-999");
+    $("btnRapido").click(); await espera(1800);
+    reg("CEP inexistente não apaga o endereço digitado", $("s_log").value==="Rua Manual" && $("s_mun").value==="Aracaju", [$("s_log").value,$("s_mun").value].join(" · "));
+    W.fetch=fetchOrig;
+
+    // ---------- 6e. Trabalhos em espera ----------
+    grupo("Trabalhos em espera");
+    try{ W.localStorage.removeItem("tinaTrabalhos"); W.localStorage.removeItem("tinaCasos"); }catch(e){}
+    try{
+    // recarrega o app: o grupo anterior deixa uma busca de CEP em voo, e este grupo precisa de estado limpo
+    fr.src="index.html?teste="+Date.now();
+    await new Promise(function(r){ fr.onload=r; });
+    W=fr.contentWindow; D=fr.contentDocument;
+    await ate(function(){ return W.TINA && D.getElementById("btnGerar"); });
+    $=function(id){ return D.getElementById(id); };
+    modo=function(m){ var el=D.querySelector('[data-mode="'+m+'"]'); if(el) el.click(); };
+    val=function(id,v){ var e=$(id); if(e){ e.value=v; e.dispatchEvent(new W.Event("input",{bubbles:true})); } };
+    try{ W.localStorage.removeItem("tinaTrabalhos"); W.localStorage.removeItem("tinaCasos"); }catch(e){}
+    modo("alt"); await espera(200);
+    $("btnExemplo").click(); await espera(320);
+    val("razao","EMPRESA GUARDADA MODELO"); val("objeto","atividade de teste guardada");
+    var nm=D.querySelector('.socio:not(.filial) [data-f="nome"]'); if(nm) nm.value="Socio Guardado Modelo";
+    $("btnBaixar").click(); await espera(600);
+    var temBtnGuardar=!!$("btnGateGuardar");
+    reg("O portão oferece guardar o ato para depois", temBtnGuardar);
+    if(temBtnGuardar){
+      $("btnGateGuardar").click(); await espera(800);
+      reg("Formulário fica livre para o próximo ato", !($("razao").value||"").trim() && D.querySelectorAll(".socio:not(.filial)").length===0);
+      var tg={}; try{ tg=JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}"); }catch(e){}
+      reg("Ato guardado junto do caso", Object.keys(tg).length===1, Object.keys(tg).length+" trabalho(s)");
+      // retomar
+      $("btnPainel").click(); await espera(500);
+      var lin=[].slice.call(D.querySelectorAll("#painelLista tr[data-id]"));
+      var alvo=lin.filter(function(tr){ return /EMPRESA GUARDADA/.test(tr.textContent); })[0];
+      var temBtn=alvo&&alvo.querySelector("[data-abrir]");
+      reg("Painel mostra o botão de retomar", !!temBtn);
+      if(temBtn){ temBtn.click(); await espera(900);
+        reg("Retoma com todos os dados preenchidos",
+            $("razao").value==="EMPRESA GUARDADA MODELO" && $("objeto").value.indexOf("guardada")>=0
+            && ((D.querySelector('.socio:not(.filial) [data-f="nome"]')||{}).value||"")==="Socio Guardado Modelo",
+            $("razao").value);
+      } else reg("Retoma com todos os dados preenchidos",null,"pulado");
+      if($("painelModal")) $("painelModal").classList.remove("open");
+    } else { reg("Formulário fica livre para o próximo ato",null,"pulado"); reg("Ato guardado junto do caso",null,"pulado");
+             reg("Painel mostra o botão de retomar",null,"pulado"); reg("Retoma com todos os dados preenchidos",null,"pulado"); }
+    }catch(e){ reg("Bateria de trabalhos em espera",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 7. Segurança ----------
     grupo("Segurança");
     W.__xss=0;
@@ -276,8 +338,14 @@
     }catch(e){ reg("Bateria de licença",false,String(e.message||e)); }
 
     // limpa o armazenamento do quadro de teste
-    try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
-    fim();
+    }catch(e){
+      // um grupo que estoura não pode derrubar a execução inteira: registra e segue para o fim
+      grupo("Execução"); reg("A bateria terminou sem erro inesperado",false,String(e&&e.message||e).slice(0,140));
+      try{ console.error("erro na suite:",e); }catch(_){}
+    } finally {
+      try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
+      fim();
+    }
   }
 
   function fim(){

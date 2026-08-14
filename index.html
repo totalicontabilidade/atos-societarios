@@ -197,7 +197,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.21 · beta</span>
+  <span class="chip">v0.22 · beta</span>
 </header>
 
 <div class="wrap">
@@ -496,6 +496,8 @@
         <div style="font-weight:700;color:var(--navy);margin-bottom:6px">1. Envie o e-mail de confirmação</div>
         <div class="hint" style="margin-bottom:6px">O app monta o rascunho com as alterações e um ID que amarra a resposta do cliente.</div>
         <button class="btn p mini" id="btnGateEmail">✉ Abrir e-mail de confirmação</button>
+        <button class="btn o mini" id="btnGateGuardar" title="Guarda este ato inteiro e libera o formulário para você começar outro">💾 Guardar e fazer outro</button>
+        <div class="hint" style="margin-top:6px">Guardando, o ato fica completo no <b>Painel de casos</b> — com os dados preenchidos — e você o retoma quando o cliente responder.</div>
       </div>
 
       <div style="margin-top:16px">
@@ -2052,12 +2054,19 @@ window.TINA=(function(){
              ?"<span style='color:var(--warn);font-weight:600' title='Liberado sem e-mail — justificativa gravada no caso'>⚠ "+escHtml(c.confirmadoEm||"")+"</span>"
              :"<span style='color:var(--ok);font-weight:600' title='Confirmado pelo cliente'>✓ "+escHtml(c.confirmadoEm||"")+"</span>")
           :"<span class='hint'>⏳ pendente</span>")+"</td>"+
-        "<td style='white-space:nowrap'><button class='btn s mini' data-dup title='Iniciar um novo ato para esta empresa'>⧉ Duplicar</button> <button class='btn o mini' data-loc title='Localizar a resposta deste caso no seu Gmail'>🔎 Gmail</button> <button class='btn del mini' data-del title='Remover'>×</button></td></tr>").join("")+"</table></div>"+
-      "<p class='hint' style='margin-top:8px'>"+casos.length+" caso(s) salvo(s) neste navegador. Use ⧉ para começar outro ato da mesma empresa; 🔎 para achar a resposta no Gmail; × para remover.</p>";
+        "<td style='white-space:nowrap'>"
+          +(temTrabalho(c.id)?"<button class='btn p mini' data-abrir title='Retomar este ato com todos os dados preenchidos'>▸ Retomar</button> ":"")
+          +"<button class='btn s mini' data-dup title='Iniciar um novo ato para esta empresa'>⧉ Duplicar</button> <button class='btn o mini' data-loc title='Localizar a resposta deste caso no seu Gmail'>🔎 Gmail</button> <button class='btn del mini' data-del title='Remover'>×</button></td></tr>").join("")+"</table></div>"+
+      "<p class='hint' style='margin-top:8px'>"+casos.length+" caso(s) salvo(s) neste navegador. Use ▸ para retomar um ato guardado; ⧉ para começar outro ato da mesma empresa; 🔎 para achar a resposta no Gmail; × para remover.</p>"
+      +(Object.keys(lerTrabalhos()).length?"<p class='hint' style='margin-top:4px'>Os atos com <b>▸ Retomar</b> guardam os <b>dados preenchidos</b> do cliente neste navegador (some ao gerar o documento ou após 60 dias).</p>":"");
     box.querySelectorAll("tr[data-id]").forEach(tr=>{const id=tr.dataset.id;
+      const ab=tr.querySelector("[data-abrir]"); if(ab)ab.addEventListener("click",()=>abrirTrabalho(id));
       const dup=tr.querySelector("[data-dup]"); if(dup)dup.addEventListener("click",()=>duplicarCaso(id));
       const loc=tr.querySelector("[data-loc]"); if(loc)loc.addEventListener("click",()=>localizarGmail(id));
-      const del=tr.querySelector("[data-del]"); if(del)del.addEventListener("click",()=>{if(confirm("Remover este caso do painel? (não afeta documentos já baixados)")){salvarCasos(lerCasos().filter(x=>x.id!==id));if(casoAtualId===id)casoAtualId=null;renderPainel();}});
+      const del=tr.querySelector("[data-del]"); if(del)del.addEventListener("click",()=>{
+        const tem=temTrabalho(id);
+        if(confirm("Remover este caso do painel?"+(tem?" O ato guardado (com os dados preenchidos) também será apagado.":" (não afeta documentos já baixados)"))){
+          salvarCasos(lerCasos().filter(x=>x.id!==id)); excluirTrabalho(id); if(casoAtualId===id)casoAtualId=null; renderPainel();}});
     });}
 
   function exemplo(){limpar();$("socios").innerHTML="";
@@ -2743,13 +2752,20 @@ window.TINA=(function(){
         const põe=(id,v)=>{if(v&&$(id)){$(id).value=v;$(id).classList.add("revisar");}};
         põe("s_log",e.log); põe("s_num",e.num); põe("s_comp",e.comp); põe("s_bairro",e.bairro); põe("s_mun",e.mun); põe("s_cep",e.cep);
         if(e.uf&&$("s_uf")){$("s_uf").value=e.uf;$("s_uf").classList.add("revisar");}
-        // faltou município/bairro mas veio CEP? completa pelo ViaCEP (assíncrono, sem travar o resto)
-        if(e.cep && (!e.mun||!e.bairro||!e.uf)) buscaCep(e.cep).then(r=>{
-          if(!r||!r.ok)return; const d=r.data;
-          if(!$("s_mun").value&&d.localidade){$("s_mun").value=d.localidade;$("s_mun").classList.add("revisar");}
-          if(!$("s_bairro").value&&d.bairro){$("s_bairro").value=d.bairro;$("s_bairro").classList.add("revisar");}
-          if(!$("s_uf").value&&d.uf){$("s_uf").value=d.uf;$("s_uf").classList.add("revisar");}
-          if(!$("s_log").value&&d.logradouro){$("s_log").value=d.logradouro;$("s_log").classList.add("revisar");}
+        // Havendo CEP, ELE MANDA: o endereço oficial dos Correios prevalece sobre o que foi digitado
+        // (o número não vem do CEP e é preservado). Divergências são informadas em vez de silenciadas.
+        if(e.cep) buscaCep(e.cep).then(r=>{
+          const st=$("rapidoStat"); if(!r||!r.ok){ if(st&&r&&r.offline) st.textContent+=" · sem internet: o CEP não pôde ser conferido"; return; }
+          const d=r.data, trocou=[];
+          const impor=(id,novo,rot)=>{ if(!novo||!$(id))return; const atual=($(id).value||"").trim();
+            if(atual && atual.toLowerCase()!==String(novo).toLowerCase()) trocou.push(rot+": “"+atual+"” → “"+novo+"”");
+            $(id).value=novo; $(id).classList.add("revisar"); };
+          impor("s_log",d.logradouro,"logradouro"); impor("s_bairro",d.bairro,"bairro");
+          impor("s_mun",d.localidade,"município"); impor("s_uf",d.uf,"UF");
+          if(st){ st.style.color="var(--ok)";
+            st.textContent+=" · endereço do CEP "+e.cep+" aplicado"+(trocou.length?" (sobrepôs o digitado — "+trocou.join("; ")+")":"")
+              +(($("s_num").value||"").trim()?"":" · falta o número");
+          }
         }).catch(()=>{});
         const faltam=[!e.log&&"logradouro",!e.num&&"número",!e.bairro&&"bairro",!e.mun&&"município",!e.uf&&"UF",!e.cep&&"CEP"].filter(Boolean);
         applied.push("sede → "+(e.log||"(?)")+(e.num?", nº "+e.num:"")+(e.mun?" — "+e.mun:"")+(e.uf?"/"+e.uf:"")
@@ -2923,6 +2939,40 @@ window.TINA=(function(){
   function salvarRascunho(){if(_suppressDraft)return;try{const snap=snapshotForm();if(draftTemConteudo(snap))localStorage.setItem("tinaDraft",JSON.stringify(snap));else localStorage.removeItem("tinaDraft");}catch(e){}}
   const salvarRascunhoDeb=debounce(salvarRascunho,700);
   function limparRascunho(){try{localStorage.removeItem("tinaDraft");}catch(e){}}
+
+  /* ===== Trabalhos em espera =====
+     Enquanto o cliente não confirma, o ato fica parado. Em vez de segurar o formulário,
+     o trabalho INTEIRO (todos os campos, sócios e filiais) é guardado junto do caso, o
+     formulário é liberado para o próximo, e depois se retoma exatamente de onde parou.
+     Diferente do painel (que guarda só o cadastro do ato), aqui HÁ dados do cliente:
+     por isso vence em 60 dias e some sozinho quando o documento é gerado. */
+  const TRAB_VALIDADE_MS=60*24*60*60*1000, TRAB_MAX=40;
+  function lerTrabalhos(){ try{ const o=JSON.parse(localStorage.getItem("tinaTrabalhos")||"{}"); return (o&&typeof o==="object"&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
+  function gravarTrabalhos(o){ try{ localStorage.setItem("tinaTrabalhos",JSON.stringify(o)); return true; }catch(e){ console.warn("não foi possível guardar o trabalho:",e); return false; } }
+  function podarTrabalhos(o){
+    const agora=Date.now(); const ids=Object.keys(o);
+    ids.forEach(id=>{ const t=o[id]; if(!t||!t.ts||(agora-t.ts)>TRAB_VALIDADE_MS) delete o[id]; });   // vencidos saem
+    const rest=Object.keys(o).sort((a,b)=>(o[b].ts||0)-(o[a].ts||0));
+    rest.slice(TRAB_MAX).forEach(id=>{ delete o[id]; });                                              // guarda os mais recentes
+    return o;
+  }
+  function temTrabalho(casoId){ return !!lerTrabalhos()[casoId]; }
+  function salvarTrabalho(casoId){
+    if(!casoId) return false;
+    const o=podarTrabalhos(lerTrabalhos());
+    o[casoId]={ts:Date.now(), snap:snapshotForm()};
+    return gravarTrabalhos(o);
+  }
+  function excluirTrabalho(casoId){ const o=lerTrabalhos(); if(o[casoId]){ delete o[casoId]; gravarTrabalhos(o); } }
+  function abrirTrabalho(casoId){
+    const t=lerTrabalhos()[casoId]; if(!t||!t.snap){ toast("Este caso não tem trabalho guardado.","warn"); return false; }
+    restaurarForm(t.snap);
+    casoAtualId=casoId;                    // volta a apontar para o mesmo caso (mantém a confirmação já registrada)
+    limparRascunho();
+    if($("painelModal")) $("painelModal").classList.remove("open");
+    toast("Trabalho retomado — caso #"+casoId+".","ok");
+    return true;
+  }
   function restaurarForm(o){if(!o)return;_suppressDraft=true;try{
     if(o.mode)switchMode(o.mode);
     DRAFT_FIELDS.forEach(id=>{if($(id)&&o.fields&&(id in o.fields))$(id).value=o.fields[id];});
@@ -2991,6 +3041,7 @@ window.TINA=(function(){
   /* ===== Registrar caso automaticamente ao baixar (docx/PDF) — o download sinaliza que o preenchimento foi finalizado ===== */
   function registrarCasoAuto(){ const d=coletar(); if(!d.razao) return null; const jaExistia=!!casoAtualId; const c=registrarCaso(); if(document.getElementById("painelModal") && document.getElementById("painelModal").classList.contains("open")) renderPainel();
     limparRascunho();   // documento entregue: o rascunho (com CPF/RG/endereço dos sócios) sai do navegador. Os campos seguem na tela para reuso.
+    excluirTrabalho(c.id);   // ato concluído: o trabalho guardado também sai
     toast((jaExistia?"✓ Ato atualizado no painel de casos — ID #":"✓ Ato salvo no painel de casos — ID #")+c.id,"ok"); return c; }
 
   /* ===== Biblioteca de objetos sociais (localStorage) ===== */
@@ -3086,6 +3137,15 @@ window.TINA=(function(){
     if($("btnGateClose")) $("btnGateClose").addEventListener("click",_fecharGate);
     if($("gateModal")) $("gateModal").addEventListener("click",e=>{if(e.target.id==="gateModal")_fecharGate();});
     if($("btnGateEmail")) $("btnGateEmail").addEventListener("click",()=>{_fecharGate(); gerarEmail();});
+    if($("btnGateGuardar")) $("btnGateGuardar").addEventListener("click",()=>{
+      const d=coletar();
+      if(!(d.razao||"").trim()){ if($("gateStat")){$("gateStat").style.color="var(--warn)";$("gateStat").textContent="Preencha ao menos a razão social antes de guardar.";} return; }
+      const c=registrarCaso();                                  // garante o caso (e o ID) para pendurar o trabalho
+      if(!salvarTrabalho(c.id)){ if($("gateStat")){$("gateStat").style.color="var(--err)";$("gateStat").textContent="Não foi possível guardar (armazenamento cheio). Exporte um backup e remova casos antigos.";} return; }
+      _gateAcao=null; _fecharGate();
+      limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null;
+      toast("Ato guardado no caso #"+c.id+". Formulário livre para o próximo — retome pelo Painel de casos.","ok");
+    });
     if($("btnGateRegistrar")) $("btnGateRegistrar").addEventListener("click",registrarConfirmacaoEmail);
     if($("btnGateEmergencia")) $("btnGateEmergencia").addEventListener("click",registrarConfirmacaoEmergencia);
     if($("btnPainel")) $("btnPainel").addEventListener("click",()=>{renderPainel();checarBackup();$("painelModal").classList.add("open");});
