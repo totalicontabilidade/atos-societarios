@@ -217,7 +217,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.28 · beta</span>
+  <span class="chip">v0.29 · beta</span>
 </header>
 
 <div class="wrap">
@@ -892,6 +892,7 @@ window.TINA=(function(){
       </div>
       <div class="bar">
         <label class="checkline ltdaonly"><input type="checkbox" data-f="administrador" ${(data.administrador===false||(data.tipoPessoa==='PJ'&&data.administrador===undefined))?'':'checked'}> É administrador <span class="hint pjonly" style="display:none">— administrador é sempre pessoa natural: marcar aqui designa o <b>representante</b> da sócia</span></label>
+        <label class="checkline altonly" style="display:none"><input type="checkbox" data-f="retirante" ${data.retirante?'checked':''}> <b>Retira-se</b> nesta alteração <span class="hint">— continua qualificado no preâmbulo e assina o ato; sai do quadro e do consolidado</span></label>
         <label class="checkline pfonly"><input type="checkbox" data-f="temProc" ${data.temProc?'checked':''}> Representado por procurador</label>
         <button class="btn del mini" type="button" onclick="TINA.removeSocio(${idx})">Remover</button>
       </div>
@@ -924,6 +925,10 @@ window.TINA=(function(){
     pj.addEventListener("change",tglPJ); tglPJ();
     const adm=q("administrador"); if(adm)adm.addEventListener("change",recalc);  // atualiza a linha "Modo de administração"
     if(ehFormEI()){div.querySelectorAll(".ltdaonly").forEach(e=>e.style.display="none");const tg=div.querySelector(".tag");if(tg)tg.textContent="Titular";const pt=div.querySelector(".pjtoggle");if(pt)pt.style.display="none";}
+    // quem revela .altonly é o switchMode; um card criado com o app JÁ em "Alteração" nasceria com a
+    // caixa de retirada escondida até o usuário trocar de aba e voltar
+    if(typeof MODE!=="undefined" && MODE==="alt") div.querySelectorAll(".altonly").forEach(e=>e.style.display="");
+    const ret=q("retirante"); if(ret)ret.addEventListener("change",recalc);   // sai do quadro → recalcula os percentuais
     recalc();
   }
   function removeSocio(idx){const el=document.querySelector(".socio[data-idx='"+idx+"']");if(el)el.remove();recalc();}
@@ -998,11 +1003,15 @@ window.TINA=(function(){
     // "Modo de administração" só faz sentido com 2+ administradores (com 1, é sempre isoladamente)
     if($("modoAdmRow")){const nAdm=[...document.querySelectorAll(".socio:not(.filial) [data-f=administrador]")].filter(c=>c.checked).length; const semAdm=semQuotasPorSocio(); $("modoAdmRow").style.display=(nAdm>=2&&!semAdm)?"":"none";}  // só com 2+ administradores e onde há cláusula de administração (não no distrato)
     $("numQuotas").value=vq>0?numBR(Math.round(cap/vq)):"";let somaV=0;
-    [...document.querySelectorAll(".socio:not(.filial)")].forEach(c=>{const q=Number(c.querySelector("[data-f=quotas]").value)||0,v=q*vq,p=cap>0?(v/cap*100):0;
+    // quem se retira nesta alteração não compõe o capital resultante: entra na conta e a soma nunca fecharia
+    [...document.querySelectorAll(".socio:not(.filial)")].forEach(c=>{
+      const sai=!!(c.querySelector("[data-f=retirante]")&&c.querySelector("[data-f=retirante]").checked);
+      c.classList.toggle("saindo",sai);
+      const q=sai?0:(Number(c.querySelector("[data-f=quotas]").value)||0),v=q*vq,p=cap>0?(v/cap*100):0;
       c.querySelector("[data-f=valorQuotas]").value=q?reais(v):"";c.querySelector("[data-f=percentual]").value=q?pct(p):"";somaV+=v;});
     // EI / transformação→EI / distrato: sem quotas → não mostra a aritmética de capital (evita "soma das quotas ≠ capital")
     if(semQuotasPorSocio()){ const b=$("valCapital"); if(b)b.style.display="none"; return; }
-    const socios=readSocios(),somaP=cap>0?(somaV/cap*100):0,box=$("valCapital"),prob=[];
+    const socios=readSocios().filter(s=>!s.retirante),somaP=cap>0?(somaV/cap*100):0,box=$("valCapital"),prob=[];
     if(socios.length===0)prob.push("Nenhum sócio cadastrado.");
     if(cap<=0)prob.push("Capital social não informado.");
     if(cap>0&&Math.abs(somaV-cap)>0.01)prob.push("Soma dos valores das quotas ("+reais(somaV)+") ≠ capital ("+reais(cap)+").");
@@ -1106,10 +1115,20 @@ window.TINA=(function(){
     const paragN=(t,rot)=>P([T(rot,{bold:true}),...R(t)],JUST,SP15);   // parágrafo numerado (usado nas filiais)
     const gap=()=>new Paragraph({spacing:{after:0,line:240,lineRule:AUTO},children:[new TextRun({text:" "})]});   // linha em branco após a tabela (parágrafo vazio colapsa no preview → usa um espaço p/ garantir a altura da linha)
 
-    const nS=d.socios.length,plural=nS>1;
-    const admins=d.socios.filter(s=>s.administrador);
+    /* Sócio que se RETIRA nesta alteração. Ele é parte do ato: assina, e por isso tem de estar
+       qualificado no PREÂMBULO e no bloco de assinaturas, além de ganhar a cláusula de saída.
+       O que ele não integra é o resultado — quadro de quotas, administração e contrato CONSOLIDADO.
+       Daí a separação: d.socios = quem assina; FICAM = quem permanece. */
+    const RETIR=(md==="alt")?d.socios.filter(s=>s.retirante):[];
+    const FICAM=RETIR.length?d.socios.filter(s=>!s.retirante):d.socios;
+    const dFica=RETIR.length?Object.assign({},d,{socios:FICAM}):d;
+    const nS=FICAM.length,plural=nS>1;
+    // concordância do PREÂMBULO e das deliberações: conta quem assina o ato (com os retirantes)
+    const nSig=d.socios.length, pluralSig=nSig>1, soleSig=nSig===1?d.socios[0]:null;
+    const gSoleSig=(m,f)=>soleSig?gsex(soleSig,m,f):m;
+    const admins=FICAM.filter(s=>s.administrador);
     const nA=admins.length||1, plA=(admins.length>1);
-    const sole=nS===1?d.socios[0]:null;
+    const sole=nS===1?FICAM[0]:null;
     const soleAdm=(admins.length===1)?admins[0]:null;
     const gSole=(m,f)=>sole?gsex(sole,m,f):m;
     const gAdm=(m,f)=>soleAdm?gsex(soleAdm,m,f):m;
@@ -1119,7 +1138,7 @@ window.TINA=(function(){
     const isRetifica=isAlt && !!d.retifica;   // rerratificação (correção de erro em ato arquivado) — art. 118 IN DREI 81/2020
     const fut=(k)=>isTransf?false:(isAlt?CH.has(k):true);
     const space=()=>new Paragraph({spacing:{after:120,line:240,lineRule:AUTO}});
-    const resolvem=(plural?"Os sócios resolvem":gSole("O sócio resolve","A sócia resolve"));
+    const resolvem=(pluralSig?"Os sócios resolvem":gSoleSig("O sócio resolve","A sócia resolve"));   // quem delibera é quem assina
     const ordExt=["Primeira","Segunda","Terceira","Quarta","Quinta","Sexta","Sétima","Oitava","Nona","Décima","Décima Primeira","Décima Segunda","Décima Terceira"];
 
     const ch=[];
@@ -1139,7 +1158,8 @@ window.TINA=(function(){
     d.socios.forEach(s=>ch.push(P(R((s.nome||"[NOME]").toUpperCase()+", "+qualificacao(s)),JUST,SP10)));
 
     if(isAlt){
-      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, com sede à "+sedeCabL+", inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?", com NIRE "+d.nire:"")+", com seus atos constitutivos arquivados na "+_junta()+", resolve"+(plural?"m":"")+" promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
+      // o preâmbulo concorda com QUEM ASSINA (inclui o retirante), não com quem permanece
+      ch.push(P(R((pluralSig?"Os sócios":gSoleSig("O sócio","A sócia"))+" acima qualificad"+(pluralSig?"os":gSoleSig("o","a"))+", únic"+(pluralSig?"os componentes":gSoleSig("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, com sede à "+sedeCabL+", inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?", com NIRE "+d.nire:"")+", com seus atos constitutivos arquivados na "+_junta()+", resolve"+(pluralSig?"m":"")+" promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
       const tmud=isRetifica?"Da retificação":"Da alteração", av=isRetifica?"retificar":"alterar", pass=isRetifica?"que por erro material passa a constar":"que passa a ser";
       let dci=0;const delib=(tema,texto)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(texto)],JUST,SP15));
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolvem+" "+av+" o nome empresarial da sociedade, "+pass+" "+razaoUP+" LTDA.");
@@ -1151,7 +1171,7 @@ window.TINA=(function(){
         const txtCap = d.capitalAnterior>0
           ? ("O capital social, totalmente integralizado, que era de "+reais(d.capitalAnterior)+" ("+extensoReais(d.capitalAnterior)+"), "+(isRetifica?"por erro material passa a constar":"passa a ser")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), subscrito e integralizado "+formaIntegr(d,"em moeda corrente do País")+", dividido em "+numBR(d.numQuotas)+" quotas de "+reais(d.valorQuota)+" cada uma, distribuídas da seguinte forma:")
           : (resolvem+" "+av+" o capital social, "+pass+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), totalmente subscrito e integralizado "+formaIntegr(d,"em moeda corrente do País")+", dividido em "+numBR(d.numQuotas)+" quotas de "+reais(d.valorQuota)+" cada uma, distribuídas da seguinte forma:");
-        delib(tmud+" do capital social",txtCap);ch.push(tabelaQuotas(d,X));ch.push(gap());}
+        delib(tmud+" do capital social",txtCap);ch.push(tabelaQuotas(dFica,X));ch.push(gap());}
       // cessão e transferência de quotas — deliberada ANTES do quadro, que mostra a composição resultante
       if(d.cessao && (d.cedNome||"").trim() && (d.cessNome||"").trim()){
         const q=d.cedQuotas>0?d.cedQuotas:0, vl=d.cedValor>0?d.cedValor:(q*(d.valorQuota||0));
@@ -1173,11 +1193,26 @@ window.TINA=(function(){
           ? ("Em razão da cessão, "+(d.cedNome||"").toUpperCase()+" retira-se da sociedade, "+gCed("nada mais tendo","nada mais tendo")+" a haver dela, dos demais sócios ou do acervo social, respondendo o cessionário pelos direitos e obrigações relativos às quotas adquiridas.")
           : "O cessionário responde pelos direitos e obrigações relativos às quotas adquiridas, a partir desta data.")],JUST,SP15));
       }
-      if(CH.has("quadro")){delib("Do quadro societário",resolvem+" "+(isRetifica?"retificar":"alterar")+" a composição do quadro societário e a distribuição das quotas, que passa a ficar assim constituído:");ch.push(tabelaQuotas(d,X));ch.push(gap());}
+      /* Saída de sócio. Vem DEPOIS da cessão (que já pode ter dito a retirada do cedente) e ANTES do
+         quadro, que mostra a composição resultante — já sem quem saiu. */
+      if(RETIR.length){
+        const _nmR=x=>(x||"").normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"").toLowerCase().replace(/\s+/g," ").trim();
+        const jaSaiu=(d.cessao&&d.cedRetira&&(d.cedNome||"").trim())?_nmR(d.cedNome):"";
+        const RD=RETIR.filter(s=>_nmR(s.nome)!==jaSaiu);   // não repete a saída já declarada na cessão
+        if(RD.length){
+          const plR=RD.length>1;
+          const lista=RD.map(s=>(s.nome||"[NOME]").toUpperCase()).join(RD.length>2?", ":" e ");
+          delib("Da retirada de sócio",
+            (plR?"Retiram-se da sociedade os sócios ":gsex(RD[0],"Retira-se da sociedade o sócio ","Retira-se da sociedade a sócia "))+lista+", "
+            +(plR?"que transferem":"que transfere")+" a totalidade das quotas de que "+(plR?"eram titulares":"era titular")+", "
+            +(plR?"nada mais tendo":"nada mais tendo")+" a haver da sociedade, dos demais sócios ou do acervo social, dando e recebendo, neste ato, plena, geral e irrevogável quitação.");
+        }
+      }
+      if(CH.has("quadro")){delib("Do quadro societário",resolvem+" "+(isRetifica?"retificar":"alterar")+" a composição do quadro societário e a distribuição das quotas, que passa a ficar assim constituído:");ch.push(tabelaQuotas(dFica,X));ch.push(gap());}
       if(CH.has("enquadramento")) delib("Do reenquadramento","A sociedade passa a se enquadrar como "+(d.enquadramento==="DEMAIS"?"sociedade não enquadrada como ME ou EPP":ENQ[d.enquadramento])+", nos termos da Lei Complementar nº 123/2006.");
       if((d.clausulasExtra||"").trim()) delib("Outras deliberações",d.clausulasExtra.trim());
       // Consolida OU ratifica ("permanecem inalteradas"), nunca os dois (contraditório). Como consolidamos, NÃO incluímos a ratificação.
-      ch.push(P([T("Cláusula "+ordExt[dci++]+" – Da consolidação. ",{bold:true}),...R("Em decorrência das "+(isRetifica?"retificações":"alterações")+" ora deliberadas, "+(plural?"os sócios resolvem":gSole("o sócio resolve","a sócia resolve"))+" consolidar o Contrato Social, que passa a vigorar com a seguinte e única redação, revogadas todas as versões anteriores:")],JUST,SP15));
+      ch.push(P([T("Cláusula "+ordExt[dci++]+" – Da consolidação. ",{bold:true}),...R("Em decorrência das "+(isRetifica?"retificações":"alterações")+" ora deliberadas, "+(pluralSig?"os sócios resolvem":gSoleSig("o sócio resolve","a sócia resolve"))+" consolidar o Contrato Social, que passa a vigorar com a seguinte e única redação, revogadas todas as versões anteriores:")],JUST,SP15));
       ch.push(space());
       ch.push(tituloDoc("CONTRATO SOCIAL CONSOLIDADO"));
       ch.push(tituloDoc(razaoUP+" LTDA"));
@@ -1220,16 +1255,16 @@ window.TINA=(function(){
     ch.push(heading(nx(),"DO CAPITAL"));
     ch.push(corpo("O capital social "+(futCap?"será":"é")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), dividido em "+numBR(d.numQuotas)+" ("+extensoInt(d.numQuotas)+") quotas, no valor nominal de "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, totalmente integralizado "+formaIntegr(d,"em moeda corrente do País")+"."));
     ch.push(P([T("Parágrafo único. ",{bold:true}),T("O capital encontra-se subscrito e integralizado "+(plural?"pelos sócios":("pel"+gSole("o sócio","a sócia")))+" da seguinte forma:")],JUST,SP15));
-    ch.push(tabelaQuotas(d,X)); ch.push(gap());
+    ch.push(tabelaQuotas(dFica,X)); ch.push(gap());
     // VI - ADMINISTRAÇÃO
     ch.push(heading(nx(),"DA ADMINISTRAÇÃO"));
     const admName=(s)=> s.tipoPessoa==="PJ"
       ? ((s.pjRep||"[REPRESENTANTE]").toUpperCase()+", na qualidade de representante legal da sócia "+(s.nome||"").toUpperCase())
       : (s.nome||"").toUpperCase();
-    const nomesAdm=admins.length?admins.map(admName).join(admins.length>2?", ":" e "):(d.socios[0]?admName(d.socios[0]):"[ADMINISTRADOR]");
+    const nomesAdm=admins.length?admins.map(admName).join(admins.length>2?", ":" e "):(FICAM[0]?admName(FICAM[0]):"[ADMINISTRADOR]");
     const modo = plA ? d.modoAdm : "ISOLADAMENTE";
     const futAdm=isTransf?false:(isAlt?CH.has("quadro"):true);
-    const soloPJ=!plA && (soleAdm||d.socios[0]) && (soleAdm||d.socios[0]).tipoPessoa==="PJ";
+    const soloPJ=!plA && (soleAdm||FICAM[0]) && (soleAdm||FICAM[0]).tipoPessoa==="PJ";
     if(plA) ch.push(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" pelos sócios "+nomesAdm+" que "+(futAdm?"representarão":"representam")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderão":"podem")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
     else if(soloPJ) ch.push(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" por "+nomesAdm+", que "+(futAdm?"representará":"representa")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderá":"pode")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
     else ch.push(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" "+gAdm("pelo sócio","pela sócia")+" "+nomesAdm+" que "+(futAdm?"representará":"representa")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderá":"pode")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
@@ -1314,18 +1349,19 @@ window.TINA=(function(){
       ? "E por estarem assim justos e contratados, "+(plural?"assinam":"assina")+" o presente instrumento de alteração e consolidação contratual em uma única via, que será destinada ao registro e arquivamento na "+_junta()+"."
       : isTransf
       ? "E por estarem assim justos e acordados com a transformação ora deliberada, "+(plural?"assinam":"assina")+" o presente instrumento em uma única via, que será destinada ao registro e arquivamento na "+_junta()+"."
-      : "E por estarem em perfeito acordo, em tudo que neste instrumento particular foi lavrado, "+(plural?"obrigam-se":"obriga-se")+" a cumprir o presente ato constitutivo, e "+(plural?"assinam":"assina")+" o presente instrumento em uma única via que será destinada ao registro e arquivamento na "+_junta()+"."));
+      : "E por estarem em perfeito acordo, em tudo que neste instrumento particular foi lavrado, "+(pluralSig?"obrigam-se":"obriga-se")+" a cumprir o presente ato constitutivo, e "+(pluralSig?"assinam":"assina")+" o presente instrumento em uma única via que será destinada ao registro e arquivamento na "+_junta()+"."));
     ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+" - "+(d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
     // Assinaturas — linha (1,5) para não colar no nome; nome (1,0) negrito; papel (1,0)
     d.socios.forEach(s=>{
       ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
+      // quem sai assina o ato como retirante — o papel na assinatura precisa dizer isso
       if(s.tipoPessoa==="PJ"){ // PJ assina pelo representante legal
         ch.push(P([T((s.nome||"[RAZÃO]").toUpperCase(),{bold:true})],CEN,SP10_0));
-        ch.push(P([T((s.administrador?"Sócia/Administradora":"Sócia")+" — representada por "+((s.pjRep||"[REPRESENTANTE]").toUpperCase())+" ("+(s.pjCargo||"administrador")+")")],CEN,{after:220,line:240,lineRule:AUTO}));
+        ch.push(P([T((s.retirante?"Sócia retirante":(s.administrador?"Sócia/Administradora":"Sócia"))+" — representada por "+((s.pjRep||"[REPRESENTANTE]").toUpperCase())+" ("+(s.pjCargo||"administrador")+")")],CEN,{after:220,line:240,lineRule:AUTO}));
       } else {
         ch.push(P([T((s.nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0));
-        ch.push(P([T(s.administrador ? gsex(s,"Sócio/Administrador","Sócia/Administradora") : gsex(s,"Sócio","Sócia"))],CEN,{after:220,line:240,lineRule:AUTO}));
+        ch.push(P([T(s.retirante ? gsex(s,"Sócio retirante","Sócia retirante") : (s.administrador ? gsex(s,"Sócio/Administrador","Sócia/Administradora") : gsex(s,"Sócio","Sócia")))],CEN,{after:220,line:240,lineRule:AUTO}));
       }
     });
 
@@ -1806,11 +1842,14 @@ window.TINA=(function(){
         if(!so.orgaoUF)m.push("UF do órgão");
         ["cep","log","num","bairro","mun","uf"].forEach(k=>{if(!so[k])m.push("endereço "+k);});
       }
-      if(!isEI && !isDist && !(so.quotas>0))m.push("quotas");
+      // quem se retira sai do quadro: cobrar quotas dele faria a validação nunca fechar
+      if(!isEI && !isDist && !so.retirante && !(so.quotas>0))m.push("quotas");
       if(m.length)f.push(rot+m.join(", ")); });
     if(!isEI && !isDist){
-      if(d.socios.length && !d.socios.some(so=>so.administrador)) f.push("Nenhum administrador marcado");
-      const somaV=d.socios.reduce((a,so)=>a+(so.valorQuotas||0),0);
+      const fica=(d.socios||[]).filter(so=>!so.retirante);
+      if(!fica.length && (d.socios||[]).length) f.push("Todos os sócios foram marcados como retirantes — a sociedade ficaria sem sócio");
+      if(fica.length && !fica.some(so=>so.administrador)) f.push("Nenhum administrador marcado");
+      const somaV=fica.reduce((a,so)=>a+(so.valorQuotas||0),0);
       if(d.capital>0 && Math.abs(somaV-d.capital)>0.01) f.push("Soma das quotas ("+reais(somaV)+") ≠ capital ("+reais(d.capital)+")");
       if(d.capital>0 && Math.abs((d.capital?somaV/d.capital*100:0)-100)>0.01) f.push("Soma dos percentuais ≠ 100,00%");
     }
@@ -2588,6 +2627,21 @@ window.TINA=(function(){
       }
     }
     if(meta.tipoDoc==="ccmei") avisos.push("CCMEI lido: o MEI não tem contrato social, então este certificado é a base do estado atual.");
+    /* MEI (ou ex-MEI) precisa saber que o ato dele é TRANSFORMAÇÃO, não alteração: a Junta não recebe
+       ato de quem está enquadrado (Portal do Empreendedor faz tudo), e o desenquadramento é só o
+       primeiro passo — a mudança de natureza jurídica em si é a transformação de EI em sociedade.
+       O aviso NÃO bloqueia: quem quiser seguir na aba atual, segue. */
+    if(meta.ehMEI){
+      const jaTransf=(MODE==="transf_ei_ltda"||MODE==="transf_ei_slu");
+      const aindaMEI=(meta.respostaMEI==="mei"||meta.tipoDoc==="ccmei");
+      let av="<b>"+(aindaMEI?"Ainda enquadrado como MEI":"Ex-MEI (desenquadrado)")+(jaTransf?".":" — o ato correto é a <b>transformação</b>, não uma alteração.")+"</b> ";
+      av+=aindaMEI
+        ? "A Junta não recebe atos de MEI: inscrição, alteração e baixa saem só pelo Portal do Empreendedor. O <b>desenquadramento do SIMEI</b> é o primeiro passo para qualquer ato na Junta — e é obrigatório para adotar outra natureza jurídica."
+        : "O desenquadramento libera o registro na Junta, mas virar sociedade é ato de <b>transformação de Empresário Individual</b>. Instrua o primeiro ato na Junta com a <b>cópia do desenquadramento</b>.";
+      if(!jaTransf) av+=" <span style=\"display:inline-block;margin-top:6px\">Use a aba <b>Transformação → EI → Ltda</b>: <button type=\"button\" class=\"btn p mini\" id=\"btnIrTransf\">Ir para a transformação (mantém o preenchimento)</button></span>";
+      else av+=" Você já está na aba de transformação.";
+      avisos.unshift(av);
+    }
     aplicarDadosContrato({d,inc});
     // nome empresarial mudou (saíram os números do MEI): o ANTERIOR é o que está registrado — vai no título/preâmbulo; o novo, na cláusula e no consolidado
     if(meta.ehMEI && meta.nomeOriginal && meta.nomeOriginal!==d.razao){
@@ -2966,7 +3020,12 @@ window.TINA=(function(){
     stat.textContent=(houvePDF?"PDF lido. ":"")+(applied.length?("Aplicado: "+applied.join(" · ")):(cmd?"Nenhum comando reconhecido — veja o ? de ajuda.":(houvePDF?"":"Anexe um PDF e/ou escreva o que muda.")));
     const av=$("avisoRevisao");
     if(houvePDF||applied.length){av.style.display="block";av.innerHTML="⚠ <b>Confira tudo antes de gerar.</b> O preenchimento automático é apenas uma ajuda — revise todas as informações e as alterações marcadas em \"O que muda\"."+(incCount?(" Há <b>"+incCount+" campo(s) destacado(s) em amarelo</b> que precisam de conferência.") : "")
-      +(avisosDoc.length?("<ul style='margin:8px 0 0 18px;padding:0'>"+avisosDoc.map(a=>"<li>"+a+"</li>").join("")+"</ul>"):"");}
+      +(avisosDoc.length?("<ul style='margin:8px 0 0 18px;padding:0'>"+avisosDoc.map(a=>"<li>"+a+"</li>").join("")+"</ul>"):"");
+      // o aviso do MEI traz um atalho para a aba de transformação (switchMode não apaga o preenchimento)
+      const bIr=$("btnIrTransf");
+      if(bIr) bIr.addEventListener("click",()=>{ switchMode("transf_ei_ltda"); recalc();
+        toast("Aba trocada para Transformação → EI → Ltda. O preenchimento foi mantido.","ok");
+        const c=$("cardRapido")||$("status"); if(c&&c.scrollIntoView)c.scrollIntoView({behavior:"smooth",block:"center"}); });}
     else{av.style.display="none";}
   }
 
@@ -3494,7 +3553,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>

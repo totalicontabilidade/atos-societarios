@@ -275,6 +275,43 @@
       reg("Enquadramento DEMAIS é reconhecido", (pj&&pj.d&&pj.d.enquadramento)==="DEMAIS", String(pj&&pj.d&&pj.d.enquadramento));
     }catch(e){ reg("Bateria de sócio PJ",false,String(e&&e.message||e).slice(0,120)); }
 
+    // ---------- 6b2b. Sócio que se retira: assina o ato, sai do consolidado ----------
+    try{
+      await recarregar();
+      $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(220);
+      $("btnExemplo").click(); await espera(420);
+      var rows=[].slice.call(D.querySelectorAll("#socios .socio:not(.filial)"));
+      var sf=function(row,f,v){ var e=row.querySelector('[data-f="'+f+'"]'); if(!e)return;
+        if(e.type==="checkbox"){ e.checked=v; e.dispatchEvent(new W.Event("change",{bubbles:true})); }
+        else { e.value=v; e.dispatchEvent(new W.Event("input",{bubbles:true})); } };
+      reg("Caixa “Retira-se” existe no cartão do sócio em Alteração", !!rows[0].querySelector('[data-f="retirante"]'));
+      // 2º sócio vira PJ e se retira; o 1º fica com todo o capital
+      sf(rows[1],"tipoPJ",true); await espera(220);
+      sf(rows[1],"nome","MODELO PARTICIPACOES LTDA"); sf(rows[1],"pjCnpj","44.555.666/0001-72"); sf(rows[1],"pjRep","CARLOS MODELO LIMA");
+      sf(rows[1],"log","Rua Quatro"); sf(rows[1],"num","254"); sf(rows[1],"bairro","Centro"); sf(rows[1],"mun","Aracaju"); sf(rows[1],"uf","SE"); sf(rows[1],"cep","49000-200");
+      sf(rows[1],"administrador",false); sf(rows[1],"retirante",true);
+      var capT=Number($("capital").value)||0, vqT=Number($("valorQuota").value)||1;
+      sf(rows[0],"quotas",String(Math.round(capT/vqT)));
+      mark("alt_quadro",true); mark("alt_sede",false);
+      await espera(400);
+      var fR=await W.TINA.validar();
+      reg("Validação não cobra quotas de quem se retira",
+        !(fR||[]).some(function(x){ return /quotas/i.test(x) && /MODELO PARTICIPACOES/i.test(x); }), (fR||[]).join(" | ").slice(0,90));
+      reg("Aritmética fecha em 100% só com quem fica", /100,00%/.test(($("valCapital")||{}).textContent||""));
+      await W.TINA.gerarPreview(); await espera(1200);
+      var tR=texto();
+      var iC=tR.indexOf("CONTRATO SOCIAL CONSOLIDADO"), iF=tR.indexOf("E por estarem");
+      var cons=tR.slice(iC, iF>iC?iF:tR.length);
+      reg("Sócio que sai É qualificado no preâmbulo", /MODELO PARTICIPACOES LTDA, sociedade empres/.test(tR));
+      reg("Sai o preâmbulo no plural (conta quem assina)", /Os s[óo]cios acima qualificados/.test(tR));
+      reg("Tem cláusula de saída", /Da retirada de s[óo]cio[\s\S]{0,120}Retira-se da sociedade/i.test(tR));
+      reg("Não entra mais no contrato consolidado", iC>0 && !/MODELO PARTICIPACOES/.test(cons));
+      reg("Assina como sócia retirante", /S[óo]cia retirante/.test(tR));
+      reg("Quadro resultante não lista quem saiu",
+        !/MODELO PARTICIPACOES[\s\S]{0,40}%/.test(tR.slice(tR.indexOf("Do quadro societário"))));
+    }catch(e){ reg("Bateria de sócio retirante",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 6b3. Redação do preâmbulo e enquadramento na transformação ----------
     try{
       modo("alt"); await espera(180);
@@ -290,6 +327,35 @@
       reg("Transformação cita a sede e o arquivamento na Junta",
         /com sede na[\s\S]{0,200}Instrumento de Inscri[çc][ãa]o de Empres[áa]rio Individual arquivado na/i.test(tT));
     }catch(e){ reg("Bateria de transformação",false,String(e&&e.message||e).slice(0,120)); }
+
+    // ---------- 6b4. Aviso do MEI: manda para a aba de transformação, sem bloquear ----------
+    grupo("Aviso do MEI");
+    try{
+      await recarregar();
+      $=function(id){ return D.getElementById(id); };
+      // simula a resposta do modal sem precisar de PDF: chama o aplicador com um cartão de MEI fictício
+      var monta=async function(md,resposta){
+        modo(md); await espera(220);
+        var par={ d:{razao:"11.222.333 FULANO DE TAL EXEMPLO",objeto:"Comércio varejista de exemplo",
+                     sede:{log:"Rua Um",num:"10",bairro:"Centro",mun:"Aracaju",uf:"SE",cep:"49000-000"},
+                     cnpj:"11.222.333/0001-81"},
+                  inc:new W.Set(["razao","objeto","sede","cnpj"]),
+                  meta:{tipoDoc:"cnpj",ehMEI:true,respostaMEI:resposta,
+                        nomeOriginal:"11.222.333 FULANO DE TAL EXEMPLO",nomeLimpo:"FULANO DE TAL EXEMPLO"} };
+        return await W.TINA._pdf.aplicarDocFormulario(par);
+      };
+      var a1=await monta("ei_alt","mei");
+      reg("Ainda MEI fora da transformação: avisa e oferece o atalho",
+        /Ainda enquadrado como MEI/i.test(a1[0]||"") && /btnIrTransf/.test(a1[0]||""), (a1[0]||"").replace(/<[^>]+>/g,"").slice(0,90));
+      reg("Aviso do MEI não bloqueia (é só aviso)", D.querySelectorAll(".modal.open").length===0);
+      var a2=await monta("alt","desenq");
+      reg("Ex-MEI desenquadrado também é mandado para a transformação",
+        /Ex-MEI \(desenquadrado\)/i.test(a2[0]||"") && /Transforma[çc][ãa]o/i.test(a2[0]||"") && /btnIrTransf/.test(a2[0]||""));
+      reg("Aviso lembra de instruir o ato com a cópia do desenquadramento", /c[óo]pia do desenquadramento/i.test(a2[0]||""));
+      var a3=await monta("transf_ei_ltda","desenq");
+      reg("Já na aba de transformação: avisa sem oferecer o atalho",
+        /j[áa] est[áa] na aba de transforma/i.test(a3[0]||"") && !/btnIrTransf/.test(a3[0]||""));
+    }catch(e){ reg("Bateria do aviso do MEI",false,String(e&&e.message||e).slice(0,120)); }
 
     // ---------- 6c. Campos de data ----------
     grupo("Datas");

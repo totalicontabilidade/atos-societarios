@@ -4,7 +4,7 @@
      e guarda a cópia mais nova para uso offline. Assim, abrir o app online = sempre a última versão.
    - Demais recursos do mesmo domínio (libs grandes, ícones): cache primeiro (rápido/offline).
    - Recursos externos (ViaCEP): passam direto pela rede. */
-const CACHE = "atos-shell-v25";
+const CACHE = "atos-shell-v26";
 const CORE = [
   "./",
   "./index.html",
