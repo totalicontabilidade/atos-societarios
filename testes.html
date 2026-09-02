@@ -247,6 +247,50 @@
     reg("Documento gerado nunca contém a expressão proibida", !/especificad[oa]s?\s+anteriormente/i.test(texto()));
     reg("Documento gerado não contém código CNAE", !/CNAE|\d{4}-\d\/\d{2}/.test(texto()));
 
+    // ---------- 6b2. Sócia pessoa jurídica no quadro ----------
+    grupo("Sócio pessoa jurídica");
+    try{
+      // texto fictício com a MESMA estrutura do contrato real que falhou: a única frase "com sede na"
+      // é a da sócia PJ, e a sede da sociedade aparece como "com matriz na"
+      var txtPJ="ALTERAÇÃO DO CONTRATO SOCIAL DA SOCIEDADE LIMITADA EXEMPLO COMERCIO LTDA "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, nascido em 02/02/1985, empresário, portador do CPF sob o n.º 529.982.247-25, RG n.º 1234567 expedido pela SSP/SE, residente e domiciliado na Rua Um, nº 10, Bairro Centro, Aracaju/SE, CEP: 49000-400; "
+        +"único sócio da sociedade empresária limitada EXEMPLO COMERCIO LTDA, com matriz na Praça Dois, nº 55, Centro, Aracaju/SE, CEP: 49000-000, inscrita no CNPJ da matriz sob o n.º 11.222.333/0001-81 e NIRE 28.200.111.222, "
+        +"e filial na Rua Tres, nº 265, Sala A, Bairro Norte, Aracaju/SE, CEP: 49000-100, inscrita no CNPJ da filial sob o n.º 11.222.333/0002-62; resolve promover a presente alteração: "
+        +"Cláusula Primeira – Da admissão de sócia. O sócio vende 18.000 quotas à sociedade MODELO PARTICIPACOES LTDA, sociedade empresária limitada inscrita no CNPJ sob o n.º 44.555.666/0001-72, com sede na Rua Quatro, nº 254, Sala 110, Centro, Aracaju/SE, CEP: 49000-200, com seus atos constitutivos registrados na Junta Comercial do Estado de Sergipe sob NIRE 28.200.999.888, neste ato representada por seu administrador CARLOS MODELO LIMA, brasileiro, casado, nascido em 03/03/1975, empresário, portador do CPF sob o n.º 111.444.777-35, residente e domiciliado na Rua Cinco, nº 201, Bairro Sul, Aracaju/SE, CEP: 49000-300; a qual é admitida na sociedade. "
+        +"Cláusula Terceira – Da administração. A administração da sociedade permanece a cargo do sócio JOAO EXEMPLO SOUZA, que exercerá o cargo isoladamente. "
+        +"Cláusula Quarta – A sociedade declara, sob as penas da lei, que se enquadrará na condição de DEMAIS.";
+      var pj=W.TINA._pdf.parseContratoTexto(txtPJ,"","","");
+      var socs=(pj&&pj.d&&pj.d.socios)||[];
+      var aPJ=socs.filter(function(s){return s.tipoPessoa==="PJ";})[0];
+      reg("Sócia pessoa jurídica entra no quadro", !!aPJ, socs.length+" sócio(s)");
+      reg("Sócia PJ traz CNPJ e representante", !!(aPJ&&aPJ.pjCnpj&&aPJ.pjRep), aPJ?(aPJ.pjCnpj+" / "+aPJ.pjRep):"");
+      reg("Sócia PJ não vem marcada como administradora", !!(aPJ&&aPJ.administrador===false));
+      reg("Administrador lido do contrato é só quem ele designa",
+        socs.filter(function(s){return s.administrador===true;}).length===1);
+      var sd=(pj&&pj.d&&pj.d.sede)||{};
+      reg("Sede é a MATRIZ, não o endereço da sócia PJ", /Dois/.test(sd.log||"") && !/Quatro/.test(sd.log||""), (sd.log||"(vazio)")+" — "+(sd.mun||""));
+      var fls=(pj&&pj.d&&pj.d.filiais)||[];
+      reg("Filial declarada é lida", fls.length===1 && /Tres/.test(fls[0].log||""), fls.length+" filial(is)");
+      reg("CNPJ da filial sai formatado", fls.length===1 && /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(fls[0].cnpj||""), fls.length?String(fls[0].cnpj):"");
+      reg("Enquadramento DEMAIS é reconhecido", (pj&&pj.d&&pj.d.enquadramento)==="DEMAIS", String(pj&&pj.d&&pj.d.enquadramento));
+    }catch(e){ reg("Bateria de sócio PJ",false,String(e&&e.message||e).slice(0,120)); }
+
+    // ---------- 6b3. Redação do preâmbulo e enquadramento na transformação ----------
+    try{
+      modo("alt"); await espera(180);
+      $("btnExemplo").click(); await espera(300);
+      await W.TINA.gerarPreview(); await espera(900);
+      reg("Preâmbulo não gruda “promover” na frase seguinte", !/promovera\s/i.test(texto()));
+      modo("transf_ei_ltda"); await espera(200);
+      $("btnExemplo").click(); await espera(320);
+      await W.TINA.gerarPreview(); await espera(1100);
+      var tT=texto();
+      reg("Transformação EI→Ltda declara o enquadramento (ME/EPP)",
+        /declara\w*\s+que a sociedade (?:se enquadra|n[ãa]o se enquadra)[\s\S]{0,90}123/i.test(tT));
+      reg("Transformação cita a sede e o arquivamento na Junta",
+        /com sede na[\s\S]{0,200}Instrumento de Inscri[çc][ãa]o de Empres[áa]rio Individual arquivado na/i.test(tT));
+    }catch(e){ reg("Bateria de transformação",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 6c. Campos de data ----------
     grupo("Datas");
     modo("const"); await espera(160);

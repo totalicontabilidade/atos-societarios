@@ -217,7 +217,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.27 · beta</span>
+  <span class="chip">v0.28 · beta</span>
 </header>
 
 <div class="wrap">
@@ -891,7 +891,7 @@ window.TINA=(function(){
         <div><label>Percentual <span class="hint">(auto)</span></label><input type="text" data-f="percentual" readonly></div>
       </div>
       <div class="bar">
-        <label class="checkline ltdaonly"><input type="checkbox" data-f="administrador" ${data.administrador===false?'':'checked'}> É administrador</label>
+        <label class="checkline ltdaonly"><input type="checkbox" data-f="administrador" ${(data.administrador===false||(data.tipoPessoa==='PJ'&&data.administrador===undefined))?'':'checked'}> É administrador <span class="hint pjonly" style="display:none">— administrador é sempre pessoa natural: marcar aqui designa o <b>representante</b> da sócia</span></label>
         <label class="checkline pfonly"><input type="checkbox" data-f="temProc" ${data.temProc?'checked':''}> Representado por procurador</label>
         <button class="btn del mini" type="button" onclick="TINA.removeSocio(${idx})">Remover</button>
       </div>
@@ -1039,9 +1039,12 @@ window.TINA=(function(){
     if(e.mun)s+=", "+e.mun;if(e.uf)s+=" - "+e.uf;if(e.cep)s+=", CEP: "+e.cep;return s;}
   function gsex(s,masc,fem){return (s&&s.sexo==='F')?fem:masc;}
   function qualificacao(s){const g=(m,f)=>gsex(s,m,f);
+    // endereço vazio precisa virar marcador visível: sem isto a qualificação saía "residente e
+    // domiciliada na ," — frase quebrada que passa despercebida na revisão.
+    const endQ=endLinha({log:s.log,num:s.num,comp:s.comp,bairro:s.bairro,mun:s.mun,uf:s.uf,cep:s.cep})||"[ENDEREÇO]";
     if(s.tipoPessoa==="PJ"){ // sócio pessoa jurídica: razão vem antes (no chamador); aqui só o restante
       const pp=["sociedade empresária limitada","inscrita no CNPJ sob o nº "+(s.pjCnpj||"[CNPJ]")];
-      pp.push("com sede na "+endLinha({log:s.log,num:s.num,comp:s.comp,bairro:s.bairro,mun:s.mun,uf:s.uf,cep:s.cep}));
+      pp.push("com sede na "+endQ);
       if(s.pjNire)pp.push("com seus atos constitutivos registrados na "+_junta()+" sob NIRE "+s.pjNire);
       pp.push("neste ato representada por seu "+(s.pjCargo||"administrador")+" "+((s.pjRep||"[REPRESENTANTE]").toUpperCase()));
       return pp.join(", ")+";"; }
@@ -1059,7 +1062,7 @@ window.TINA=(function(){
     p.push(g("portador","portadora")+" do CPF nº "+(s.cpf||""));
     const orgao=s.orgao==="OUTRO"?(s.orgaoCustom||""):(s.orgao||"");
     if(s.rg){let rg="RG nº "+s.rg;if(orgao)rg+=" "+orgao+(s.orgaoUF?"/"+s.orgaoUF:"");p.push(rg);}
-    p.push(g("residente e domiciliado","residente e domiciliada")+" na "+endLinha({log:s.log,num:s.num,comp:s.comp,bairro:s.bairro,mun:s.mun,uf:s.uf,cep:s.cep}));
+    p.push(g("residente e domiciliado","residente e domiciliada")+" na "+endQ);
     // representação por procurador (modelos JUCESE: "representado, neste ato, por seu PROCURADOR …")
     if(s.temProc && (s.procNome||"").trim()){
       let pr="neste ato "+g("representado","representada")+" por seu procurador "+(s.procNome||"").toUpperCase();
@@ -1136,7 +1139,7 @@ window.TINA=(function(){
     d.socios.forEach(s=>ch.push(P(R((s.nome||"[NOME]").toUpperCase()+", "+qualificacao(s)),JUST,SP10)));
 
     if(isAlt){
-      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, com sede à "+sedeCabL+", inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?", com NIRE "+d.nire:"")+", com seus atos constitutivos arquivados na "+_junta()+", resolve"+(plural?"m":"")+" promover"+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
+      ch.push(P(R((plural?"Os sócios":gSole("O sócio","A sócia"))+" acima qualificad"+(plural?"os":gSole("o","a"))+", únic"+(plural?"os componentes":gSole("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, com sede à "+sedeCabL+", inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?", com NIRE "+d.nire:"")+", com seus atos constitutivos arquivados na "+_junta()+", resolve"+(plural?"m":"")+" promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
       const tmud=isRetifica?"Da retificação":"Da alteração", av=isRetifica?"retificar":"alterar", pass=isRetifica?"que por erro material passa a constar":"que passa a ser";
       let dci=0;const delib=(tema,texto)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(texto)],JUST,SP15));
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolvem+" "+av+" o nome empresarial da sociedade, "+pass+" "+razaoUP+" LTDA.");
@@ -1558,6 +1561,13 @@ window.TINA=(function(){
     cl2("O sócio que deseja se retirar da sociedade dá a esta "+(plural?"e aos demais sócios ":"")+"o conhecimento de sua decisão, por escrito, com 30 (trinta) dias de antecedência.");
     ch.push(P([T("Cláusula "+(++c2)+"ª – ",{bold:true}),...R("Falecendo ou interditado qualquer sócio, a sociedade continua suas atividades com os herdeiros, sucessores e o incapaz. Não sendo possível ou inexistindo interesse destes ou "+(plural?"dos sócios remanescentes":"do sócio remanescente")+", o valor de seus haveres é apurado e liquidado com base na situação patrimonial da sociedade, à data da resolução, verificada em balanço especialmente levantado.")],JUST,SP15));
     ch.push(P([T("Parágrafo único - ",{bold:true}),T("O mesmo procedimento é adotado em outros casos em que a sociedade se resolva em relação a seu sócio.")],JUST,SP15));
+    /* DO ENQUADRAMENTO (ME/EPP). O manual da Junta (item 5.2) exige que o enquadramento conste de
+       CLÁUSULA ESPECÍFICA no contrato social ou de instrumento próprio; como a transformação já gera
+       o contrato social novo, a declaração vem aqui. Faltava — e é justamente o caso do ex-MEI, que
+       chega como ME e perderia o enquadramento na transformação. */
+    cl2((plural?"Os sócios declaram":gT("O sócio declara","A sócia declara"))+(d.enquadramento==="DEMAIS"
+      ? " que a sociedade não se enquadra como Microempresa (ME) nem como Empresa de Pequeno Porte (EPP), nos termos da Lei Complementar nº 123, de 14 de dezembro de 2006."
+      : " que a sociedade se enquadra como "+ENQ[d.enquadramento]+", nos termos da Lei Complementar nº 123, de 14 de dezembro de 2006, e que não se enquadra em qualquer das hipóteses de exclusão relacionadas no § 4º do art. 3º da mencionada lei."));
     cl2("As divergências sociais e os casos omissos no presente contrato são regulados pelas disposições legais vigentes, eleito o foro da cidade de "+(d.foro||d.sede.mun||"[FORO]")+"/"+(d.sede.uf||"")+" para o exercício e o cumprimento dos direitos e obrigações resultantes deste contrato, renunciando a todo e qualquer outro foro de seu eventual domicílio.");
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(corpo("E, por estarem justos e contratados, "+(plural?"assinam":"assina")+" o presente instrumento particular em via única."));
@@ -2566,7 +2576,13 @@ window.TINA=(function(){
       const r=await perguntarMEI(meta);
       meta.respostaMEI=r;
       if(r==="desenq"||r==="mei"){ d.razao=meta.nomeLimpo; meta.ehMEI=true;
-        if(meta.cpfDoNome && !(d.socios&&d.socios.length)) d.socios=[{nome:meta.nomeLimpo,cpf:meta.cpfDoNome,administrador:true}];
+        /* No MEI o nome empresarial É o nome civil do titular, então dá para abrir o cartão dele já
+           preenchido. Antes isso só acontecia no formato ANTIGO (dígitos do CPF no nome); no formato
+           novo (raiz do CNPJ) não havia CPF e o titular ficava de fora — numa transformação MEI → Ltda
+           o quadro societário saía vazio. */
+        if(!(d.socios&&d.socios.length)){ const tit={nome:meta.nomeLimpo,administrador:true};
+          if(meta.cpfDoNome) tit.cpf=meta.cpfDoNome; else meta.semCPF=true;
+          d.socios=[tit]; }
         if(r==="desenq") avisos.push("Desenquadrado do MEI: o nome empresarial já foi ajustado (números removidos) e marcado como alteração.");
         else avisos.push("Ainda MEI: os números do nome foram removidos para a redação do ato.");
       }
@@ -2579,6 +2595,7 @@ window.TINA=(function(){
       const ra=$("razaoAnterior"); if(ra){ ra.value=meta.nomeOriginal; ra.classList.add("revisar"); }
     }
     if(meta.semCapital) avisos.push("O cartão CNPJ não informa <b>capital social</b> — preencha manualmente.");
+    if(meta.semCPF) avisos.push("O nome empresarial deste MEI usa a <b>raiz do CNPJ</b> (formato novo), não o CPF — o titular foi criado com o nome, mas o <b>CPF precisa ser digitado</b>.");
     if(meta.semQualificacao) avisos.push("Este documento não traz <b>RG, estado civil, profissão, nascimento e naturalidade</b> do titular — complete no cartão do sócio.");
     if(meta.semNIRE) avisos.push("<b>NIRE</b>: este documento não traz o número (o CCMEI não exibe NIRE). Ele <b>não é obrigatório</b> no instrumento — deixando em branco, a menção é omitida do texto. O NIRE do MEI continua sendo o mesmo do Empresário Individual; só muda na transformação em Ltda.");
     return avisos;
@@ -2640,18 +2657,50 @@ window.TINA=(function(){
       ||m1(t,new RegExp("objeto(?:\\s+social)?\\s+(?:d[ao]\\s+sociedade\\s+)?(?:a|o)\\s+explora[çc][ãa]o\\s+(?:n[oa]|d[oa])?\\s*ramo\\s+de\\s+([\\s\\S]+?)"+objFim,"i"));
     if(d.objeto){ d.objeto=limparObjeto(d.objeto); if(d.objeto)inc.add("objeto"); }
     // enquadramento: prioriza a DECLARAÇÃO ("se enquadra … Microempresa/EPP"), não o cabeçalho "(ME/EPP)"
-    if(/enquadr\w+[^.]{0,70}?empresa de pequeno porte/i.test(t)) d.enquadramento="EPP";
+    // "DEMAIS" (nem ME nem EPP) é declaração explícita e vem ANTES — senão o "microempresa" citado
+    // na própria frase de exclusão da LC 123 faria o contrato voltar para ME.
+    if(/enquadrar[áa]?\s+na\s+condi[çc][ãa]o\s+de\s+DEMAIS|se\s+enquadra\s+(?:na\s+condi[çc][ãa]o\s+de\s+|como\s+)?DEMAIS|n[ãa]o\s+se\s+enquadra\s+como\s+microempresa[^.]{0,40}?nem\s+como\s+empresa\s+de\s+pequeno\s+porte/i.test(t)) d.enquadramento="DEMAIS";
+    else if(/enquadr\w+[^.]{0,70}?empresa de pequeno porte/i.test(t)) d.enquadramento="EPP";
     else if(/enquadr\w+[^.]{0,70}?microempresa/i.test(t)) d.enquadramento="ME";
     else if(/empresa de pequeno porte/i.test(t)) d.enquadramento="EPP";
     else if(/microempresa/i.test(t)) d.enquadramento="ME";
-    let sedeStr=""; { // pega a ÚLTIMA sede com CEP (na consolidação = sede NOVA/atual)
-      const lastOf=re=>{let mm3,last;while((mm3=re.exec(t)))last=mm3[1];return last||"";};
-      sedeStr=lastOf(/(?:endere[çc]o|sede e foro[^:]{0,25})\s*:\s*(.+?CEP[:\s]*[\d.\- ]{7,13})/gi)
-        ||lastOf(/sede\s+(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/gi)
-        ||lastOf(/(?:sede|sediad[ao]|situad[ao]|localizad[ao]|estabelecid[ao])[^.]{0,25}?\b(?:na|à|no|em)\b\s+((?:Rua|Av\.?|Avenida|Pra[çc]a|Travessa|Alameda|Rodovia|Estrada|Quadra|Q\.?|Conjunto|Loteamento|Vila|Largo|Via|1[ºa°]|2[ºa°])\b[\s\S]+?CEP[:\s]*[\d.\- ]{7,13})/gi)   // "A sede está localizada na Avenida…" (verbo entre "sede" e o logradouro)
-        ||m1(t,/sede[^.]{0,12}?(?::|na|à|no|em)\s+(.+?)(?:\bBRASIL\b|Par[áa]grafo|Cl[áa]usula|\bResolve\b)/i);
+    /* Sede: monta uma LISTA de candidatos em ordem de prioridade em vez de fixar o primeiro achado.
+       Motivo: numa alteração com sócia pessoa jurídica, a única frase "com sede na …" do documento
+       costuma ser a da SÓCIA PJ (dentro da qualificação dela) — fixá-la fazia o contrato sair com a
+       sede errada. A escolha final é feita depois de montar a lista de sócias PJ, descartando o que
+       for endereço de sócia. "matriz" vem primeiro porque só a própria sociedade tem matriz. */
+    let sedeCands=[]; {
+      const allOf=re=>{const out=[];let m3;while((m3=re.exec(t)))out.push(m3[1]);return out.reverse();};   // reverse: a ÚLTIMA ocorrência (consolidação = sede atual) fica na frente
+      // "tem matriz com sede e foro na cidade de FulanÃ³polis/SE, Praça …, CEP: …" — município ANTES do
+      // logradouro; reordena para a forma normal antes de entregar ao parseEndereco.
+      const invertida=(re)=>{const m=t.match(re); if(!m)return "";
+        return m[3].replace(/[,\s]+$/,"")+", "+m[1].trim()+"/"+m[2]+", CEP: "+m[4].trim();};
+      sedeCands=[
+        ...allOf(/\bmatriz\s+(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/gi),
+        ...[invertida(/\bmatriz(?:\s+com\s+sede)?(?:\s+e\s+foro)?\s+n[ao]\s+cidade\s+de\s+([A-Za-zÀ-ú .']{2,40}?)\s*[\/-]\s*([A-Z]{2})\s*,\s*(.+?)CEP[:\s]*([\d.\- ]{7,13})/i)].filter(Boolean),
+        ...allOf(/(?:endere[çc]o|sede e foro[^:]{0,25})\s*:\s*(.+?CEP[:\s]*[\d.\- ]{7,13})/gi),
+        ...allOf(/sede\s+(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/gi),
+        ...[invertida(/\bsede(?:\s+e\s+foro)?\s+n[ao]\s+cidade\s+de\s+([A-Za-zÀ-ú .']{2,40}?)\s*[\/-]\s*([A-Z]{2})\s*,\s*(.+?)CEP[:\s]*([\d.\- ]{7,13})/i)].filter(Boolean),
+        ...allOf(/(?:sede|sediad[ao]|situad[ao]|localizad[ao]|estabelecid[ao])[^.]{0,25}?\b(?:na|à|no|em)\b\s+((?:Rua|Av\.?|Avenida|Pra[çc]a|Travessa|Alameda|Rodovia|Estrada|Quadra|Q\.?|Conjunto|Loteamento|Vila|Largo|Via|1[ºa°]|2[ºa°])\b[\s\S]+?CEP[:\s]*[\d.\- ]{7,13})/gi),   // "A sede está localizada na Avenida…" (verbo entre "sede" e o logradouro)
+        ...[m1(t,/sede[^.]{0,12}?(?::|na|à|no|em)\s+(.+?)(?:\bBRASIL\b|Par[áa]grafo|Cl[áa]usula|\bResolve\b)/i)].filter(Boolean)
+      ].filter(Boolean);
     }
-    if(sedeStr){d.sede=parseEndereco(sedeStr); inc.add("sede");}
+    /* Filiais declaradas no instrumento. Sem isto, a consolidação sairia sem a filial —
+       na prática, apagando um estabelecimento que continua existindo. */
+    const filiaisDoc=[]; {
+      const vistos=new Set();
+      const add=(str,cnpj)=>{ if(!str)return; const e=parseEndereco(str);
+        const k=((e.cep||"").replace(/\D/g,""))+"|"+(e.log||"").toUpperCase();
+        if(!e.log||vistos.has(k))return; vistos.add(k);
+        if(cnpj){ const cd=cnpj.replace(/\D/g,""); e.cnpj=cd.length===14?cd.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,"$1.$2.$3/$4-$5"):cnpj.trim(); }
+        filiaisDoc.push(e); };
+      let fm;
+      const fre=/\bfili(?:al|ais)\s+(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})(?:[^.]{0,90}?CNPJ[^\d]{0,25}(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\s*-?\s*\d{2}))?/gi;
+      while((fm=fre.exec(t))) add(fm[1],(fm[2]||"").trim());
+      const fre2=/\bfilial(?:\s+com\s+sede)?(?:\s+e\s+foro)?\s+n[ao]\s+cidade\s+de\s+([A-Za-zÀ-ú .']{2,40}?)\s*[\/-]\s*([A-Z]{2})\s*,\s*(.+?)CEP[:\s]*([\d.\- ]{7,13})/gi;
+      while((fm=fre2.exec(t))) add(fm[3].replace(/[,\s]+$/,"")+", "+fm[1].trim()+"/"+fm[2]+", CEP: "+fm[4].trim(),"");
+    }
+    if(filiaisDoc.length){ d.filiais=filiaisDoc; inc.add("filiais"); }
     d.foro=m1(t,/foro da comarca de\s+([A-Za-zÀ-ú .']+?)\s*[-–\/]/i)||m1(t,/foro d[eo]\s+([A-Za-zÀ-ú .']+?)\s*[-–\/]/i);
     d.dataInicioOrig=m1(t,/(?:produz(?:ir[áa])?\s+efeitos\s+a\s+partir\s+de|efeitos a partir de|in[íi]cio das atividades[^.\d]{0,20}|atividad[^.\d]{0,40}?)\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
     let nAlt=0; const naD=t.match(/(\d+)\s*[ªaº°]?\s*ALTERA[ÇC][ÃA]O/i);
@@ -2683,10 +2732,23 @@ window.TINA=(function(){
         const cd=pm[2].replace(/\D/g,""); const cnpj=cd.length===14?cd.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,"$1.$2.$3/$4-$5"):pm[2].trim(); const mid=pm[3]||""; const cargo=(pm[4]||"administrador").toLowerCase().trim(); const rep=limparNome(pm[5],razao);
         let sede={}; const sm=mid.match(/sede\s+(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/i)||mid.match(/sede\s+(?:na|à|no|em)\s+(.+?)(?:,?\s*com\b|,\s*NIRE)/i); if(sm)sede=parseEndereco(sm[1]);
         const nireM=mid.match(/NIRE\s*([\d][\d. ]{8,16}\d)/i);
-        pjList.push({tipoPessoa:"PJ",sexo:"F",nome:razao,pjCnpj:cnpj,pjNire:nireM?nireM[1].replace(/[^\d]/g,""):"",pjRep:rep,pjCargo:cargo,cep:sede.cep,log:sede.log,num:sede.num,comp:sede.comp,bairro:sede.bairro,mun:sede.mun,uf:sede.uf}); } }
+        // administrador:false — administrador de limitada tem de ser pessoa NATURAL (art. 997, VI, e art. 1.062
+        // do Código Civil). Sócia PJ nunca entra marcada; se o representante dela for mesmo administrador,
+        // isso é uma designação deliberada e o usuário marca na mão.
+        pjList.push({tipoPessoa:"PJ",sexo:"F",nome:razao,administrador:false,pjCnpj:cnpj,pjNire:nireM?nireM[1].replace(/[^\d]/g,""):"",pjRep:rep,pjCargo:cargo,cep:sede.cep,log:sede.log,num:sede.num,comp:sede.comp,bairro:sede.bairro,mun:sede.mun,uf:sede.uf}); } }
     // o representante de uma sócia PJ é qualificado ("brasileiro…") DENTRO da cláusula dela e é captado como se fosse sócio PF → remove esse fantasma
     if(pjList.length && socios.length){ const reps=pjList.map(p=>(p.pjRep||"").toUpperCase().trim()).filter(r=>r.length>=5);
       for(let i=socios.length-1;i>=0;i--){ const sn=(socios[i].nome||"").toUpperCase(); if(sn && reps.some(r=>sn.includes(r)||r.includes(sn))) socios.splice(i,1); } }
+    /* Agora que as sócias PJ são conhecidas, escolhe a sede: o primeiro candidato que NÃO seja o
+       endereço de uma sócia. Sem este filtro, um contrato cuja única frase "com sede na …" é a da
+       sócia PJ saía com a sede da sócia no lugar da sede da sociedade. */
+    if(sedeCands.length){
+      const cepsPJ=new Set(pjList.map(p=>(p.cep||"").replace(/\D/g,"")).filter(Boolean));
+      let esc=null;
+      for(const c of sedeCands){ const e=parseEndereco(c); const ck=(e.cep||"").replace(/\D/g,"");
+        if(ck && cepsPJ.has(ck)) continue; if(e.log||e.mun){ esc=e; break; } }
+      if(esc){ d.sede=esc; inc.add("sede"); }
+    }
     // --- QUADRO RESULTANTE (tabela "Sócio Quotas Valor … Percentual … TOTAL") = quem FICA na sociedade ---
     let finalQuadro=[]; { const tbl=t.match(/S[óo]cios?\s+Quotas?\s+Valor[^%]{0,30}?Percentual\s+([\s\S]+?)\s+TOTAL\b/i);
       if(tbl){ const rowRe=/([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .,&'\/\-–]{3,80}?)\s+([\d.]{1,12})\s+(?:R\$\s*)?([\d.,]{2,18})\s+([\d.,]{1,7})\s*%/g; let rm;
@@ -2695,7 +2757,7 @@ window.TINA=(function(){
     if(finalQuadro.length){ const novos=[];
       for(const row of finalQuadro){ const pj=pjList.find(p=>matchNome(p.nome,row.nome)); if(pj){novos.push({...pj,nome:row.nome,quotas:row.quotas});continue;}
         const pf=socios.find(s=>matchNome(s.nome,row.nome)); if(pf){pf.quotas=row.quotas;novos.push(pf);continue;}
-        if(/\b(LTDA|LIMITADA|EIRELI|S\/A|S\.A\.)\b/i.test(row.nome))novos.push({tipoPessoa:"PJ",sexo:"F",nome:row.nome,quotas:row.quotas}); else novos.push({nome:row.nome,quotas:row.quotas}); }
+        if(/\b(LTDA|LIMITADA|EIRELI|S\/A|S\.A\.)\b/i.test(row.nome))novos.push({tipoPessoa:"PJ",sexo:"F",nome:row.nome,administrador:false,quotas:row.quotas}); else novos.push({nome:row.nome,quotas:row.quotas}); }
       socios.length=0; socios.push(...novos);
     } else { for(const p of pjList){ if(!socios.some(s=>matchNome(s.nome,p.nome))) socios.push(p); } }
     // Empresário Individual PURO (instrumento de inscrição, sem transformação/quadro/PJ) tem UM titular só: descarta detecções espúrias, ficando com o nome mais limpo (menos palavras)
@@ -2717,13 +2779,21 @@ window.TINA=(function(){
     { const repRe=/(?:representad[oa]|assistid[oa])\s+por\s+(?:seu[as]?\s+|sua[s]?\s+)?(?:pai|m[ãa]e|genitor[a]?|tutor[a]?|curador[a]?|respons[áa]vel|representante\s+legal|av[óô]s?)\s+([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,60}?)\s*[,;]/gi;
       const repNames=[]; let rmp; while(rmp=repRe.exec(t)){const n=limparNome(rmp[1],d.razao).toUpperCase(); if(n.length>=4)repNames.push(n);}
       if(repNames.length) for(let i=socios.length-1;i>=0;i--){ const sn=(socios[i].nome||"").toUpperCase(); if(sn && !(socios[i].quotas>0) && repNames.some(r=>sn.includes(r)||r.includes(sn))) socios.splice(i,1); } }
-    // administração: só o trecho da ATRIBUIÇÃO (para antes de "sendo/vedado/não/O sócio/."), não o parágrafo inteiro — senão pega quem "NÃO exercerá administração"
-    const admText=(m1(t,/administra[çc][ãa]o\b[\s\S]{0,25}?(?:ser[áa]\s+(?:exercida|administrada)|exercida|caber[áa]|compete|incumbe|fica\s+a\s+cargo|ser[áa]\s+de\s+responsabilidade)([\s\S]{0,200}?)(?=\.|;|\bsendo\b|\bficando\b|\bvedad|\bO[s]?\s+s[óo]cio|\bn[ãa]o\b|\bcom\s+os\s+poderes\b|CL[ÁA]USULA|$)/i)||"").toUpperCase();
+    /* Administração: só o trecho da ATRIBUIÇÃO (para antes de "sendo/vedado/não/O sócio/."), não o
+       parágrafo inteiro — senão pega quem "NÃO exercerá administração".
+       A lista de verbos precisa cobrir as redações reais da Junta: sem "permanece a cargo" e
+       "tem/terá como administrador", um contrato que designa UM administrador não era reconhecido e
+       o app caía no padrão "todos administram", inventando administrador que o contrato não designou. */
+    const admText=(m1(t,/administra[çc][ãa]o\b[\s\S]{0,25}?(?:ser[áa]\s+(?:exercida|administrada)|exercida|caber[áa]|compete|incumbe|(?:fica|permanece|continua)\s+(?:a\s+cargo|sob\s+a\s+responsabilidade)|ser[áa]\s+de\s+responsabilidade)([\s\S]{0,200}?)(?=\.|;|\bsendo\b|\bficando\b|\bvedad|\bO[s]?\s+s[óo]cio|\bn[ãa]o\b|\bcom\s+os\s+poderes\b|CL[ÁA]USULA|$)/i)
+      ||m1(t,/(?:tem|ter[áa])\s+como\s+(?:s[óo]cios?\s+)?administrador(?:es|a)?\s*(?:o|a|os|as)?\s*(?:s[óo]cios?\s+)?([\s\S]{0,200}?)(?=\.|;|\bsendo\b|\bficando\b|\bvedad|\bn[ãa]o\b|CL[ÁA]USULA|Cl[áa]usula|$)/i)
+      ||"").toUpperCase();
     const negNames=[]; { const negRe=/([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,60}?)\s+n[ãa]o\s+(?:exercer[áa]|administrar[áa]|participar[áa]|integrar[áa]|ter[áa]\s+(?:poderes|fun[çc])|assumir[áa]\s+a\s+administra)/gi; let nmA; while(nmA=negRe.exec(t))negNames.push(nmA[1].toUpperCase().replace(/\s+/g," ").trim()); }  // "NOME não exercerá administração"
     let algum=false; socios.forEach(so=>{const key=(so.tipoPessoa==="PJ"?(so.pjRep||so.nome):so.nome)||""; const KEY=key.toUpperCase();
       const excl=KEY&&negNames.some(n=>n.includes(KEY)||KEY.includes(n));
       if(KEY&&admText.includes(KEY)&&!excl){so.administrador=true;algum=true;}});
-    if(!algum) socios.forEach(so=>so.administrador=true);                                   // sem cláusula clara → todos administram (padrão)
+    // sem cláusula clara → todos administram (padrão), EXCETO sócia pessoa jurídica: administrador de
+    // limitada é sempre pessoa natural (arts. 997, VI, e 1.062 do CC), então PJ nunca entra marcada sozinha.
+    if(!algum) socios.forEach(so=>so.administrador=(so.tipoPessoa!=="PJ"));
     else socios.forEach(so=>{ if(so.administrador!==true) so.administrador=false; });        // há definição explícita → não citado = NÃO administra (evita marcar menor/não-administrador)
     // EI: se a razão capturou "NOME_EMPRESARIAL + NOME_TITULAR" colados (ex.: "J S LIMA JOAO SILVA LIMA"), tira o titular do fim
     if(d.razao && socios.length===1 && socios[0].nome){ const tn=socios[0].nome.toUpperCase(); if(d.razao.length>socios[0].nome.length+1 && d.razao.toUpperCase().replace(/\s+$/,"").endsWith(tn)){ const c=d.razao.slice(0,d.razao.length-socios[0].nome.length).trim().replace(/[,;]+$/,"").trim(); if(c)d.razao=c; } }
@@ -2753,6 +2823,7 @@ window.TINA=(function(){
     if(d.sede){const s=d.sede; setf("s_cep",s.cep,true);setf("s_log",s.log,true);setf("s_num",s.num,true);setf("s_comp",s.comp,true);setf("s_bairro",s.bairro,true);setf("s_mun",s.mun,true); if(s.uf&&$("s_uf")){$("s_uf").value=s.uf;$("s_uf").classList.add("revisar");}}
     setf("atoCidade",(d.foro||(d.sede&&d.sede.mun)||""),true);
     setf("atoData",hojeBR(),false);
+    if(d.filiais&&d.filiais.length&&$("filiais")){$("filiais").innerHTML=""; d.filiais.forEach(fl=>filialCard(fl)); document.querySelectorAll(".socio.filial input").forEach(el=>{if(el.value)el.classList.add("revisar");});}
     if(d.socios&&d.socios.length){$("socios").innerHTML=""; d.socios.forEach(so=>socioCard(so)); document.querySelectorAll(".socio:not(.filial) input,.socio:not(.filial) select").forEach(el=>{if(el.value)el.classList.add("revisar");});}
   }
   /* Endereço escrito à mão no preenchimento rápido, ex.:
