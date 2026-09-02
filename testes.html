@@ -312,6 +312,55 @@
         !/MODELO PARTICIPACOES[\s\S]{0,40}%/.test(tR.slice(tR.indexOf("Do quadro societário"))));
     }catch(e){ reg("Bateria de sócio retirante",false,String(e&&e.message||e).slice(0,120)); }
 
+    // ---------- 6b2c. Leitor de sócia PJ em outras redações ----------
+    try{
+      // "CNPJ nº" (sem "inscrita no ... sob o") e SEM "representada por" — antes não era reconhecida
+      var t2="ALTERAÇÃO DO CONTRATO SOCIAL DE EXEMPLO COMERCIO LTDA, inscrita no CNPJ sob o nº 11.222.333/0001-81, com matriz na Praça Dois, nº 55, Centro, Aracaju/SE, CEP: 49000-000. "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Centro, Aracaju/SE, CEP: 49000-400; "
+        +"e MODELO PARTICIPACOES LTDA, CNPJ nº 44.555.666/0001-72, com sede na Rua Quatro, nº 254, Centro, Aracaju/SE, CEP: 49000-200, NIRE 28.200.999.888; resolvem:";
+      var p2=W.TINA._pdf.parseContratoTexto(t2,"","","");
+      var pjs2=((p2&&p2.d&&p2.d.socios)||[]).filter(function(s){return s.tipoPessoa==="PJ";});
+      reg("Lê sócia PJ escrita como “CNPJ nº” e sem representante nomeado",
+        pjs2.length===1 && /MODELO PARTICIPACOES/.test(pjs2[0].nome||""), pjs2.length+" PJ");
+      reg("Pega o CNPJ e o NIRE dessa sócia",
+        pjs2.length===1 && /44\.555\.666\/0001-72/.test(pjs2[0].pjCnpj||"") && /28200999888/.test(pjs2[0].pjNire||""));
+      reg("A própria sociedade não vira sócia de si mesma",
+        !pjs2.some(function(s){ return /EXEMPLO COMERCIO/.test(s.nome||"") || /11\.222\.333/.test(s.pjCnpj||""); }));
+    }catch(e){ reg("Bateria de redações de sócia PJ",false,String(e&&e.message||e).slice(0,120)); }
+
+    // ---------- 6b5. Visto de advogado (regra do Manual de LTDA, item 7 e roteiro 8/8.1) ----------
+    grupo("Visto de advogado");
+    try{
+      await recarregar();
+      $=function(id){ return D.getElementById(id); };
+      modo("const"); await espera(220);
+      $("btnExemplo").click(); await espera(420);
+      val("enquadramento","ME"); $("enquadramento").dispatchEvent(new W.Event("change",{bubbles:true})); await espera(220);
+      reg("ME/EPP: visto não é cobrado", !/Exigido neste ato/i.test(($("advMotivo")||{}).textContent||""), (($("advMotivo")||{}).textContent||"").slice(0,70));
+      val("enquadramento","DEMAIS"); $("enquadramento").dispatchEvent(new W.Event("change",{bubbles:true})); await espera(260);
+      reg("Contrato social sem ME/EPP: visto exigido e já marcado",
+        /Exigido neste ato/i.test(($("advMotivo")||{}).textContent||"") && $("advIncluir").checked);
+      val("advNome","Fulano Advogado Exemplo"); val("advOab","12.345"); val("advOabUf","SE");
+      await W.TINA.gerarPreview(); await espera(1100);
+      var tV=texto();
+      reg("Visto sai depois das assinaturas, com OAB e o art. 36",
+        /art\. 36, Decreto n[º°] 1\.800, de 1996/.test(tV) && /Visto:\s*FULANO ADVOGADO EXEMPLO/i.test(tV) && /OAB\/SE n[º°] 12\.345/.test(tV));
+      // em alteração o manual diz que não é obrigatório
+      modo("alt"); await espera(240);
+      reg("Em alteração contratual o visto não é obrigatório",
+        /n[ãa]o [ée] obrigat[óo]rio/i.test(($("advMotivo")||{}).textContent||""), (($("advMotivo")||{}).textContent||"").slice(0,70));
+      // sócia PJ impede ME/EPP (LC 123, art. 3º, § 4º, I)
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("const"); await espera(220);
+      $("btnExemplo").click(); await espera(420);
+      var rw=[].slice.call(D.querySelectorAll("#socios .socio:not(.filial)"));
+      var pjChk=rw[1].querySelector('[data-f="tipoPJ"]'); pjChk.checked=true; pjChk.dispatchEvent(new W.Event("change",{bubbles:true}));
+      val("enquadramento","ME"); $("enquadramento").dispatchEvent(new W.Event("change",{bubbles:true})); await espera(300);
+      var fV=await W.TINA.validar();
+      reg("Sócia PJ + ME/EPP é barrado na validação (LC 123, art. 3º, § 4º, I)",
+        (fV||[]).some(function(x){ return /n[ãa]o pode ser ME nem EPP/i.test(x); }), (fV||[]).join(" | ").slice(0,90));
+    }catch(e){ reg("Bateria do visto de advogado",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 6b3. Redação do preâmbulo e enquadramento na transformação ----------
     try{
       modo("alt"); await espera(180);

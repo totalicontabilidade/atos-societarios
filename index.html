@@ -217,7 +217,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.29 · beta</span>
+  <span class="chip">v0.30 · beta</span>
 </header>
 
 <div class="wrap">
@@ -387,6 +387,16 @@
         </div>
         <div id="wrapConselho" style="display:none;margin-top:8px" class="grid g3">
           <div><label for="conselhoMembros">Membros do conselho fiscal</label><input type="number" id="conselhoMembros" min="3" step="1" value="3"></div>
+        </div>
+      </div>
+      <div class="row ltdaonly" id="wrapAdvogado" style="margin-top:10px;display:none">
+        <div class="hint" style="font-weight:700;color:var(--navy);margin-bottom:6px">Visto de advogado <span class="hint" style="font-weight:400">— art. 1º, § 2º, da Lei nº 8.906/1994 e art. 36 do Decreto nº 1.800/1996</span></div>
+        <div class="hint" id="advMotivo" style="margin-bottom:6px"></div>
+        <label class="checkline"><input type="checkbox" id="advIncluir"> Incluir o visto de advogado neste ato</label>
+        <div id="wrapAdvCampos" style="display:none;margin-top:8px" class="grid g3">
+          <div><label for="advNome">Nome do advogado</label><input type="text" id="advNome" placeholder="Nome completo"></div>
+          <div><label for="advOab">Inscrição na OAB</label><input type="text" id="advOab" placeholder="Ex.: 12.345"></div>
+          <div><label for="advOabUf">Seccional (UF)</label><select id="advOabUf"></select></div>
         </div>
       </div>
       <div id="valCapital"></div>
@@ -833,6 +843,52 @@ window.TINA=(function(){
         statEl.className="fldstat ok";statEl.textContent="✓ "+(d.localidade||"")+"/"+(d.uf||"");}
       else if(res.offline){cepEl.classList.remove("bad","good");statEl.className="fldstat warn";statEl.textContent="⚠ sem internet — busca de CEP indisponível; preencha o endereço manualmente";}
       else{cepEl.classList.add("bad");cepEl.classList.remove("good");statEl.className="fldstat bad";statEl.textContent="✗ "+res.msg;}});}
+  /* Consulta do CNPJ da sócia PJ na base pública da Receita (via BrasilAPI, que serve os dados do
+     CNPJ com CORS liberado). Só sai daqui o número do CNPJ — nenhum dado do formulário é enviado.
+     Sem internet, o campo continua editável à mão: a consulta é conveniência, não dependência. */
+  async function buscaCnpj(raw){const c=(raw||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase();
+    if(c.length!==14)return{ok:false,msg:"CNPJ deve ter 14 caracteres"};
+    if(/^\d+$/.test(c) && !validaCNPJ(c))return{ok:false,msg:"CNPJ inválido"};
+    try{const r=await fetch("https://brasilapi.com.br/api/cnpj/v1/"+c,{cache:"no-store"});
+      if(r.status===404)return{ok:false,msg:"CNPJ não encontrado na Receita"};
+      if(!r.ok)return{ok:false,msg:"consulta indisponível (erro "+r.status+")"};
+      return{ok:true,data:await r.json()};}
+    catch(e){return{ok:false,offline:true,msg:"sem conexão"};}}
+  function attachCnpjPJ(el,statEl,tg){
+    el.addEventListener("input",()=>{el.value=fmtCnpj(el.value);});
+    el.addEventListener("blur",async()=>{const raw=el.value.trim();
+      if(!raw){statEl.textContent="";el.classList.remove("good","bad");return;}
+      statEl.className="fldstat load";statEl.textContent="consultando a Receita…";
+      const res=await buscaCnpj(raw);
+      if(!res.ok){ el.classList.toggle("bad",!res.offline); el.classList.remove("good");
+        statEl.className=res.offline?"fldstat warn":"fldstat bad";
+        statEl.textContent=(res.offline?"⚠ ":"✗ ")+res.msg+" — preencha os dados da empresa à mão"; return; }
+      const j=res.data;
+      const põe=(alvo,val)=>{ if(alvo&&val&&!String(alvo.value||"").trim()){ alvo.value=val; alvo.classList.add("revisar"); } };
+      const razao=j.razao_social||j.nome_empresarial||"";
+      põe(tg.nome,razao);
+      /* O tipo do logradouro vem separado ("RUA"), mas em alguns registros já está embutido no
+         próprio logradouro ("QUADRA SAUN QUADRA 5…") — sem esta checagem sairia duplicado. */
+      const tipo=(j.descricao_tipo_de_logradouro||"").trim(), via=(j.logradouro||"").trim();
+      const jaTemTipo=tipo && new RegExp("^"+tipo.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","i").test(via);
+      põe(tg.log,[(jaTemTipo?"":tipo),via].filter(Boolean).join(" ").replace(/\s+/g," ").trim());
+      põe(tg.num,(j.numero||"").trim()); põe(tg.comp,(j.complemento||"").trim());
+      põe(tg.bairro,(j.bairro||"").trim()); põe(tg.mun,(j.municipio||"").trim());
+      if(tg.uf&&!String(tg.uf.value||"").trim()&&j.uf){tg.uf.value=j.uf;tg.uf.classList.add("revisar");}
+      põe(tg.cep,fmtCep(String(j.cep||"").replace(/\D/g,"")));
+      // representante: a Receita traz o quadro societário; prefere quem administra e reaproveita o cargo dela
+      const qs=j.qsa||[]; const adm=qs.find(s=>/administrador|s[óo]cio-administrador/i.test(s.qualificacao_socio||""))||qs[0];
+      if(adm){ põe(tg.rep,(adm.nome_socio||adm.nome||"").toUpperCase());
+        const qual=(adm.qualificacao_socio||"").trim();
+        if(tg.cargo&&qual&&!String(tg.cargo.value||"").replace(/^administrador$/,"").trim()) tg.cargo.value=qual.toLowerCase(); }
+      el.classList.add("good"); el.classList.remove("bad");
+      const baixada=/baixada|inapta|suspensa|nula/i.test(j.descricao_situacao_cadastral||"");
+      statEl.className=baixada?"fldstat bad":"fldstat ok";
+      statEl.textContent=(baixada?"⚠ ":"✓ ")+(razao||"empresa encontrada")
+        +(j.descricao_situacao_cadastral?" — situação: "+j.descricao_situacao_cadastral:"")
+        +(adm?"":" — a Receita não trouxe o quadro societário; informe o representante");
+      if(typeof recalc==="function") recalc();
+    });}
   function attachCpf(cpfEl,statEl){cpfEl.addEventListener("input",()=>cpfEl.value=fmtCpf(cpfEl.value));
     cpfEl.addEventListener("blur",()=>{const raw=cpfEl.value.trim();if(!raw){statEl.textContent="";cpfEl.classList.remove("good","bad");return;}
       if(validaCPF(raw)){cpfEl.classList.add("good");cpfEl.classList.remove("bad");statEl.className="fldstat ok";statEl.textContent="✓ CPF válido";}
@@ -850,7 +906,7 @@ window.TINA=(function(){
         <div class="pfonly"><label>Sexo</label><select data-f="sexo"><option value="M" ${data.sexo!=='F'?'selected':''}>Masculino</option><option value="F" ${data.sexo==='F'?'selected':''}>Feminino</option></select></div>
       </div>
       <div class="grid g4 row pjonly" style="display:none">
-        <div><label>CNPJ</label><input type="text" data-f="pjCnpj" value="${escHtml(data.pjCnpj||'')}" placeholder="00.000.000/0001-00"></div>
+        <div><label>CNPJ <span class="hint">— sai do campo e os dados vêm da Receita</span></label><input type="text" data-f="pjCnpj" value="${escHtml(data.pjCnpj||'')}" placeholder="00.000.000/0001-00"><div class="fldstat" data-f="pjcnpjstat"></div></div>
         <div><label>NIRE <span class="hint">(opcional)</span></label><input type="text" data-f="pjNire" value="${escHtml(data.pjNire||'')}"></div>
         <div><label>Representante legal</label><input type="text" data-f="pjRep" value="${escHtml(data.pjRep||'')}"></div>
         <div><label>Cargo do representante</label><input type="text" data-f="pjCargo" value="${escHtml(data.pjCargo||'administrador')}"></div>
@@ -923,6 +979,8 @@ window.TINA=(function(){
       const tg=div.querySelector(".tag"); if(tg && !(ehFormEI()))tg.textContent=on?"Sócia (PJ)":"Sócio";
       if(on)tglOrg();};
     pj.addEventListener("change",tglPJ); tglPJ();
+    // CNPJ da sócia PJ: consulta a Receita ao sair do campo e preenche razão, endereço e representante
+    if(q("pjCnpj")) attachCnpjPJ(q("pjCnpj"), q("pjcnpjstat"), {nome:q("nome"),log:q("log"),num:q("num"),comp:q("comp"),bairro:q("bairro"),mun:q("mun"),uf:q("uf"),cep:q("cep"),rep:q("pjRep"),cargo:q("pjCargo")});
     const adm=q("administrador"); if(adm)adm.addEventListener("change",recalc);  // atualiza a linha "Modo de administração"
     if(ehFormEI()){div.querySelectorAll(".ltdaonly").forEach(e=>e.style.display="none");const tg=div.querySelector(".tag");if(tg)tg.textContent="Titular";const pt=div.querySelector(".pjtoggle");if(pt)pt.style.display="none";}
     // quem revela .altonly é o switchMode; um card criado com o app JÁ em "Alteração" nasceria com a
@@ -996,9 +1054,39 @@ window.TINA=(function(){
     c.querySelectorAll("[data-g]").forEach(inp=>{o[inp.dataset.g]=(inp.value||"").trim();});
     o.uf=(o.uf||"").toUpperCase(); return o;}).filter(f=>f.log||f.mun);}
   function readSocios(){return[...document.querySelectorAll(".socio:not(.filial)")].map(c=>{const o={};
-    c.querySelectorAll("[data-f]").forEach(inp=>{const f=inp.dataset.f;if(f==="cepstat"||f==="cpfstat")return;o[f]=inp.type==="checkbox"?inp.checked:(inp.value||"").trim();});
+    c.querySelectorAll("[data-f]").forEach(inp=>{const f=inp.dataset.f;if(f==="cepstat"||f==="cpfstat"||f==="pjcnpjstat")return;o[f]=inp.type==="checkbox"?inp.checked:(inp.value||"").trim();});
     o.tipoPessoa=o.tipoPJ?"PJ":"PF"; if(o.tipoPessoa==="PJ")o.sexo="F"; return o;});}
 
+  /* VISTO DE ADVOGADO — a regra real, conferida no Manual de Registro de LTDA da Junta (item 7 e
+     roteiro 8/8.1) e na Lei nº 8.906/1994, art. 1º, § 2º:
+       • é exigido no CONTRATO SOCIAL (constituição — e a transformação de EI em Ltda gera um);
+       • é DISPENSADO quando a sociedade é ME ou EPP;
+       • NÃO é obrigatório nas alterações contratuais (nota expressa do manual).
+     O gancho com sócio pessoa jurídica é indireto, e é este: sociedade de cujo capital participe
+     outra pessoa jurídica NÃO pode ser ME/EPP (LC 123/2006, art. 3º, § 4º, I). Logo, entrando uma
+     sócia PJ o porte vira DEMAIS — e aí o visto passa a ser exigido no contrato social.
+     Fora das hipóteses obrigatórias o campo continua disponível por opção (não é vedado). */
+  function vistoObrigatorio(){
+    const geraContratoSocial=(MODE==="const"||MODE==="transf_ei_ltda"||MODE==="transf_ei_slu");
+    const enq=($("enquadramento")||{}).value;
+    return geraContratoSocial && enq==="DEMAIS";
+  }
+  function temSociaPJ(){ return [...document.querySelectorAll(".socio:not(.filial) [data-f=tipoPJ]")].some(c=>c.checked); }
+  function atualizarVistoAdvogado(){
+    const wrap=$("wrapAdvogado"); if(!wrap) return;
+    const ehLtda=!ehFormEI() && !MODE.startsWith("dist");
+    wrap.style.display=ehLtda?"":"none";
+    if(!ehLtda) return;
+    const obrig=vistoObrigatorio(), pj=temSociaPJ(), enq=($("enquadramento")||{}).value;
+    const inc=$("advIncluir");
+    if(obrig && inc && !inc.checked && !inc.dataset.tocado){ inc.checked=true; if($("wrapAdvCampos"))$("wrapAdvCampos").style.display=""; }
+    const m=$("advMotivo"); if(!m) return;
+    if(obrig) m.innerHTML="<b style='color:var(--warn)'>Exigido neste ato:</b> a sociedade não é ME nem EPP, e o contrato social precisa do visto (dispensado só para ME/EPP)."
+      +(pj?" O porte é DEMAIS porque há <b>sócia pessoa jurídica</b> — LC 123/2006, art. 3º, § 4º, I.":"");
+    else if(pj && enq!=="DEMAIS") m.innerHTML="<b style='color:var(--err)'>Atenção:</b> com <b>sócia pessoa jurídica</b> a sociedade não pode ser ME nem EPP (LC 123/2006, art. 3º, § 4º, I). Corrija o enquadramento para <b>DEMAIS</b> — a declaração de porte sairia falsa.";
+    else if(MODE==="alt") m.innerHTML="Nas <b>alterações contratuais</b> o visto <b>não é obrigatório</b> (nota do Manual de Registro de LTDA). Marque só se quiser incluí-lo.";
+    else m.innerHTML="Dispensado: a sociedade é "+(enq==="EPP"?"EPP":"ME")+" (LC 123/2006). Marque só se quiser incluí-lo mesmo assim.";
+  }
   function recalc(){const cap=Number($("capital").value)||0,vq=Number($("valorQuota").value)||0;
     // "Modo de administração" só faz sentido com 2+ administradores (com 1, é sempre isoladamente)
     if($("modoAdmRow")){const nAdm=[...document.querySelectorAll(".socio:not(.filial) [data-f=administrador]")].filter(c=>c.checked).length; const semAdm=semQuotasPorSocio(); $("modoAdmRow").style.display=(nAdm>=2&&!semAdm)?"":"none";}  // só com 2+ administradores e onde há cláusula de administração (não no distrato)
@@ -1009,6 +1097,7 @@ window.TINA=(function(){
       c.classList.toggle("saindo",sai);
       const q=sai?0:(Number(c.querySelector("[data-f=quotas]").value)||0),v=q*vq,p=cap>0?(v/cap*100):0;
       c.querySelector("[data-f=valorQuotas]").value=q?reais(v):"";c.querySelector("[data-f=percentual]").value=q?pct(p):"";somaV+=v;});
+    atualizarVistoAdvogado();
     // EI / transformação→EI / distrato: sem quotas → não mostra a aritmética de capital (evita "soma das quotas ≠ capital")
     if(semQuotasPorSocio()){ const b=$("valCapital"); if(b)b.style.display="none"; return; }
     const socios=readSocios().filter(s=>!s.retirante),somaP=cap>0?(somaV/cap*100):0,box=$("valCapital"),prob=[];
@@ -1038,6 +1127,7 @@ window.TINA=(function(){
       admNaoSocio:!!($("admNaoSocio")&&$("admNaoSocio").checked), admnsNome:v("admnsNome"), admnsQualif:v("admnsQualif"),
       clRegencia:!!($("cl_regencia")&&$("cl_regencia").checked), clConselho:!!($("cl_conselho")&&$("cl_conselho").checked),
       clExclusao:!!($("cl_exclusao")&&$("cl_exclusao").checked), conselhoMembros:Number($("conselhoMembros")&&$("conselhoMembros").value)||3,
+      advIncluir:!!($("advIncluir")&&$("advIncluir").checked), advNome:v("advNome"), advOab:v("advOab"), advOabUf:v("advOabUf"),
       cessao:!!($("alt_cessao")&&$("alt_cessao").checked), cedNome:v("cedNome"), cessNome:v("cessNome"),
       cedQuotas:Number($("cedQuotas")&&$("cedQuotas").value)||0, cedValor:Number($("cedValor")&&$("cedValor").value)||0,
       cedRetira:!!($("cedRetira")&&$("cedRetira").checked),
@@ -1364,6 +1454,7 @@ window.TINA=(function(){
         ch.push(P([T(s.retirante ? gsex(s,"Sócio retirante","Sócia retirante") : (s.administrador ? gsex(s,"Sócio/Administrador","Sócia/Administradora") : gsex(s,"Sócio","Sócia")))],CEN,{after:220,line:240,lineRule:AUTO}));
       }
     });
+    if(d.advIncluir) vistoAdvogado(ch,d,P,T,CEN,SP10_0,{after:220,line:240,lineRule:AUTO});
 
     const doc=new Document({creator:_autor(),title:(isAlt?"Alteração Contratual — ":isTransf?"Transformação — ":"Contrato Social — ")+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
@@ -1373,6 +1464,14 @@ window.TINA=(function(){
     return {doc,nomeArq};
   }
 
+  /* Bloco do visto, na posição do modelo da Junta: logo abaixo das assinaturas, com a referência ao
+     art. 36 do Decreto nº 1.800/1996 e a inscrição na Seccional da OAB. */
+  function vistoAdvogado(ch,d,P,T,CEN,SP0,SPfim){
+    ch.push(P([T("(art. 36, Decreto nº 1.800, de 1996)")],CEN,SP0));
+    ch.push(P([T("_".repeat(46))],CEN,SP0));
+    ch.push(P([T("Visto: "+(d.advNome||"[NOME DO ADVOGADO]").toUpperCase(),{bold:true})],CEN,SP0));
+    ch.push(P([T("OAB/"+(d.advOabUf||"[UF]")+" nº "+(d.advOab||"[Nº DE INSCRIÇÃO]"))],CEN,SPfim||SP0));
+  }
   function tabelaQuotas(d,X){
     const {Table,TableRow,TableCell,Paragraph,TextRun,WidthType,BorderStyle,AlignmentType,TableLayoutType}=X;
     const bd={style:BorderStyle.SINGLE,size:4,color:"000000"},borders={top:bd,bottom:bd,left:bd,right:bd,insideHorizontal:bd,insideVertical:bd};
@@ -1612,6 +1711,7 @@ window.TINA=(function(){
     socios.forEach(s=>{ ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
       ch.push(P([T((s.nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0));
       ch.push(P([T(s.administrador?gsex(s,"Sócio/Administrador","Sócia/Administradora"):gsex(s,"Sócio","Sócia"))],CEN,{after:220,line:240,lineRule:AUTO})); });
+    if(d.advIncluir) vistoAdvogado(ch,d,P,T,CEN,SP10_0,{after:220,line:240,lineRule:AUTO});   // a transformação gera contrato social → o visto cabe aqui
 
     const doc=new Document({creator:_autor(),title:"Transformação EI → "+(isSLU?"SLU":"Ltda")+" — "+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
@@ -1846,6 +1946,11 @@ window.TINA=(function(){
       if(!isEI && !isDist && !so.retirante && !(so.quotas>0))m.push("quotas");
       if(m.length)f.push(rot+m.join(", ")); });
     if(!isEI && !isDist){
+      // porte × sócia PJ: com PJ no capital a sociedade não pode declarar ME/EPP (LC 123, art. 3º, § 4º, I)
+      if((d.socios||[]).some(so=>so.tipoPessoa==="PJ" && !so.retirante) && d.enquadramento!=="DEMAIS")
+        f.push("Enquadramento: com sócia pessoa jurídica a sociedade não pode ser ME nem EPP — marque DEMAIS");
+      if(d.advIncluir){ if(!(d.advNome||"").trim()) f.push("Visto de advogado: nome"); if(!(d.advOab||"").trim()) f.push("Visto de advogado: inscrição na OAB"); if(!(d.advOabUf||"").trim()) f.push("Visto de advogado: seccional (UF)"); }
+      else if(vistoObrigatorio()) f.push("Visto de advogado: exigido no contrato social de sociedade que não é ME/EPP");
       const fica=(d.socios||[]).filter(so=>!so.retirante);
       if(!fica.length && (d.socios||[]).length) f.push("Todos os sócios foram marcados como retirantes — a sociedade ficaria sem sócio");
       if(fica.length && !fica.some(so=>so.administrador)) f.push("Nenhum administrador marcado");
@@ -2240,8 +2345,8 @@ window.TINA=(function(){
   function limparCampos(){  // zera os DADOS do formulário (não mexe no PDF anexado nem no texto de "o que muda")
     casoAtualId=null;       // formulário novo/zerado = caso novo (o próximo "salvar" cria outro registro)
     valoresAntes=null;      // some com o estado "antes" ao limpar o formulário
-    ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor"].forEach(id=>{if($(id))$(id).value="";});
-    ["admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","alt_cessao","cedRetira"].forEach(id=>{if($(id))$(id).checked=false;});
+    ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","advNome","advOab","advOabUf"].forEach(id=>{if($(id))$(id).value="";});
+    ["admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","alt_cessao","cedRetira","advIncluir"].forEach(id=>{if($(id))$(id).checked=false;});
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach(id=>{if($(id))$(id).style.display="none";});
     if($("filiais"))$("filiais").innerHTML=""; if($("conselhoMembros"))$("conselhoMembros").value="3";
     // e-mail e portão também: o contato do cliente ANTERIOR ficava aqui e ia para o e-mail do próximo,
@@ -2778,12 +2883,32 @@ window.TINA=(function(){
     { const _nk=s=>(s||"").toUpperCase().replace(/[.\-]/g,"").replace(/\s+/g," ").trim();
       for(let i=socios.length-1;i>=0;i--){ const ni=_nk(socios[i].nome), wi=ni.split(" ").length;
         if(wi>=5 && socios.some((s,j)=>{ if(j===i)return false; const nj=_nk(s.nome); return nj && ni!==nj && ni.endsWith(" "+nj) && wi>nj.split(" ").length; })) socios.splice(i,1); } }
-    // --- SÓCIOS PESSOA JURÍDICA: "RAZÃO LTDA, … inscrita no CNPJ … representada por seu administrador NOME" ---
-    const pjList=[]; { const pjRe=/([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .,&'\/\-–]{4,90}?(?:LTDA|LIMITADA|EIRELI|S\/A|S\.A\.|INC\.?|LLC|LTD\.?|GMBH|CORP\.?|PLC|N\.V\.|B\.V\.|S\.R\.L\.|S\.A\.S\.))\s*,?\s*(?:[^;]{0,160}?)?inscrit[ao] no CNPJ sob o n[º°o.]{1,4}\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\s*-?\s*\d{2})([\s\S]{0,400}?)representad[ao] por\s+(?:seu[ao]?\s+)?((?:s[óo]cio[- ])?administrador[a]?|s[óo]cio-administrador[a]?|procurador[a]?|representante legal|diretor[a]?|presidente)?\s*([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,55}?)\s*[,;]/gi; let pm;
+    /* --- SÓCIOS PESSOA JURÍDICA ---
+       Antes o padrão exigia, numa tacada só, "inscrita no CNPJ sob o nº" E "representada por".
+       Quem escreve "CNPJ nº X" ou não nomeia o representante ficava de fora. Agora são duas etapas:
+       acha RAZÃO + CNPJ (várias redações, inclusive CNPJ alfanumérico) e, no texto que segue,
+       procura sede, NIRE e representante — todos opcionais.
+       Como o padrão ficou mais solto, entra a trava do parágrafo seguinte: a PRÓPRIA sociedade
+       também é "RAZÃO LTDA … inscrita no CNPJ", e não pode virar sócia de si mesma. */
+    const pjList=[]; {
+      const _cd=x=>String(x||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase();
+      const _nrz=x=>(x||"").normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"").toUpperCase()
+        .replace(/\b(?:LTDA|LIMITADA|EIRELI|ME|EPP|S\/A|SA)\b/g," ").replace(/[^A-Z0-9 ]/g," ").replace(/\s+/g," ").trim();
+      const ehAPropriaEmpresa=(razao,cnpj)=>{
+        const c=_cd(cnpj); if(c && _cd(d.cnpj) && c===_cd(d.cnpj)) return true;
+        const a=_nrz(razao); if(!a) return false;
+        return a===_nrz(d.razao) || a===_nrz(d.razaoAnterior);
+      };
+      const pjRe=/([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .,&'\/\-–]{4,90}?(?:LTDA|LIMITADA|EIRELI|S\/A|S\.A\.|INC\.?|LLC|LTD\.?|GMBH|CORP\.?|PLC|N\.V\.|B\.V\.|S\.R\.L\.|S\.A\.S\.))\s*,?\s*(?:[^;]{0,160}?)?(?:inscrit[ao]\s+no\s+CNPJ(?:\/MF)?\s*(?:sob\s+o\s+)?n?[º°o.]{0,4}|CNPJ(?:\/MF)?\s*(?:sob\s+o\s+)?n?[º°o.]{0,4}|portador[a]?\s+do\s+CNPJ\s*n?[º°o.]{0,4})\s*([0-9A-Z]{2}\.?[0-9A-Z]{3}\.?[0-9A-Z]{3}\/?[0-9A-Z]{4}\s*-?\s*\d{2})/gi; let pm;
       while((pm=pjRe.exec(t))){ let razao=pm[1].replace(/\s+/g," ").replace(/[,\s]+$/,"").trim();
         razao=razao.replace(/^.*\b(?:s[óo]cia|sociedade|empresa|pessoa jur[íi]dica|admitid[ao]|ingressa\w*)\b\s+/i,"").trim();  // tira prefixo de frase antes da razão
         { let rw=razao.split(/\s+/); while(rw.length>1 && /^(?:NIRE|CNPJ|N[º°o.]|inscri\w*|sob|\d[\d.\-\/]*)$/i.test(rw[0])) rw.shift(); razao=rw.join(" ").trim(); }  // tira "NIRE/CNPJ ‹número›" grudado do cabeçalho no início da razão
-        const cd=pm[2].replace(/\D/g,""); const cnpj=cd.length===14?cd.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,"$1.$2.$3/$4-$5"):pm[2].trim(); const mid=pm[3]||""; const cargo=(pm[4]||"administrador").toLowerCase().trim(); const rep=limparNome(pm[5],razao);
+        const cd=_cd(pm[2]); const cnpj=cd.length===14?cd.replace(/(.{2})(.{3})(.{3})(.{4})(.{2})/,"$1.$2.$3/$4-$5"):pm[2].trim();
+        if(ehAPropriaEmpresa(razao,cnpj)) continue;                        // é a sociedade do ato, não uma sócia
+        if(pjList.some(p=>_cd(p.pjCnpj)===cd)) continue;                    // já captada
+        const mid=t.slice(pjRe.lastIndex, pjRe.lastIndex+500);
+        const rm=mid.match(/representad[ao]\s+(?:neste\s+ato\s+)?por\s+(?:seu[ao]?\s+|sua\s+)?((?:s[óo]cio[- ])?administrador[a]?|s[óo]cio-administrador[a]?|procurador[a]?|representante\s+legal|diretor[a]?|presidente)?\s*([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,55}?)\s*[,;]/i);
+        const cargo=((rm&&rm[1])||"administrador").toLowerCase().trim(); const rep=rm?limparNome(rm[2],razao):"";
         let sede={}; const sm=mid.match(/sede\s+(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/i)||mid.match(/sede\s+(?:na|à|no|em)\s+(.+?)(?:,?\s*com\b|,\s*NIRE)/i); if(sm)sede=parseEndereco(sm[1]);
         const nireM=mid.match(/NIRE\s*([\d][\d. ]{8,16}\d)/i);
         // administrador:false — administrador de limitada tem de ser pessoa NATURAL (art. 997, VI, e art. 1.062
@@ -3007,7 +3132,20 @@ window.TINA=(function(){
         const par=(tipoDoc==="ccmei")?parseCCMEI(itens,txt):parseCartaoCNPJ(itens,txt);
         avisosDoc=await aplicarDocFormulario(par);
         nomeDoc=(tipoDoc==="ccmei")?"CCMEI":"cartão CNPJ";
-      } else aplicarDadosContrato(parseContratoTexto(txt,ocr,auth,(f&&f.name)||""));
+      } else {
+        const par=parseContratoTexto(txt,ocr,auth,(f&&f.name)||"");
+        aplicarDadosContrato(par);
+        /* Diz em voz alta o que foi lido de cada sócia pessoa jurídica. Sem esse retorno não dá para
+           saber se o leitor falhou ou se o documento é que não traz o dado — e a diferença muda o
+           que o usuário precisa fazer. */
+        const pjs=((par&&par.d&&par.d.socios)||[]).filter(s=>s.tipoPessoa==="PJ");
+        if(pjs.length) avisosDoc.push("<b>Sócio(s) pessoa jurídica lido(s) do contrato:</b> "+pjs.map(p=>{
+          const falta=[]; if(!p.pjCnpj)falta.push("CNPJ"); if(!p.pjRep)falta.push("representante"); if(!p.log)falta.push("sede"); if(!p.pjNire)falta.push("NIRE");
+          return escHtml(p.nome||"(sem razão social)")+(p.pjCnpj?" — CNPJ "+escHtml(p.pjCnpj):"")+(falta.length?" <b>(faltou: "+falta.join(", ")+" — complete no cartão)</b>":"");
+        }).join("; ")+".");
+        else if(/\b(?:LTDA|LIMITADA|EIRELI|S\/A|S\.A\.)\b/i.test(txt.replace(new RegExp("("+(par&&par.d&&par.d.razao||"@@").replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi"),"")))
+          avisosDoc.push("O texto menciona outra empresa, mas <b>nenhuma sócia pessoa jurídica</b> foi reconhecida. Se houver uma no quadro, marque “Pessoa jurídica” no cartão do sócio e preencha o CNPJ — os demais dados vêm da Receita.");
+      }
       houvePDF=true;$("pdfStat").className="fldstat ok";$("pdfStat").textContent="✓ "+(nomeDoc?nomeDoc+" lido":"Dados do PDF extraídos")+" — confira os campos em amarelo.";}catch(e){$("pdfStat").className="fldstat bad";$("pdfStat").textContent="Falha ao ler PDF: "+((e&&e.message)||(typeof e==="string"?e:"")||"erro desconhecido");console.error(e);}}
     const cmd=$("cmdRapido").value.trim();
     // snapshot do estado ATUAL (do PDF) ANTES de aplicar os comandos → e-mail mostra "De/Para" de todas as alterações
@@ -3142,8 +3280,8 @@ window.TINA=(function(){
   function resetConfig(){CFG=cfgDefault();salvarCfg(CFG);aplicarCfg();abrirConfig();toast("Configurações restauradas ao padrão.","info");}
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
-  const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros"];
-  const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae"];
+  const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros","advNome","advOab","advOabUf"];
+  const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae","advIncluir"];
   function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(),filiais:readFiliais()};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
   // passadas 24h sem uso, é descartado sozinho, para não ficar legível num computador compartilhado.
@@ -3411,6 +3549,9 @@ window.TINA=(function(){
     $("btnBaixar").addEventListener("click",baixarDocx);
     $("btnPDF").addEventListener("click",baixarPDF);
     $("s_uf").innerHTML=ufOpts();
+    if($("advOabUf")) $("advOabUf").innerHTML=ufOpts();
+    if($("advIncluir")) $("advIncluir").addEventListener("change",function(){ this.dataset.tocado="1"; if($("wrapAdvCampos"))$("wrapAdvCampos").style.display=this.checked?"":"none"; });
+    if($("enquadramento")) $("enquadramento").addEventListener("change",atualizarVistoAdvogado);
     // workerSrc é definido junto com o carregamento da lib (ESM ou fallback) — nada a fazer aqui
     if($("btnRapido")) $("btnRapido").addEventListener("click",processarRapido);
     if($("btnValidar")) $("btnValidar").addEventListener("click",acaoValidar);
