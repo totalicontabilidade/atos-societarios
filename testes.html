@@ -201,6 +201,27 @@
     reg("Comandos de razão, fantasia e porte",
         $("razao").value==="NOVA EMPRESA MODELO" && $("fantasia").value==="LOJA MODELO" && $("enquadramento").value==="EPP",
         [$("razao").value,$("fantasia").value,$("enquadramento").value].join(" · "));
+    // objeto escrito como "terá como objeto social a exploração no ramo de …" (redação comum na Junta)
+    var pc=W.TINA._pdf.parseContratoTexto(
+      "CONTRATO SOCIAL CONSOLIDADO DA SOCIEDADE LIMITADA EMPRESA MODELO LTDA. "+
+      "Cláusula 6ª - A sociedade terá como objeto social a exploração no ramo de Serviços de teste um; "+
+      "Comércio varejista de teste dois e Prestação de serviços de teste três. Cláusula 7ª - A sociedade pode mudar.","","","");
+    var objPC=((pc&&pc.d)||{}).objeto||"";
+    reg("Lê objeto em “terá como objeto social a exploração no ramo de”",
+        /Serviços de teste um/.test(objPC) && !/explora|ramo de/i.test(objPC), objPC.slice(0,70));
+    // número da alteração vem do nome do arquivo quando o texto não traz
+    var pn=W.TINA._pdf.parseContratoTexto("ALTERAÇÃO DO CONTRATO SOCIAL DA SOCIEDADE LIMITADA EMPRESA MODELO LTDA","","","5 ALTERACAO CONTRATUAL.pdf");
+    reg("Número da alteração vem do nome do arquivo", (((pn&&pn.d)||{}).numAlteracao)==="6", "achou: "+(((pn&&pn.d)||{}).numAlteracao||"—"));
+    // e é opcional: sem ele a validação não pode cobrar
+    modo("alt"); await espera(160);
+    $("btnExemplo").click(); await espera(280);
+    val("numAlteracao","");
+    var fNum=await W.TINA.validar();
+    reg("Número da alteração é opcional", !(fNum||[]).some(function(x){ return /n[úu]mero desta altera/i.test(x); }));
+    await W.TINA.gerarPreview(); await espera(900);
+    reg("Sem número, o título sai sem o ordinal", /^ALTERA[ÇC][ÃA]O E CONSOLIDA[ÇC][ÃA]O/.test((texto().split("\n").filter(Boolean)[0]||"")),
+        (texto().split("\n").filter(Boolean)[0]||"").slice(0,45));
+
     var V=W.TINA._u.validaCNPJ;
     reg("CNPJ numérico continua validando", V("12.345.678/0001-95")===true && V("12.345.678/0001-90")===false);
     reg("CNPJ alfanumérico aceito (IN RFB 2.229/2024)", V("12.ABC.345/01DE-35")===true && V("12.ABC.345/01DE-00")===false);

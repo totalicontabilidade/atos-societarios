@@ -217,7 +217,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.26 · beta</span>
+  <span class="chip">v0.27 · beta</span>
 </header>
 
 <div class="wrap">
@@ -302,7 +302,7 @@
         <div class="transfltdaeionly" style="display:none"><label>Sócio que se retira <span class="hint">— se a Ltda tinha 2+ sócios (vazio = já era único)</span></label><div style="display:flex;gap:6px"><input type="text" id="socioRetira" placeholder="Nome do sócio que sai" style="flex:1"><select id="socioRetiraSexo" title="Sexo do sócio que se retira" style="width:auto"><option value="M">M</option><option value="F">F</option></select></div></div>
         <div><label for="cnpj">CNPJ <span class="hint transfonly" style="display:none">— mantido</span></label><input type="text" id="cnpj" placeholder="00.000.000/0001-00"></div>
         <div><label for="nire">NIRE <span class="hint">(opcional — em branco, é omitido do texto)</span></label><input type="text" id="nire" placeholder="28XXXXXXXXX"></div>
-        <div class="altonly"><label for="numAlteracao">Nº desta alteração</label><input type="text" id="numAlteracao" placeholder="Ex.: 3"></div>
+        <div class="altonly"><label for="numAlteracao">Nº desta alteração <span class="hint">(opcional)</span></label><input type="text" id="numAlteracao" placeholder="Ex.: 3 — em branco, sai sem o número"></div>
         <div><label for="dataInicioOrig">Início original das atividades</label><input type="text" id="dataInicioOrig" placeholder="DD/MM/AAAA"></div>
         <div class="transfeionly" style="display:none"><label for="acervo">Acervo (R$) <span class="hint">— capital atual do EI</span></label><input type="number" id="acervo" step="0.01" placeholder="1.00"></div>
       </div>
@@ -1812,7 +1812,7 @@ window.TINA=(function(){
     if(isAlt){
       if(!d.cnpj) f.push("CNPJ (obrigatório em alteração)");
       // NIRE não é obrigatório no instrumento: se estiver vazio, a menção é omitida do texto (não vira placeholder)
-      if(!d.numAlteracao) f.push("Número desta alteração");
+      // o número da alteração é opcional: sem ele o título sai como "ALTERAÇÃO E CONSOLIDAÇÃO…", que é válido
       if(!d.dataInicioOrig) f.push("Início original das atividades");
       if(d.changed&&d.changed.has("nome")&&!(d.razaoAnterior||"").trim()) f.push("Razão social ANTERIOR (atual) — necessária p/ o título e o preâmbulo (a nova vai só na cláusula e no consolidado)");
       if(d.changed&&d.changed.has("sede")&&!(d.sedeAnterior||"").trim()) f.push("Endereço ANTERIOR (atual) — vai no preâmbulo; o novo fica só na cláusula e no consolidado");
@@ -2415,6 +2415,10 @@ window.TINA=(function(){
     .replace(/^\s*(?:seguinte\s*s?|seguintes)\s+atividade\s*s?(?:\s+econ[ôo]mic[ao]s?)?\s*:?\s*/i,"")
     .replace(/^\s*atividade\s*s?\s+econ[ôo]mic[ao]s?\s*:?\s*/i,"")                                 // "atividades econômica:" (adjetivo entre "atividades" e ":", singular/plural)
     .replace(/^\s*a sociedade[^:]{0,45}?(?::|\bde\b)\s+/i,"")
+    // "a exploração no ramo de …" / "o ramo de …" — rodeio comum antes da lista de atividades
+    .replace(/^\s*(?:[ao]\s+)?explora[çc][ãa]o\s+(?:comercial\s+)?(?:n[oa]s?|d[oa]s?|em)?\s*ramos?\s+de\s+/i,"")
+    .replace(/^\s*(?:n[oa]s?|d[oa]s?)?\s*ramos?\s+de\s+/i,"")
+    .replace(/^\s*(?:[ao]\s+)?explora[çc][ãa]o\s+d[ao]s?\s+atividades?\s+de\s+/i,"")
     .replace(/\d{2}\s*\.\s*\d{2}\s*[-–\/]\s*\d\s*[-–\/]\s*\d{2}\s*[-–]\s*/g,"; ")                  // CNAE "56.20-1-04 -"
     .replace(/\b\d{4}\s*[-–]\s*\d\s*\/\s*\d{2}\s*[-–]\s*/g,"; ")                                   // CNAE "5620-1/04 -"
     .replace(/\s*[\(\[]\s*atividade[s]?\s+(?:econ[ôo]mica\s+)?(?:principal|prim[áa]ria|secund[áa]ri[ao]s?)\s*[\)\]]/gi,"")  // remove marcador "(atividade principal)"/"(atividades secundárias)" — não faz parte do objeto no modelo da Junta
@@ -2580,7 +2584,7 @@ window.TINA=(function(){
     return avisos;
   }
 
-  function parseContratoTexto(t,extra,auth){
+  function parseContratoTexto(t,extra,auth,nomeArquivo){
     t=(t||"").replace(/\s+/g," ").replace(/P[áa]gina\s+\d+\s+de\s+\d+\s*\/?/gi," ");  // tira marcador de rodapé "Página X de Y" (+ a "/" que costuma segui-lo)
     // repara espaçamento entre letras do pdf.js em stems que NÃO são palavras isoladas (seguro): "Brasileir a"→"Brasileira", "nascid a"→"nascida", "atividade s"→"atividades"
     t=t.replace(/\b(brasileir|estrangeir|naturalizad|solteir|casad|divorciad|vi[úu]v|separad|nascid|domiciliad|empres[áa]ri|comerciant|advogad|administrador|professor|aposentad|vendedor|contador|engenheir|arquitet)\s+([oa])\b/gi,"$1$2")
@@ -2630,7 +2634,10 @@ window.TINA=(function(){
     d.objeto=m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?|objeto(?: social)?)[^:]{0,45}?(?:atividades?\\s*:|:)\\s*([\\s\\S]+?)"+objFim,"i"))
       ||m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?)\\s+(?:o exerc[íi]cio d[ae]s?\\s+)?(?:as\\s+)?atividades?(?:\\s+econ[ôo]micas)?\\s+de\\s+([\\s\\S]+?)"+objFim,"i"))
       ||m1(t,new RegExp("atividades?\\s+econ[ôo]mica[s]?\\s*:?\\s*([\\s\\S]+?)"+objFim,"i"))
-      ||m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?|constitui\\s+(?:o\\s+)?objeto(?: social)?|objeto(?: social)?\\s+(?:[ée]|consiste(?: em| n[oa])?|compreende|ser[áa]|abrange|constitui-se(?: em)?))\\s+(?:o exerc[íi]cio d[ae]s?\\s+)?(?:[oa]s?\\s+)?([\\s\\S]+?)"+objFim,"i"));  // objeto direto: "tem por objeto o comércio…" / "O objeto é o comércio…" (sem ":" nem "atividades")
+      ||m1(t,new RegExp("(?:tem por objeto(?: social)?|por objeto(?: social)?|constitui\\s+(?:o\\s+)?objeto(?: social)?|objeto(?: social)?\\s+(?:[ée]|consiste(?: em| n[oa])?|compreende|ser[áa]|abrange|constitui-se(?: em)?))\\s+(?:o exerc[íi]cio d[ae]s?\\s+)?(?:[oa]s?\\s+)?([\\s\\S]+?)"+objFim,"i"))  // objeto direto: "tem por objeto o comércio…" / "O objeto é o comércio…" (sem ":" nem "atividades")
+      // "terá/tem COMO objeto social a exploração no ramo de X" — redação comum nos contratos da Junta
+      ||m1(t,new RegExp("(?:ter[áa]|tem|possui)\\s+como\\s+objeto(?:\\s+social)?\\s+([\\s\\S]+?)"+objFim,"i"))
+      ||m1(t,new RegExp("objeto(?:\\s+social)?\\s+(?:d[ao]\\s+sociedade\\s+)?(?:a|o)\\s+explora[çc][ãa]o\\s+(?:n[oa]|d[oa])?\\s*ramo\\s+de\\s+([\\s\\S]+?)"+objFim,"i"));
     if(d.objeto){ d.objeto=limparObjeto(d.objeto); if(d.objeto)inc.add("objeto"); }
     // enquadramento: prioriza a DECLARAÇÃO ("se enquadra … Microempresa/EPP"), não o cabeçalho "(ME/EPP)"
     if(/enquadr\w+[^.]{0,70}?empresa de pequeno porte/i.test(t)) d.enquadramento="EPP";
@@ -2652,6 +2659,12 @@ window.TINA=(function(){
     else { const oMap={primeira:1,segunda:2,terceira:3,quarta:4,quinta:5,sexta:6,setima:7,oitava:8,nona:9,decima:10};
       const oM=t.match(/\b(primeira|segunda|terceira|quarta|quinta|sexta|s[ée]tima|oitava|nona|d[ée]cima)\s+ALTERA[ÇC][ÃA]O/i);
       if(oM){ const before=t.slice(0,oM.index).slice(-12); if(!/(?:d[ée]cima|vig[ée]sima|trig[ée]sima)\s+$/i.test(before)){ const key=oM[1].toLowerCase().replace(/[áàâã]/g,"a").replace(/[éèê]/g,"e").replace(/[íï]/g,"i").replace(/[óôõ]/g,"o").replace(/[úü]/g,"u").replace(/ç/g,"c"); nAlt=oMap[key]||0; } } }  // ordinal por extenso; ignora compostos ("décima primeira") p/ não gerar nº errado
+    // Muitos instrumentos não trazem o número no título ("ALTERAÇÃO DO CONTRATO SOCIAL", sem o "5ª").
+    // Nesse caso o nome do arquivo costuma ter ("5 ALTERACAO CONTRATUAL.pdf") — vale como pista.
+    if(!nAlt && nomeArquivo){
+      const na=String(nomeArquivo).match(/(\d{1,2})\s*[ªaº°]?\s*[-_. ]*\s*ALTERA[ÇC]?[ÃA]?O?/i);
+      if(na) nAlt=parseInt(na[1],10)||0;
+    }
     if(nAlt>0){ d.numAlteracao=String(nAlt+1); inc.add("numAlteracao"); }
     // acha "NOME , brasileiro/estrangeiro" em qualquer lugar (até 9 palavras de nome, com partículas de/dos/e); limparNome tira o lixo
     const socios=[]; const NW="(?:[A-ZÀ-Ú][A-Za-zÀ-ú'.\\-]*|d[eoa]s?|e)";
@@ -2869,7 +2882,7 @@ window.TINA=(function(){
         const par=(tipoDoc==="ccmei")?parseCCMEI(itens,txt):parseCartaoCNPJ(itens,txt);
         avisosDoc=await aplicarDocFormulario(par);
         nomeDoc=(tipoDoc==="ccmei")?"CCMEI":"cartão CNPJ";
-      } else aplicarDadosContrato(parseContratoTexto(txt,ocr,auth));
+      } else aplicarDadosContrato(parseContratoTexto(txt,ocr,auth,(f&&f.name)||""));
       houvePDF=true;$("pdfStat").className="fldstat ok";$("pdfStat").textContent="✓ "+(nomeDoc?nomeDoc+" lido":"Dados do PDF extraídos")+" — confira os campos em amarelo.";}catch(e){$("pdfStat").className="fldstat bad";$("pdfStat").textContent="Falha ao ler PDF: "+((e&&e.message)||(typeof e==="string"?e:"")||"erro desconhecido");console.error(e);}}
     const cmd=$("cmdRapido").value.trim();
     // snapshot do estado ATUAL (do PDF) ANTES de aplicar os comandos → e-mail mostra "De/Para" de todas as alterações
