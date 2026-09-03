@@ -2338,6 +2338,27 @@ window.TINA=(function(){
       if(mudou){ local.sort((a,b)=>String(b.alteradoEm||"").localeCompare(String(a.alteradoEm||""))); salvarSolic(local); renderSolic(); }
     });
   }
+  /* Traz da nuvem os atos que faltam neste navegador (outro computador, ou cache limpo).
+     O trabalho completo vem junto e é gravado no armazenamento de "trabalhos em espera",
+     que é de onde o painel já sabe reabrir um caso. */
+  function sincronizarAtos(){
+    if(!(window.Nuvem&&window.Nuvem.podeGravar())) return Promise.resolve();
+    return window.Nuvem.listar("atos",{limite:500}).then(r=>{
+      if(!r.ok) return;
+      const cs=lerCasos(); const por={}; cs.forEach(c=>por[c.id]=c);
+      const tr=lerTrabalhos(); let mudou=false, mudouTr=false;
+      r.itens.forEach(rem=>{
+        const {trabalho,...caso}=rem;
+        const loc=por[caso.id];
+        if(!loc){ cs.push(caso); mudou=true; }
+        else if((rem.alteradoEm||"")>(loc.alteradoEm||"")){ Object.assign(loc,caso); mudou=true; }
+        if(trabalho && !tr[caso.id]){ tr[caso.id]={ts:Date.parse(rem.alteradoEm||"")||Date.now(), snap:trabalho}; mudouTr=true; }
+      });
+      if(mudou) salvarCasos(cs);
+      if(mudouTr) gravarTrabalhos(tr);
+      if(mudou||mudouTr) renderPainel();
+    });
+  }
   function idSolicitacao(d){const dp=(d.atoData||hojeBR()).split("/"); const ymd=dp.length===3?(dp[2]+String(dp[1]).padStart(2,"0")+String(dp[0]).padStart(2,"0")):"00000000";
     let h=0; const seed=((d.razao||"")+(d.atoData||"")+(d.cnpj||"")); for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0; return ymd+"-"+String(1000+(h%9000));}
   function blocosEmail(d,sufixo){const L=[]; const CH=d.changed||new Set(); const isAltMode=MODE.endsWith("alt");
@@ -2437,7 +2458,15 @@ window.TINA=(function(){
     let c=casoAtualId?cs.find(x=>x.id===casoAtualId):null;
     if(c){ c.empresa=(d.razao||"").toUpperCase(); c.cnpj=d.cnpj||""; c.tipo=tipoAto(d); c.data=data; c.modo=MODE; }
     else { c={id:novoIdCaso(data),empresa:(d.razao||"").toUpperCase(),cnpj:d.cnpj||"",tipo:tipoAto(d),data:data,modo:MODE,criadoEm:Date.now()}; cs.push(c); casoAtualId=c.id; }
-    salvarCasos(cs); return c;}
+    salvarCasos(cs);
+    /* Nuvem: o cadastro do ato vai junto com o TRABALHO INTEIRO (decisão do escritório) para
+       permitir retomar de outro computador. É dado pessoal — por isso só a equipe logada lê,
+       e a exclusão apaga de verdade (ver firestore.rules). */
+    if(window.Nuvem&&window.Nuvem.podeGravar()){
+      window.Nuvem.salvar("atos",c.id,Object.assign({},c,{trabalho:snapshotForm(),alteradoEm:new Date().toISOString()}));
+      window.Nuvem.trilha("ato.salvar",c.id,c.tipo||"");
+    }
+    return c;}
 
   /* ===== Portão de confirmação do cliente (obrigatório antes de gerar o documento final) ===== */
   function _hashStr(s){let h=5381;for(let i=0;i<s.length;i++)h=((h*33)^s.charCodeAt(i))>>>0;return h.toString(36);}
@@ -2556,7 +2585,10 @@ window.TINA=(function(){
       const del=tr.querySelector("[data-del]"); if(del)del.addEventListener("click",()=>{
         const tem=temTrabalho(id);
         if(confirm("Remover este caso do painel?"+(tem?" O ato guardado (com os dados preenchidos) também será apagado.":" (não afeta documentos já baixados)"))){
-          salvarCasos(lerCasos().filter(x=>x.id!==id)); excluirTrabalho(id); if(casoAtualId===id)casoAtualId=null; renderPainel();}});
+          salvarCasos(lerCasos().filter(x=>x.id!==id)); excluirTrabalho(id); if(casoAtualId===id)casoAtualId=null;
+          // exclusão de verdade também na nuvem; só a trilha (sem dado pessoal) sobrevive
+          if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.excluir("atos",id); window.Nuvem.trilha("ato.excluir",id,""); }
+          renderPainel();}});
     });}
 
   function exemplo(){limpar();$("socios").innerHTML="";
@@ -2816,6 +2848,22 @@ window.TINA=(function(){
         Quem quiser mantê-los marca a opção e eles voltam no formato "Descrição (CNAE 4751-2/01)". */
   const RE_NEA=/\s*[,;]?\s*n[ãa]o\s+especificad[oa]s?\s+anteriormente\b\.?/gi;
   const RE_CNAE_G=/(?:\bCNAE[\s:.]*)?\b\d{2}\s*\.?\s*\d{2}\s*[-–]?\s*\d\s*[\/-]\s*\d{2}\b/g;
+  /* Forma canônica de uma atividade, para comparar o que o usuário escreve com o que está no
+     objeto: sem código CNAE, sem "não especificadas anteriormente", sem acento nem pontuação. */
+  function normAtividade(s){ return String(s||"")
+    .replace(RE_CNAE_G," ").replace(RE_NEA," ")
+    .normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"")
+    .toLowerCase().replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim(); }
+  /* Duas atividades são "a mesma" quando o texto normalizado bate, quando uma contém a outra
+     (o usuário abrevia: "Recarga de cartuchos para informática" x "…para equipamentos de
+     informática") ou quando 70% das palavras longas do alvo aparecem na atividade. */
+  function mesmaAtividade(item,alvoN){
+    const n=normAtividade(item); if(!n||!alvoN) return false;
+    if(n===alvoN||n.includes(alvoN)||alvoN.includes(n)) return true;
+    const pal=alvoN.split(" ").filter(w=>w.length>3);
+    if(pal.length<2) return false;
+    const tem=new Set(n.split(" "));
+    return pal.filter(w=>tem.has(w)).length/pal.length>=0.7; }
   const RE_CNAE_1=/(?:\bCNAE[\s:.]*)?\b(\d{2}\s*\.?\s*\d{2}\s*[-–]?\s*\d\s*[\/-]\s*\d{2})\b/;
   function semNEA(t){ return String(t||"").replace(RE_NEA,""); }
   function fmtCnae(c){ const d=String(c||"").replace(/\D/g,""); return d.length===7 ? (d.slice(0,4)+"-"+d.slice(4,5)+"/"+d.slice(5,7)) : String(c||"").trim(); }
@@ -3440,7 +3488,21 @@ window.TINA=(function(){
       // limpar TODAS as atividades (sem um alvo específico depois) → zera o objeto
       if(/^(?:exclu\w+|remov\w+|retir\w+|limp\w+|apag\w+|zer\w+)\s+(?:tod[oa]s?\s+)?(?:[oa]s?\s+)?(?:atividades?|objeto(?:\s+social)?|cnaes?)\s*$/i.test(s)){$("objeto").value="";chk("alt_objeto");applied.push("excluir todas as atividades");continue;}
       if(m=s.match(/(?:inclu\w+|adicion\w+|acrescent\w+)\s+(?:a |as |o |os |no )?(?:atividade|cnae|objeto)?s?\s*:?\s*(.+)/i)){const cur=$("objeto").value.trim();const nova=normalizarAtividades(m[1],manterCnaeAtivo());if(!nova){applied.push("atividade ignorada (vazia após o ajuste)");continue;}$("objeto").value=normalizarAtividades((cur?cur.replace(/[;.\s]*$/,"")+"; ":"")+nova,manterCnaeAtivo());chk("alt_objeto");applied.push("incluir atividade: "+nova);continue;}
-      if(m=s.match(/(?:exclu\w+|remov\w+|retir\w+)\s+(?:a |as |o |do )?(?:atividade|cnae|objeto)?s?\s*:?\s*(.+)/i)){const alvo=m[1].trim().toLowerCase();$("objeto").value=$("objeto").value.split(/;/).map(x=>x.trim()).filter(x=>x&&x.toLowerCase()!==alvo).join("; ");chk("alt_objeto");applied.push("excluir atividade: "+m[1].trim());continue;}
+      /* Excluir atividade. Comparava texto EXATO, e por isso quase nunca funcionava: quem escreve o
+         comando copia do cartão CNPJ, com o CÓDIGO CNAE e o "não especificadas anteriormente" —
+         justamente as duas coisas que o sistema tira do objeto. Sobrava um comando "reconhecido"
+         que não removia nada. Agora compara sem código, sem acento e sem pontuação, aceitando que
+         um texto contenha o outro ou que a maioria das palavras coincida (descrição abreviada).
+         E, se não achar, DIZ que não achou em vez de reportar sucesso. */
+      if(m=s.match(/(?:exclu\w+|remov\w+|retir\w+)\s+(?:a |as |o |do )?(?:atividade|cnae|objeto)?s?\s*:?\s*(.+)/i)){
+        const alvoN=normAtividade(m[1]);
+        const itens=($("objeto").value||"").split(/;/).map(x=>x.trim()).filter(Boolean);
+        const restam=itens.filter(x=>!mesmaAtividade(x,alvoN));
+        const tirados=itens.length-restam.length;
+        if(tirados){ $("objeto").value=restam.join("; "); chk("alt_objeto");
+          applied.push("excluir atividade: "+m[1].trim()); }
+        else applied.push("⚠ não achei a atividade para excluir: "+m[1].trim());
+        continue;}
       if(m=s.match(/objeto(?:\s+social)?\s+(?:para|:)\s*(.+)/i)){$("objeto").value=normalizarAtividades(m[1],manterCnaeAtivo());chk("alt_objeto");applied.push("objeto (novo)");continue;}
       if(m=s.match(/(?:endereç\w+|sede)\s+(?:para|:)\s*(.+)/i)){
         const e=parseEnderecoComando(m[1]); chk("alt_sede");
@@ -3946,7 +4008,7 @@ window.TINA=(function(){
           st.style.color=e.daEquipe?"var(--ok)":(e.logado&&!e.daEquipe?"var(--err)":"var(--muted)");
         }
         statusNuvem();
-        if(e.daEquipe) sincronizarSolic();
+        if(e.daEquipe){ sincronizarSolic(); sincronizarAtos(); }
       });
       if($("btnNvEntrar")) $("btnNvEntrar").addEventListener("click",async()=>{
         const st=$("nvStatus"); st.style.color="var(--muted)"; st.textContent="Entrando…";
@@ -3996,7 +4058,7 @@ window.TINA=(function(){
     });
     if($("btnGateRegistrar")) $("btnGateRegistrar").addEventListener("click",registrarConfirmacaoEmail);
     if($("btnGateEmergencia")) $("btnGateEmergencia").addEventListener("click",registrarConfirmacaoEmergencia);
-    if($("btnPainel")) $("btnPainel").addEventListener("click",()=>{renderPainel();checarBackup();$("painelModal").classList.add("open");});
+    if($("btnPainel")) $("btnPainel").addEventListener("click",()=>{renderPainel();checarBackup();sincronizarAtos();$("painelModal").classList.add("open");});
     if($("btnPainelClose")) $("btnPainelClose").addEventListener("click",()=>$("painelModal").classList.remove("open"));
     // Um modal aberto POR CIMA de outro (o registro da confirmação sobre o painel de casos) ficava
     // atrás, porque todos compartilham o mesmo z-index e vence quem vem depois no HTML.
@@ -4100,7 +4162,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>

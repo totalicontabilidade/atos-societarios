@@ -484,6 +484,27 @@
         /j[áa] est[áa] na aba de transforma/i.test(a3[0]||"") && !/btnIrTransf/.test(a3[0]||""));
     }catch(e){ reg("Bateria do aviso do MEI",false,String(e&&e.message||e).slice(0,120)); }
 
+    // ---------- 6b7. Excluir atividade do objeto ----------
+    grupo("Objeto — excluir atividade");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(220);
+      // chama o interpretador direto: clicar em "Aplicar" zera o formulário antes, e aqui
+      // o que interessa é a comparação entre o que o usuário escreve e o que está no objeto
+      val("objeto","Outras atividades de telecomunicações; Recarga de cartuchos para equipamentos de informática; Serviço de preparação de terreno, cultivo e colheita; Preparação de documentos e serviços especializados de apoio administrativo; Instalação e manutenção elétrica");
+      var ap=W.TINA._cmd.parseComandos("excluir atividade 61.90-6-99 Outras atividades de telecomunicações; excluir atividade 47.51-2-02 Recarga de cartuchos para informática; excluir atividade 01.61-0-03 Preparação de terreno, cultivo e colheita");
+      await espera(200);
+      var ob=($("objeto")||{}).value||"";
+      reg("Exclui atividade mesmo com o código CNAE no comando", !/telecomunica/i.test(ob), ob.slice(0,70));
+      reg("Exclui com a descrição abreviada pelo usuário", !/cartuchos/i.test(ob));
+      reg("Não remove atividade parecida (“Preparação de documentos” fica)",
+        /Prepara[çc][ãa]o de documentos/i.test(ob) && !/prepara[çc][ãa]o de terreno/i.test(ob), ob.slice(0,90));
+      reg("Sobram só as atividades certas", ob.split(";").filter(function(x){return x.trim();}).length===2, ob);
+      var ap2=W.TINA._cmd.parseComandos("excluir atividade Fabricação de aeronaves");
+      reg("Atividade inexistente: avisa que não achou em vez de dizer que excluiu",
+        (ap2||[]).some(function(x){ return /n[ãa]o achei a atividade/i.test(x); }), (ap2||[]).join(" | ").slice(0,80));
+    }catch(e){ reg("Bateria de excluir atividade",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 6c. Campos de data ----------
     grupo("Datas");
     modo("const"); await espera(160);
