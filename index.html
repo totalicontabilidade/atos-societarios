@@ -9,6 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="versao" content="1.0" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -187,7 +188,17 @@
   .head-install{background:var(--gold);border:1px solid var(--gold2);color:var(--navy3);font-weight:700;font-size:12.5px;padding:7px 12px;border-radius:9px;cursor:pointer;margin-right:10px;transition:filter .18s}
   .head-install:hover{filter:brightness(1.06)}
   .head-install:focus-visible{outline:2px solid #fff;outline-offset:2px}
-  .head-gear{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);color:#fff;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .18s;margin-right:10px}
+  .head-gear{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);color:#fff;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .18s;margin-right:10px;position:relative}
+  /* Menu do usuário */
+  .usermenu{position:relative}
+  .menu-pop{position:absolute;right:10px;top:40px;min-width:250px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;display:none;z-index:60}
+  .menu-pop.open{display:block}
+  .menu-pop button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:0;padding:9px 10px;border-radius:8px;font:inherit;font-size:13.5px;color:#1b1f24;cursor:pointer}
+  .menu-pop button:hover{background:#eef1f5}
+  .menu-sep{height:1px;background:var(--line);margin:5px 4px}
+  .menu-quem{padding:7px 10px 4px;font-size:12px;color:var(--muted);word-break:break-all}
+  .badge{background:var(--err);color:#fff;border-radius:999px;font-size:10.5px;line-height:1;padding:3px 6px;font-weight:700;margin-left:auto}
+  .head-gear .badge{position:absolute;top:-5px;right:-5px;margin:0}
   .head-gear:hover{background:rgba(255,255,255,.24)}
   .head-gear:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   .fldstat.ok{color:var(--ok)} .fldstat.err{color:var(--err)}
@@ -214,10 +225,23 @@
   </div>
   <div class="spacer"></div>
   <button class="head-install" id="btnInstalar" type="button" title="Instalar como aplicativo" style="display:none">⤓ Instalar app</button>
-  <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
+  <!-- Menu do usuário: reúne o que NÃO é do documento (solicitações, casos, e-mail, configurações).
+       A barra de ações abaixo do formulário ficou só com o que age sobre o arquivo. -->
+  <div class="usermenu">
+    <button class="head-gear" id="btnMenu" type="button" title="Menu" aria-label="Menu" aria-haspopup="true" aria-expanded="false">☰<span class="badge" id="menuBadge" style="display:none">0</span></button>
+    <div class="menu-pop" id="menuPop" role="menu">
+      <div class="menu-quem" id="menuQuem"></div>
+      <button type="button" role="menuitem" id="btnSolic">🗂 Solicitações <span class="badge" id="solicBadge" style="display:none">0</span></button>
+      <button type="button" role="menuitem" id="btnPainel">📁 Painel de casos</button>
+      <button type="button" role="menuitem" id="btnEmail">✉ E-mail de confirmação</button>
+      <div class="menu-sep"></div>
+      <button type="button" role="menuitem" id="btnConfig">⚙ Configurações</button>
+    </div>
+  </div>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
-  <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.31 · beta</span>
+  <!-- VERSÃO: incrementar a cada mudança publicada, junto com o CACHE em sw.js.
+       Não aparece mais na tela (pedido do escritório) — fica em <meta name="versao">,
+       que continua servindo para conferir, de fora, qual versão está publicada. -->
 </header>
 
 <div class="wrap">
@@ -458,9 +482,6 @@
     <button class="btn p" id="btnGerar">👁 Gerar prévia</button>
     <button class="btn g" id="btnBaixar">⬇ .docx</button>
     <button class="btn o" id="btnPDF">⬇ PDF</button>
-    <button class="btn o" id="btnEmail">✉ E-mail de confirmação</button>
-    <button class="btn o" id="btnSolic">🗂 Solicitações</button>
-    <button class="btn o" id="btnPainel">📁 Painel de casos</button>
     <span class="status muted" id="status">Preencha os dados e gere a prévia.</span>
   </div>
   <div id="validacaoBox" class="val" style="display:none;margin-bottom:16px"></div>
@@ -714,6 +735,10 @@
         <div><label for="cfgParalegal">Paralegal responsável <span class="hint">(assinatura do e-mail)</span></label><input type="text" id="cfgParalegal" placeholder="Seu nome"></div>
         <div><label for="cfgRemetente">E-mail do remetente</label><input type="text" id="cfgRemetente" placeholder="voce@seuescritorio.com.br"></div>
       </div>
+      <div class="grid g2 row">
+        <div><label for="cfgAvisoWhats">WhatsApp para avisos <span class="hint">(solicitação nova)</span></label><input type="text" id="cfgAvisoWhats" placeholder="(79) 90000-0000"></div>
+        <div><label for="cfgAvisoEmail">E-mail para avisos</label><input type="text" id="cfgAvisoEmail" placeholder="equipe@seuescritorio.com.br"></div>
+      </div>
       <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Nuvem <span class="hint" style="font-weight:400">— entra para compartilhar solicitações e casos entre computadores</span></div>
       <div class="grid g3 row" id="nuvemLogin">
         <div><label for="nvEmail">E-mail</label><input type="text" id="nvEmail" autocomplete="username"></div>
@@ -724,11 +749,19 @@
         </div>
       </div>
       <div class="hint" id="nvStatus" style="margin-top:4px"></div>
-      <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Licença</div>
-      <div class="row">
-        <label for="cfgLicenca">Chave de licença</label>
-        <textarea id="cfgLicenca" style="min-height:70px;font-size:11.5px;font-family:ui-monospace,Consolas,monospace" placeholder="Cole aqui a chave recebida"></textarea>
-        <div class="hint" id="licStatus" style="margin-top:6px"></div>
+      <div id="equipeBloco" style="display:none;margin-top:10px">
+        <div class="hint" style="font-weight:700;color:var(--navy);margin-bottom:6px">Equipe</div>
+        <div class="grid g4 row">
+          <div><label for="eqNome">Nome</label><input type="text" id="eqNome"></div>
+          <div><label for="eqEmail">E-mail</label><input type="text" id="eqEmail" autocomplete="off"></div>
+          <div><label for="eqSenha">Senha inicial</label><input type="password" id="eqSenha" autocomplete="new-password"></div>
+          <div style="display:flex;align-items:flex-end;gap:6px">
+            <label class="checkline" style="margin:0"><input type="checkbox" id="eqAdmin"> Admin</label>
+            <button class="btn p mini" type="button" id="btnEqAdd">Cadastrar</button>
+          </div>
+        </div>
+        <div class="fldstat" id="eqStat"></div>
+        <div id="eqLista" style="margin-top:8px"></div>
       </div>
 
       <div class="row">
@@ -2221,6 +2254,7 @@ window.TINA=(function(){
     const sel=$("sTipo");
     if(sel && !sel.options.length){ const t=tiposAto(); sel.innerHTML=Object.keys(t).map(k=>'<option value="'+k+'">'+escHtml(t[k])+"</option>").join(""); }
     if($("solicForm"))$("solicForm").style.display="none";
+    marcarNovas(0);
     renderSolic(); $("solicModal").classList.add("open");
   }
   function statusNuvem(){
@@ -2315,11 +2349,13 @@ window.TINA=(function(){
         +'<div class="bar" style="margin-top:6px">'
         +'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'">Trabalhar</button>'
         +'<button class="btn o mini" data-sol-editar="'+escHtml(r.id)+'">Editar</button>'
+        +'<button class="btn o mini" data-sol-avisar="'+escHtml(r.id)+'" title="Manda a solicitação pronta por WhatsApp ou e-mail">Avisar</button>'
         +'<button class="btn del mini" data-sol-excluir="'+escHtml(r.id)+'">Excluir</button>'
         +'</div></div>';
     }).join("");
     box.querySelectorAll("[data-sol-abrir]").forEach(b=>b.addEventListener("click",()=>trabalharSolic(b.dataset.solAbrir)));
     box.querySelectorAll("[data-sol-editar]").forEach(b=>b.addEventListener("click",()=>editarSolic(b.dataset.solEditar)));
+    box.querySelectorAll("[data-sol-avisar]").forEach(b=>b.addEventListener("click",()=>avisarSolic(b.dataset.solAvisar)));
     box.querySelectorAll("[data-sol-excluir]").forEach(b=>b.addEventListener("click",()=>excluirSolic(b.dataset.solExcluir)));
   }
   /* Traz da nuvem o que não existe aqui (outro computador, ou navegador limpo).
@@ -2358,6 +2394,43 @@ window.TINA=(function(){
       if(mudouTr) gravarTrabalhos(tr);
       if(mudou||mudouTr) renderPainel();
     });
+  }
+  /* ===== Aviso de solicitação nova =====
+     Sem servidor: o app fica ouvindo a coleção e avisa quando OUTRA pessoa da equipe lança
+     uma solicitação. O aviso é discreto — um número no menu e um toast — e o número some
+     assim que a tela de solicitações é aberta. */
+  let _pararAviso=null, _novasSolic=0;
+  function marcarNovas(n){
+    _novasSolic=Math.max(0,n);
+    [["menuBadge"],["solicBadge"]].forEach(([id])=>{ const b=$(id); if(!b)return;
+      b.textContent=String(_novasSolic); b.style.display=_novasSolic?"":"none"; });
+  }
+  function ligarAvisoSolic(){
+    if(_pararAviso||!(window.Nuvem&&window.Nuvem.podeGravar())) return;
+    _pararAviso=window.Nuvem.ouvirNovos("solicitacoes",(s)=>{
+      // grava local para a lista já mostrar, e avisa
+      const l=lerSolic(); if(!l.some(x=>x.id===s.id)){ l.unshift(s); salvarSolic(l); }
+      marcarNovas(_novasSolic+1);
+      toast("Nova solicitação: "+((s.empresa||"sem empresa").slice(0,40)),"info");
+      if(document.getElementById("solicModal").classList.contains("open")) renderSolic();
+    });
+  }
+  /* Aviso fora do sistema. Enviar e-mail ou WhatsApp SOZINHO exigiria um servidor guardando
+     credencial — coisa que não pode viver no navegador. O que dá para fazer com honestidade é
+     deixar a mensagem pronta a um clique, no botão "Avisar" de cada solicitação. */
+  function textoAviso(s){
+    const T=tiposAto();
+    return "Nova solicitação: "+(s.empresa||"")+(s.cnpj?" ("+s.cnpj+")":"")
+      +"\nAto: "+(T[s.tipo]||s.tipo||"")+(s.prazo?"\nPrazo: "+s.prazo:"")
+      +(s.responsavel?"\nResponsável: "+s.responsavel:"")+(s.obs?"\nObs.: "+s.obs:"");
+  }
+  function avisarSolic(id){
+    const s=lerSolic().find(x=>x.id===id); if(!s)return;
+    const fone=((CFG&&CFG.avisoWhats)||"").trim(), mail=((CFG&&CFG.avisoEmail)||"").trim();
+    const txt=textoAviso(s);
+    if(fone) window.open("https://wa.me/"+telInternacional(fone)+"?text="+encodeURIComponent(txt),"_blank","noopener");
+    else if(mail) window.location.href="mailto:"+encodeURIComponent(mail)+"?subject="+encodeURIComponent("Nova solicitação — "+(s.empresa||""))+"&body="+encodeURIComponent(txt);
+    else { abrirConfig(); toast("Informe o WhatsApp ou o e-mail de aviso em Configurações.","warn"); }
   }
   function idSolicitacao(d){const dp=(d.atoData||hojeBR()).split("/"); const ymd=dp.length===3?(dp[2]+String(dp[1]).padStart(2,"0")+String(dp[0]).padStart(2,"0")):"00000000";
     let h=0; const seed=((d.razao||"")+(d.atoData||"")+(d.cnpj||"")); for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0; return ymd+"-"+String(1000+(h%9000));}
@@ -2488,12 +2561,7 @@ window.TINA=(function(){
   let _gateAcao=null, _gateHash="";
   // executa `acao` só se o caso atual já estiver confirmado com o conteúdo intacto; senão abre o portão
   function comConfirmacao(acao){
-    // trava de licença: a prévia continua livre; o que exige licença é gerar o arquivo final
-    if(!licenciado()){
-      toast("Sem licença ativa — a geração de documentos está bloqueada. Informe a chave em Configurações.","err");
-      abrirConfig(); const cl=$("cfgLicenca"); if(cl){ cl.focus(); }
-      return;
-    }
+    // A trava de licença saiu na v0.34: quem controla o acesso agora é o login da equipe.
     const d=coletar();
     if(vazio(d)){$("status").style.color="var(--warn)";$("status").textContent="⚠ Preencha os dados (razão social e sócios) antes de baixar.";return;}
     const c=registrarCaso();                       // garante o caso + casoAtualId
@@ -3628,59 +3696,12 @@ window.TINA=(function(){
     return calc(12)===Number(s[12])&&calc(13)===Number(s[13]);}
 
   /* ===== Configurações do escritório (marca + padrões) — só neste navegador ===== */
-  function cfgDefault(){return {escritorio:"",logo:"",cor:"",paralegal:"",remetente:"",defMun:"",defUF:"",defOrgao:"",defOrgaoUF:"",foro:"",junta:""};}
+  function cfgDefault(){return {escritorio:"",logo:"",cor:"",paralegal:"",remetente:"",defMun:"",defUF:"",defOrgao:"",defOrgaoUF:"",foro:"",junta:"",avisoWhats:"",avisoEmail:""};}
   function lerCfg(){try{return Object.assign(cfgDefault(),JSON.parse(localStorage.getItem("tinaCfg")||"{}"));}catch(e){return cfgDefault();}}
   function salvarCfg(c){try{localStorage.setItem("tinaCfg",JSON.stringify(c));}catch(e){}}
   function _autor(){return (CFG&&CFG.escritorio)||"Atos Societários";}   // vai nos metadados do .docx/PDF — neutro até o escritório se identificar nas Configurações
   // Junta Comercial do ato: configurável (o app não é preso a um estado). Padrão: Sergipe.
-  /* ===== Licença =====
-     A chave é um texto assinado (ECDSA P-256) que o app confere OFFLINE com a chave pública abaixo.
-     Publicar a chave pública é seguro: com ela só dá para VERIFICAR, não para emitir licença — emitir
-     exige a privada, que fica fora deste repositório (ferramenta `licenciamento/emitir.html`).
-     Honestidade sobre o alcance: como todo app client-side de código aberto, isto impede a cópia casual
-     (passar o arquivo adiante), não um adversário decidido com o navegador aberto. */
-  const LIC_PUBKEY={kty:"EC",crv:"P-256",x:"pOCEcP8pM1uZ9JRnvqqgpnBwXZpJ4DJsV6Vym_HHCVw",y:"FNFHjwOeDE3Hp1TVxf1SzZzvqdPHaZfQKmGP5C95QLs"};
-  const LIC_DIAS_AVALIACAO=15;
-  let LIC={ok:false,motivo:"sem licença",dados:null};
-  const _b64u=s=>{s=String(s||"").replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4)s+="="; const b=atob(s); const u=new Uint8Array(b.length); for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i); return u;};
-  function lerLicencaBruta(){ try{ return localStorage.getItem("tinaLic")||""; }catch(e){ return ""; } }
-  // formato: <payload em base64url>.<assinatura em base64url>
-  async function validarLicenca(txt){
-    txt=String(txt||"").trim().replace(/\s+/g,"");
-    if(!txt) return {ok:false,motivo:"sem licença",dados:null};
-    const p=txt.split("."); if(p.length!==2) return {ok:false,motivo:"formato inválido",dados:null};
-    let dados;
-    try{ dados=JSON.parse(new TextDecoder().decode(_b64u(p[0]))); }catch(e){ return {ok:false,motivo:"conteúdo ilegível",dados:null}; }
-    let assinaturaOk=false;
-    try{
-      const chave=await crypto.subtle.importKey("jwk",LIC_PUBKEY,{name:"ECDSA",namedCurve:"P-256"},false,["verify"]);
-      assinaturaOk=await crypto.subtle.verify({name:"ECDSA",hash:"SHA-256"},chave,_b64u(p[1]),new TextEncoder().encode(p[0]));
-    }catch(e){ return {ok:false,motivo:"não foi possível verificar (navegador sem suporte)",dados:null}; }
-    if(!assinaturaOk) return {ok:false,motivo:"assinatura não confere",dados:null};
-    if(dados.exp){ const hoje=new Date().toISOString().slice(0,10); if(String(dados.exp)<hoje) return {ok:false,motivo:"licença vencida em "+dados.exp,dados:dados}; }
-    return {ok:true,motivo:"",dados:dados};
-  }
-  // primeira execução marca o início da avaliação
-  function diasAvaliacaoRestantes(){
-    let ini; try{ ini=localStorage.getItem("tinaIni"); if(!ini){ ini=new Date().toISOString().slice(0,10); localStorage.setItem("tinaIni",ini); } }catch(e){ return LIC_DIAS_AVALIACAO; }
-    const d=Math.floor((Date.now()-Date.parse(ini+"T00:00:00"))/86400000);
-    return Math.max(0,LIC_DIAS_AVALIACAO-d);
-  }
-  function licenciado(){ return LIC.ok || diasAvaliacaoRestantes()>0; }
-  function mostrarStatusLicenca(){
-    const el=$("licStatus"); if(!el) return;
-    if(LIC.ok){ const q=LIC.dados||{}; el.style.color="var(--ok)";
-      el.innerHTML="✓ Licenciado para <b>"+escHtml(q.para||"—")+"</b>"+(q.exp?" · válida até "+escHtml(q.exp):" · sem prazo"); }
-    else { const r=diasAvaliacaoRestantes();
-      el.style.color=r>0?"var(--warn)":"var(--err)";
-      el.textContent=r>0 ? ("Avaliação: faltam "+r+" dia(s). Informe a chave de licença para continuar gerando documentos.")
-                         : ("Sem licença ativa"+(LIC.motivo?" ("+LIC.motivo+")":"")+" — a geração de documentos está bloqueada."); }
-  }
-  async function aplicarLicenca(txt,salvar){
-    LIC=await validarLicenca(txt);
-    if(salvar){ try{ if(LIC.ok) localStorage.setItem("tinaLic",String(txt).trim()); }catch(e){} }
-    mostrarStatusLicenca(); return LIC;
-  }
+
 
   const JUNTA_PADRAO="Junta Comercial do Estado de Sergipe";
   function _junta(){ const j=((CFG&&CFG.junta)||"").trim(); return j||JUNTA_PADRAO; }
@@ -3701,12 +3722,11 @@ window.TINA=(function(){
     if($("emailParalegal")&&!$("emailParalegal").value&&CFG.paralegal)$("emailParalegal").value=CFG.paralegal;
     if($("emailRemetente")&&!$("emailRemetente").value&&CFG.remetente)$("emailRemetente").value=CFG.remetente;}
   function abrirConfig(){$("cfgUF").innerHTML=ufOpts(CFG.defUF);$("cfgOrgaoUF").innerHTML=ufOpts(CFG.defOrgaoUF);$("cfgOrgao").innerHTML=orgaoOpts(CFG.defOrgao||"");
-    $("cfgEscritorio").value=CFG.escritorio||"";$("cfgCor").value=CFG.cor||"#14293f";$("cfgParalegal").value=CFG.paralegal||"";$("cfgRemetente").value=CFG.remetente||"";$("cfgMun").value=CFG.defMun||"";$("cfgForo").value=CFG.foro||"";if($("cfgJunta"))$("cfgJunta").value=CFG.junta||"";
-    if($("cfgLicenca")){$("cfgLicenca").value=lerLicencaBruta();mostrarStatusLicenca();}
+    $("cfgEscritorio").value=CFG.escritorio||"";$("cfgCor").value=CFG.cor||"#14293f";$("cfgParalegal").value=CFG.paralegal||"";$("cfgRemetente").value=CFG.remetente||"";$("cfgAvisoWhats").value=CFG.avisoWhats||"";$("cfgAvisoEmail").value=CFG.avisoEmail||"";$("cfgMun").value=CFG.defMun||"";$("cfgForo").value=CFG.foro||"";if($("cfgJunta"))$("cfgJunta").value=CFG.junta||"";
     _cfgLogoTmp=CFG.logo||"";const prev=$("cfgLogoPrev");if(_cfgLogoTmp){prev.src=_cfgLogoTmp;prev.style.display="";}else prev.style.display="none";
     if($("cfgLogoFile"))$("cfgLogoFile").value="";$("cfgStat").textContent="";$("configModal").classList.add("open");}
   function salvarConfigForm(){const cor=($("cfgCor").value||"").toLowerCase();
-    CFG={escritorio:$("cfgEscritorio").value.trim(),logo:_cfgLogoTmp||"",cor:(cor==="#14293f"||!cor)?"":cor,paralegal:$("cfgParalegal").value.trim(),remetente:$("cfgRemetente").value.trim(),defMun:$("cfgMun").value.trim(),defUF:$("cfgUF").value,defOrgao:$("cfgOrgao").value,defOrgaoUF:$("cfgOrgaoUF").value,foro:$("cfgForo").value.trim(),junta:(($("cfgJunta")&&$("cfgJunta").value)||"").trim()};
+    CFG={escritorio:$("cfgEscritorio").value.trim(),logo:_cfgLogoTmp||"",cor:(cor==="#14293f"||!cor)?"":cor,paralegal:$("cfgParalegal").value.trim(),remetente:$("cfgRemetente").value.trim(),avisoWhats:$("cfgAvisoWhats").value.trim(),avisoEmail:$("cfgAvisoEmail").value.trim(),defMun:$("cfgMun").value.trim(),defUF:$("cfgUF").value,defOrgao:$("cfgOrgao").value,defOrgaoUF:$("cfgOrgaoUF").value,foro:$("cfgForo").value.trim(),junta:(($("cfgJunta")&&$("cfgJunta").value)||"").trim()};
     salvarCfg(CFG);aplicarCfg();$("cfgStat").style.color="var(--ok)";$("cfgStat").textContent="✓ Salvo.";toast("Configurações salvas.","ok");}
   function resetConfig(){CFG=cfgDefault();salvarCfg(CFG);aplicarCfg();abrirConfig();toast("Configurações restauradas ao padrão.","info");}
 
@@ -3947,10 +3967,6 @@ window.TINA=(function(){
   var cnpjLiveCheck=null, TINA_ajustarObjeto=null;
   function init(){
     CFG=lerCfg(); aplicarCfg();
-    aplicarLicenca(lerLicencaBruta(),false).then(()=>{ const r=diasAvaliacaoRestantes();
-      if(!LIC.ok && r>0 && r<=5) toast("Avaliação termina em "+r+" dia(s). Informe a chave de licença em Configurações.","warn");
-      else if(!LIC.ok && r===0) toast("Sem licença ativa — a geração de documentos está bloqueada.","err"); });
-    if($("cfgLicenca")) $("cfgLicenca").addEventListener("input",function(){ const v=this.value; clearTimeout(this._t); this._t=setTimeout(()=>aplicarLicenca(v,true),400); });
     $("btnAddSocio").addEventListener("click",()=>socioCard());
     if($("btnAddFilial")) $("btnAddFilial").addEventListener("click",()=>filialCard());
     // objeto: ao sair do campo (ou ao trocar a opção de CNAE) o texto já aparece como sairá no documento
@@ -3984,6 +4000,19 @@ window.TINA=(function(){
     if($("advOabUf")) $("advOabUf").innerHTML=ufOpts();
     /* Nuvem: liga os controles e mantém o rodapé em dia. Se não houver configuração
        (arquivo nuvem-config.js em branco), tudo continua funcionando só no navegador. */
+    /* Menu do usuário: abre no clique, fecha ao escolher, ao clicar fora ou com Esc. */
+    if($("btnMenu")){
+      const pop=$("menuPop"), bt=$("btnMenu");
+      const fechar=()=>{ pop.classList.remove("open"); bt.setAttribute("aria-expanded","false"); };
+      bt.addEventListener("click",e=>{ e.stopPropagation();
+        const abrir=!pop.classList.contains("open");
+        pop.classList.toggle("open",abrir); bt.setAttribute("aria-expanded",abrir?"true":"false");
+        if(abrir){ const q=$("menuQuem"), es=window.Nuvem?window.Nuvem.estado():null;
+          if(q) q.textContent = es&&es.daEquipe ? es.email : (es&&es.configurado ? "Sem login" : ""); } });
+      pop.addEventListener("click",e=>{ if(e.target.closest("button")) fechar(); });
+      document.addEventListener("click",e=>{ if(!e.target.closest(".usermenu")) fechar(); });
+      document.addEventListener("keydown",e=>{ if(e.key==="Escape") fechar(); });
+    }
     if($("btnSolic")) $("btnSolic").addEventListener("click",()=>{ abrirSolic(); sincronizarSolic(); });
     if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>$("solicModal").classList.remove("open"));
     if($("btnSolicNova")) $("btnSolicNova").addEventListener("click",novaSolic);
@@ -4008,7 +4037,37 @@ window.TINA=(function(){
           st.style.color=e.daEquipe?"var(--ok)":(e.logado&&!e.daEquipe?"var(--err)":"var(--muted)");
         }
         statusNuvem();
-        if(e.daEquipe){ sincronizarSolic(); sincronizarAtos(); }
+        const eb=$("equipeBloco"); if(eb) eb.style.display=e.admin?"":"none";
+        if(e.admin && window.__renderEquipe) window.__renderEquipe();
+        if(e.daEquipe){ sincronizarSolic(); sincronizarAtos(); ligarAvisoSolic(); }
+      });
+      // Equipe — visível só para administrador
+      const renderEquipe=async()=>{
+        const box=$("eqLista"); if(!box) return;
+        const r=await window.Nuvem.eqListar();
+        if(!r.ok){ box.innerHTML='<div class="hint">'+escHtml(r.msg||"não foi possível listar")+"</div>"; return; }
+        const eu=window.Nuvem.estado().uid;
+        box.innerHTML=r.itens.map(m=>'<div class="caso" style="padding:6px 8px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline">'
+          +"<b>"+escHtml(m.nome||m.email||m.id)+"</b>"
+          +'<span class="hint">'+escHtml(m.email||"")+(m.admin?" · admin":"")+(m.ativo===false?" · inativo":"")+(m.id===eu?" · você":"")+"</span></div>"
+          +(m.id===eu?'<div class="hint">Seu próprio acesso só pode ser alterado por outro administrador.</div>'
+            :'<div class="bar" style="margin-top:4px">'
+             +'<button class="btn o mini" data-eq-ativo="'+escHtml(m.id)+'" data-v="'+(m.ativo===false?"1":"0")+'">'+(m.ativo===false?"Reativar":"Desativar")+"</button>"
+             +'<button class="btn o mini" data-eq-admin="'+escHtml(m.id)+'" data-v="'+(m.admin?"0":"1")+'">'+(m.admin?"Tirar admin":"Tornar admin")+"</button>"
+             +"</div>")
+          +"</div>").join("")||'<div class="hint">Ninguém cadastrado ainda.</div>';
+        const toca=async(uid,campos)=>{ const x=await window.Nuvem.eqAtualizar(uid,campos);
+          if(!x.ok) toast(x.msg||"não foi possível alterar","err"); renderEquipe(); };
+        box.querySelectorAll("[data-eq-ativo]").forEach(b=>b.addEventListener("click",()=>toca(b.dataset.eqAtivo,{ativo:b.dataset.v==="1"})));
+        box.querySelectorAll("[data-eq-admin]").forEach(b=>b.addEventListener("click",()=>toca(b.dataset.eqAdmin,{admin:b.dataset.v==="1"})));
+      };
+      window.__renderEquipe=renderEquipe;
+      if($("btnEqAdd")) $("btnEqAdd").addEventListener("click",async()=>{
+        const st=$("eqStat"); st.className="fldstat load"; st.textContent="Cadastrando…";
+        const r=await window.Nuvem.eqCadastrar(($("eqNome")||{}).value,($("eqEmail")||{}).value,($("eqSenha")||{}).value,($("eqAdmin")||{}).checked);
+        if(r.ok){ st.className="fldstat ok"; st.textContent="Cadastrado. Peça para trocar a senha no primeiro acesso.";
+          ["eqNome","eqEmail","eqSenha"].forEach(id=>{if($(id))$(id).value="";}); if($("eqAdmin"))$("eqAdmin").checked=false; renderEquipe(); }
+        else { st.className="fldstat bad"; st.textContent=r.msg||"não foi possível cadastrar"; }
       });
       if($("btnNvEntrar")) $("btnNvEntrar").addEventListener("click",async()=>{
         const st=$("nvStatus"); st.style.color="var(--muted)"; st.textContent="Entrando…";

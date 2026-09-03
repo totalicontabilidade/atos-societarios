@@ -727,38 +727,8 @@
     }catch(e){ reg("Backup adulterado é saneado na importação",null,String(e.message||e)); }
 
     // ---------- 8. Licença ----------
-    grupo("Licença");
-    var LIC_BOA="eyJwYXJhIjoiVG90YWxpIFNvbHXDp8O1ZXMgQ29udMOhYmVpcyIsImVtIjoiMjAyNi0wOC0xMyJ9.9PYS3TQpIposkS8vgYNuhB3d9ov2xsGU7m7ZcmWpXBRg91IEgH08k5YZhiYUbzowZJ3MzizH74P8yD_XkUMOUw";
-    var LIC_VENCIDA="eyJwYXJhIjoiQ2xpZW50ZSBUZXN0ZSIsImV4cCI6IjIwMjAtMDEtMDEiLCJlbSI6IjIwMTktMTItMDEifQ.pay1m-RFXhkT5s5jIdQVy6KgsaxbHFbtTZLuGHzEPEkoYnqgpkvGBR1Js86IvpG9rlcu-wx0t-AcxQ-apKE0ew";
-    try{
-      // avaliação vencida e sem licença: download tem de ficar bloqueado, prévia tem de continuar livre
-      W.localStorage.setItem("tinaIni","2020-01-01"); W.localStorage.removeItem("tinaLic");
-      fr.src="index.html?teste="+Date.now();
-      await new Promise(function(r){ fr.onload=r; });
-      W=fr.contentWindow; D=fr.contentDocument;
-      await ate(function(){ return W.TINA && D.getElementById("btnGerar"); });
-      $=function(id){ return D.getElementById(id); };
-      D.querySelector('[data-mode="alt"]').click(); await espera(180);
-      $("btnExemplo").click(); await espera(280);
-      await W.TINA.gerarPreview(); await espera(700);
-      var tp=""; D.querySelectorAll("section.docxprev").forEach(function(c){ tp+=(c.innerText||""); });
-      reg("Sem licença: a prévia continua funcionando", tp.length>800, tp.length+" caracteres");
-      $("btnBaixar").click(); await espera(700);
-      reg("Sem licença: o download é bloqueado", !$("gateModal").classList.contains("open") && $("configModal").classList.contains("open"));
-      // chave adulterada não pode valer
-      var cl=$("cfgLicenca"); var partes=LIC_BOA.split(".");
-      cl.value=partes[0]+"."+partes[1].slice(0,-4)+"AAAA"; cl.dispatchEvent(new W.Event("input",{bubbles:true}));
-      await espera(800);
-      reg("Chave com assinatura adulterada é recusada", ($("licStatus").innerText||"").indexOf("Licenciado")<0, $("licStatus").innerText.slice(0,60));
-      cl.value=LIC_VENCIDA; cl.dispatchEvent(new W.Event("input",{bubbles:true})); await espera(800);
-      reg("Chave vencida é recusada", ($("licStatus").innerText||"").indexOf("Licenciado")<0);
-      cl.value=LIC_BOA; cl.dispatchEvent(new W.Event("input",{bubbles:true})); await espera(800);
-      reg("Chave válida libera a geração", ($("licStatus").innerText||"").indexOf("Licenciado")>=0, $("licStatus").innerText.slice(0,55));
-      $("configModal").classList.remove("open");
-      $("btnBaixar").click(); await espera(700);
-      reg("Com licença, volta a pedir só a confirmação do cliente", $("gateModal").classList.contains("open"));
-      $("gateModal").classList.remove("open");
-    }catch(e){ reg("Bateria de licença",false,String(e.message||e)); }
+    /* O grupo de Licença saiu na v1.0: quem controla o acesso agora é o login da equipe.
+       O que substitui estes testes é a bateria de "Solicitações", que confere a camada de nuvem. */
 
     // limpa o armazenamento do quadro de teste
     }catch(e){

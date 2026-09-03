@@ -20,7 +20,7 @@
   "use strict";
 
   var app = null, db = null, auth = null, pronto = false, motivo = "";
-  var _usuario = null, _daEquipe = false, _ouvintes = [];
+  var _usuario = null, _daEquipe = false, _admin = false, _ouvintes = [];
 
   function cfgValida() {
     var c = window.ATOS_FIREBASE || {};
@@ -39,6 +39,7 @@
       motivo: motivo,
       logado: !!_usuario,
       daEquipe: _daEquipe,
+      admin: _admin,
       email: _usuario ? _usuario.email : "",
       uid: _usuario ? _usuario.uid : "",
       online: (typeof navigator !== "undefined") ? navigator.onLine !== false : true
@@ -57,14 +58,19 @@
          e sobe sozinha quando a conexão volta. */
       try { db.enablePersistence({ synchronizeTabs: true }).catch(function () {}); } catch (e) {}
       auth.onAuthStateChanged(function (u) {
-        _usuario = u || null; _daEquipe = false;
+        _usuario = u || null; _daEquipe = false; _admin = false;
         if (!u) { avisar(); return; }
         /* source:"server" de propósito: com o cache ligado, um get() comum pode
            devolver um estado ANTIGO da equipe — inclusive dizer que alguém ainda
            está ativo depois de removido. Permissão se confere no servidor. */
         db.collection("equipe").doc(u.uid).get({ source: "server" })
-          .then(function (d) { _daEquipe = !!(d.exists && d.data() && d.data().ativo === true); avisar(); })
-          .catch(function () { _daEquipe = false; avisar(); });
+          .then(function (d) {
+            var x = d.exists ? (d.data() || {}) : {};
+            _daEquipe = x.ativo === true;
+            _admin = _daEquipe && x.admin === true;
+            avisar();
+          })
+          .catch(function () { _daEquipe = false; _admin = false; avisar(); });
       });
       pronto = true; motivo = "";
     } catch (e) { motivo = (e && e.message) || "falha ao iniciar"; }
@@ -142,8 +148,74 @@
     })).then(function () { return { ok: true }; }).catch(function () { return { ok: false }; });
   }
 
+  /* ---- Equipe (só administrador) ----
+     Criar a conta de login exige um app SECUNDÁRIO do Firebase: com o app principal,
+     createUser trocaria a sessão para a pessoa recém-criada e derrubaria o administrador
+     no meio do cadastro. O secundário nasce, cria a conta, faz signOut e é destruído. */
+  function eqListar() { return listar("equipe", {}); }
+
+  function eqCadastrar(nome, email, senha, admin) {
+    if (!(pronto && _admin)) return Promise.resolve({ ok: false, msg: "só administrador" });
+    email = String(email || "").trim(); senha = String(senha || "");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return Promise.resolve({ ok: false, msg: "e-mail inválido" });
+    if (senha.length < 8) return Promise.resolve({ ok: false, msg: "a senha inicial precisa de ao menos 8 caracteres" });
+    var sec = null;
+    try { sec = firebase.initializeApp(window.ATOS_FIREBASE, "cadastro-" + Date.now()); }
+    catch (e) { return Promise.resolve({ ok: false, msg: "não foi possível iniciar o cadastro" }); }
+    return sec.auth().createUserWithEmailAndPassword(email, senha)
+      .then(function (cred) {
+        var uid = cred.user.uid;
+        return sec.auth().signOut().catch(function () {}).then(function () {
+          return db.collection("equipe").doc(uid).set({
+            nome: String(nome || "").trim() || email,
+            email: email, ativo: true, admin: admin === true,
+            criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+            criadoPor: _usuario ? _usuario.uid : ""
+          });
+        }).then(function () { return { ok: true, uid: uid }; });
+      })
+      .catch(function (e) {
+        var c = (e && e.code) || "";
+        return { ok: false, msg: /email-already-in-use/.test(c) ? "já existe conta com este e-mail"
+          : /weak-password/.test(c) ? "senha fraca demais"
+          : /operation-not-allowed/.test(c) ? "ative E-mail/senha no Firebase"
+          : (e && e.message) || "falha ao cadastrar" };
+      })
+      .finally(function () { try { sec.delete(); } catch (e) {} });
+  }
+
+  function eqAtualizar(uid, campos) {
+    if (!(pronto && _admin)) return Promise.resolve({ ok: false, msg: "só administrador" });
+    // trava contra auto-rebaixamento: quem está logado não mexe no próprio registro
+    if (uid === (_usuario && _usuario.uid)) return Promise.resolve({ ok: false, msg: "peça a outro administrador para alterar o seu próprio acesso" });
+    return db.collection("equipe").doc(uid).update(campos || {})
+      .then(function () { return { ok: true }; })
+      .catch(function (e) { return { ok: false, msg: (e && e.message) || "falha ao atualizar" }; });
+  }
+
+  /* Fica ouvindo a coleção e avisa quando aparece documento NOVO criado por outra pessoa.
+     É o que permite a notificação de solicitação nova sem servidor nenhum. A primeira
+     resposta é ignorada de propósito: ela traz tudo o que já existe, e virariam avisos falsos. */
+  function ouvirNovos(colecao, aoChegar) {
+    if (!(pronto && _usuario)) return function () {};
+    var primeira = true;
+    try {
+      return db.collection(colecao).onSnapshot(function (snap) {
+        if (primeira) { primeira = false; return; }
+        snap.docChanges().forEach(function (c) {
+          if (c.type !== "added") return;
+          var x = c.doc.data() || {}; x.id = c.doc.id;
+          if (x.autorUid && x.autorUid === _usuario.uid) return;   // não avisa do próprio lançamento
+          try { aoChegar(x); } catch (e) {}
+        });
+      }, function () {});
+    } catch (e) { return function () {}; }
+  }
+
   window.Nuvem = {
     iniciar: iniciar,
+    ouvirNovos: ouvirNovos,
+    eqListar: eqListar, eqCadastrar: eqCadastrar, eqAtualizar: eqAtualizar,
     estado: estado,
     aoMudar: function (fn) { if (typeof fn === "function") { _ouvintes.push(fn); try { fn(estado()); } catch (e) {} } },
     entrar: entrar,
