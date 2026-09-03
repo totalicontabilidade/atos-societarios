@@ -3474,14 +3474,14 @@ window.TINA=(function(){
     if(d.socios&&d.socios.length){$("socios").innerHTML=""; d.socios.forEach(so=>socioCard(so)); document.querySelectorAll(".socio:not(.filial) input,.socio:not(.filial) select").forEach(el=>{if(el.value)el.classList.add("revisar");});}
   }
   /* Endereço escrito à mão no preenchimento rápido, ex.:
-     "Rua X, número 891, no bairro Y, CEP 49.503-390, no Estado de Sergipe"
+     "Rua X, número 891, no bairro Y, CEP 49.100-000, no Estado de Sergipe"
      Vai fatiando: tira CEP, UF, bairro, complemento e número; o que sobra no começo é o logradouro. */
   const UF_NOME={acre:"AC",alagoas:"AL",amapá:"AP",amapa:"AP",amazonas:"AM",bahia:"BA",ceará:"CE",ceara:"CE","distrito federal":"DF","espírito santo":"ES","espirito santo":"ES",goiás:"GO",goias:"GO",maranhão:"MA",maranhao:"MA","mato grosso":"MT","mato grosso do sul":"MS","minas gerais":"MG",pará:"PA",para:"PA",paraíba:"PB",paraiba:"PB",paraná:"PR",parana:"PR",pernambuco:"PE",piauí:"PI",piaui:"PI","rio de janeiro":"RJ","rio grande do norte":"RN","rio grande do sul":"RS",rondônia:"RO",rondonia:"RO",roraima:"RR","santa catarina":"SC","são paulo":"SP","sao paulo":"SP",sergipe:"SE",tocantins:"TO"};
   function parseEnderecoComando(raw){
     let t=" "+String(raw||"").replace(/\s+/g," ").trim().replace(/[.;]+$/,"")+" ";
     const o={log:"",num:"",comp:"",bairro:"",mun:"",uf:"",cep:""};
     const corta=(re)=>{const m=t.match(re); if(m){t=t.replace(m[0]," , "); return m;} return null;};
-    // CEP — aceita 49503-390, 49.503-390, 49503390
+    // CEP — aceita 49100-000, 49.100-000, 49100000
     let m=corta(/\b(?:CEP\s*:?\s*)?(\d{2})\.?(\d{3})-?(\d{3})\b/i);   // engole também a palavra "CEP", senão ela sobra como resto
     if(m)o.cep=m[1]+m[2]+"-"+m[3];
     // UF — "no Estado de Sergipe", "Sergipe", "/SE", ", SE"

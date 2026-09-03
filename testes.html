@@ -594,9 +594,9 @@
     // ---------- 6d. CEP manda no endereço ----------
     grupo("CEP");
     var fetchOrig=W.fetch;
-    W.fetch=function(u){ if(String(u).indexOf("viacep")>=0) return Promise.resolve(new W.Response(JSON.stringify({cep:"49503-390",logradouro:"Rua Oficial dos Correios",bairro:"Bairro Oficial",localidade:"Itabaiana",uf:"SE"}),{status:200,headers:{"Content-Type":"application/json"}})); return fetchOrig.apply(this,arguments); };
+    W.fetch=function(u){ if(String(u).indexOf("viacep")>=0) return Promise.resolve(new W.Response(JSON.stringify({cep:"49100-000",logradouro:"Rua Oficial dos Correios",bairro:"Bairro Oficial",localidade:"Itabaiana",uf:"SE"}),{status:200,headers:{"Content-Type":"application/json"}})); return fetchOrig.apply(this,arguments); };
     modo("alt"); await espera(160);
-    val("cmdRapido","endereço para Rua Digitada Pelo Usuario, número 891, no bairro Bairro Digitado, CEP 49.503-390, no Estado de Sergipe");
+    val("cmdRapido","endereço para Rua Digitada Pelo Usuario, número 891, no bairro Bairro Digitado, CEP 49.100-000, no Estado de Sergipe");
     $("btnRapido").click(); await espera(2000);
     reg("Endereço do CEP prevalece sobre o digitado",
         $("s_log").value==="Rua Oficial dos Correios" && $("s_bairro").value==="Bairro Oficial" && $("s_mun").value==="Itabaiana",
