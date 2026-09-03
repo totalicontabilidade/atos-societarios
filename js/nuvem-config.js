@@ -30,10 +30,10 @@
       ao UID de cada pessoa (campo "nome" e campo "ativo": true).
    ============================================================ */
 window.ATOS_FIREBASE = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyAa9UoPU8jbqlBX9r1E2C44hXZfJq0l_04",
+  authDomain: "atos-societarios.firebaseapp.com",
+  projectId: "atos-societarios",
+  storageBucket: "atos-societarios.firebasestorage.app",
+  messagingSenderId: "127923457771",
+  appId: "1:127923457771:web:2cc5ffadfa425a80cb38ae"
 };

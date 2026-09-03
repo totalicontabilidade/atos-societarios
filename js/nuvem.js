@@ -93,7 +93,9 @@
 
   function sair() { return pronto ? auth.signOut().catch(function () {}) : Promise.resolve(); }
 
-  function podeGravar() { return pronto && _usuario && _daEquipe; }
+  // devolve BOOLEANO de verdade: sem o !! isto entregava null quando ninguém estava logado,
+  // e quem chama compara com false
+  function podeGravar() { return !!(pronto && _usuario && _daEquipe); }
 
   function carimbo(extra) {
     var o = extra || {};

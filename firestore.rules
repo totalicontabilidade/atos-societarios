@@ -1,0 +1,122 @@
+rules_version = '2';
+
+// ============================================================
+// Totali · Atos Societários — regras do Firestore
+//
+// Princípio: a tela esconde, a regra impede. Nada aqui confia no
+// que o navegador manda. O que não estiver escrito não existe —
+// a última regra nega tudo o que sobrou.
+//
+// QUEM ENTRA
+// ----------
+// Só a equipe. Não basta estar logado: é preciso existir um
+// documento em /equipe/{uid} com ativo == true. Assim, mesmo que
+// alguém consiga criar uma conta no projeto, ela não lê nada.
+// Tirar uma pessoa do time = marcar ativo: false (ou apagar o
+// documento). O acesso morre na hora, sem mexer em código.
+//
+// ATENÇÃO — AQUI TEM DADO PESSOAL
+// -------------------------------
+// Por decisão do escritório, /atos guarda o trabalho inteiro:
+// sócios, CPF, RG e endereços. Isso é dado pessoal sob a LGPD.
+// Por isso: nada é público, nada é legível sem estar na equipe,
+// e a exclusão é de verdade (o documento sai). O que sobrevive à
+// exclusão é só a trilha em /auditoria, sem dado pessoal —
+// serve para provar QUE algo aconteceu, não PARA QUEM.
+//
+// A trilha é escrita pelo próprio app (não há Cloud Function
+// neste projeto), então ela aceita criação por quem é da equipe,
+// mas NUNCA aceita alteração nem exclusão — nem pelo autor.
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function logado() {
+      return request.auth != null;
+    }
+
+    // pertence à equipe e está ativo
+    function daEquipe() {
+      return logado()
+        && exists(/databases/$(database)/documents/equipe/$(request.auth.uid))
+        && get(/databases/$(database)/documents/equipe/$(request.auth.uid)).data.ativo == true;
+    }
+
+    // campos que o cliente do navegador não pode forjar
+    function autoriaOk() {
+      return request.resource.data.autorUid == request.auth.uid;
+    }
+
+    function admin() {
+      return daEquipe()
+        && get(/databases/$(database)/documents/equipe/$(request.auth.uid)).data.admin == true;
+    }
+
+    // ----------------------------------------------------------
+    // /equipe/{uid} — quem pode usar o sistema.
+    //
+    // O ADMINISTRADOR gerencia a equipe pelo próprio app (decisão do
+    // escritório: nada de mexer em código ou console no dia a dia).
+    // Duas travas contra escalada de privilégio:
+    //   1. só quem já é admin escreve aqui — logo, uma conta comum
+    //      não consegue se promover;
+    //   2. ninguém altera o PRÓPRIO registro, nem admin. Assim uma
+    //      sessão sequestrada não se eterniza mudando o próprio
+    //      documento, e o rebaixamento de um admin sempre passa por
+    //      outro admin.
+    // Cada pessoa lê o próprio registro (é como o app sabe se você
+    // está ativo); a lista inteira só o admin enxerga.
+    //
+    // O PRIMEIRO admin é criado uma única vez no console do Firebase
+    // — não há como um app decidir sozinho quem manda nele. Dali em
+    // diante, tudo é feito por dentro do sistema.
+    // ----------------------------------------------------------
+    match /equipe/{uid} {
+      allow get:    if logado() && (request.auth.uid == uid || admin());
+      allow list:   if admin();
+      allow create: if admin() && request.auth.uid != uid;
+      allow update: if admin() && request.auth.uid != uid;
+      allow delete: if admin() && request.auth.uid != uid;
+    }
+
+    // ----------------------------------------------------------
+    // /solicitacoes/{id} — fila de trabalho interna.
+    // Criada e tocada só pela equipe. Guarda contato do
+    // solicitante, então vale a mesma regra de dado pessoal.
+    // ----------------------------------------------------------
+    match /solicitacoes/{id} {
+      allow read:   if daEquipe();
+      allow create: if daEquipe() && autoriaOk();
+      allow update: if daEquipe();
+      allow delete: if daEquipe();
+    }
+
+    // ----------------------------------------------------------
+    // /atos/{id} — o trabalho em si (inclui dados do contrato).
+    // ----------------------------------------------------------
+    match /atos/{id} {
+      allow read:   if daEquipe();
+      allow create: if daEquipe() && autoriaOk();
+      allow update: if daEquipe();
+      allow delete: if daEquipe();
+    }
+
+    // ----------------------------------------------------------
+    // /auditoria/{id} — trilha. Só cresce: escreveu, ficou.
+    // Sem dado pessoal por contrato de uso (ver comentário acima).
+    // ----------------------------------------------------------
+    match /auditoria/{id} {
+      allow read:   if daEquipe();
+      allow create: if daEquipe() && autoriaOk();
+      allow update, delete: if false;
+    }
+
+    // ----------------------------------------------------------
+    // Tudo o mais: não existe.
+    // ----------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

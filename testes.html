@@ -377,10 +377,14 @@
     grupo("Solicitações");
     try{
       await recarregar(); $=function(id){ return D.getElementById(id); };
-      reg("Camada de nuvem carrega sem configuração e não quebra o app",
-        !!W.Nuvem && W.Nuvem.estado().configurado===false && W.Nuvem.podeGravar()===false);
-      reg("Sem nuvem configurada, o bloco de login fica escondido",
-        !$("nuvemLogin") || $("nuvemLogin").style.display==="none");
+      // valem com ou sem projeto configurado: o que importa é que nada quebre e nada seja gravado sem login
+      var estN=W.Nuvem?W.Nuvem.estado():null;
+      reg("Camada de nuvem carrega sem quebrar o app", !!estN && typeof estN.configurado==="boolean");
+      reg("Sem login, nada vai para a nuvem", W.Nuvem.podeGravar()===false && estN.daEquipe===false);
+      var gravou=await W.Nuvem.salvar("solicitacoes","teste-nao-deve-gravar",{empresa:"X"});
+      reg("Gravar sem login devolve recusa em vez de erro", gravou && gravou.ok===false, (gravou&&gravou.msg)||"");
+      reg("O bloco de login acompanha a configuração do projeto",
+        !!$("nuvemLogin") && ($("nuvemLogin").style.display==="none")===(estN.configurado===false));
       $("btnSolic").click(); await espera(400);
       $("btnSolicNova").click(); await espera(250);
       val("sEmpresa","PADARIA EXEMPLO LTDA"); val("sCnpj","11222333000181");
