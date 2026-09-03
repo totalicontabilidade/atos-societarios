@@ -217,7 +217,7 @@
   <button class="head-gear" id="btnConfig" type="button" title="Configurações" aria-label="Configurações">⚙</button>
   <span class="chip offline-pill" id="offlinePill" title="Sem conexão — o app segue funcionando; consultas online (CEP) ficam indisponíveis" style="display:none">⚠ offline</span>
   <!-- VERSÃO: incrementar a cada mudança publicada (e o CACHE em sw.js). Serve para o usuário conferir se o app atualizou. -->
-  <span class="chip">v0.30 · beta</span>
+  <span class="chip">v0.31 · beta</span>
 </header>
 
 <div class="wrap">
@@ -388,6 +388,11 @@
         <div id="wrapConselho" style="display:none;margin-top:8px" class="grid g3">
           <div><label for="conselhoMembros">Membros do conselho fiscal</label><input type="number" id="conselhoMembros" min="3" step="1" value="3"></div>
         </div>
+      </div>
+      <div class="row altonly" id="wrapPreservar" style="margin-top:10px;display:none">
+        <div class="hint" style="font-weight:700;color:var(--navy);margin-bottom:6px">Cláusulas do contrato enviado</div>
+        <label class="checkline"><input type="checkbox" id="preservarClausulas" checked> <b>Manter as cláusulas do contrato enviado</b> <span class="hint">— o sistema não troca nem retira nenhuma; só atualiza o que muda neste ato e acrescenta cláusula obrigatória que falte</span></label>
+        <div class="hint" id="preservarResumo" style="margin-top:6px"></div>
       </div>
       <div class="row ltdaonly" id="wrapAdvogado" style="margin-top:10px;display:none">
         <div class="hint" style="font-weight:700;color:var(--navy);margin-bottom:6px">Visto de advogado <span class="hint" style="font-weight:400">— art. 1º, § 2º, da Lei nº 8.906/1994 e art. 36 do Decreto nº 1.800/1996</span></div>
@@ -1053,7 +1058,7 @@ window.TINA=(function(){
   function readFiliais(){return[...document.querySelectorAll(".filial")].map(c=>{const o={};
     c.querySelectorAll("[data-g]").forEach(inp=>{o[inp.dataset.g]=(inp.value||"").trim();});
     o.uf=(o.uf||"").toUpperCase(); return o;}).filter(f=>f.log||f.mun);}
-  function readSocios(){return[...document.querySelectorAll(".socio:not(.filial)")].map(c=>{const o={};
+  function readSocios(todos){return[...document.querySelectorAll(".socio:not(.filial)"+(todos?"":":not(.guardado)"))].map(c=>{const o={};
     c.querySelectorAll("[data-f]").forEach(inp=>{const f=inp.dataset.f;if(f==="cepstat"||f==="cpfstat"||f==="pjcnpjstat")return;o[f]=inp.type==="checkbox"?inp.checked:(inp.value||"").trim();});
     o.tipoPessoa=o.tipoPJ?"PJ":"PF"; if(o.tipoPessoa==="PJ")o.sexo="F"; return o;});}
 
@@ -1066,12 +1071,27 @@ window.TINA=(function(){
      outra pessoa jurídica NÃO pode ser ME/EPP (LC 123/2006, art. 3º, § 4º, I). Logo, entrando uma
      sócia PJ o porte vira DEMAIS — e aí o visto passa a ser exigido no contrato social.
      Fora das hipóteses obrigatórias o campo continua disponível por opção (não é vedado). */
+  /* Cláusulas lidas do contrato enviado. Vivem fora do formulário (não são campo), mas entram no
+     rascunho e no trabalho em espera para não se perderem entre uma sessão e outra. */
+  let _clausulasOrig=[];
+  function mostrarPreservacao(){
+    const w=$("wrapPreservar"); if(!w) return;
+    const n=_clausulasOrig.length;
+    w.style.display=(MODE==="alt" && n)?"":"none";
+    const r=$("preservarResumo"); if(!r) return;
+    if(!n){ r.textContent=""; return; }
+    const semTema=_clausulasOrig.filter(c=>!c.tema).length;
+    r.innerHTML="Foram lidas <b>"+n+" cláusulas</b> do contrato enviado. "
+      +"As que este ato altera são reescritas; as demais saem <b>com o texto original</b>"
+      +(semTema?(", inclusive <b>"+semTema+"</b> que o sistema não gera por conta própria"):"")
+      +". Cláusula obrigatória que estiver faltando é acrescentada ao final.";
+  }
   function vistoObrigatorio(){
     const geraContratoSocial=(MODE==="const"||MODE==="transf_ei_ltda"||MODE==="transf_ei_slu");
     const enq=($("enquadramento")||{}).value;
     return geraContratoSocial && enq==="DEMAIS";
   }
-  function temSociaPJ(){ return [...document.querySelectorAll(".socio:not(.filial) [data-f=tipoPJ]")].some(c=>c.checked); }
+  function temSociaPJ(){ return [...document.querySelectorAll(".socio:not(.filial):not(.guardado) [data-f=tipoPJ]")].some(c=>c.checked); }
   function atualizarVistoAdvogado(){
     const wrap=$("wrapAdvogado"); if(!wrap) return;
     const ehLtda=!ehFormEI() && !MODE.startsWith("dist");
@@ -1089,10 +1109,10 @@ window.TINA=(function(){
   }
   function recalc(){const cap=Number($("capital").value)||0,vq=Number($("valorQuota").value)||0;
     // "Modo de administração" só faz sentido com 2+ administradores (com 1, é sempre isoladamente)
-    if($("modoAdmRow")){const nAdm=[...document.querySelectorAll(".socio:not(.filial) [data-f=administrador]")].filter(c=>c.checked).length; const semAdm=semQuotasPorSocio(); $("modoAdmRow").style.display=(nAdm>=2&&!semAdm)?"":"none";}  // só com 2+ administradores e onde há cláusula de administração (não no distrato)
+    if($("modoAdmRow")){const nAdm=[...document.querySelectorAll(".socio:not(.filial):not(.guardado) [data-f=administrador]")].filter(c=>c.checked).length; const semAdm=semQuotasPorSocio(); $("modoAdmRow").style.display=(nAdm>=2&&!semAdm)?"":"none";}  // só com 2+ administradores e onde há cláusula de administração (não no distrato)
     $("numQuotas").value=vq>0?numBR(Math.round(cap/vq)):"";let somaV=0;
     // quem se retira nesta alteração não compõe o capital resultante: entra na conta e a soma nunca fecharia
-    [...document.querySelectorAll(".socio:not(.filial)")].forEach(c=>{
+    [...document.querySelectorAll(".socio:not(.filial):not(.guardado)")].forEach(c=>{
       const sai=!!(c.querySelector("[data-f=retirante]")&&c.querySelector("[data-f=retirante]").checked);
       c.classList.toggle("saindo",sai);
       const q=sai?0:(Number(c.querySelector("[data-f=quotas]").value)||0),v=q*vq,p=cap>0?(v/cap*100):0;
@@ -1128,6 +1148,7 @@ window.TINA=(function(){
       clRegencia:!!($("cl_regencia")&&$("cl_regencia").checked), clConselho:!!($("cl_conselho")&&$("cl_conselho").checked),
       clExclusao:!!($("cl_exclusao")&&$("cl_exclusao").checked), conselhoMembros:Number($("conselhoMembros")&&$("conselhoMembros").value)||3,
       advIncluir:!!($("advIncluir")&&$("advIncluir").checked), advNome:v("advNome"), advOab:v("advOab"), advOabUf:v("advOabUf"),
+      preservar:!!($("preservarClausulas")&&$("preservarClausulas").checked), clausulasOrig:_clausulasOrig,
       cessao:!!($("alt_cessao")&&$("alt_cessao").checked), cedNome:v("cedNome"), cessNome:v("cessNome"),
       cedQuotas:Number($("cedQuotas")&&$("cedQuotas").value)||0, cedValor:Number($("cedValor")&&$("cedValor").value)||0,
       cedRetira:!!($("cedRetira")&&$("cedRetira").checked),
@@ -1315,39 +1336,83 @@ window.TINA=(function(){
       ch.push(P(R((plural?"Resolvem, em comum acordo,":"Resolve")+" constituir uma sociedade "+(plural?"empresária limitada, nos termos da Lei nº 10.406/2002,":"limitada unipessoal, na forma do art. 1.052, §§ 1º e 2º, da Lei nº 10.406/2002,")+" mediante as condições e cláusulas seguintes:"),JUST,SP15));
     }
 
+    /* O corpo do contrato é montado numa LISTA de cláusulas com tema, em vez de ir direto para o
+       documento. Isso é o que permite, na alteração, casar cada cláusula do contrato ENVIADO com a
+       cláusula equivalente gerada aqui — mantendo o texto original de tudo que este ato não altera. */
+    const BODY=[]; let _alvo=null;
+    const abre=(titulo)=>{ const b={titulo,tema:TEMA_DO_TITULO[titulo]||"",paras:[]}; BODY.push(b); _alvo=b.paras; };
+    const pushC=(...xs)=>{ xs.forEach(x=>{ (_alvo||ch).push(x); }); };
+    /* Emite o corpo. Sem preservação (constituição, transformação, ou alteração sem contrato lido),
+       sai o modelo do sistema, numerado em romanos, como sempre foi.
+       Com preservação, a ordem e o TEXTO vêm do contrato enviado:
+         • cláusula cujo tema NÃO muda neste ato  → sai idêntica à do contrato;
+         • cláusula cujo tema muda                → recebe a redação nova, no mesmo lugar;
+         • cláusula obrigatória que falte         → é acrescentada no fim.
+       Nada é removido, nunca. */
+    const emitirCorpo=()=>{
+      const orig=(isAlt && d.preservar && Array.isArray(d.clausulasOrig) && d.clausulasOrig.length>=5) ? d.clausulasOrig : null;
+      if(!orig){ BODY.forEach(b=>{ ch.push(heading(nx(),b.titulo)); b.paras.forEach(p=>ch.push(p)); }); return; }
+      const porTema=new Map(); BODY.forEach(b=>{ if(b.tema && !porTema.has(b.tema)) porTema.set(b.tema,b); });
+      const usados=new Set();
+      let n=0; const rotulo=()=>"Cláusula "+(++n)+"ª – ";
+      /* Um tema pode ser afetado por mais de uma marcação: mudar o QUADRO reescreve o capital
+         (é lá que fica a tabela de quotas), e o nome fantasia vive na cláusula do nome. Sem isso a
+         cláusula preservada continuaria listando os sócios antigos. */
+      const mexeu=(tm)=> CH.has(tm)
+        || (tm==="capital" && CH.has("quadro"))
+        || (tm==="nome" && CH.has("fantasia"))
+        || (tm==="sede" && CH.has("filiais"));
+      orig.forEach(cl=>{
+        const b=cl.tema?porTema.get(cl.tema):null;
+        if(b && mexeu(cl.tema)){                        // o ato mexe nisso → texto novo, mesma posição
+          usados.add(cl.tema);
+          ch.push(P([T(rotulo()+b.titulo.replace(/^D[AEOU]S?\s+/,"").replace(/^DECLARAÇÃO DE\s+/,""),{bold:true})],LEFT,SP10));
+          b.paras.forEach(p=>ch.push(p));
+        } else {                                        // não mexe → sai como está no contrato do cliente
+          if(b) usados.add(cl.tema);
+          ch.push(P([T(rotulo(),{bold:true}),...R(cl.texto)],JUST,SP15));
+        }
+      });
+      // cláusula obrigatória ausente no contrato enviado entra ao final (só acrescenta, nunca troca)
+      const faltando=BODY.filter(b=>b.tema && TEMAS_OBRIGATORIOS.indexOf(b.tema)>=0 && !usados.has(b.tema));
+      faltando.forEach(b=>{
+        ch.push(P([T(rotulo()+b.titulo.replace(/^D[AEOU]S?\s+/,""),{bold:true})],LEFT,SP10));
+        b.paras.forEach(p=>ch.push(p));
+      });
+    };
     // I - NOME
     const futNome=isTransf?false:(isAlt?(CH.has("nome")||CH.has("fantasia")):true);
-    ch.push(heading(nx(),"DO NOME EMPRESARIAL"));
-    ch.push(corpo((futNome?"A sociedade adotará como nome empresarial: ":"A sociedade gira sob o nome empresarial ")+razaoUP+" LTDA"+(d.fantasia?", e "+(futNome?"usará":"usa")+" a expressão "+fantUP+" como nome fantasia.":".")));
+    abre("DO NOME EMPRESARIAL");
+    pushC(corpo((futNome?"A sociedade adotará como nome empresarial: ":"A sociedade gira sob o nome empresarial ")+razaoUP+" LTDA"+(d.fantasia?", e "+(futNome?"usará":"usa")+" a expressão "+fantUP+" como nome fantasia.":".")));
     // II - SEDE
-    ch.push(heading(nx(),"DA SEDE"));
-    ch.push(corpo("A sociedade "+(fut("sede")?"terá":"tem")+" sua sede no seguinte endereço: "+endLinha(d.sede)+"."));
+    abre("DA SEDE");
+    pushC(corpo("A sociedade "+(fut("sede")?"terá":"tem")+" sua sede no seguinte endereço: "+endLinha(d.sede)+"."));
     // DAS FILIAIS (art. 1.000 do CC) — só quando houver; cada filial vira um parágrafo, como no modelo JUCESE
     if(d.filiais&&d.filiais.length){
-      ch.push(heading(nx(),"DAS FILIAIS"));
-      ch.push(corpo("Sem prejuízo da possibilidade de abrir ou fechar filial, ou qualquer dependência, mediante alteração contratual, na forma da lei, a sociedade "+(fut("sede")?"atuará":"atua")+" também no(s) seguinte(s) estabelecimento(s):"));
+      abre("DAS FILIAIS");
+      pushC(corpo("Sem prejuízo da possibilidade de abrir ou fechar filial, ou qualquer dependência, mediante alteração contratual, na forma da lei, a sociedade "+(fut("sede")?"atuará":"atua")+" também no(s) seguinte(s) estabelecimento(s):"));
       d.filiais.forEach((f,i)=>{
         const at=(f.objeto||"").trim()||d.objeto||"[ATIVIDADES]";
-        ch.push(paragN("Em estabelecimento eleito como Filial situado na "+endLinha(f)+(f.cnpj?", inscrita no CNPJ sob o nº "+f.cnpj:"")+", no qual "+(fut("sede")?"serão exercidas":"são exercidas")+" as atividades de "+at+"."
+        pushC(paragN("Em estabelecimento eleito como Filial situado na "+endLinha(f)+(f.cnpj?", inscrita no CNPJ sob o nº "+f.cnpj:"")+", no qual "+(fut("sede")?"serão exercidas":"são exercidas")+" as atividades de "+at+"."
           +(Number(f.capital)>0?" O destaque do capital para esta filial é de "+reais(Number(f.capital))+" ("+extensoReais(Number(f.capital))+").":""), ORD_PARAG[i]||("Parágrafo "+ROMANOS[i]+". ")));
       });
     }
     // III - OBJETO
-    ch.push(heading(nx(),"DO OBJETO SOCIAL"));
-    ch.push(corpo("A sociedade "+(fut("objeto")?"terá":"tem")+" por objeto o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO SOCIAL]")+"."));
+    abre("DO OBJETO SOCIAL");
+    pushC(corpo("A sociedade "+(fut("objeto")?"terá":"tem")+" por objeto o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO SOCIAL]")+"."));
     // IV - INÍCIO E PRAZO
-    ch.push(heading(nx(),"DO INÍCIO DAS ATIVIDADES E PRAZO DE DURAÇÃO"));
-    ch.push(corpo(cons
+    abre("DO INÍCIO DAS ATIVIDADES E PRAZO DE DURAÇÃO");
+    pushC(corpo(cons
       ? "A sociedade iniciou suas atividades em "+(d.dataInicioOrig||d.atoData||"[DATA]")+" e seu prazo de duração é por tempo indeterminado."
       : "A sociedade iniciará suas atividades em "+(d.atoData||"[DATA]")+" e seu prazo de duração será por tempo indeterminado."));
     // V - CAPITAL
     const futCap=isTransf?false:(isAlt?(CH.has("capital")||CH.has("quadro")):true);
-    ch.push(heading(nx(),"DO CAPITAL"));
-    ch.push(corpo("O capital social "+(futCap?"será":"é")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), dividido em "+numBR(d.numQuotas)+" ("+extensoInt(d.numQuotas)+") quotas, no valor nominal de "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, totalmente integralizado "+formaIntegr(d,"em moeda corrente do País")+"."));
-    ch.push(P([T("Parágrafo único. ",{bold:true}),T("O capital encontra-se subscrito e integralizado "+(plural?"pelos sócios":("pel"+gSole("o sócio","a sócia")))+" da seguinte forma:")],JUST,SP15));
-    ch.push(tabelaQuotas(dFica,X)); ch.push(gap());
+    abre("DO CAPITAL");
+    pushC(corpo("O capital social "+(futCap?"será":"é")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), dividido em "+numBR(d.numQuotas)+" ("+extensoInt(d.numQuotas)+") quotas, no valor nominal de "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, totalmente integralizado "+formaIntegr(d,"em moeda corrente do País")+"."));
+    pushC(P([T("Parágrafo único. ",{bold:true}),T("O capital encontra-se subscrito e integralizado "+(plural?"pelos sócios":("pel"+gSole("o sócio","a sócia")))+" da seguinte forma:")],JUST,SP15));
+    pushC(tabelaQuotas(dFica,X)); pushC(gap());
     // VI - ADMINISTRAÇÃO
-    ch.push(heading(nx(),"DA ADMINISTRAÇÃO"));
+    abre("DA ADMINISTRAÇÃO");
     const admName=(s)=> s.tipoPessoa==="PJ"
       ? ((s.pjRep||"[REPRESENTANTE]").toUpperCase()+", na qualidade de representante legal da sócia "+(s.nome||"").toUpperCase())
       : (s.nome||"").toUpperCase();
@@ -1355,83 +1420,86 @@ window.TINA=(function(){
     const modo = plA ? d.modoAdm : "ISOLADAMENTE";
     const futAdm=isTransf?false:(isAlt?CH.has("quadro"):true);
     const soloPJ=!plA && (soleAdm||FICAM[0]) && (soleAdm||FICAM[0]).tipoPessoa==="PJ";
-    if(plA) ch.push(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" pelos sócios "+nomesAdm+" que "+(futAdm?"representarão":"representam")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderão":"podem")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
-    else if(soloPJ) ch.push(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" por "+nomesAdm+", que "+(futAdm?"representará":"representa")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderá":"pode")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
-    else ch.push(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" "+gAdm("pelo sócio","pela sócia")+" "+nomesAdm+" que "+(futAdm?"representará":"representa")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderá":"pode")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
+    if(plA) pushC(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" pelos sócios "+nomesAdm+" que "+(futAdm?"representarão":"representam")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderão":"podem")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
+    else if(soloPJ) pushC(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" por "+nomesAdm+", que "+(futAdm?"representará":"representa")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderá":"pode")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
+    else pushC(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" "+gAdm("pelo sócio","pela sócia")+" "+nomesAdm+" que "+(futAdm?"representará":"representa")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderá":"pode")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
     // administrador NÃO SÓCIO designado no contrato (item VIII das cláusulas obrigatórias: exige a qualificação)
     if(d.admNaoSocio && (d.admnsNome||"").trim()){
       const q=(d.admnsQualif||"").trim().replace(/[;.\s]+$/,"");
-      ch.push(P([T("Parágrafo primeiro. ",{bold:true}),...R("A administração "+(futAdm?"será exercida também":"é exercida também")+" por "+(d.admnsNome||"").toUpperCase()+(q?", "+q:"")+", administrador não sócio designado neste instrumento, que "+(futAdm?"tomará posse":"toma posse")+" mediante aposição de sua assinatura no livro de atas da administração, nos termos do art. 1.062 do Código Civil.")],JUST,SP15));
-      ch.push(P([T("Parágrafo segundo. ",{bold:true}),...R("Não constituindo o objeto social, a alienação ou a oneração de bens imóveis depende de autorização da maioria.")],JUST,SP15));
-    } else ch.push(parag("Não constituindo o objeto social, a alienação ou a oneração de bens imóveis depende de autorização da maioria."));
+      pushC(P([T("Parágrafo primeiro. ",{bold:true}),...R("A administração "+(futAdm?"será exercida também":"é exercida também")+" por "+(d.admnsNome||"").toUpperCase()+(q?", "+q:"")+", administrador não sócio designado neste instrumento, que "+(futAdm?"tomará posse":"toma posse")+" mediante aposição de sua assinatura no livro de atas da administração, nos termos do art. 1.062 do Código Civil.")],JUST,SP15));
+      pushC(P([T("Parágrafo segundo. ",{bold:true}),...R("Não constituindo o objeto social, a alienação ou a oneração de bens imóveis depende de autorização da maioria.")],JUST,SP15));
+    } else pushC(parag("Não constituindo o objeto social, a alienação ou a oneração de bens imóveis depende de autorização da maioria."));
     // VII - BALANÇO
-    ch.push(heading(nx(),"DO BALANÇO PATRIMONIAL"));
-    ch.push(corpo("Ao término de cada exercício, em 31 de dezembro, o administrador "+(cons?"presta":"prestará")+" contas justificadas de sua administração, procedendo à elaboração do inventário, do balanço patrimonial e do balanço de resultado econômico, cabendo "+(plural?"aos sócios":("a"+gSole("o sócio","à sócia")))+" os lucros ou perdas apurados na proporção de suas quotas."));
+    abre("DO BALANÇO PATRIMONIAL");
+    pushC(corpo("Ao término de cada exercício, em 31 de dezembro, o administrador "+(cons?"presta":"prestará")+" contas justificadas de sua administração, procedendo à elaboração do inventário, do balanço patrimonial e do balanço de resultado econômico, cabendo "+(plural?"aos sócios":("a"+gSole("o sócio","à sócia")))+" os lucros ou perdas apurados na proporção de suas quotas."));
     // VIII - DESIMPEDIMENTO
-    ch.push(heading(nx(),"DECLARAÇÃO DE DESIMPEDIMENTO DE ADMINISTRADOR"));
+    abre("DECLARAÇÃO DE DESIMPEDIMENTO DE ADMINISTRADOR");
     const decl = plA
       ? "Os administradores declaram, sob as penas da lei, que não estão impedidos de exercer a administração da sociedade"
       : gAdm("O administrador declara","A administradora declara")+", sob as penas da lei, que não está "+gAdm("impedido","impedida")+" de exercer a administração da sociedade";
-    ch.push(corpo(decl+", por lei especial, ou em virtude de condenação criminal, ou por se encontrar sob os efeitos dela, a pena que vede, ainda que temporariamente, o acesso a cargos públicos; ou por crime falimentar, de prevaricação, peita ou suborno, concussão, peculato, ou contra a economia popular, contra o sistema financeiro nacional, contra normas de defesa da concorrência, contra as relações de consumo, fé pública, ou a propriedade."));
+    pushC(corpo(decl+", por lei especial, ou em virtude de condenação criminal, ou por se encontrar sob os efeitos dela, a pena que vede, ainda que temporariamente, o acesso a cargos públicos; ou por crime falimentar, de prevaricação, peita ou suborno, concussão, peculato, ou contra a economia popular, contra o sistema financeiro nacional, contra normas de defesa da concorrência, contra as relações de consumo, fé pública, ou a propriedade."));
     // IX - PRÓ LABORE
-    ch.push(heading(nx(),"DO PRÓ-LABORE"));
-    ch.push(corpo(plural
+    abre("DO PRÓ-LABORE");
+    pushC(corpo(plural
       ? "Os sócios poderão, de comum acordo, fixar uma retirada mensal, a título de pró-labore para os sócios administradores, observadas as disposições regulamentares pertinentes."
       : gSole("O sócio poderá","A sócia poderá")+" fixar uma retirada mensal, a título de pró-labore, observadas as disposições regulamentares pertinentes."));
     // X - DISTRIBUIÇÃO DE LUCROS
-    ch.push(heading(nx(),"DISTRIBUIÇÃO DE LUCROS"));
-    ch.push(corpo("A sociedade poderá levantar balanços intermediários ou intercalares e distribuir os lucros neles evidenciados."));
+    abre("DISTRIBUIÇÃO DE LUCROS");
+    pushC(corpo("A sociedade poderá levantar balanços intermediários ou intercalares e distribuir os lucros neles evidenciados."));
     // XI - RETIRADA/FALECIMENTO
-    ch.push(heading(nx(),"DA RETIRADA OU FALECIMENTO DE SÓCIO"));
-    ch.push(corpo("Retirando-se, falecendo ou interditado qualquer sócio, a sociedade continuará suas atividades com os herdeiros, sucessores e o incapaz, desde que autorizado legalmente. Não sendo possível ou inexistindo interesse destes ou dos sócios remanescentes na continuidade da sociedade, esta será liquidada após a apuração do Balanço Patrimonial na data do evento. O resultado positivo ou negativo será distribuído ou suportado "+(plural?"pelos sócios":("pel"+gSole("o sócio","a sócia")))+" na proporção de suas quotas."));
-    ch.push(parag("O mesmo procedimento será adotado em outros casos em que a sociedade se resolva em relação a um sócio."));
+    abre("DA RETIRADA OU FALECIMENTO DE SÓCIO");
+    pushC(corpo("Retirando-se, falecendo ou interditado qualquer sócio, a sociedade continuará suas atividades com os herdeiros, sucessores e o incapaz, desde que autorizado legalmente. Não sendo possível ou inexistindo interesse destes ou dos sócios remanescentes na continuidade da sociedade, esta será liquidada após a apuração do Balanço Patrimonial na data do evento. O resultado positivo ou negativo será distribuído ou suportado "+(plural?"pelos sócios":("pel"+gSole("o sócio","a sócia")))+" na proporção de suas quotas."));
+    pushC(parag("O mesmo procedimento será adotado em outros casos em que a sociedade se resolva em relação a um sócio."));
     // XII - CESSÃO
-    ch.push(heading(nx(),"DA CESSÃO DE QUOTAS"));
-    ch.push(corpo(plural
+    abre("DA CESSÃO DE QUOTAS");
+    pushC(corpo(plural
       ? "As quotas são indivisíveis e não poderão ser cedidas ou transferidas a terceiros sem o consentimento dos demais sócios, aos quais fica assegurado, em igualdade de condições e preço, o direito de preferência para a sua aquisição se postas à venda, formalizando-se, se realizada a cessão delas, a alteração contratual pertinente."
       : "As quotas são indivisíveis em relação à sociedade. Sendo a sociedade unipessoal, a cessão total ou parcial de quotas, bem como a admissão de novos sócios, dependerá exclusivamente da vontade "+gSole("do único sócio","da única sócia")+", formalizando-se a alteração contratual pertinente."));
     // XIII - RESPONSABILIDADE
-    ch.push(heading(nx(),"DA RESPONSABILIDADE"));
-    ch.push(corpo(plural
+    abre("DA RESPONSABILIDADE");
+    pushC(corpo(plural
       ? "A responsabilidade de cada sócio é restrita ao valor de suas quotas, mas todos respondem solidariamente pela integralização do capital social, nos termos do art. 1.052 do Código Civil."
       : "A responsabilidade "+gSole("do sócio","da sócia")+" é restrita ao valor de suas quotas, respondendo pela integralização do capital social, nos termos do art. 1.052 do Código Civil."));
     // XIV - PORTE
-    ch.push(heading(nx(),"PORTE EMPRESARIAL"));
+    abre("PORTE EMPRESARIAL");
     if(d.enquadramento==="DEMAIS")
-      ch.push(corpo((plural?"Os sócios declaram":gSole("O sócio declara","A sócia declara"))+" que a sociedade não se enquadra como Microempresa (ME) nem como Empresa de Pequeno Porte (EPP), nos termos da Lei Complementar nº 123, de 14 de dezembro de 2006."));
+      pushC(corpo((plural?"Os sócios declaram":gSole("O sócio declara","A sócia declara"))+" que a sociedade não se enquadra como Microempresa (ME) nem como Empresa de Pequeno Porte (EPP), nos termos da Lei Complementar nº 123, de 14 de dezembro de 2006."));
     else
-      ch.push(corpo((plural?"Os sócios declaram":gSole("O sócio declara","A sócia declara"))+" que a sociedade se enquadra como "+ENQ[d.enquadramento]+", nos termos da Lei Complementar nº 123, de 14 de dezembro de 2006, e que não se enquadra em qualquer das hipóteses de exclusão relacionadas no § 4º do art. 3º da mencionada lei."));
+      pushC(corpo((plural?"Os sócios declaram":gSole("O sócio declara","A sócia declara"))+" que a sociedade se enquadra como "+ENQ[d.enquadramento]+", nos termos da Lei Complementar nº 123, de 14 de dezembro de 2006, e que não se enquadra em qualquer das hipóteses de exclusão relacionadas no § 4º do art. 3º da mencionada lei."));
     // SUCESSÃO (transformação)
     if(isTransf){
-      ch.push(heading(nx(),"DA SUCESSÃO E CONTINUIDADE"));
-      ch.push(corpo("Em decorrência da transformação ora deliberada, a sociedade "+(isSLU?"limitada unipessoal":"limitada")+" resultante sucede integralmente a personalidade jurídica do Empresário Individual "+razAntUP+", mantendo-se o mesmo CNPJ nº "+(d.cnpj||"[CNPJ]")+" e o respectivo NIRE atualizado para a nova natureza jurídica."));
-      ch.push(parag("Todos os direitos, obrigações, contratos, empregados, ativos e passivos do Empresário Individual passam, de pleno direito, à sociedade ora constituída por transformação, sem solução de continuidade."));
+      abre("DA SUCESSÃO E CONTINUIDADE");
+      pushC(corpo("Em decorrência da transformação ora deliberada, a sociedade "+(isSLU?"limitada unipessoal":"limitada")+" resultante sucede integralmente a personalidade jurídica do Empresário Individual "+razAntUP+", mantendo-se o mesmo CNPJ nº "+(d.cnpj||"[CNPJ]")+" e o respectivo NIRE atualizado para a nova natureza jurídica."));
+      pushC(parag("Todos os direitos, obrigações, contratos, empregados, ativos e passivos do Empresário Individual passam, de pleno direito, à sociedade ora constituída por transformação, sem solução de continuidade."));
     }
     // Cláusulas padronizadas OPCIONAIS dos modelos JUCESE — entram antes do foro, só quando marcadas
     if(d.clExclusao){
-      ch.push(heading(nx(),"DA EXCLUSÃO EXTRAJUDICIAL DE SÓCIO MINORITÁRIO POR JUSTA CAUSA"));
+      abre("DA EXCLUSÃO EXTRAJUDICIAL DE SÓCIO MINORITÁRIO POR JUSTA CAUSA");
       if(nS<=2){   // art. 1.085, § único: até dois sócios, dispensa reunião/assembleia
-        ch.push(corpo("Sem a necessidade de reunião ou assembleia, sendo a sociedade composta de até dois sócios, o sócio que detiver mais da metade do capital social poderá excluir o sócio minoritário da sociedade, se entender que este está pondo em risco a continuidade da empresa, em virtude de atos de inegável gravidade, mediante alteração do contrato social."));
-        ch.push(parag("A exclusão somente poderá ser determinada se na alteração contratual constarem expressamente os motivos que justificam a exclusão por justa causa."));
+        pushC(corpo("Sem a necessidade de reunião ou assembleia, sendo a sociedade composta de até dois sócios, o sócio que detiver mais da metade do capital social poderá excluir o sócio minoritário da sociedade, se entender que este está pondo em risco a continuidade da empresa, em virtude de atos de inegável gravidade, mediante alteração do contrato social."));
+        pushC(parag("A exclusão somente poderá ser determinada se na alteração contratual constarem expressamente os motivos que justificam a exclusão por justa causa."));
       } else {
-        ch.push(corpo("O sócio poderá ser excluído extrajudicialmente, quando a maioria dos sócios, representativa de mais da metade do capital social, entender que ele está pondo em risco a continuidade da empresa, em virtude de atos de inegável gravidade, mediante alteração do contrato social."));
-        ch.push(parag("A exclusão somente poderá ser determinada em reunião ou assembleia especialmente convocada para esse fim, ciente o acusado em tempo hábil para permitir seu comparecimento e o exercício do direito de defesa."));
+        pushC(corpo("O sócio poderá ser excluído extrajudicialmente, quando a maioria dos sócios, representativa de mais da metade do capital social, entender que ele está pondo em risco a continuidade da empresa, em virtude de atos de inegável gravidade, mediante alteração do contrato social."));
+        pushC(parag("A exclusão somente poderá ser determinada em reunião ou assembleia especialmente convocada para esse fim, ciente o acusado em tempo hábil para permitir seu comparecimento e o exercício do direito de defesa."));
       }
     }
     if(d.clConselho){
       const nm=Math.max(3,Number(d.conselhoMembros)||3);
-      ch.push(heading(nx(),"DO CONSELHO FISCAL"));
-      ch.push(corpo("A sociedade terá um conselho fiscal composto por "+numBR(nm)+" ("+extensoInt(nm)+") membros e igual número de suplentes, eleitos na assembleia anual dos sócios, nos termos do art. 1.066 do Código Civil."));
-      ch.push(P([T("Parágrafo primeiro. ",{bold:true}),...R("É assegurado aos sócios minoritários, que representarem pelo menos um quinto do capital social, o direito de eleger, separadamente, um dos membros do conselho fiscal e o respectivo suplente.")],JUST,SP15));
-      ch.push(P([T("Parágrafo segundo. ",{bold:true}),...R("A mesma assembleia que eleger o conselho fiscal fixará sua remuneração.")],JUST,SP15));
+      abre("DO CONSELHO FISCAL");
+      pushC(corpo("A sociedade terá um conselho fiscal composto por "+numBR(nm)+" ("+extensoInt(nm)+") membros e igual número de suplentes, eleitos na assembleia anual dos sócios, nos termos do art. 1.066 do Código Civil."));
+      pushC(P([T("Parágrafo primeiro. ",{bold:true}),...R("É assegurado aos sócios minoritários, que representarem pelo menos um quinto do capital social, o direito de eleger, separadamente, um dos membros do conselho fiscal e o respectivo suplente.")],JUST,SP15));
+      pushC(P([T("Parágrafo segundo. ",{bold:true}),...R("A mesma assembleia que eleger o conselho fiscal fixará sua remuneração.")],JUST,SP15));
     }
     if(d.clRegencia){
-      ch.push(heading(nx(),"DA REGÊNCIA SUPLETIVA"));
-      ch.push(corpo("Por este ato determina-se a regência supletiva da sociedade pelo regramento da sociedade anônima, conforme dispõe o parágrafo único do art. 1.053 do Código Civil."));
+      abre("DA REGÊNCIA SUPLETIVA");
+      pushC(corpo("Por este ato determina-se a regência supletiva da sociedade pelo regramento da sociedade anônima, conforme dispõe o parágrafo único do art. 1.053 do Código Civil."));
     }
     // XV - FORO
-    ch.push(heading(nx(),"DO FORO"));
-    ch.push(corpo("Fica eleito o Foro da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" - "+(d.sede.uf||"")+", para qualquer ação fundada neste contrato, renunciando-se a qualquer outro por mais especial que seja."));
+    abre("DO FORO");
+    pushC(corpo("Fica eleito o Foro da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" - "+(d.sede.uf||"")+", para qualquer ação fundada neste contrato, renunciando-se a qualquer outro por mais especial que seja."));
+
+    _alvo=null;   // daqui para a frente volta a escrever direto no documento
+    emitirCorpo();
 
     // Fecho
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
@@ -1899,7 +1967,14 @@ window.TINA=(function(){
     if($("lblQuadro"))$("lblQuadro").textContent=formEI?"Titular":"Quadro societário";
     if($("lblCapital"))$("lblCapital").textContent=formEI?"Capital":"Capital social";
     if($("lblCapital2"))$("lblCapital2").textContent=formEI?"Capital":"Capital social";
-    if(single){ if(document.querySelectorAll(".socio:not(.filial)").length===0)socioCard(); while(document.querySelectorAll(".socio:not(.filial)").length>1)document.querySelectorAll(".socio:not(.filial)")[document.querySelectorAll(".socio:not(.filial)").length-1].remove(); }
+    /* Modos de UM componente (EI, SLU, →EI, extinção de EI) APAGAVAM os sócios excedentes.
+       Bastava clicar noutra aba e voltar para o quadro societário perder o 2º sócio — sem aviso e
+       sem volta; foi assim que uma sócia pessoa jurídica lida do contrato "sumia" do documento.
+       Agora eles ficam GUARDADOS (escondidos e fora da leitura) e voltam ao sair do modo. */
+    const cards=[...document.querySelectorAll(".socio:not(.filial)")];
+    if(single){ if(!cards.length){ socioCard(); }
+      cards.slice(1).forEach(c=>{ c.classList.add("guardado"); c.style.display="none"; }); }
+    else cards.forEach(c=>{ c.classList.remove("guardado"); c.style.display=""; });
     document.querySelectorAll(".socio:not(.filial) .tag").forEach(t=>t.textContent=formEI?"Titular":"Sócio");
     if($("btnAddSocio")&&$("btnAddSocio").parentElement)$("btnAddSocio").parentElement.style.display=single?"none":(formEI?"none":"");
     const msg={alt:"Modo Alteração (Ltda): dados ATUAIS + o que muda.",const:"Modo Constituição (Ltda).",ei_const:"Empresário Individual — Inscrição (abertura).",ei_alt:"Empresário Individual — Alteração: dados ATUAIS + o que muda.",transf_ei_ltda:"Transformação: Empresário Individual → Sociedade Limitada (entram sócios).",transf_ei_slu:"Transformação: Empresário Individual → SLU (sociedade limitada unipessoal).",transf_ltda_ei:"Transformação: Sociedade Limitada → Empresário Individual.",dist_ltda:"Distrato: encerramento de Sociedade Limitada / SLU.",dist_ei:"Extinção de Empresário Individual."};
@@ -2345,6 +2420,7 @@ window.TINA=(function(){
   function limparCampos(){  // zera os DADOS do formulário (não mexe no PDF anexado nem no texto de "o que muda")
     casoAtualId=null;       // formulário novo/zerado = caso novo (o próximo "salvar" cria outro registro)
     valoresAntes=null;      // some com o estado "antes" ao limpar o formulário
+    _clausulasOrig=[]; mostrarPreservacao();   // as cláusulas lidas eram do contrato ANTERIOR
     ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","advNome","advOab","advOabUf"].forEach(id=>{if($(id))$(id).value="";});
     ["admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","alt_cessao","cedRetira","advIncluir"].forEach(id=>{if($(id))$(id).checked=false;});
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach(id=>{if($(id))$(id).style.display="none";});
@@ -2760,10 +2836,87 @@ window.TINA=(function(){
     return avisos;
   }
 
+  /* ===== Cláusulas do contrato enviado =====
+     Regra do escritório: o sistema NUNCA troca nem retira cláusula que já estava no contrato do
+     cliente. Ele pode, no máximo, atualizar o texto do que está sendo alterado neste ato e
+     acrescentar cláusula obrigatória que esteja faltando. Para isso é preciso ler o contrato
+     consolidado como uma LISTA de cláusulas, e não só extrair campos soltos. */
+  const TEMAS_OBRIGATORIOS=["nome","capital","sede","objeto","prazo","administracao","lucros","foro"];   // item 4 do Manual de LTDA (I a X; VI e VIII são condicionais)
+  // liga o título da cláusula que o sistema gera ao tema usado na comparação com o contrato enviado
+  const TEMA_DO_TITULO={"DO NOME EMPRESARIAL":"nome","DA SEDE":"sede","DAS FILIAIS":"filiais","DO OBJETO SOCIAL":"objeto",
+    "DO INÍCIO DAS ATIVIDADES E PRAZO DE DURAÇÃO":"prazo","DO CAPITAL":"capital","DA ADMINISTRAÇÃO":"administracao",
+    "DO BALANÇO PATRIMONIAL":"balanco","DECLARAÇÃO DE DESIMPEDIMENTO DE ADMINISTRADOR":"desimpedimento",
+    "DO PRÓ-LABORE":"prolabore","DISTRIBUIÇÃO DE LUCROS":"lucros","DA RETIRADA OU FALECIMENTO DE SÓCIO":"falecimento",
+    "DA CESSÃO DE QUOTAS":"cessao","DA RESPONSABILIDADE":"responsabilidade","PORTE EMPRESARIAL":"enquadramento",
+    "DA SUCESSÃO E CONTINUIDADE":"sucessao","DA EXCLUSÃO EXTRAJUDICIAL DE SÓCIO MINORITÁRIO POR JUSTA CAUSA":"exclusao",
+    "DO CONSELHO FISCAL":"conselho","DA REGÊNCIA SUPLETIVA":"regencia","DO FORO":"foro"};
+  const ROTULO_CLAUSULA=/Cl[áa]usula\s+(\d{1,2}\s*[ªaº°]?|[IVXLC]{1,6}|Primeira|Segunda|Terceira|Quarta|Quinta|Sexta|S[ée]tima|Oitava|Nona|D[ée]cima(?:\s+\w+)?|Vig[ée]sima(?:\s+\w+)?|Trig[ée]sima(?:\s+\w+)?)\s*[-–—.]/gi;
+  /* Classificação por ABERTURA da cláusula, não pelo texto inteiro: o assunto é anunciado nas
+     primeiras linhas, e o corpo costuma citar de passagem palavras de outros temas. Ler tudo já
+     trocou a cláusula errada — a de "mudar a forma jurídica" virava "capital" porque diz "maioria
+     simples do capital social", e a do capital virava "filiais" porque a tabela traz "FILIAL".
+     Errar aqui é grave: significaria reescrever cláusula que o cliente não mandou mudar. */
+  function classificarClausula(txt){
+    const bruto=(txt||"").normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"").toLowerCase();
+    const s=bruto.slice(0,150);
+    if(/mudar\s+.{0,40}forma\s+juridica/.test(s)) return "formajuridica";
+    if(/instalar,?\s*manter\s+e\s+extinguir|abrir\s+ou\s+fechar\s+fili|manter\s+e\s+extinguir\s+fili/.test(s)) return "podefiliais";
+    if(/gira\s+sob\s+o\s+nome|girar[áa]?\s+sob|adotar[áa]\s+como\s+nome\s+empresarial|nome\s+empresarial\s+(?:e|sera|passa)/.test(s)) return "nome";
+    if(/titulo\s+d[eo]\s+estabelecimento|nome\s+(?:de\s+)?fantasia/.test(s)) return "fantasia";
+    if(/se\s+enquadra|enquadrar[áa]|declara.{0,40}(?:microempresa|pequeno porte|condicao de)/.test(s)) return "enquadramento";
+    if(/(?:tem|tera|possui)\s+(?:matriz|sede)|sede\s+e\s+foro|sede\s+(?:esta\s+)?(?:na|no|em)|endereco\s+da\s+sede/.test(s)) return "sede";
+    if(/(?:tem\s+filial|possui\s+filial|filiais\s+(?:situad|localizad)|estabelecimento\s+eleito\s+como\s+filial)/.test(s)) return "filiais";
+    if(/objeto\s+(?:social|da\s+sociedade)|(?:tem|tera)\s+(?:por|como)\s+objeto/.test(s)) return "objeto";
+    if(/prazo\s+de\s+duracao|tempo\s+indeterminado|inicio\w*\s+(?:suas\s+)?atividades|atividades\s+(?:tiveram\s+)?inicia/.test(s)) return "prazo";
+    if(/^o?\s*capital\s+social|capital\s+social\s+(?:e|sera|fica)\b|^o\s+capital\b/.test(s)) return "capital";
+    if(/aumento\s+de\s+capital/.test(s)) return "aumento";
+    if(/quotas?\s+sao\s+indivisiveis|cotas?\s+sao\s+indivisiveis|cedidas\s+ou\s+transferidas|direito\s+de\s+preferencia/.test(s)) return "cessao";
+    if(/responsabilidade\s+(?:de\s+cada|do|da)\s+socia?o?|restrita\s+ao\s+valor/.test(s)) return "responsabilidade";
+    if(/(?:nao\s+(?:esta|estao)\s+impedid|declara\w*,?\s+sob\s+as\s+penas\s+da\s+lei,?\s+(?:de\s+)?que\s+nao)/.test(s)) return "desimpedimento";
+    if(/pro-?labore|retirada\s+mensal/.test(s)) return "prolabore";
+    if(/balanco|exercicio\s+social|presta\s+contas|inventario|termino\s+de\s+cada\s+exercicio/.test(s)) return "balanco";
+    if(/falecend|interditad|herdeiros|sucessores/.test(s)) return "falecimento";
+    if(/(?:se\s+)?retirar\s+da\s+sociedade|retirar-se/.test(s)) return "retirada";
+    if(/prejuizos|distribuicao\s+dos?\s+lucros|lucros\s+ou\s+prejuizos/.test(s)) return "lucros";
+    if(/administrad|administracao/.test(s)) return "administracao";
+    if(/\bforo\b|casos\s+omissos|divergencias\s+sociais/.test(s)) return "foro";
+    return "";   // sem tema reconhecido → é cláusula própria do contrato e sempre se mantém
+  }
+  /* Extrai a lista de cláusulas do CONSOLIDADO (ou do contrato inteiro, quando não há consolidação).
+     Devolve [] quando não consegue reconhecer a estrutura — nesse caso o gerador cai no modelo,
+     que é o comportamento antigo. Melhor não preservar do que preservar errado. */
+  function extrairClausulas(t){
+    if(!t) return [];
+    let corpo=t;
+    const mCons=[...t.matchAll(/CONTRATO SOCIAL CONSOLIDADO|CONSOLIDA[ÇC][ÃA]O DO CONTRATO SOCIAL|passa a vigorar com a seguinte e [úu]nica reda[çc][ãa]o/gi)];
+    if(mCons.length){ const u=mCons[mCons.length-1]; corpo=t.slice(u.index+u[0].length); }
+    // corta no fecho (assinaturas) — dali para a frente não há mais cláusula
+    const fim=corpo.search(/E,?\s+por\s+estar|E,?\s+por\s+estarem|Por\s+estarem\s+justos|_{6,}/i);
+    if(fim>200) corpo=corpo.slice(0,fim);
+    const marcas=[...corpo.matchAll(ROTULO_CLAUSULA)];
+    if(marcas.length<5) return [];                      // estrutura não reconhecida
+    const out=[];
+    for(let i=0;i<marcas.length;i++){
+      const ini=marcas[i].index+marcas[i][0].length;
+      const txt=corpo.slice(ini, i+1<marcas.length?marcas[i+1].index:corpo.length)
+        .replace(/\s+/g," ").replace(/^[\s.–—-]+/,"").trim();
+      if(txt.length<15) continue;
+      out.push({rotulo:marcas[i][1].replace(/\s+/g,""), texto:txt, tema:classificarClausula(txt)});
+    }
+    return out;
+  }
   function parseContratoTexto(t,extra,auth,nomeArquivo){
     t=(t||"").replace(/\s+/g," ").replace(/P[áa]gina\s+\d+\s+de\s+\d+\s*\/?/gi," ");  // tira marcador de rodapé "Página X de Y" (+ a "/" que costuma segui-lo)
-    // repara espaçamento entre letras do pdf.js em stems que NÃO são palavras isoladas (seguro): "Brasileir a"→"Brasileira", "nascid a"→"nascida", "atividade s"→"atividades"
-    t=t.replace(/\b(brasileir|estrangeir|naturalizad|solteir|casad|divorciad|vi[úu]v|separad|nascid|domiciliad|empres[áa]ri|comerciant|advogad|administrador|professor|aposentad|vendedor|contador|engenheir|arquitet)\s+([oa])\b/gi,"$1$2")
+    /* Guarda o texto ANTES dos consertos de leitura. As correções abaixo existem para o parser achar
+       campos; elas mexem no texto e não podem chegar ao documento final. As cláusulas preservadas
+       saem daqui — do que o cliente escreveu, e não do que o sistema ajustou para conseguir ler. */
+    const tOriginal=t;
+    /* Repara o espaçamento que o pdf.js às vezes cria dentro da palavra ("Brasileir a" → "Brasileira").
+       A lista só pode conter stems que NÃO são palavras inteiras. "administrador", "professor",
+       "vendedor" e "contador" estavam aqui e são: em "tem como administrador o sócio", o "o" é
+       ARTIGO, e a regra colava tudo em "administradoro sócio" — corrompendo o texto do contrato do
+       cliente, que agora é reproduzido no documento. */
+    t=t.replace(/\b(brasileir|estrangeir|naturalizad|solteir|casad|divorciad|vi[úu]v|separad|nascid|domiciliad|empres[áa]ri|comerciant|advogad|aposentad|engenheir|arquitet)\s+([oa])\b/gi,"$1$2")
       .replace(/\batividade\s+s\b/gi,"atividades").replace(/\bseguinte\s+s\b/gi,"seguintes").replace(/\bfilha?\s+([oa])\b/gi,"filh$1");
     extra=(extra||"").replace(/\s+/g," ");          // OCR das páginas-imagem (corpo da cópia autenticada)
     auth=(auth||"").replace(/\s+/g," ");            // OCR do rodapé = carimbo oficial da Junta (NIRE/CNPJ definitivos)
@@ -2815,6 +2968,7 @@ window.TINA=(function(){
       ||m1(t,new RegExp("(?:ter[áa]|tem|possui)\\s+como\\s+objeto(?:\\s+social)?\\s+([\\s\\S]+?)"+objFim,"i"))
       ||m1(t,new RegExp("objeto(?:\\s+social)?\\s+(?:d[ao]\\s+sociedade\\s+)?(?:a|o)\\s+explora[çc][ãa]o\\s+(?:n[oa]|d[oa])?\\s*ramo\\s+de\\s+([\\s\\S]+?)"+objFim,"i"));
     if(d.objeto){ d.objeto=limparObjeto(d.objeto); if(d.objeto)inc.add("objeto"); }
+    d.clausulasOrig=extrairClausulas(tOriginal);   // cláusulas do contrato enviado, no texto original — para não trocar nem retirar nenhuma
     // enquadramento: prioriza a DECLARAÇÃO ("se enquadra … Microempresa/EPP"), não o cabeçalho "(ME/EPP)"
     // "DEMAIS" (nem ME nem EPP) é declaração explícita e vem ANTES — senão o "microempresa" citado
     // na própria frase de exclusão da LC 123 faria o contrato voltar para ME.
@@ -3002,6 +3156,8 @@ window.TINA=(function(){
     if(d.sede){const s=d.sede; setf("s_cep",s.cep,true);setf("s_log",s.log,true);setf("s_num",s.num,true);setf("s_comp",s.comp,true);setf("s_bairro",s.bairro,true);setf("s_mun",s.mun,true); if(s.uf&&$("s_uf")){$("s_uf").value=s.uf;$("s_uf").classList.add("revisar");}}
     setf("atoCidade",(d.foro||(d.sede&&d.sede.mun)||""),true);
     setf("atoData",hojeBR(),false);
+    _clausulasOrig=Array.isArray(d.clausulasOrig)?d.clausulasOrig:[];
+    mostrarPreservacao();
     if(d.filiais&&d.filiais.length&&$("filiais")){$("filiais").innerHTML=""; d.filiais.forEach(fl=>filialCard(fl)); document.querySelectorAll(".socio.filial input").forEach(el=>{if(el.value)el.classList.add("revisar");});}
     if(d.socios&&d.socios.length){$("socios").innerHTML=""; d.socios.forEach(so=>socioCard(so)); document.querySelectorAll(".socio:not(.filial) input,.socio:not(.filial) select").forEach(el=>{if(el.value)el.classList.add("revisar");});}
   }
@@ -3063,7 +3219,24 @@ window.TINA=(function(){
     for(const s of segs){
       let m;
       if(m=s.match(/inclu\w+\s+s[óo]cio\s+(.+)/i)){const rest=m[1];const cpf=(rest.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/)||[])[0]||"";const nome=rest.replace(/,?\s*cpf.*/i,"").replace(/,\s*\d.*/,"").trim();socioCard({nome,cpf});const last=[...document.querySelectorAll(".socio:not(.filial)")].pop();if(last)last.querySelectorAll("[data-f=nome],[data-f=cpf]").forEach(el=>el.classList.add("revisar"));chk("alt_quadro");applied.push("incluir sócio: "+nome);continue;}
-      if(m=s.match(/(?:exclu\w+|remov\w+|retir\w+)\s+s[óo]cio\s+(.+)/i)){const alvo=m[1].trim().toLowerCase();const card=[...document.querySelectorAll(".socio:not(.filial)")].find(c=>((c.querySelector("[data-f=nome]")||{}).value||"").toLowerCase().includes(alvo));if(card)card.remove();chk("alt_quadro");applied.push("excluir sócio: "+m[1].trim());continue;}
+      /* "excluir sócio X": numa ALTERAÇÃO ele não pode simplesmente sumir — quem sai assina o ato e
+         precisa continuar qualificado no preâmbulo. Então o comando MARCA A RETIRADA e o sócio fica
+         no quadro; o gerador é que o tira do consolidado. Fora da alteração (constituição), aí sim
+         remove o cartão, que é o que faz sentido lá. */
+      if(m=s.match(/(?:exclu\w+|remov\w+|retir\w+)\s+s[óo]cio\s+(.+)/i)){
+        const alvo=m[1].trim().toLowerCase();
+        const card=[...document.querySelectorAll(".socio:not(.filial):not(.guardado)")].find(c=>((c.querySelector("[data-f=nome]")||{}).value||"").toLowerCase().includes(alvo));
+        if(!card){ applied.push("sócio não encontrado para excluir: "+m[1].trim()); continue; }
+        const nomeCard=((card.querySelector("[data-f=nome]")||{}).value||m[1]).trim();
+        if(MODE==="alt"){
+          const r=card.querySelector("[data-f=retirante]");
+          if(r){ r.checked=true; r.dispatchEvent(new Event("change",{bubbles:true})); r.closest("label").classList.add("revisar"); }
+          const adm=card.querySelector("[data-f=administrador]"); if(adm&&adm.checked){ adm.checked=false; adm.dispatchEvent(new Event("change",{bubbles:true})); }
+          const q=card.querySelector("[data-f=quotas]"); if(q){ q.value=""; q.dispatchEvent(new Event("input",{bubbles:true})); }
+          card.scrollIntoView&&0;
+          applied.push("retirada de sócio: "+nomeCard+" (fica no preâmbulo e assina; sai do consolidado)");
+        } else { card.remove(); applied.push("excluir sócio: "+nomeCard); }
+        chk("alt_quadro"); recalc(); continue;}
       if(m=s.match(/(?:nome\s+)?fantasia\s+(?:para|:)\s*(.+)/i)){$("fantasia").value=m[1].trim();chk("alt_fantasia");applied.push("fantasia → "+m[1].trim());continue;}
       if(m=s.match(/(?:raz[aã]o(?:\s+social)?|nome\s+empresarial|firma)\s+(?:para|:)\s*(.+)/i)){const atual=($("razao").value||"").trim();if(atual&&$("razaoAnterior")&&!($("razaoAnterior").value||"").trim())$("razaoAnterior").value=atual;/* preserva o nome ATUAL como "anterior" p/ o título/preâmbulo */ $("razao").value=m[1].trim().replace(/\s+ltda\.?$/i,"");chk("alt_nome");applied.push("razão social → "+$("razao").value);continue;}
       if(m=s.match(/capital(?:\s+social)?\s+(?:para|:)\s*(?:r\$\s*)?([\d.,]+)/i)){const atualCap=Number($("capital").value)||0;if(atualCap>0&&$("capitalAnterior")&&!(Number($("capitalAnterior").value)||0))$("capitalAnterior").value=atualCap;/* preserva o capital ATUAL como "anterior" p/ o "que era de …" */ $("capital").value=brNum(m[1]);chk("alt_capital");applied.push("capital → "+reais(brNum(m[1])));continue;}
@@ -3281,8 +3454,8 @@ window.TINA=(function(){
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
   const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros","advNome","advOab","advOabUf"];
-  const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae","advIncluir"];
-  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(),filiais:readFiliais()};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
+  const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae","advIncluir","preservarClausulas"];
+  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
   // passadas 24h sem uso, é descartado sozinho, para não ficar legível num computador compartilhado.
   const DRAFT_VALIDADE_MS=24*60*60*1000;
@@ -3418,6 +3591,7 @@ window.TINA=(function(){
     DRAFT_CHECKS.forEach(id=>{if($(id)&&o.checks&&(id in o.checks))$(id).checked=!!o.checks[id];});
     $("socios").innerHTML="";const arr=(o.socios&&o.socios.length)?o.socios:[undefined];arr.forEach(s=>socioCard(s));
     if($("filiais")){$("filiais").innerHTML=""; (o.filiais||[]).forEach(f=>filialCard(f));}
+    _clausulasOrig=Array.isArray(o.clausulas)?o.clausulas:[]; mostrarPreservacao();
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach((w,i)=>{const ck=["admNaoSocio","cl_conselho","alt_cessao"][i]; if($(w)&&$(ck))$(w).style.display=$(ck).checked?"":"none";});
     if(typeof recalc==="function")recalc();
   }finally{_suppressDraft=false;}salvarRascunho();}

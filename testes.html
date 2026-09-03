@@ -328,6 +328,51 @@
         !pjs2.some(function(s){ return /EXEMPLO COMERCIO/.test(s.nome||"") || /11\.222\.333/.test(s.pjCnpj||""); }));
     }catch(e){ reg("Bateria de redações de sócia PJ",false,String(e&&e.message||e).slice(0,120)); }
 
+    // ---------- 6b2d. Trocar de aba não pode apagar sócio ----------
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(220);
+      $("btnExemplo").click(); await espera(420);
+      var vis=function(){ return D.querySelectorAll("#socios .socio:not(.filial):not(.guardado)").length; };
+      var antes=vis();
+      modo("ei_alt"); await espera(320);
+      var noEI=vis();
+      modo("alt"); await espera(320);
+      reg("Modo de um titular só esconde os demais sócios (não apaga)", noEI===1 && antes>1, antes+" → "+noEI);
+      reg("Ao voltar para Alteração os sócios voltam", vis()===antes, vis()+" de "+antes);
+    }catch(e){ reg("Bateria de troca de aba",false,String(e&&e.message||e).slice(0,120)); }
+
+    // ---------- 6b2e. Cláusulas do contrato enviado são preservadas ----------
+    grupo("Cláusulas preservadas");
+    try{
+      // contrato fictício com uma cláusula que o sistema NÃO gera e outra que ele geraria diferente
+      var tc="ALTERAÇÃO E CONSOLIDAÇÃO DO CONTRATO SOCIAL DE EXEMPLO COMERCIO LTDA, inscrita no CNPJ sob o nº 11.222.333/0001-81, com matriz na Praça Dois, nº 55, Centro, Aracaju/SE, CEP: 49000-000. "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Centro, Aracaju/SE, CEP: 49000-400; resolve: "
+        +"CONTRATO SOCIAL CONSOLIDADO "
+        +"Cláusula 1ª - A sociedade gira sob o nome empresarial EXEMPLO COMERCIO LTDA. "
+        +"Cláusula 2ª - A sociedade tem matriz com sede e foro na cidade de Aracaju/SE, Praça Dois, nº 55, Centro, CEP: 49000-000. "
+        +"Cláusula 3ª - A sociedade terá como objeto social a exploração no ramo de comércio varejista de exemplo. "
+        +"Cláusula 4ª - A sociedade pode mudar a qualquer tempo a forma jurídica ora adotada, por maioria simples do capital social. "
+        +"Cláusula 5ª - O prazo de duração da sociedade é por tempo indeterminado. "
+        +"Cláusula 6ª - O capital social é de R$ 10.000,00, dividido em 10.000 quotas de R$ 1,00. "
+        +"Cláusula 7ª - A sociedade tem como administrador o sócio JOAO EXEMPLO SOUZA. "
+        +"Cláusula 8ª - Fica pactuada cláusula compromissória de arbitragem para qualquer litígio entre os sócios. "
+        +"Cláusula 9ª - As divergências sociais serão reguladas pela lei, eleito o foro de Aracaju/SE. "
+        +"E por estarem justos, assinam.";
+      var pc=W.TINA._pdf.parseContratoTexto(tc,"","","");
+      var cls=(pc&&pc.d&&pc.d.clausulasOrig)||[];
+      reg("Lê a lista de cláusulas do contrato enviado", cls.length===9, cls.length+" cláusulas");
+      var byT=cls.map(function(c){return c.tema||"-";});
+      reg("Cláusula de “mudar a forma jurídica” não é confundida com capital",
+        byT[3]==="formajuridica", "tema lido: "+byT[3]);
+      reg("Cláusula de capital é reconhecida como capital", byT[5]==="capital", "tema lido: "+byT[5]);
+      reg("Cláusula própria do contrato (arbitragem) fica sem tema — nunca é trocada", byT[7]==="-", "tema lido: "+byT[7]);
+      var cAdm=cls.filter(function(c){return /administrador/i.test(c.texto);})[0];
+      reg("Texto preservado sai sem colagem de palavras (“administrador o sócio”)",
+        !!cAdm && /administrador o s[óo]cio/i.test(cAdm.texto) && !/administradoro/.test(cAdm.texto),
+        cAdm?cAdm.texto.slice(0,60):"");
+    }catch(e){ reg("Bateria de cláusulas preservadas",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 6b5. Visto de advogado (regra do Manual de LTDA, item 7 e roteiro 8/8.1) ----------
     grupo("Visto de advogado");
     try{
