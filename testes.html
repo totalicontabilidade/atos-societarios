@@ -94,7 +94,7 @@
 
     // começa do zero: sobra de uma execução interrompida (licença vencida, casos, rascunho)
     // faria testes falharem por motivo que não é do app
-    try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
+    try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
     try{
     // ---------- 1. Carregamento ----------
     grupo("Carregamento");
@@ -372,6 +372,39 @@
         !!cAdm && /administrador o s[óo]cio/i.test(cAdm.texto) && !/administradoro/.test(cAdm.texto),
         cAdm?cAdm.texto.slice(0,60):"");
     }catch(e){ reg("Bateria de cláusulas preservadas",false,String(e&&e.message||e).slice(0,120)); }
+
+    // ---------- 6b6. Solicitações (fila interna) e camada de nuvem ----------
+    grupo("Solicitações");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      reg("Camada de nuvem carrega sem configuração e não quebra o app",
+        !!W.Nuvem && W.Nuvem.estado().configurado===false && W.Nuvem.podeGravar()===false);
+      reg("Sem nuvem configurada, o bloco de login fica escondido",
+        !$("nuvemLogin") || $("nuvemLogin").style.display==="none");
+      $("btnSolic").click(); await espera(400);
+      $("btnSolicNova").click(); await espera(250);
+      val("sEmpresa","PADARIA EXEMPLO LTDA"); val("sCnpj","11222333000181");
+      val("sPrazo","01/01/2020"); val("sResp","Ana");
+      $("btnSolicSalvar").click(); await espera(500);
+      var lista=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]");
+      reg("Solicitação é salva", lista.length===1 && lista[0].empresa==="PADARIA EXEMPLO LTDA");
+      reg("CNPJ da solicitação sai formatado", lista.length===1 && /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(lista[0].cnpj||""), lista.length?lista[0].cnpj:"");
+      reg("Prazo vencido aparece destacado", /vencido/i.test(($("solicLista")||{}).innerText||""));
+      // prazo inválido não passa
+      $("btnSolicNova").click(); await espera(220);
+      val("sEmpresa","OUTRA EXEMPLO"); val("sPrazo","31/02/2026");
+      $("btnSolicSalvar").click(); await espera(320);
+      reg("Prazo inexistente é recusado", /inv[áa]lido/i.test(($("solicStat")||{}).textContent||"")
+        && JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").length===1);
+      // "Trabalhar" abre o modo e adianta os dados
+      $("btnSolicCancelar").click(); await espera(200);
+      var bt=D.querySelector("[data-sol-abrir]"); if(bt) bt.click(); await espera(600);
+      reg("“Trabalhar” abre a solicitação no formulário",
+        ($("razao")||{}).value==="PADARIA EXEMPLO LTDA" && /\d{2}\.\d{3}\.\d{3}/.test(($("cnpj")||{}).value||""));
+      reg("Ao trabalhar, a solicitação sai de “Nova”",
+        (JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{}).status==="andamento");
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+    }catch(e){ reg("Bateria de solicitações",false,String(e&&e.message||e).slice(0,120)); }
 
     // ---------- 6b5. Visto de advogado (regra do Manual de LTDA, item 7 e roteiro 8/8.1) ----------
     grupo("Visto de advogado");
@@ -712,7 +745,7 @@
       grupo("Execução"); reg("A bateria terminou sem erro inesperado",false,String(e&&e.message||e).slice(0,140));
       try{ console.error("erro na suite:",e); }catch(_){}
     } finally {
-      try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
+      try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
       fim();
     }
   }

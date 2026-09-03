@@ -459,6 +459,7 @@
     <button class="btn g" id="btnBaixar">⬇ .docx</button>
     <button class="btn o" id="btnPDF">⬇ PDF</button>
     <button class="btn o" id="btnEmail">✉ E-mail de confirmação</button>
+    <button class="btn o" id="btnSolic">🗂 Solicitações</button>
     <button class="btn o" id="btnPainel">📁 Painel de casos</button>
     <span class="status muted" id="status">Preencha os dados e gere a prévia.</span>
   </div>
@@ -640,6 +641,54 @@
   </div>
 </div>
 
+<div class="modal-bg" id="solicModal">
+  <div class="modal">
+    <div class="mh"><span>🗂 Solicitações</span><button class="x" id="btnSolicClose">Fechar</button></div>
+    <div class="mb">
+      <div class="bar">
+        <button class="btn p mini" id="btnSolicNova">+ Nova</button>
+        <span class="hint" id="solicConta"></span>
+        <span style="flex:1"></span>
+        <span class="hint" id="solicNuvem"></span>
+      </div>
+      <div id="solicForm" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:8px">
+        <div class="grid g3 row">
+          <div style="grid-column:span 2"><label for="sEmpresa">Empresa</label><input type="text" id="sEmpresa"></div>
+          <div><label for="sCnpj">CNPJ</label><input type="text" id="sCnpj" placeholder="00.000.000/0001-00" maxlength="18"></div>
+        </div>
+        <div class="grid g3 row">
+          <div><label for="sTipo">Ato</label><select id="sTipo"></select></div>
+          <div><label for="sPrazo">Prazo</label><input type="text" id="sPrazo" placeholder="DD/MM/AAAA" maxlength="10"></div>
+          <div><label for="sResp">Responsável</label><input type="text" id="sResp"></div>
+        </div>
+        <div class="grid g3 row">
+          <div><label for="sContato">Contato do cliente</label><input type="text" id="sContato" placeholder="Nome"></div>
+          <div><label for="sFone">Telefone / e-mail</label><input type="text" id="sFone"></div>
+          <div><label for="sStatus">Situação</label><select id="sStatus">
+            <option value="nova">Nova</option><option value="andamento">Em andamento</option>
+            <option value="cliente">Aguardando cliente</option><option value="protocolada">Protocolada</option>
+            <option value="concluida">Concluída</option></select></div>
+        </div>
+        <div class="row"><label for="sObs">Observações</label><textarea id="sObs" rows="2"></textarea></div>
+        <div class="bar" style="margin-top:8px">
+          <button class="btn p mini" id="btnSolicSalvar">Salvar</button>
+          <button class="btn s mini" id="btnSolicCancelar">Cancelar</button>
+          <span class="fldstat" id="solicStat"></span>
+        </div>
+      </div>
+      <div class="grid g2 row" style="margin-top:10px">
+        <div><input type="text" id="solicBusca" placeholder="🔎 Empresa, CNPJ ou responsável…"></div>
+        <div><select id="solicFiltro">
+          <option value="abertas">Em aberto</option><option value="todas">Todas</option>
+          <option value="nova">Novas</option><option value="andamento">Em andamento</option>
+          <option value="cliente">Aguardando cliente</option><option value="protocolada">Protocoladas</option>
+          <option value="concluida">Concluídas</option></select></div>
+      </div>
+      <div id="solicLista" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="configModal">
   <div class="modal">
     <div class="mh"><span>⚙ Configurações do escritório</span><button class="x" id="btnConfigClose">Fechar</button></div>
@@ -665,6 +714,16 @@
         <div><label for="cfgParalegal">Paralegal responsável <span class="hint">(assinatura do e-mail)</span></label><input type="text" id="cfgParalegal" placeholder="Seu nome"></div>
         <div><label for="cfgRemetente">E-mail do remetente</label><input type="text" id="cfgRemetente" placeholder="voce@seuescritorio.com.br"></div>
       </div>
+      <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Nuvem <span class="hint" style="font-weight:400">— entra para compartilhar solicitações e casos entre computadores</span></div>
+      <div class="grid g3 row" id="nuvemLogin">
+        <div><label for="nvEmail">E-mail</label><input type="text" id="nvEmail" autocomplete="username"></div>
+        <div><label for="nvSenha">Senha</label><input type="password" id="nvSenha" autocomplete="current-password"></div>
+        <div style="display:flex;align-items:flex-end;gap:6px">
+          <button class="btn p mini" type="button" id="btnNvEntrar">Entrar</button>
+          <button class="btn s mini" type="button" id="btnNvSair" style="display:none">Sair</button>
+        </div>
+      </div>
+      <div class="hint" id="nvStatus" style="margin-top:4px"></div>
       <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Licença</div>
       <div class="row">
         <label for="cfgLicenca">Chave de licença</label>
@@ -746,6 +805,13 @@ window.__pdfjsFallback=function(){
     window.pdfjsLib=m; window.__pdfjsOk(m);
   }catch(e){ window.__pdfjsFallback(); }
 </script>
+<!-- Nuvem (opcional): se o config estiver em branco, nada disso é usado e o app segue igual.
+     defer para não atrasar a abertura — o app não espera a nuvem para funcionar. -->
+<script defer src="lib/firebase-app-compat.js"></script>
+<script defer src="lib/firebase-auth-compat.js"></script>
+<script defer src="lib/firebase-firestore-compat.js"></script>
+<script defer src="js/nuvem-config.js"></script>
+<script defer src="js/nuvem.js"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -2142,6 +2208,136 @@ window.TINA=(function(){
 
   /* ===== E-mail de confirmação ===== */
   const ATO_EMAIL={const:"Constituição de Sociedade Limitada",ei_const:"Inscrição de Empresário Individual",transf_ei_ltda:"Transformação de Empresário Individual em Sociedade Limitada",transf_ei_slu:"Transformação de Empresário Individual em Sociedade Limitada Unipessoal",transf_ltda_ei:"Transformação de Sociedade Limitada em Empresário Individual",dist_ltda:"Distrato de Sociedade Limitada",dist_ei:"Extinção de Empresário Individual"};
+  /* ===== Solicitações (fila de trabalho da equipe) =====
+     Guarda no navegador e, quando há login na nuvem, também no Firestore. O local é a
+     fonte do dia a dia; a nuvem é o registro compartilhado. Nunca depende da rede. */
+  const SOLIC_STATUS={nova:"Nova",andamento:"Em andamento",cliente:"Aguardando cliente",protocolada:"Protocolada",concluida:"Concluída"};
+  const SOLIC_ABERTAS=["nova","andamento","cliente","protocolada"];
+  let _solicEditando=null;
+  function lerSolic(){ try{ const a=JSON.parse(localStorage.getItem("tinaSolic")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+  function salvarSolic(l){ try{ localStorage.setItem("tinaSolic",JSON.stringify(l)); return true; }catch(e){ return false; } }
+  function tiposAto(){ const t={alt:"Alteração Contratual (Ltda)",ei_alt:"Alteração de Empresário Individual"}; Object.keys(ATO_EMAIL).forEach(k=>t[k]=ATO_EMAIL[k]); return t; }
+  function abrirSolic(){
+    const sel=$("sTipo");
+    if(sel && !sel.options.length){ const t=tiposAto(); sel.innerHTML=Object.keys(t).map(k=>'<option value="'+k+'">'+escHtml(t[k])+"</option>").join(""); }
+    if($("solicForm"))$("solicForm").style.display="none";
+    renderSolic(); $("solicModal").classList.add("open");
+  }
+  function statusNuvem(){
+    const el=$("solicNuvem"); if(!el||!window.Nuvem) return;
+    const e=window.Nuvem.estado();
+    el.textContent = !e.configurado ? "só neste navegador"
+      : e.daEquipe ? ("na nuvem · "+e.email)
+      : e.logado ? "conta sem acesso — fale com o administrador"
+      : "sem login — só neste navegador";
+    el.style.color = e.daEquipe ? "var(--ok)" : "var(--muted)";
+  }
+  function novaSolic(){
+    _solicEditando=null;
+    ["sEmpresa","sCnpj","sPrazo","sResp","sContato","sFone","sObs"].forEach(id=>{if($(id))$(id).value="";});
+    if($("sStatus"))$("sStatus").value="nova";
+    if($("sTipo"))$("sTipo").value="alt";
+    if($("solicStat"))$("solicStat").textContent="";
+    if($("solicForm"))$("solicForm").style.display="";
+    if($("sEmpresa"))$("sEmpresa").focus();
+  }
+  function gravarSolic(){
+    const st=$("solicStat"); const emp=($("sEmpresa").value||"").trim();
+    if(!emp){ st.className="fldstat bad"; st.textContent="Informe a empresa."; return; }
+    const pz=($("sPrazo").value||"").trim();
+    if(pz && !dataValida(pz)){ st.className="fldstat bad"; st.textContent="Prazo inválido (DD/MM/AAAA)."; return; }
+    const lista=lerSolic();
+    const reg=_solicEditando||{id:"S"+Date.now().toString(36).toUpperCase(),criadoEm:new Date().toISOString()};
+    reg.empresa=emp; reg.cnpj=($("sCnpj").value||"").trim(); reg.tipo=$("sTipo").value;
+    reg.prazo=pz; reg.responsavel=($("sResp").value||"").trim();
+    reg.contato=($("sContato").value||"").trim(); reg.fone=($("sFone").value||"").trim();
+    reg.status=$("sStatus").value; reg.obs=($("sObs").value||"").trim();
+    reg.alteradoEm=new Date().toISOString();
+    const i=lista.findIndex(x=>x.id===reg.id);
+    if(i>=0) lista[i]=reg; else lista.unshift(reg);
+    if(!salvarSolic(lista)){ st.className="fldstat bad"; st.textContent="Armazenamento cheio — exporte um backup."; return; }
+    st.className="fldstat ok"; st.textContent="Salvo.";
+    if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",reg.id,reg).then(r=>{
+      if(st) st.textContent = r.ok ? "Salvo aqui e na nuvem." : "Salvo aqui (nuvem: "+(r.msg||"indisponível")+").";
+    });
+    _solicEditando=null; $("solicForm").style.display="none"; renderSolic();
+  }
+  function editarSolic(id){
+    const r=lerSolic().find(x=>x.id===id); if(!r)return;
+    _solicEditando=r;
+    $("sEmpresa").value=r.empresa||""; $("sCnpj").value=r.cnpj||""; $("sTipo").value=r.tipo||"alt";
+    $("sPrazo").value=r.prazo||""; $("sResp").value=r.responsavel||""; $("sContato").value=r.contato||"";
+    $("sFone").value=r.fone||""; $("sStatus").value=r.status||"nova"; $("sObs").value=r.obs||"";
+    if($("solicStat"))$("solicStat").textContent="";
+    $("solicForm").style.display=""; $("sEmpresa").focus();
+  }
+  function excluirSolic(id){
+    const r=lerSolic().find(x=>x.id===id); if(!r)return;
+    if(!confirm("Excluir a solicitação de "+(r.empresa||"(sem empresa)")+"?"))return;
+    salvarSolic(lerSolic().filter(x=>x.id!==id));
+    if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.excluir("solicitacoes",id); window.Nuvem.trilha("solicitacao.excluir",id,""); }
+    renderSolic();
+  }
+  // leva a solicitação para o formulário: abre o modo do ato e adianta empresa e CNPJ
+  function trabalharSolic(id){
+    const r=lerSolic().find(x=>x.id===id); if(!r)return;
+    switchMode(r.tipo||"alt");
+    if(r.empresa&&$("razao")){ $("razao").value=r.empresa; $("razao").classList.add("revisar"); }
+    if(r.cnpj&&$("cnpj")){ $("cnpj").value=r.cnpj; $("cnpj").classList.add("revisar"); }
+    if(r.status==="nova"){ r.status="andamento"; r.alteradoEm=new Date().toISOString();
+      const l=lerSolic(); const i=l.findIndex(x=>x.id===id); if(i>=0){ l[i]=r; salvarSolic(l); }
+      if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",id,r); }
+    $("solicModal").classList.remove("open"); recalc();
+    toast("Solicitação aberta no formulário.","ok");
+  }
+  function renderSolic(){
+    statusNuvem();
+    const box=$("solicLista"); if(!box)return;
+    let l=lerSolic();
+    const f=($("solicFiltro")||{}).value||"abertas";
+    if(f==="abertas") l=l.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0);
+    else if(f!=="todas") l=l.filter(x=>x.status===f);
+    const q=(($("solicBusca")||{}).value||"").toLowerCase().trim();
+    if(q) l=l.filter(x=>((x.empresa||"")+" "+(x.cnpj||"")+" "+(x.responsavel||"")).toLowerCase().includes(q));
+    const tot=lerSolic(), abertas=tot.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0).length;
+    if($("solicConta"))$("solicConta").textContent=abertas?(abertas+" em aberto de "+tot.length):(tot.length?"nenhuma em aberto":"");
+    if(!l.length){ box.innerHTML='<div class="hint">Nada por aqui.</div>'; return; }
+    const T=tiposAto(); const hoje=new Date(); hoje.setHours(0,0,0,0);
+    box.innerHTML=l.map(r=>{
+      const d=_parseBR(r.prazo); const atras=d&&d<hoje&&SOLIC_ABERTAS.indexOf(r.status)>=0;
+      return '<div class="caso"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
+        +'<b>'+escHtml(r.empresa||"(sem empresa)")+'</b>'
+        +'<span class="hint">'+escHtml(SOLIC_STATUS[r.status]||r.status||"")+'</span></div>'
+        +'<div class="hint">'+escHtml(T[r.tipo]||r.tipo||"")+(r.cnpj?" · "+escHtml(r.cnpj):"")
+        +(r.responsavel?" · "+escHtml(r.responsavel):"")
+        +(r.prazo?' · <span'+(atras?' style="color:var(--err);font-weight:700"':'')+'>prazo '+escHtml(r.prazo)+(atras?" (vencido)":"")+'</span>':"")+'</div>'
+        +(r.obs?'<div class="hint" style="margin-top:4px">'+escHtml(r.obs)+'</div>':"")
+        +'<div class="bar" style="margin-top:6px">'
+        +'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'">Trabalhar</button>'
+        +'<button class="btn o mini" data-sol-editar="'+escHtml(r.id)+'">Editar</button>'
+        +'<button class="btn del mini" data-sol-excluir="'+escHtml(r.id)+'">Excluir</button>'
+        +'</div></div>';
+    }).join("");
+    box.querySelectorAll("[data-sol-abrir]").forEach(b=>b.addEventListener("click",()=>trabalharSolic(b.dataset.solAbrir)));
+    box.querySelectorAll("[data-sol-editar]").forEach(b=>b.addEventListener("click",()=>editarSolic(b.dataset.solEditar)));
+    box.querySelectorAll("[data-sol-excluir]").forEach(b=>b.addEventListener("click",()=>excluirSolic(b.dataset.solExcluir)));
+  }
+  /* Traz da nuvem o que não existe aqui (outro computador, ou navegador limpo).
+     Não sobrescreve o que é mais novo localmente — em conflito, o mais recente vence. */
+  function sincronizarSolic(){
+    if(!(window.Nuvem&&window.Nuvem.podeGravar())) return Promise.resolve();
+    return window.Nuvem.listar("solicitacoes",{limite:500}).then(r=>{
+      if(!r.ok) return;
+      const local=lerSolic(); const porId={}; local.forEach(x=>porId[x.id]=x);
+      let mudou=false;
+      r.itens.forEach(rem=>{
+        const loc=porId[rem.id];
+        if(!loc){ local.push(rem); mudou=true; }
+        else if((rem.alteradoEm||"")>(loc.alteradoEm||"")){ Object.assign(loc,rem); mudou=true; }
+      });
+      if(mudou){ local.sort((a,b)=>String(b.alteradoEm||"").localeCompare(String(a.alteradoEm||""))); salvarSolic(local); renderSolic(); }
+    });
+  }
   function idSolicitacao(d){const dp=(d.atoData||hojeBR()).split("/"); const ymd=dp.length===3?(dp[2]+String(dp[1]).padStart(2,"0")+String(dp[0]).padStart(2,"0")):"00000000";
     let h=0; const seed=((d.razao||"")+(d.atoData||"")+(d.cnpj||"")); for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0; return ymd+"-"+String(1000+(h%9000));}
   function blocosEmail(d,sufixo){const L=[]; const CH=d.changed||new Set(); const isAltMode=MODE.endsWith("alt");
@@ -3612,7 +3808,7 @@ window.TINA=(function(){
   }
   function exportarCasos(){const casos=lerCasos();if(!casos.length){toast("Não há casos para exportar.","info");return;}
     marcarBackup(); const av=$("painelAvisoBackup"); if(av)av.style.display="none";
-    const blob=new Blob([JSON.stringify({app:"atos-societarios",tipo:"painel-casos",exportadoEm:new Date().toISOString(),casos},null,2)],{type:"application/json"});
+    const blob=new Blob([JSON.stringify({app:"atos-societarios",tipo:"painel-casos",exportadoEm:new Date().toISOString(),casos,solicitacoes:lerSolic()},null,2)],{type:"application/json"});
     const a=document.createElement("a");a.href=URL.createObjectURL(blob);const dt=new Date();
     a.download="painel-casos-"+dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0")+".json";
     document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},120);toast("Backup exportado ("+casos.length+" caso(s)).","ok");}
@@ -3724,6 +3920,42 @@ window.TINA=(function(){
     $("btnPDF").addEventListener("click",baixarPDF);
     $("s_uf").innerHTML=ufOpts();
     if($("advOabUf")) $("advOabUf").innerHTML=ufOpts();
+    /* Nuvem: liga os controles e mantém o rodapé em dia. Se não houver configuração
+       (arquivo nuvem-config.js em branco), tudo continua funcionando só no navegador. */
+    if($("btnSolic")) $("btnSolic").addEventListener("click",()=>{ abrirSolic(); sincronizarSolic(); });
+    if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>$("solicModal").classList.remove("open"));
+    if($("btnSolicNova")) $("btnSolicNova").addEventListener("click",novaSolic);
+    if($("btnSolicSalvar")) $("btnSolicSalvar").addEventListener("click",gravarSolic);
+    if($("btnSolicCancelar")) $("btnSolicCancelar").addEventListener("click",()=>{_solicEditando=null;$("solicForm").style.display="none";});
+    if($("solicBusca")) $("solicBusca").addEventListener("input",renderSolic);
+    if($("solicFiltro")) $("solicFiltro").addEventListener("change",renderSolic);
+    if($("sCnpj")) $("sCnpj").addEventListener("input",function(){this.value=fmtCnpj(this.value);});
+    if($("sPrazo")) attachData($("sPrazo"));
+    if(window.Nuvem){
+      window.Nuvem.iniciar();
+      window.Nuvem.aoMudar(e=>{
+        const st=$("nvStatus"), box=$("nuvemLogin");
+        if(box) box.style.display=e.configurado?"":"none";
+        if($("btnNvSair")) $("btnNvSair").style.display=e.logado?"":"none";
+        if($("btnNvEntrar")) $("btnNvEntrar").style.display=e.logado?"none":"";
+        if(st){
+          st.textContent = !e.configurado ? "Nuvem não configurada — o sistema funciona normalmente só neste navegador."
+            : e.daEquipe ? ("Conectado como "+e.email+".")
+            : e.logado ? "Esta conta não está liberada para a equipe."
+            : "Desconectado.";
+          st.style.color=e.daEquipe?"var(--ok)":(e.logado&&!e.daEquipe?"var(--err)":"var(--muted)");
+        }
+        statusNuvem();
+        if(e.daEquipe) sincronizarSolic();
+      });
+      if($("btnNvEntrar")) $("btnNvEntrar").addEventListener("click",async()=>{
+        const st=$("nvStatus"); st.style.color="var(--muted)"; st.textContent="Entrando…";
+        const r=await window.Nuvem.entrar(($("nvEmail")||{}).value,($("nvSenha")||{}).value);
+        if($("nvSenha")) $("nvSenha").value="";
+        if(!r.ok){ st.style.color="var(--err)"; st.textContent=r.msg; }
+      });
+      if($("btnNvSair")) $("btnNvSair").addEventListener("click",()=>window.Nuvem.sair());
+    }
     if($("advIncluir")) $("advIncluir").addEventListener("change",function(){ this.dataset.tocado="1"; if($("wrapAdvCampos"))$("wrapAdvCampos").style.display=this.checked?"":"none"; });
     if($("enquadramento")) $("enquadramento").addEventListener("change",atualizarVistoAdvogado);
     // workerSrc é definido junto com o carregamento da lib (ESM ou fallback) — nada a fazer aqui
