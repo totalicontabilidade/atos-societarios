@@ -9,13 +9,14 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.8" />
+<meta name="versao" content="1.9" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Atos Societários" />
-<link rel="apple-touch-icon" href="assets/icon.svg" />
-<link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
+<link rel="apple-touch-icon" href="assets/icone-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="assets/icone-512.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icone-192.png" />
 <title>Atos Societários — Totali Soluções Contábeis</title>
 <style>
   :root{
@@ -37,7 +38,10 @@
   header{position:sticky;top:0;z-index:30;background:linear-gradient(120deg,var(--navy3),var(--navy) 55%,var(--navy2));
     color:#fff;padding:12px 24px;display:flex;align-items:center;gap:16px;box-shadow:0 3px 16px rgba(14,31,48,.28);
     border-bottom:2px solid var(--gold)}
-  header img.logo{height:40px;width:auto;display:block}
+  header img.logo{height:28px;width:auto;display:block;opacity:.9}
+  /* a marca do sistema é a principal; a do escritório fica menor, ao lado */
+  header img.logo-sistema{height:46px;width:auto;display:block}
+  @media(max-width:640px){ header img.logo-sistema{height:36px} header img.logo{display:none} header .divider{display:none} }
   header .fallback{display:none;font-weight:700;font-size:16px;letter-spacing:.2px}
   header .divider{width:1px;height:32px;background:rgba(255,255,255,.22)}
   header .sys h1{font-size:15px;margin:0;font-weight:650;letter-spacing:-.1px}
@@ -192,7 +196,7 @@
   /* Portão de entrada */
   #portao{position:fixed;inset:0;z-index:9000;background:linear-gradient(160deg,#14293f,#0b1a2a);display:flex;align-items:center;justify-content:center;padding:20px}
   .pt-box{width:100%;max-width:360px;background:#fff;border-radius:14px;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
-  .pt-logo{height:30px;display:block;margin:0 auto 14px;filter:invert(1) brightness(.35)}
+  .pt-logo{height:52px;width:auto;display:block;margin:0 auto 14px}
   .pt-tit{font-size:17px;font-weight:700;color:var(--navy);text-align:center}
   .pt-sub{font-size:12.5px;color:var(--muted);text-align:center;margin:4px 0 16px}
   .pt-box label{display:block;font-size:12px;color:var(--muted);margin:10px 0 3px}
@@ -222,9 +226,8 @@
      Só existe quando há projeto configurado; sem projeto não há como autenticar. -->
 <div id="portao" style="display:none">
   <form class="pt-box" id="portaoForm" autocomplete="on">
-    <img src="assets/totali-logo-branca.png" alt="" class="pt-logo">
-    <div class="pt-tit">Atos Societários</div>
-    <div class="pt-sub">Entre com a sua conta da equipe.</div>
+    <img src="assets/logo-fundo-claro.png" alt="Atos Societários" class="pt-logo">
+    <div class="pt-sub" style="margin-top:0">Entre com a sua conta da equipe.</div>
     <label for="ptEmail">E-mail</label>
     <input type="email" id="ptEmail" autocomplete="username" required>
     <label for="ptSenha">Senha</label>
@@ -242,13 +245,13 @@
   </div>
 </div>
 <header>
-  <img class="logo" src="assets/totali-logo-branca.png" alt="Totali Soluções Contábeis" onerror="this.style.display='none';document.getElementById('lf').style.display='inline'">
-  <span class="fallback" id="lf">Totali Soluções Contábeis</span>
+  <!-- Marca do sistema. O cabeçalho é azul-escuro, então usa a versão para fundo escuro.
+       A logo já traz o nome e a assinatura ("Sistema de Gestão de Contratos"), por isso o
+       título em texto saiu — repetir seria ruído. -->
+  <img class="logo-sistema" src="assets/logo-fundo-escuro.png" alt="Atos Societários — Sistema de Gestão de Contratos" onerror="this.style.display='none';document.getElementById('lf').style.display='inline'">
+  <span class="fallback" id="lf" style="display:none">Atos Societários</span>
   <div class="divider"></div>
-  <div class="sys">
-    <h1>Atos Societários</h1>
-    <div class="sub">padrão JUCESE / DREI 81</div>
-  </div>
+  <img class="logo" src="assets/totali-logo-branca.png" alt="Totali Soluções Contábeis" title="Totali Soluções Contábeis" onerror="this.style.display='none'">
   <div class="spacer"></div>
   <button class="head-install" id="btnInstalar" type="button" title="Instalar como aplicativo" style="display:none">⤓ Instalar app</button>
   <!-- Menu do usuário: reúne o que NÃO é do documento (solicitações, casos, e-mail, configurações).
@@ -326,6 +329,8 @@
                 <option value="dataInicioOrig">Início das atividades</option>
               </select>
               <button class="btn p mini" type="button" id="btnAtrib">Aplicar</button>
+              <span style="flex:1"></span>
+              <button class="btn o mini" type="button" id="btnCasoTeste" title="Salva a REDAÇÃO deste contrato como caso de teste, trocando nomes, documentos e endereços por fictícios">Guardar como caso de teste</button>
               <span class="fldstat" id="atribStat"></span>
             </div>
           </details>
@@ -2334,6 +2339,50 @@ window.TINA=(function(){
 
   /* ===== E-mail de confirmação ===== */
   const ATO_EMAIL={const:"Constituição de Sociedade Limitada",ei_const:"Inscrição de Empresário Individual",transf_ei_ltda:"Transformação de Empresário Individual em Sociedade Limitada",transf_ei_slu:"Transformação de Empresário Individual em Sociedade Limitada Unipessoal",transf_ltda_ei:"Transformação de Sociedade Limitada em Empresário Individual",dist_ltda:"Distrato de Sociedade Limitada",dist_ei:"Extinção de Empresário Individual"};
+  /* ===== Anonimizador de contrato =====
+     Todo documento que o leitor erra é uma redação nova que vale guardar como teste. O que NÃO
+     pode ser guardado é o dado do cliente. Este troca nome, CPF, CNPJ, NIRE, endereço, e-mail e
+     telefone por fictícios, PRESERVANDO a redação — que é a única coisa que interessa ao teste.
+     A troca é consistente: o mesmo nome vira sempre o mesmo fictício, senão o texto deixa de
+     fazer sentido e o caso não serve para testar o leitor. */
+  const NOMES_FICT=["JOAO EXEMPLO SOUZA","MARIA TESTE LIMA","CARLOS MODELO ROCHA","ANA FIGURADA COSTA","PEDRO AMOSTRA DIAS","LUIZA PADRAO MELO"];
+  const RUAS_FICT=["Rua Um","Rua Dois","Avenida Tres","Praca Quatro","Travessa Cinco"];
+  const EMPRESAS_FICT=["EXEMPLO COMERCIO","MODELO SERVICOS","AMOSTRA PARTICIPACOES","FIGURADA INDUSTRIA"];
+  function anonimizarContrato(txt){
+    let t=String(txt||""); const mapa=new Map(); let iN=0,iR=0,iE=0;
+    const troca=(orig,gerar)=>{ const k=orig.toUpperCase(); if(!mapa.has(k)) mapa.set(k,gerar()); return mapa.get(k); };
+    // documentos e números: formato preservado, dígitos trocados
+    t=t.replace(/\b\d{3}\.\d{3}\.\d{3}\s*-?\s*\d{2}\b/g,()=>"529.982.247-25");
+    t=t.replace(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}\s*-?\s*\d{2}\b/g,()=>"11.222.333/0001-81");
+    t=t.replace(/\bNIRE\s*[:nº°]*\s*[\d][\d. ]{8,16}\d/gi,"NIRE 28.200.000.000");
+    t=t.replace(/\b\d{2}\.?\d{3}\s*-\s*\d{3}\b/g,"49000-000");                       // CEP
+    t=t.replace(/\(\d{2}\)\s*\d{4,5}-?\d{4}/g,"(79) 90000-0000");                    // telefone
+    t=t.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,"contato@exemplo.com.br");
+    t=t.replace(/\bRG\s*n?[º°.]*\s*[\d.\-]{5,14}/gi,"RG nº 1234567");
+    // nome empresarial: qualquer coisa terminada em LTDA/LIMITADA/EIRELI
+    t=t.replace(/\b([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .,&'\/\-–]{3,70}?)\s+(LTDA|LIMITADA|EIRELI)\b/g,
+      (m,nome,suf)=>troca(nome,()=>EMPRESAS_FICT[iE++%EMPRESAS_FICT.length])+" "+suf);
+    /* Nome de pessoa: o que vem antes da qualificação ("FULANO, brasileiro,").
+       SEM a flag "i": com ela, [A-ZÀ-Ú] passa a aceitar minúscula e a captura engole a palavra
+       anterior ("depois FULANO"), gerando uma CHAVE diferente para o mesmo nome — e o texto
+       anonimizado ficava com dois fictícios para a mesma pessoa, inutilizando o caso de teste. */
+    t=t.replace(/\b([A-ZÀ-Ú][A-Za-zÀ-ú'.\-]+(?:\s+(?:d[eoa]s?|e|[A-ZÀ-Ú][A-Za-zÀ-ú'.\-]+)){1,7})(\s*,?\s*(?:[Bb]rasileir|[Ee]strangeir|[Nn]aturalizad))/g,
+      (m,nome,resto)=>troca(nome,()=>NOMES_FICT[iN++%NOMES_FICT.length])+resto);
+    // logradouro
+    t=t.replace(/\b(Rua|Avenida|Av\.?|Pra[çc]a|Travessa|Alameda|Rodovia|Estrada|Quadra)\s+([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .'ºª\-]{2,45}?)(?=\s*,)/g,
+      (m,tipo,nome)=>troca(tipo+" "+nome,()=>RUAS_FICT[iR++%RUAS_FICT.length]));
+    return t;
+  }
+  /* Confere o próprio anonimizador: se sobrou padrão de dado real, ele não fez o trabalho.
+     Melhor recusar do que entregar um "caso de teste" com CPF de cliente dentro. */
+  function sobrouDadoReal(t){
+    const s=String(t||""); const achados=[];
+    if(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/.test(s) && !/529\.982\.247-25/.test(s)) achados.push("CPF");
+    const cnpjs=(s.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g)||[]).filter(x=>x!=="11.222.333/0001-81");
+    if(cnpjs.length) achados.push("CNPJ");
+    if(/[A-Za-z0-9._%+-]+@(?!exemplo\.com\.br)[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(s)) achados.push("e-mail");
+    return achados;
+  }
   /* ===== Pré-protocolo =====
      Confere o DOCUMENTO GERADO, não o formulário. É a diferença que importa: a validação diz se
      você preencheu; isto diz se o que vai ser protocolado tem o que a Junta exige. Uma exigência
@@ -4351,6 +4400,25 @@ window.TINA=(function(){
       $("pdfTexto").addEventListener("keyup",atualiza);
     }
     if($("btnAtrib")) $("btnAtrib").addEventListener("click",aplicarAtribuicao);
+    /* Guardar como caso de teste: baixa um arquivo com a REDAÇÃO anonimizada do contrato lido,
+       para virar caso fixo da suíte. Se o anonimizador deixar passar qualquer padrão de dado
+       real, o arquivo NÃO é gerado — melhor perder o caso do que guardar dado de cliente. */
+    if($("btnCasoTeste")) $("btnCasoTeste").addEventListener("click",()=>{
+      const st=$("atribStat"); const bruto=($("pdfTexto")||{}).textContent||"";
+      if(bruto.length<300){ st.className="fldstat bad"; st.textContent="Leia um contrato primeiro."; return; }
+      const anon=anonimizarContrato(bruto);
+      const sobrou=sobrouDadoReal(anon);
+      if(sobrou.length){ st.className="fldstat bad";
+        st.textContent="Não gerei o arquivo: ainda há "+sobrou.join(", ")+" no texto. Me avise para eu ajustar o anonimizador."; return; }
+      const blob=new Blob([JSON.stringify({app:"atos-societarios",tipo:"caso-de-teste",
+        criadoEm:new Date().toISOString(), observacao:"Redação real, dados fictícios. Serve para testar o leitor.",
+        texto:anon},null,2)],{type:"application/json"});
+      const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+      a.download="caso-de-teste-"+new Date().toISOString().slice(0,10)+".json";
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},120);
+      st.className="fldstat ok"; st.textContent="Caso de teste baixado — pode me mandar o arquivo.";
+    });
     if($("btnSolic")) $("btnSolic").addEventListener("click",()=>{ abrirSolic(); sincronizarSolic(); });
     if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>$("solicModal").classList.remove("open"));
     if($("btnSolicNova")) $("btnSolicNova").addEventListener("click",novaSolic);
@@ -4598,7 +4666,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>

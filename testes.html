@@ -409,6 +409,46 @@
         !!(dB.conferir||[]).some(function(x){ return /Capital/i.test(x); }), (dB.conferir||[]).join(" | ").slice(0,120));
     }catch(e){ reg("Bateria de leitura por cláusula",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2j. Anonimizador: guardar a redação sem guardar o cliente ---------- */
+    grupo("Caso de teste anonimizado");
+    try{
+      var real="ALTERAÇÃO DO CONTRATO SOCIAL DA SOCIEDADE LIMITADA PADARIA DO ZE LTDA. "
+        +"ANTONIO CARLOS PEREIRA DA SILVA, brasileiro, casado, empresário, portador do CPF sob o n.º 123.456.789-09, "
+        +"RG nº 9876543 SSP/SE, residente e domiciliado na Rua Coronel Fulano, nº 421, Bairro Alto, Aracaju/SE, CEP: 49055-123, "
+        +"e-mail antonio.pereira@padariadoze.com.br, telefone (79) 98812-3456; único sócio da sociedade PADARIA DO ZE LTDA, "
+        +"inscrita no CNPJ sob o n.º 98.765.432/0001-10 e NIRE 28.200.777.888, resolve: "
+        +"Cláusula Primeira - A sociedade terá como objeto social a exploração no ramo de padaria e confeitaria.";
+      var anon=W.TINA._pdf.anonimizarContrato(real);
+      reg("Troca o CPF", !/123\.456\.789-09/.test(anon) && /\d{3}\.\d{3}\.\d{3}-\d{2}/.test(anon));
+      reg("Troca o CNPJ", !/98\.765\.432\/0001-10/.test(anon) && /\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/.test(anon));
+      reg("Troca o NIRE", !/28\.200\.777\.888/.test(anon) && /NIRE/i.test(anon));
+      reg("Troca o CEP", !/49055-123/.test(anon));
+      reg("Troca o telefone", !/98812-3456/.test(anon));
+      reg("Troca o e-mail", !/padariadoze\.com\.br/.test(anon) && /@exemplo\.com\.br/.test(anon));
+      reg("Troca o RG", !/9876543/.test(anon));
+      reg("Troca o nome da pessoa", !/ANTONIO CARLOS PEREIRA/i.test(anon), anon.slice(0,60));
+      reg("Troca o nome da empresa", !/PADARIA DO ZE/i.test(anon));
+      reg("Troca o logradouro", !/Coronel Fulano/i.test(anon));
+      // o que NÃO pode mudar: a redação, que é o motivo de guardar o caso
+      reg("PRESERVA a redação, que é o que o teste precisa",
+        /ter[áa] como objeto social a explora[çc][ãa]o no ramo de/i.test(anon)
+        && /[úu]nico s[óo]cio da sociedade/i.test(anon)
+        && /residente e domiciliado na/i.test(anon), anon.slice(-90));
+      reg("O texto anonimizado continua sendo lido pelo sistema",
+        !!(((W.TINA._pdf.parseContratoTexto(anon,"","","")||{}).d||{}).objeto||"").match(/padaria/i));
+      // a trava de segurança
+      reg("A trava não acusa nada num texto já anonimizado", W.TINA._pdf.sobrouDadoReal(anon).length===0,
+        W.TINA._pdf.sobrouDadoReal(anon).join(", "));
+      reg("A trava acusa CPF de cliente que tenha escapado",
+        W.TINA._pdf.sobrouDadoReal("sobrou 111.222.333-44 aqui").indexOf("CPF")>=0);
+      reg("A trava acusa e-mail que tenha escapado",
+        W.TINA._pdf.sobrouDadoReal("mande para fulano@empresareal.com.br").indexOf("e-mail")>=0);
+      // consistência: o mesmo nome tem de virar sempre o mesmo fictício
+      var dois=W.TINA._pdf.anonimizarContrato("MARIA DAS DORES, brasileira, e depois MARIA DAS DORES, brasileira, de novo.");
+      var nomes=(dois.match(/([A-ZÀ-Ú]+(?: [A-ZÀ-Ú]+)+), brasileira/g)||[]);
+      reg("O mesmo nome vira sempre o mesmo fictício", nomes.length===2 && nomes[0]===nomes[1], nomes.join(" | "));
+    }catch(e){ reg("Bateria do anonimizador",false,String(e&&e.message||e).slice(0,120)); }
+
     /* ---------- 6b2i. Pré-protocolo, prazo de 30 dias e histórico por empresa ---------- */
     grupo("Pré-protocolo");
     try{
