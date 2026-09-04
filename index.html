@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.7" />
+<meta name="versao" content="1.8" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -532,7 +532,8 @@
 
   <div class="card" id="previewCard">
     <div class="pv-head"><span class="dot"></span> Prévia do documento <span class="pill">render aproximado do Word</span>
-      <button class="btn o mini" type="button" id="btnComparar" style="display:none;margin-left:auto">⇄ Antes e depois</button></div>
+      <button class="btn o mini" type="button" id="btnPreProto" style="display:none;margin-left:auto">✓ Pré-protocolo</button>
+      <button class="btn o mini" type="button" id="btnComparar" style="display:none">⇄ Antes e depois</button></div>
     <div id="preview"><div class="empty">A prévia do contrato aparece aqui.<br>Clique em <b>Gerar prévia</b>.</div></div>
   </div>
 
@@ -703,6 +704,16 @@
       </div>
       <div id="painelAvisoBackup" class="val warn" style="display:none;margin-top:10px"></div>
       <div id="painelLista" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="protoModal">
+  <div class="modal">
+    <div class="mh"><span>✓ Pré-protocolo</span><button class="x" id="btnProtoClose">Fechar</button></div>
+    <div class="mb">
+      <div id="protoResumo" class="val"></div>
+      <div id="protoLista" style="margin-top:12px"></div>
     </div>
   </div>
 </div>
@@ -2252,6 +2263,13 @@ window.TINA=(function(){
       const uf=cepUF(so.cep); if(uf&&so.uf&&uf!==so.uf)w.push(rot+": o CEP "+so.cep+" costuma ser de "+uf+", mas a UF marcada é "+so.uf+".");
     });
     const s=d.sede||{}; const sedeUF=cepUF(s.cep); if(sedeUF&&s.uf&&sedeUF!==s.uf)w.push("Sede: o CEP "+s.cep+" costuma ser de "+sedeUF+", mas a UF marcada é "+s.uf+".");
+    /* Prazo do art. 36 da Lei nº 8.934/1994: o ato apresentado à Junta dentro de 30 dias da
+       assinatura tem os efeitos do arquivamento retroagidos à data da assinatura. Fora do prazo,
+       só vale a partir do despacho — o que muda a data de efeito de tudo que depende dele. */
+    if(ato){ const dias=Math.floor((Date.now()-ato.getTime())/86400000);
+      if(dias>30) w.push("Assinado há "+dias+" dias: fora dos 30 dias do art. 36 da Lei nº 8.934/1994, o arquivamento não retroage à assinatura — vale a partir do despacho.");
+      else if(dias>23) w.push("Faltam "+(30-dias)+" dia(s) para vencer o prazo de 30 dias em que o arquivamento retroage à data da assinatura (art. 36 da Lei nº 8.934/1994).");
+    }
     const ini=_parseBR(d.dataInicioOrig); if(ini&&ato&&ini>ato&&(isAlt||isTransf||isDist))w.push("Início das atividades ("+d.dataInicioOrig+") é posterior à data do ato ("+d.atoData+").");
     if(isDist){const enc=_parseBR(d.dataEncerramento); if(enc&&ini&&enc<ini)w.push("Encerramento das operações anterior ao início das atividades."); if(enc&&ato&&enc>ato)w.push("Encerramento das operações posterior à data do ato.");}
     return w;}
@@ -2271,7 +2289,8 @@ window.TINA=(function(){
       return window.docx.renderAsync(blob,c,null,{className:"docxprev",inWrapper:true})
         .then(async()=>{fitPreview();renderValidacao(await validar(blob));$("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ Prévia atualizada.";
           // o botão do comparador só existe quando houve contrato enviado para comparar
-          const bc=$("btnComparar"); if(bc) bc.style.display=_comparacao.length?"":"none";});})
+          const bc=$("btnComparar"); if(bc) bc.style.display=_comparacao.length?"":"none";
+          const bp=$("btnPreProto"); if(bp) bp.style.display="";});})
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);});}
   function baixarDocx(){ comConfirmacao(()=>{
     $("status").className="status muted";$("status").textContent="Gerando .docx…";
@@ -2315,6 +2334,66 @@ window.TINA=(function(){
 
   /* ===== E-mail de confirmação ===== */
   const ATO_EMAIL={const:"Constituição de Sociedade Limitada",ei_const:"Inscrição de Empresário Individual",transf_ei_ltda:"Transformação de Empresário Individual em Sociedade Limitada",transf_ei_slu:"Transformação de Empresário Individual em Sociedade Limitada Unipessoal",transf_ltda_ei:"Transformação de Sociedade Limitada em Empresário Individual",dist_ltda:"Distrato de Sociedade Limitada",dist_ei:"Extinção de Empresário Individual"};
+  /* ===== Pré-protocolo =====
+     Confere o DOCUMENTO GERADO, não o formulário. É a diferença que importa: a validação diz se
+     você preencheu; isto diz se o que vai ser protocolado tem o que a Junta exige. Uma exigência
+     custa dias, e quase toda exigência evitável cai numa destas linhas. */
+  function preProtocolo(){
+    const d=coletar(), itens=[];
+    const txt=(()=>{ let s=""; document.querySelectorAll("#preview section.docxprev, #preview .docxprev").forEach(c=>{ s+=(c.innerText||""); }); return s; })();
+    const add=(ok,tema,detalhe)=>itens.push({ok:ok,tema:tema,detalhe:detalhe||""});
+    if(!txt || txt.length<400){ add(false,"Prévia do documento","Gere a prévia antes: sem ela não há o que conferir."); return itens; }
+    const tem=(re)=>re.test(txt);
+    const isEI=ehFormEI(), isDist=MODE.startsWith("dist"), isAlt=MODE.endsWith("alt");
+
+    // 1) cláusulas obrigatórias (item 4 do Manual de Registro de LTDA)
+    if(!isDist){
+      const exig=[["nome empresarial",/nome empresarial/i],["sede",/sede/i],["objeto",/objeto/i],
+                  ["prazo de duração",/prazo de dura[çc][ãa]o|tempo indeterminado/i],
+                  ["capital",/capital social|capital d[ao]/i],
+                  ["administração",/administra[çc][ãa]o|administrador/i],
+                  ["lucros e perdas",/lucros|preju[íi]zos/i],["foro",/\bforo\b/i]];
+      const faltam=exig.filter(([,re])=>!tem(re)).map(([n])=>n);
+      add(!faltam.length,"Cláusulas obrigatórias", faltam.length?("faltam: "+faltam.join(", ")):"as oito do item 4 do manual estão presentes");
+    }
+    // 2) nada de campo por preencher escapando para o documento
+    const pend=(txt.match(/\[[A-ZÀ-Ú0-9º ,\/.-]{3,40}\]/g)||[]);
+    add(!pend.length,"Campos por preencher", pend.length?("sobraram no texto: "+[...new Set(pend)].slice(0,4).join(" ")):"nenhum marcador sobrou");
+    // 3) objeto no padrão da Junta
+    add(!/n[ãa]o especificad[oa]s? anteriormente/i.test(txt),"Objeto sem “não especificadas anteriormente”");
+    add(!/\b\d{2}\.?\d{2}-?\d[\/-]\d{2}\b/.test(txt),"Objeto sem código CNAE");
+    // 4) nome empresarial
+    if(!isEI && !isDist) add(/\bLTDA\b/i.test((d.razao||"")+" LTDA"),"Nome empresarial termina em LTDA");
+    // 5) assinaturas de todos que são parte no ato
+    if(!isEI){ const linhas=(txt.match(/_{20,}/g)||[]).length, assin=(d.socios||[]).length+((d.advIncluir)?1:0);
+      add(linhas>=assin,"Assinaturas", linhas+" linha(s) para "+assin+" signatário(s)"); }
+    // 6) visto de advogado quando exigido
+    if(vistoObrigatorio()) add(!!d.advIncluir && !!(d.advNome||"").trim(),"Visto de advogado","exigido: contrato social de sociedade que não é ME/EPP");
+    // 7) porte x sócia PJ
+    if((d.socios||[]).some(s=>s.tipoPessoa==="PJ" && !s.retirante))
+      add(d.enquadramento==="DEMAIS","Porte com sócia pessoa jurídica","com PJ no capital não pode ser ME nem EPP (LC 123/2006, art. 3º, § 4º, I)");
+    // 8) prazo do art. 36
+    { const a=_parseBR(d.atoData); if(a){ const dias=Math.floor((Date.now()-a.getTime())/86400000);
+        add(dias<=30,"Prazo de 30 dias (art. 36 da Lei nº 8.934/1994)", dias<=30?("assinado há "+dias+" dia(s)"):("assinado há "+dias+" dias — o arquivamento não retroage")); } }
+    // 9) confirmação do cliente
+    { const c=lerCasos().find(x=>x.id===casoAtualId);
+      add(!!(c&&c.confirmadoEm),"Confirmação do cliente registrada", (c&&c.confirmadoEm)?("em "+c.confirmadoEm):"registre antes de protocolar"); }
+    // 10) validação de preenchimento sem pendências
+    return itens;
+  }
+  async function abrirPreProtocolo(){
+    const itens=preProtocolo();
+    const pend=await validar();
+    if((pend||[]).length) itens.push({ok:false,tema:"Validação do preenchimento",detalhe:(pend||[]).slice(0,3).join("; ")});
+    const box=$("protoLista"), res=$("protoResumo");
+    const ruins=itens.filter(i=>!i.ok).length;
+    res.className=ruins?"val warn":"val ok";
+    res.innerHTML=ruins?("<b>"+ruins+" ponto(s) a resolver</b> antes de protocolar."):"<b>Tudo certo.</b> Nada aqui impede o protocolo.";
+    box.innerHTML=itens.map(i=>'<div class="caso" style="padding:6px 9px"><div style="display:flex;gap:8px;align-items:baseline">'
+      +'<span style="color:'+(i.ok?"var(--ok)":"var(--err)")+';font-weight:700">'+(i.ok?"✓":"✗")+"</span>"
+      +"<div><b>"+escHtml(i.tema)+"</b>"+(i.detalhe?'<div class="hint">'+escHtml(i.detalhe)+"</div>":"")+"</div></div></div>").join("");
+    $("protoModal").classList.add("open");
+  }
   /* ===== Comparador antes/depois =====
      Prova visual de que o sistema não mexeu no que não devia: cláusula por cláusula, o que foi
      mantido com o texto do cliente, o que foi reescrito por este ato e o que precisou ser
@@ -2771,6 +2850,19 @@ window.TINA=(function(){
     if(typeof acao==="function") acao();
   }
 
+  /* Histórico por empresa: quantos atos a mesma empresa já teve, e o número desta na fila.
+     Agrupa por CNPJ (só os dígitos) e, sem CNPJ, pelo nome — porque na abertura o CNPJ ainda
+     não existe. É o que responde sozinho "esta é a 6ª alteração" sem procurar o ato anterior. */
+  function _chaveEmpresa(c){ const cd=String(c.cnpj||"").replace(/\D/g,"");
+    return cd || ("N:"+String(c.empresa||"").toUpperCase().replace(/\s+/g," ").trim()); }
+  function _histEmpresa(c){
+    const k=_chaveEmpresa(c); if(!k||k==="N:") return "";
+    const irmaos=lerCasos().filter(x=>_chaveEmpresa(x)===k)
+      .sort((a,b)=>(a.criadoEm||0)-(b.criadoEm||0));
+    if(irmaos.length<2) return "";
+    const pos=irmaos.findIndex(x=>x.id===c.id)+1;
+    return "<br><span class='hint' style='color:var(--navy)'>"+pos+"º de "+irmaos.length+" atos desta empresa</span>";
+  }
   function renderPainel(){const box=$("painelLista"); if(!box)return; let casos=lerCasos();
     const todos=casos.length;
     const q=(($("painelBusca")&&$("painelBusca").value)||"").trim().toLowerCase();
@@ -2785,7 +2877,7 @@ window.TINA=(function(){
       "<tr><th style='text-align:left'>ID</th><th style='text-align:left'>Empresa</th><th style='text-align:left'>Tipo</th><th>Data</th><th>Situação</th><th></th></tr>"+
       casos.map(c=>"<tr data-id='"+escHtml(c.id)+"'"+(c.id===casoAtualId?" style='background:#f2f7ff'":"")+">"+
         "<td><code>#"+escHtml(c.id)+"</code></td>"+
-        "<td>"+escHtml(c.empresa||"—")+(c.cnpj?"<br><span class='hint'>"+escHtml(c.cnpj)+"</span>":"")+"</td>"+
+        "<td>"+escHtml(c.empresa||"—")+(c.cnpj?"<br><span class='hint'>"+escHtml(c.cnpj)+"</span>":"")+_histEmpresa(c)+"</td>"+
         "<td>"+escHtml(c.tipo||"")+"</td>"+
         "<td style='text-align:center'>"+escHtml(c.data||"")+"</td>"+
         "<td style='text-align:center;white-space:nowrap'>"+(c.confirmado
@@ -4248,6 +4340,8 @@ window.TINA=(function(){
     if($("btnProcClose")) $("btnProcClose").addEventListener("click",()=>$("procModal").classList.remove("open"));
     if($("btnCompClose")) $("btnCompClose").addEventListener("click",()=>$("compModal").classList.remove("open"));
     if($("btnComparar")) $("btnComparar").addEventListener("click",abrirComparacao);
+    if($("btnProtoClose")) $("btnProtoClose").addEventListener("click",()=>$("protoModal").classList.remove("open"));
+    if($("btnPreProto")) $("btnPreProto").addEventListener("click",abrirPreProtocolo);
     /* A barra de atribuição só aparece quando há trecho selecionado dentro da caixa do texto.
        A seleção é guardada porque clicar no botão a desfaz. */
     if($("pdfTexto")){
@@ -4504,7 +4598,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>

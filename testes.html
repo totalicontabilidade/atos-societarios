@@ -409,6 +409,50 @@
         !!(dB.conferir||[]).some(function(x){ return /Capital/i.test(x); }), (dB.conferir||[]).join(" | ").slice(0,120));
     }catch(e){ reg("Bateria de leitura por cláusula",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2i. Pré-protocolo, prazo de 30 dias e histórico por empresa ---------- */
+    grupo("Pré-protocolo");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      // sem prévia gerada não há documento para conferir — e ele tem de dizer isso
+      var semPrev=W.TINA._pdf.preProtocolo();
+      reg("Sem prévia, o pré-protocolo pede a prévia",
+        semPrev.length===1 && semPrev[0].ok===false && /Pr[ée]via/i.test(semPrev[0].tema), semPrev.length?semPrev[0].tema:"");
+      $("btnExemplo").click(); await espera(400);
+      val("atoData", (function(){ var h=new Date(); return String(h.getDate()).padStart(2,"0")+"/"+String(h.getMonth()+1).padStart(2,"0")+"/"+h.getFullYear(); })());
+      await W.TINA.gerarPreview(); await espera(1400);
+      var pp=W.TINA._pdf.preProtocolo();
+      var acha=function(re){ return pp.filter(function(x){ return re.test(x.tema); })[0]||{}; };
+      reg("Confere as cláusulas obrigatórias do documento gerado", acha(/Cl[áa]usulas obrigat/).ok===true, acha(/Cl[áa]usulas obrigat/).detalhe||"");
+      reg("Confere que nenhum marcador vazou para o texto", acha(/Campos por preencher/).ok===true);
+      reg("Confere o objeto no padrão da Junta",
+        acha(/n[ãa]o especificad/).ok===true && acha(/CNAE/).ok===true);
+      reg("Conta as assinaturas contra o número de signatários", acha(/Assinaturas/).ok===true, acha(/Assinaturas/).detalhe||"");
+      reg("Ato assinado hoje passa no prazo do art. 36", acha(/Prazo de 30 dias/).ok===true, acha(/Prazo de 30 dias/).detalhe||"");
+      // ato antigo: o prazo tem de reprovar, e o aviso de consistência tem de aparecer
+      val("atoData","01/01/2020");
+      var pv=W.TINA._pdf.preProtocolo();
+      var pz=pv.filter(function(x){ return /Prazo de 30 dias/.test(x.tema); })[0]||{};
+      reg("Ato fora dos 30 dias é reprovado no pré-protocolo", pz.ok===false, pz.detalhe||"");
+      var f2=await W.TINA.validar();
+      reg("E o aviso do art. 36 aparece na validação",
+        ((f2&&f2.consist)||[]).some(function(x){ return /8\.934|retroage/i.test(x); }),
+        ((f2&&f2.consist)||[]).join(" | ").slice(0,90));
+      // histórico por empresa no painel de casos
+      W.localStorage.setItem("tinaCasos",JSON.stringify([
+        {id:"A1",empresa:"EXEMPLO LTDA",cnpj:"11.222.333/0001-81",tipo:"1ª Alteração",data:"01/02/2024",criadoEm:1000},
+        {id:"A2",empresa:"EXEMPLO LTDA",cnpj:"11.222.333/0001-81",tipo:"2ª Alteração",data:"01/03/2025",criadoEm:2000},
+        {id:"B1",empresa:"OUTRA LTDA",cnpj:"44.555.666/0001-72",tipo:"Constituição",data:"01/01/2024",criadoEm:1500}
+      ]));
+      W.TINA._ux.renderPainel ? W.TINA._ux.renderPainel() : $("btnPainel").click();
+      await espera(500);
+      var htm=($("painelLista")||{}).innerHTML||"";
+      reg("Painel mostra a posição do ato no histórico da empresa",
+        /1º de 2 atos desta empresa/.test(htm) && /2º de 2 atos desta empresa/.test(htm));
+      reg("Empresa com um ato só não ganha contador", (htm.match(/atos desta empresa/g)||[]).length===2);
+      try{ W.localStorage.removeItem("tinaCasos"); }catch(e){}
+    }catch(e){ reg("Bateria de pré-protocolo",false,String(e&&e.message||e).slice(0,120)); }
+
     /* ---------- 6b2h. Comparador antes/depois ---------- */
     grupo("Antes e depois");
     try{
