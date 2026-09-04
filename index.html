@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.5" />
+<meta name="versao" content="1.6" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -311,7 +311,24 @@
           <label for="pdfContrato">Contrato atual (PDF)</label>
           <input type="file" id="pdfContrato" accept="application/pdf">
           <div class="fldstat" id="pdfStat"></div>
-          <details id="pdfTextoWrap" style="display:none;margin-top:6px"><summary class="hint" style="cursor:pointer">Ver texto lido do PDF (conferência)</summary><pre id="pdfTexto" style="max-height:170px;overflow:auto;background:#f6f8fb;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:11px;white-space:pre-wrap;margin-top:6px"></pre></details>
+          <details id="pdfTextoWrap" style="display:none;margin-top:6px"><summary class="hint" style="cursor:pointer">Texto lido do PDF <span class="hint">— selecione um trecho para usá-lo num campo</span></summary>
+            <pre id="pdfTexto" style="max-height:170px;overflow:auto;background:#f6f8fb;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:11px;white-space:pre-wrap;margin-top:6px"></pre>
+            <div id="atribBar" style="display:none;margin-top:6px;align-items:center;gap:6px;flex-wrap:wrap">
+              <span class="hint">Usar o trecho como:</span>
+              <select id="atribCampo" style="width:auto">
+                <option value="objeto">Objeto social</option>
+                <option value="razao">Razão social</option>
+                <option value="fantasia">Nome fantasia</option>
+                <option value="sede">Endereço da sede</option>
+                <option value="capital">Capital social</option>
+                <option value="cnpj">CNPJ</option>
+                <option value="nire">NIRE</option>
+                <option value="dataInicioOrig">Início das atividades</option>
+              </select>
+              <button class="btn p mini" type="button" id="btnAtrib">Aplicar</button>
+              <span class="fldstat" id="atribStat"></span>
+            </div>
+          </details>
         </div>
         <div>
           <label for="cmdRapido">O que muda nesta alteração <span class="hint">— frases separadas por ";"</span><span class="helpbtn" id="btnHelpRapido" title="Como escrever">?</span></label>
@@ -685,6 +702,16 @@
       </div>
       <div id="painelAvisoBackup" class="val warn" style="display:none;margin-top:10px"></div>
       <div id="painelLista" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="procModal">
+  <div class="modal">
+    <div class="mh"><span>🔎 Conferência da leitura</span><button class="x" id="btnProcClose">Fechar</button></div>
+    <div class="mb">
+      <div class="hint">O que o sistema leu do PDF e o trecho de onde tirou. Confira os que estiverem marcados como não encontrados.</div>
+      <div id="procLista" style="margin-top:10px"></div>
     </div>
   </div>
 </div>
@@ -2268,6 +2295,60 @@ window.TINA=(function(){
 
   /* ===== E-mail de confirmação ===== */
   const ATO_EMAIL={const:"Constituição de Sociedade Limitada",ei_const:"Inscrição de Empresário Individual",transf_ei_ltda:"Transformação de Empresário Individual em Sociedade Limitada",transf_ei_slu:"Transformação de Empresário Individual em Sociedade Limitada Unipessoal",transf_ltda_ei:"Transformação de Sociedade Limitada em Empresário Individual",dist_ltda:"Distrato de Sociedade Limitada",dist_ei:"Extinção de Empresário Individual"};
+  /* ===== Conferência da leitura ===== */
+  let _procedencia=[];
+  function abrirProcedencia(){
+    const box=$("procLista"); if(!box) return;
+    box.innerHTML=_procedencia.map(p=>{
+      const ok=!!p.valor;
+      return '<div class="caso" style="padding:7px 9px">'
+        +'<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
+        +"<b>"+escHtml(p.rotulo)+"</b>"
+        +'<span class="hint" style="color:'+(ok?"var(--ok)":"var(--warn)")+'">'
+        +(ok?("lido"+(p.origem?" · "+escHtml(p.origem):"")):"não encontrado no documento")+"</span></div>"
+        +(ok?'<div style="font-size:13px;margin-top:2px">'+escHtml(p.valor.slice(0,180))+"</div>":"")
+        +(p.trecho?'<div class="hint" style="margin-top:4px;background:#f6f8fb;border-radius:6px;padding:5px 7px">…'+escHtml(p.trecho)+"…</div>":"")
+        +"</div>";
+    }).join("")||'<div class="hint">Nada lido ainda.</div>';
+    $("procModal").classList.add("open");
+  }
+  /* Atribuição manual: o usuário seleciona um trecho do texto lido e diz o que ele é.
+     É a saída garantida para redação que nenhuma expressão prevê — e não depende de eu
+     acertar mais um padrão. */
+  function trechoSelecionado(){
+    const sel=window.getSelection(); if(!sel||sel.isCollapsed) return "";
+    const pre=$("pdfTexto"); if(!pre) return "";
+    const a=sel.anchorNode, b=sel.focusNode;
+    if(!(a&&pre.contains(a))||!(b&&pre.contains(b))) return "";
+    return String(sel.toString()||"").replace(/\s+/g," ").trim();
+  }
+  function aplicarAtribuicao(){
+    const st=$("atribStat"), campo=($("atribCampo")||{}).value, txt=_selGuardada;
+    if(!txt){ st.className="fldstat bad"; st.textContent="Selecione um trecho primeiro."; return; }
+    const marca=(id)=>{ const e=$(id); if(e) e.classList.add("revisar"); };
+    if(campo==="objeto"){ $("objeto").value=normalizarAtividades(txt,manterCnaeAtivo()); marca("objeto"); chk("alt_objeto"); }
+    else if(campo==="sede"){ const e=parseEnderecoComando(txt);
+      const põe=(id,v)=>{ if(v&&$(id)){ $(id).value=v; marca(id); } };
+      põe("s_log",e.log); põe("s_num",e.num); põe("s_comp",e.comp); põe("s_bairro",e.bairro); põe("s_mun",e.mun); põe("s_cep",e.cep);
+      if(e.uf&&$("s_uf")){ $("s_uf").value=e.uf; marca("s_uf"); }
+      chk("alt_sede"); }
+    else if(campo==="capital"){ const n=brNum((txt.match(/[\d][\d.,]*/)||[])[0]||"");
+      if(!(n>0)){ st.className="fldstat bad"; st.textContent="Não achei um valor nesse trecho."; return; }
+      $("capital").value=n; marca("capital"); chk("alt_capital"); recalc(); }
+    else if(campo==="cnpj"){ const v=(txt.match(/[\dA-Za-z]{2}[.\s]?[\dA-Za-z]{3}[.\s]?[\dA-Za-z]{3}[\/\s]?[\dA-Za-z]{4}[-\s]?\d{2}/)||[])[0];
+      if(!v){ st.className="fldstat bad"; st.textContent="Não achei um CNPJ nesse trecho."; return; }
+      $("cnpj").value=fmtCnpj(v); marca("cnpj"); }
+    else if(campo==="nire"){ const v=(txt.match(/[\d][\d. ]{8,16}\d/)||[])[0];
+      if(!v){ st.className="fldstat bad"; st.textContent="Não achei um NIRE nesse trecho."; return; }
+      $("nire").value=v.replace(/\D/g,""); marca("nire"); }
+    else if(campo==="dataInicioOrig"){ const v=(txt.match(/\d{1,2}\/\d{1,2}\/\d{4}/)||[])[0];
+      if(!v){ st.className="fldstat bad"; st.textContent="Não achei uma data nesse trecho."; return; }
+      $("dataInicioOrig").value=v; marca("dataInicioOrig"); }
+    else { $(campo).value=txt; marca(campo); if(campo==="razao")chk("alt_nome"); if(campo==="fantasia")chk("alt_fantasia"); }
+    st.className="fldstat ok"; st.textContent="Aplicado — confira o campo em amarelo.";
+    salvarRascunhoDeb&&salvarRascunhoDeb();
+  }
+  let _selGuardada="";
   /* ===== Solicitações (fila de trabalho da equipe) =====
      Guarda no navegador e, quando há login na nuvem, também no Firestore. O local é a
      fonte do dia a dia; a nuvem é o registro compartilhado. Nunca depende da rede. */
@@ -3244,6 +3325,41 @@ window.TINA=(function(){
     }
     return out;
   }
+  /* ===== Procedência da leitura =====
+     Para cada campo, guarda o TRECHO do documento de onde o valor saiu. Em vez de instrumentar
+     cada uma das dezenas de expressões, procura o valor já lido dentro do texto original — o
+     resultado é o mesmo para quem confere, e não há risco de esquecer um ponto de extração.
+     O que não for encontrado fica registrado como ausente, que é a informação mais útil: separa
+     "o leitor falhou" de "o documento não traz". */
+  const CAMPOS_PROC=[
+    ["razao","Razão social"],["fantasia","Nome fantasia"],["cnpj","CNPJ"],["nire","NIRE"],
+    ["sede","Endereço da sede"],["objeto","Objeto social"],["capital","Capital social"],
+    ["valorQuota","Valor da quota"],["numAlteracao","Nº desta alteração"],
+    ["dataInicioOrig","Início das atividades"],["enquadramento","Enquadramento"]
+  ];
+  function procedencia(t,d){
+    const achaTrecho=(valor)=>{
+      const s=String(valor==null?"":valor).trim();
+      if(s.length<3) return "";
+      let i=t.toLowerCase().indexOf(s.toLowerCase());
+      if(i<0){ const p=s.split(/[,;]/)[0].trim(); if(p.length>=6) i=t.toLowerCase().indexOf(p.toLowerCase()); }
+      if(i<0) return "";
+      return t.slice(Math.max(0,i-70), i+Math.min(s.length,90)+70).replace(/\s+/g," ").trim();
+    };
+    const out=[];
+    CAMPOS_PROC.forEach(([k,rot])=>{
+      let valor="", busca="";
+      if(k==="sede"){ const s=d.sede||{}; valor=[s.log,s.num&&("nº "+s.num),s.bairro,s.mun&&(s.mun+(s.uf?"/"+s.uf:""))].filter(Boolean).join(", "); busca=s.log||""; }
+      /* Busca pelo número como ele aparece escrito — com milhar e centavos ("30.000,00", "1,00").
+         Só "1" seria curto demais para achar trecho, e "30000,00" não existe no texto. */
+      else if(k==="capital"||k==="valorQuota"){ const n=Number(d[k])||0; valor=n>0?reais(n):""; busca=n>0?reais(n).replace(/^R\$\s*/,""):""; }
+      else { valor=d[k]==null?"":String(d[k]); busca=valor; }
+      out.push({campo:k,rotulo:rot,valor:valor,
+        origem:(d.lidoDe&&d.lidoDe[k])||"",
+        trecho:valor?achaTrecho(busca):""});
+    });
+    return out;
+  }
   function parseContratoTexto(t,extra,auth,nomeArquivo){
     t=(t||"").replace(/\s+/g," ").replace(/P[áa]gina\s+\d+\s+de\s+\d+\s*\/?/gi," ");  // tira marcador de rodapé "Página X de Y" (+ a "/" que costuma segui-lo)
     /* Guarda o texto ANTES dos consertos de leitura. As correções abaixo existem para o parser achar
@@ -3298,6 +3414,7 @@ window.TINA=(function(){
        virou sede da empresa. Havendo a cláusula, ela é a fonte; o documento inteiro só serve de
        reserva para contratos cuja estrutura o leitor não reconheceu. */
     d.clausulasOrig=extrairClausulas(tOriginal);   // cláusulas do contrato enviado, no texto original — para não trocar nem retirar nenhuma
+    d._txtOrig=tOriginal;                          // guardado só para montar a procedência depois da leitura
     const claus={}; (d.clausulasOrig||[]).forEach(c=>{ if(c.tema && !claus[c.tema]) claus[c.tema]=c.texto; });
     const ultimaEm=(txt,re)=>{ let m,last; const r=new RegExp(re.source,re.flags.includes("g")?re.flags:re.flags+"g"); while((m=r.exec(txt||"")))last=m[1]; return last||""; };
     const RE_CAP=/capital[\s\S]{0,45}?R\$\s*([\d][\d., ]{0,16}\d|\d)/i;
@@ -3701,6 +3818,12 @@ window.TINA=(function(){
         /* Divergências da dupla checagem: o mesmo dado lido por dois caminhos que não bateram.
            Só aparece quando há divergência de verdade — não é aviso de rotina. */
         ((par&&par.d&&par.d.conferir)||[]).forEach(c=>avisosDoc.push("<b>Confira:</b> "+escHtml(c)));
+        // procedência: fica guardada e só aparece se o usuário pedir, para não encher a tela
+        try{ _procedencia=procedencia((par&&par.d&&par.d._txtOrig)||txt,(par&&par.d)||{}); }catch(e){ _procedencia=[]; }
+        const faltantes=_procedencia.filter(p=>!p.valor).length;
+        avisosDoc.push('<button type="button" class="btn o mini" id="btnVerProc">Conferir a leitura</button>'
+          +' <span class="hint">'+(_procedencia.length-faltantes)+" de "+_procedencia.length+" campos lidos"
+          +(faltantes?("; "+faltantes+" não "+(faltantes>1?"encontrados":"encontrado")):"")+"</span>");
         const pjs=((par&&par.d&&par.d.socios)||[]).filter(s=>s.tipoPessoa==="PJ");
         if(pjs.length) avisosDoc.push("<b>Sócio(s) pessoa jurídica lido(s) do contrato:</b> "+pjs.map(p=>{
           const falta=[]; if(!p.pjCnpj)falta.push("CNPJ"); if(!p.pjRep)falta.push("representante"); if(!p.log)falta.push("sede"); if(!p.pjNire)falta.push("NIRE");
@@ -3722,6 +3845,7 @@ window.TINA=(function(){
     const av=$("avisoRevisao");
     if(houvePDF||applied.length){av.style.display="block";av.innerHTML="⚠ <b>Confira tudo antes de gerar.</b> O preenchimento automático é apenas uma ajuda — revise todas as informações e as alterações marcadas em \"O que muda\"."+(incCount?(" Há <b>"+incCount+" campo(s) destacado(s) em amarelo</b> que precisam de conferência.") : "")
       +(avisosDoc.length?("<ul style='margin:8px 0 0 18px;padding:0'>"+avisosDoc.map(a=>"<li>"+a+"</li>").join("")+"</ul>"):"");
+      const bProc=$("btnVerProc"); if(bProc) bProc.addEventListener("click",abrirProcedencia);
       // o aviso do MEI traz um atalho para a aba de transformação (switchMode não apaga o preenchimento)
       const bIr=$("btnIrTransf");
       if(bIr) bIr.addEventListener("click",()=>{ switchMode("transf_ei_ltda"); recalc();
@@ -4077,6 +4201,16 @@ window.TINA=(function(){
       document.addEventListener("click",e=>{ if(!e.target.closest(".usermenu")) fechar(); });
       document.addEventListener("keydown",e=>{ if(e.key==="Escape") fechar(); });
     }
+    if($("btnProcClose")) $("btnProcClose").addEventListener("click",()=>$("procModal").classList.remove("open"));
+    /* A barra de atribuição só aparece quando há trecho selecionado dentro da caixa do texto.
+       A seleção é guardada porque clicar no botão a desfaz. */
+    if($("pdfTexto")){
+      const atualiza=()=>{ const s=trechoSelecionado();
+        if(s){ _selGuardada=s; const b=$("atribBar"); if(b){ b.style.display="flex"; } const st=$("atribStat"); if(st)st.textContent=""; } };
+      $("pdfTexto").addEventListener("mouseup",atualiza);
+      $("pdfTexto").addEventListener("keyup",atualiza);
+    }
+    if($("btnAtrib")) $("btnAtrib").addEventListener("click",aplicarAtribuicao);
     if($("btnSolic")) $("btnSolic").addEventListener("click",()=>{ abrirSolic(); sincronizarSolic(); });
     if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>$("solicModal").classList.remove("open"));
     if($("btnSolicNova")) $("btnSolicNova").addEventListener("click",novaSolic);
@@ -4324,7 +4458,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>

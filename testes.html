@@ -409,6 +409,40 @@
         !!(dB.conferir||[]).some(function(x){ return /Capital/i.test(x); }), (dB.conferir||[]).join(" | ").slice(0,120));
     }catch(e){ reg("Bateria de leitura por cláusula",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2g. Procedência da leitura e atribuição manual ---------- */
+    grupo("Conferência da leitura");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      var tP="ALTERAÇÃO E CONSOLIDAÇÃO DO CONTRATO SOCIAL DE EXEMPLO COMERCIO LTDA, inscrita no CNPJ sob o nº 11.222.333/0001-81. "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Centro, Aracaju/SE, CEP: 49000-400; resolve: "
+        +"CONTRATO SOCIAL CONSOLIDADO "
+        +"Cláusula 1ª - A sociedade gira sob o nome empresarial EXEMPLO COMERCIO LTDA. "
+        +"Cláusula 2ª - A sociedade tem sede na Rua da Empresa, nº 55, Centro, Aracaju/SE, CEP: 49000-000. "
+        +"Cláusula 3ª - A sociedade tem por objeto o comércio varejista de peças. "
+        +"Cláusula 4ª - O prazo de duração da sociedade é por tempo indeterminado. "
+        +"Cláusula 5ª - O capital social é de R$ 30.000,00, dividido em 30.000 quotas no valor nominal de R$ 1,00 cada uma. "
+        +"Cláusula 6ª - As divergências serão dirimidas no foro de Aracaju/SE. E por estarem justos, assinam.";
+      var pP=W.TINA._pdf.parseContratoTexto(tP,"","","");
+      var proc=W.TINA._pdf.procedencia(tP,(pP&&pP.d)||{});
+      var acha=function(k){ return proc.filter(function(x){return x.campo===k;})[0]||{}; };
+      reg("Procedência cobre os campos principais", proc.length>=10, proc.length+" campos");
+      reg("Campo lido traz o trecho de origem",
+        !!acha("capital").valor && /capital social/i.test(acha("capital").trecho||""), (acha("capital").trecho||"").slice(0,70));
+      reg("Sede aponta para o endereço da cláusula",
+        /Rua da Empresa/i.test(acha("sede").valor||""), acha("sede").valor||"");
+      reg("Campo ausente é marcado como não encontrado (não some calado)",
+        acha("nire").valor==="" , "NIRE: "+(acha("nire").valor||"(vazio)"));
+      reg("Registra a origem quando veio de uma cláusula",
+        /cláusula/i.test(acha("capital").origem||""), acha("capital").origem||"(sem origem)");
+      // atribuição manual: o trecho selecionado vira o valor do campo
+      $("objeto").value="";
+      W.TINA._pdf.aplicarAtribuicao.call(null);
+      await espera(120);
+      reg("Sem seleção, a atribuição avisa em vez de agir",
+        /Selecione um trecho/i.test(($("atribStat")||{}).textContent||""), (($("atribStat")||{}).textContent||"").slice(0,50));
+    }catch(e){ reg("Bateria de procedência",false,String(e&&e.message||e).slice(0,120)); }
+
     /* ---------- 6b5b. CSP x endereços realmente usados ----------
        Esta bateria nasceu de um bug caro: a consulta de CNPJ e o Firebase foram adicionados sem
        abrir os endereços na política de segurança da página, e ficaram bloqueados em silêncio por
