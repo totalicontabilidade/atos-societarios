@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.6" />
+<meta name="versao" content="1.7" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -531,7 +531,8 @@
   <div id="validacaoBox" class="val" style="display:none;margin-bottom:16px"></div>
 
   <div class="card" id="previewCard">
-    <div class="pv-head"><span class="dot"></span> Prévia do documento <span class="pill">render aproximado do Word</span></div>
+    <div class="pv-head"><span class="dot"></span> Prévia do documento <span class="pill">render aproximado do Word</span>
+      <button class="btn o mini" type="button" id="btnComparar" style="display:none;margin-left:auto">⇄ Antes e depois</button></div>
     <div id="preview"><div class="empty">A prévia do contrato aparece aqui.<br>Clique em <b>Gerar prévia</b>.</div></div>
   </div>
 
@@ -702,6 +703,16 @@
       </div>
       <div id="painelAvisoBackup" class="val warn" style="display:none;margin-top:10px"></div>
       <div id="painelLista" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="compModal">
+  <div class="modal">
+    <div class="mh"><span>⇄ Antes e depois</span><button class="x" id="btnCompClose">Fechar</button></div>
+    <div class="mb">
+      <div id="compResumo" class="val"></div>
+      <div id="compLista" style="margin-top:12px"></div>
     </div>
   </div>
 </div>
@@ -1503,6 +1514,7 @@ window.TINA=(function(){
          • cláusula obrigatória que falte         → é acrescentada no fim.
        Nada é removido, nunca. */
     const emitirCorpo=()=>{
+      _comparacao=[];   // relatório do que foi mantido, reescrito e acrescentado (comparador antes/depois)
       const orig=(isAlt && d.preservar && Array.isArray(d.clausulasOrig) && d.clausulasOrig.length>=5) ? d.clausulasOrig : null;
       if(!orig){ BODY.forEach(b=>{ ch.push(heading(nx(),b.titulo)); b.paras.forEach(p=>ch.push(p)); }); return; }
       const porTema=new Map(); BODY.forEach(b=>{ if(b.tema && !porTema.has(b.tema)) porTema.set(b.tema,b); });
@@ -1519,18 +1531,24 @@ window.TINA=(function(){
         const b=cl.tema?porTema.get(cl.tema):null;
         if(b && mexeu(cl.tema)){                        // o ato mexe nisso → texto novo, mesma posição
           usados.add(cl.tema);
-          ch.push(P([T(rotulo()+b.titulo.replace(/^D[AEOU]S?\s+/,"").replace(/^DECLARAÇÃO DE\s+/,""),{bold:true})],LEFT,SP10));
+          const rot=rotulo();
+          ch.push(P([T(rot+b.titulo.replace(/^D[AEOU]S?\s+/,"").replace(/^DECLARAÇÃO DE\s+/,""),{bold:true})],LEFT,SP10));
           b.paras.forEach(p=>ch.push(p));
+          _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:b.titulo,situacao:"reescrita",tema:cl.tema,antes:cl.texto});
         } else {                                        // não mexe → sai como está no contrato do cliente
           if(b) usados.add(cl.tema);
-          ch.push(P([T(rotulo(),{bold:true}),...R(cl.texto)],JUST,SP15));
+          const rot=rotulo();
+          ch.push(P([T(rot,{bold:true}),...R(cl.texto)],JUST,SP15));
+          _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:"",situacao:"mantida",tema:cl.tema,antes:cl.texto});
         }
       });
       // cláusula obrigatória ausente no contrato enviado entra ao final (só acrescenta, nunca troca)
       const faltando=BODY.filter(b=>b.tema && TEMAS_OBRIGATORIOS.indexOf(b.tema)>=0 && !usados.has(b.tema));
       faltando.forEach(b=>{
-        ch.push(P([T(rotulo()+b.titulo.replace(/^D[AEOU]S?\s+/,""),{bold:true})],LEFT,SP10));
+        const rot=rotulo();
+        ch.push(P([T(rot+b.titulo.replace(/^D[AEOU]S?\s+/,""),{bold:true})],LEFT,SP10));
         b.paras.forEach(p=>ch.push(p));
+        _comparacao.push({n:n,rotuloOrig:"",titulo:b.titulo,situacao:"acrescentada",tema:b.tema,antes:""});
       });
     };
     // I - NOME
@@ -2251,7 +2269,9 @@ window.TINA=(function(){
   function gerarPreview(){$("status").className="status muted";$("status").textContent="Gerando prévia…";
     return buildBlob().then(({blob,nomeArq})=>{_blob={blob,nomeArq};const c=$("preview");c.innerHTML="";
       return window.docx.renderAsync(blob,c,null,{className:"docxprev",inWrapper:true})
-        .then(async()=>{fitPreview();renderValidacao(await validar(blob));$("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ Prévia atualizada.";});})
+        .then(async()=>{fitPreview();renderValidacao(await validar(blob));$("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ Prévia atualizada.";
+          // o botão do comparador só existe quando houve contrato enviado para comparar
+          const bc=$("btnComparar"); if(bc) bc.style.display=_comparacao.length?"":"none";});})
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);});}
   function baixarDocx(){ comConfirmacao(()=>{
     $("status").className="status muted";$("status").textContent="Gerando .docx…";
@@ -2295,6 +2315,30 @@ window.TINA=(function(){
 
   /* ===== E-mail de confirmação ===== */
   const ATO_EMAIL={const:"Constituição de Sociedade Limitada",ei_const:"Inscrição de Empresário Individual",transf_ei_ltda:"Transformação de Empresário Individual em Sociedade Limitada",transf_ei_slu:"Transformação de Empresário Individual em Sociedade Limitada Unipessoal",transf_ltda_ei:"Transformação de Sociedade Limitada em Empresário Individual",dist_ltda:"Distrato de Sociedade Limitada",dist_ei:"Extinção de Empresário Individual"};
+  /* ===== Comparador antes/depois =====
+     Prova visual de que o sistema não mexeu no que não devia: cláusula por cláusula, o que foi
+     mantido com o texto do cliente, o que foi reescrito por este ato e o que precisou ser
+     acrescentado. Preenchido pelo próprio gerador, então reflete o documento de verdade. */
+  let _comparacao=[];
+  const SIT={mantida:["mantida","var(--ok)"],reescrita:["reescrita por este ato","var(--warn)"],acrescentada:["acrescentada (obrigatória, faltava)","var(--navy)"]};
+  function abrirComparacao(){
+    const box=$("compLista"), res=$("compResumo"); if(!box) return;
+    const c=n=>_comparacao.filter(x=>x.situacao===n).length;
+    res.className="val ok";
+    res.innerHTML="<b>"+_comparacao.length+" cláusulas</b> no documento gerado: "
+      +c("mantida")+" com o texto do contrato enviado, "+c("reescrita")+" reescrita(s) por este ato"
+      +(c("acrescentada")?(", "+c("acrescentada")+" acrescentada(s) por serem obrigatórias"):"")+".";
+    box.innerHTML=_comparacao.map(x=>{
+      const [rot,cor]=SIT[x.situacao]||["",""];
+      return '<div class="caso" style="padding:7px 9px">'
+        +'<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
+        +"<b>Cláusula "+x.n+"ª"+(x.titulo?" — "+escHtml(x.titulo.replace(/^D[AEOU]S?\s+/,"").replace(/^DECLARAÇÃO DE\s+/,"")):"")+"</b>"
+        +'<span class="hint" style="color:'+cor+'">'+rot+(x.rotuloOrig?" · era a "+escHtml(x.rotuloOrig):"")+"</span></div>"
+        +(x.antes?'<div class="hint" style="margin-top:4px">'+(x.situacao==="reescrita"?"<b>Texto anterior:</b> ":"")+escHtml(x.antes.slice(0,240))+(x.antes.length>240?"…":"")+"</div>":"")
+        +"</div>";
+    }).join("");
+    $("compModal").classList.add("open");
+  }
   /* ===== Conferência da leitura ===== */
   let _procedencia=[];
   function abrirProcedencia(){
@@ -4202,6 +4246,8 @@ window.TINA=(function(){
       document.addEventListener("keydown",e=>{ if(e.key==="Escape") fechar(); });
     }
     if($("btnProcClose")) $("btnProcClose").addEventListener("click",()=>$("procModal").classList.remove("open"));
+    if($("btnCompClose")) $("btnCompClose").addEventListener("click",()=>$("compModal").classList.remove("open"));
+    if($("btnComparar")) $("btnComparar").addEventListener("click",abrirComparacao);
     /* A barra de atribuição só aparece quando há trecho selecionado dentro da caixa do texto.
        A seleção é guardada porque clicar no botão a desfaz. */
     if($("pdfTexto")){
@@ -4458,7 +4504,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>

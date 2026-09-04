@@ -409,6 +409,47 @@
         !!(dB.conferir||[]).some(function(x){ return /Capital/i.test(x); }), (dB.conferir||[]).join(" | ").slice(0,120));
     }catch(e){ reg("Bateria de leitura por cláusula",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2h. Comparador antes/depois ---------- */
+    grupo("Antes e depois");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      // contrato enviado: 6 cláusulas, uma delas (arbitragem) que o sistema não gera
+      var tC="ALTERAÇÃO E CONSOLIDAÇÃO DO CONTRATO SOCIAL DE EXEMPLO COMERCIO LTDA, inscrita no CNPJ sob o nº 11.222.333/0001-81. "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Centro, Aracaju/SE, CEP: 49000-400; resolve: "
+        +"CONTRATO SOCIAL CONSOLIDADO "
+        +"Cláusula 1ª - A sociedade gira sob o nome empresarial EXEMPLO COMERCIO LTDA. "
+        +"Cláusula 2ª - A sociedade tem sede na Rua da Empresa, nº 55, Centro, Aracaju/SE, CEP: 49000-000. "
+        +"Cláusula 3ª - A sociedade tem por objeto o comércio varejista de peças. "
+        +"Cláusula 4ª - O prazo de duração da sociedade é por tempo indeterminado. "
+        +"Cláusula 5ª - O capital social é de R$ 10.000,00, dividido em 10.000 quotas no valor nominal de R$ 1,00 cada uma. "
+        +"Cláusula 6ª - Fica pactuada cláusula compromissória de arbitragem entre os sócios. "
+        +"Cláusula 7ª - As divergências serão dirimidas no foro de Aracaju/SE. E por estarem justos, assinam.";
+      W.TINA._pdf.aplicarDadosContrato(W.TINA._pdf.parseContratoTexto(tC,"","",""));
+      await espera(700);
+      // muda só a sede
+      val("s_log","Rua NOVA da Sede"); mark("alt_sede",true);
+      val("sedeAnterior","Rua da Empresa, nº 55, Centro, Aracaju - SE, CEP: 49000-000");
+      await W.TINA.gerarPreview(); await espera(1200);
+      var comp=W.TINA._pdf.comparacao()||[];
+      var por=function(s){ return comp.filter(function(x){return x.situacao===s;}).length; };
+      reg("O comparador é preenchido ao gerar", comp.length>=7, comp.length+" cláusulas");
+      reg("Só a cláusula do tema alterado é reescrita", por("reescrita")===1, por("reescrita")+" reescrita(s)");
+      reg("A cláusula reescrita é a da sede",
+        (comp.filter(function(x){return x.situacao==="reescrita";})[0]||{}).tema==="sede",
+        (comp.filter(function(x){return x.situacao==="reescrita";})[0]||{}).tema||"");
+      reg("As demais saem mantidas", por("mantida")>=6, por("mantida")+" mantida(s)");
+      reg("Guarda o texto anterior para conferência",
+        !!(comp.filter(function(x){return x.situacao==="reescrita";})[0]||{}).antes);
+      reg("O botão do comparador aparece", ($("btnComparar")||{}).style.display!=="none");
+      // sem contrato enviado não há o que comparar
+      $("btnLimpar").click(); await espera(500);
+      $("btnExemplo").click(); await espera(400);
+      await W.TINA.gerarPreview(); await espera(1100);
+      reg("Sem contrato enviado, o comparador não aparece",
+        (W.TINA._pdf.comparacao()||[]).length===0 && ($("btnComparar")||{}).style.display==="none");
+    }catch(e){ reg("Bateria do comparador",false,String(e&&e.message||e).slice(0,120)); }
+
     /* ---------- 6b2g. Procedência da leitura e atribuição manual ---------- */
     grupo("Conferência da leitura");
     try{
