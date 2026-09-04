@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.10" />
+<meta name="versao" content="1.11" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -3649,7 +3649,9 @@ window.TINA=(function(){
        sede errada. A escolha final é feita depois de montar a lista de sócias PJ, descartando o que
        for endereço de sócia. "matriz" vem primeiro porque só a própria sociedade tem matriz. */
     let sedeCands=[]; {
-      const allOf=(re,txt)=>{const out=[];let m3;const alvo=txt||t;const r=new RegExp(re.source,re.flags);while((m3=r.exec(alvo)))out.push(m3[1]);return out.reverse();};   // reverse: a ÚLTIMA ocorrência (consolidação = sede atual) fica na frente
+      // reverse por padrão: no documento inteiro, a ÚLTIMA menção é a sede atual (consolidação).
+      // Dentro da cláusula isolada é o contrário — a primeira é a que vale; daí o "semReverso".
+      const allOf=(re,txt,semReverso)=>{const out=[];let m3;const alvo=txt||t;const r=new RegExp(re.source,re.flags);while((m3=r.exec(alvo)))out.push(m3[1]);return semReverso?out:out.reverse();};   // reverse: a ÚLTIMA ocorrência (consolidação = sede atual) fica na frente
       // "tem matriz com sede e foro na cidade de FulanÃ³polis/SE, Praça …, CEP: …" — município ANTES do
       // logradouro; reordena para a forma normal antes de entregar ao parseEndereco.
       const invertida=(re,txt)=>{const m=(txt||t).match(re); if(!m)return "";
@@ -3657,9 +3659,19 @@ window.TINA=(function(){
       /* A cláusula da sede, quando reconhecida, vem na frente de tudo: ela é a única frase do
          documento que fala da sede DA SOCIEDADE por definição. As demais buscas varrem o texto
          inteiro e podem cair no endereço de um sócio. */
-      const daClausula=claus.sede
-        ? [ ...allOf(/(?:sede|matriz)[^.]{0,30}?(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/gi, claus.sede),
-            invertida(/(?:matriz|sede)(?:\s+com\s+sede)?(?:\s+e\s+foro)?\s+n[ao]\s+cidade\s+de\s+([A-Za-zÀ-ú .']{2,40}?)\s*[\/-]\s*([A-Z]{2})\s*,\s*(.+?)CEP[:\s]*([\d.\- ]{7,13})/i, claus.sede) ]
+      /* A cláusula da sede quase sempre traz MATRIZ E FILIAL na mesma frase ("tem matriz … ;
+         tem filial …"). Pegar a cláusula inteira fazia a sede virar o endereço da filial — e
+         pior, o allOf devolve invertido, então a filial vinha na frente. Isola o trecho da
+         matriz antes de procurar endereço. */
+      const trechoSede=(()=>{ if(!claus.sede) return "";
+        const partes=String(claus.sede).split(/;/);
+        const m=partes.find(p=>/matriz/i.test(p) && !/\bfilia(?:l|is)\b/i.test(p));
+        if(m) return m;
+        const semFilial=partes.filter(p=>!/\bfilia(?:l|is)\b/i.test(p));
+        return semFilial.length?semFilial[0]:""; })();
+      const daClausula=trechoSede
+        ? [ ...allOf(/(?:sede|matriz)[^.]{0,30}?(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/gi, trechoSede, true),
+            invertida(/(?:matriz|sede)(?:\s+com\s+sede)?(?:\s+e\s+foro)?\s+n[ao]\s+cidade\s+de\s+([A-Za-zÀ-ú .']{2,40}?)\s*[\/-]\s*([A-Z]{2})\s*,\s*(.+?)CEP[:\s]*([\d.\- ]{7,13})/i, trechoSede) ]
           .filter(Boolean)
         : [];
       sedeCands=[
@@ -3893,12 +3905,13 @@ window.TINA=(function(){
     const segs=corpo.split(/[;\n]+/).map(s=>s.trim()).filter(Boolean);
     for(const s of segs){
       let m;
-      if(m=s.match(/inclu\w+\s+s[óo]cio\s+(.+)/i)){const rest=m[1];const cpf=(rest.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/)||[])[0]||"";const nome=rest.replace(/,?\s*cpf.*/i,"").replace(/,\s*\d.*/,"").trim();socioCard({nome,cpf});const last=[...document.querySelectorAll(".socio:not(.filial)")].pop();if(last)last.querySelectorAll("[data-f=nome],[data-f=cpf]").forEach(el=>el.classList.add("revisar"));chk("alt_quadro");applied.push("incluir sócio: "+nome);continue;}
+      if(m=s.match(/inclu\w+\s+s[óo]ci[oa]\s+(.+)/i)){const rest=m[1];const cpf=(rest.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/)||[])[0]||"";const nome=rest.replace(/,?\s*cpf.*/i,"").replace(/,\s*\d.*/,"").trim();socioCard({nome,cpf});const last=[...document.querySelectorAll(".socio:not(.filial)")].pop();if(last)last.querySelectorAll("[data-f=nome],[data-f=cpf]").forEach(el=>el.classList.add("revisar"));chk("alt_quadro");applied.push("incluir sócio: "+nome);continue;}
       /* "excluir sócio X": numa ALTERAÇÃO ele não pode simplesmente sumir — quem sai assina o ato e
          precisa continuar qualificado no preâmbulo. Então o comando MARCA A RETIRADA e o sócio fica
          no quadro; o gerador é que o tira do consolidado. Fora da alteração (constituição), aí sim
          remove o cartão, que é o que faz sentido lá. */
-      if(m=s.match(/(?:exclu\w+|remov\w+|retir\w+)\s+s[óo]cio\s+(.+)/i)){
+      // "sócio" OU "sócia": a pessoa escreve como fala, e a sócia PJ é sempre feminina
+      if(m=s.match(/(?:exclu\w+|remov\w+|retir\w+)\s+s[óo]ci[oa]\s+(.+)/i)){
         const alvo=m[1].trim().toLowerCase();
         const card=[...document.querySelectorAll(".socio:not(.filial):not(.guardado)")].find(c=>((c.querySelector("[data-f=nome]")||{}).value||"").toLowerCase().includes(alvo));
         if(!card){ applied.push("sócio não encontrado para excluir: "+m[1].trim()); continue; }

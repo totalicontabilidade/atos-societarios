@@ -401,6 +401,33 @@
       reg("Objeto vem da cláusula do objeto",
         /peças|pecas/i.test(dA.objeto||"") && !/importa[çc][ãa]o/i.test(dA.objeto||""), (dA.objeto||"").slice(0,60));
       reg("Registra de onde o dado saiu", !!(dA.lidoDe&&dA.lidoDe.capital), dA.lidoDe?JSON.stringify(dA.lidoDe):"");
+      /* Cláusula de sede com MATRIZ E FILIAL na mesma frase — redação comum. Ler a cláusula
+         inteira fazia a sede virar o endereço da FILIAL (e o allOf ainda devolvia invertido,
+         então a filial vinha na frente). A sede tem de ser a da matriz. */
+      var tMF="ALTERAÇÃO E CONSOLIDAÇÃO DO CONTRATO SOCIAL DE EXEMPLO COMERCIO LTDA. "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Centro, Aracaju/SE, CEP: 49000-400; resolve: "
+        +"CONTRATO SOCIAL CONSOLIDADO "
+        +"Cláusula 1ª - A sociedade gira sob o nome empresarial EXEMPLO COMERCIO LTDA. "
+        +"Cláusula 2ª - A sociedade tem matriz com sede e foro na cidade de Aracaju/SE, Praça da Matriz, nº 55, Centro, CEP: 49000-000; tem filial com sede e foro na cidade de Lagarto/SE, Rua da Filial, nº 265, Sala A, Bairro Norte, CEP: 49400-000. "
+        +"Cláusula 3ª - A sociedade tem por objeto o comércio varejista. "
+        +"Cláusula 4ª - O prazo de duração da sociedade é por tempo indeterminado. "
+        +"Cláusula 5ª - O capital social é de R$ 30.000,00, dividido em 30.000 quotas no valor nominal de R$ 1,00. "
+        +"Cláusula 6ª - Foro de Aracaju/SE. E por estarem justos, assinam.";
+      var dMF=(W.TINA._pdf.parseContratoTexto(tMF,"","","")||{}).d||{};
+      reg("Com matriz e filial na mesma cláusula, a sede é a da MATRIZ",
+        /Pra[çc]a da Matriz/i.test((dMF.sede&&dMF.sede.log)||"") && !/Filial/i.test((dMF.sede&&dMF.sede.log)||""),
+        (dMF.sede&&dMF.sede.log)||"(vazio)");
+      reg("E a filial continua sendo lida como filial",
+        (dMF.filiais||[]).some(function(f){ return /Rua da Filial/i.test(f.log||""); }), JSON.stringify((dMF.filiais||[]).map(function(f){return f.log;})));
+      // comando no feminino
+      modo("alt"); await espera(200);
+      W.TINA._pdf.aplicarDadosContrato(W.TINA._pdf.parseContratoTexto(tMF,"","",""));
+      await espera(600);
+      var rw=[].slice.call(D.querySelectorAll("#socios .socio:not(.filial):not(.guardado)"));
+      if(rw[0]){ var nm=rw[0].querySelector('[data-f="nome"]'); nm.value="MODELO PARTICIPACOES LTDA"; nm.dispatchEvent(new W.Event("input",{bubbles:true})); }
+      var apF=W.TINA._cmd.parseComandos("excluir sócia MODELO");
+      reg("“excluir sócia” funciona igual a “excluir sócio”",
+        (apF||[]).some(function(x){ return /retirada de s[óo]cio|excluir s[óo]cio/i.test(x); }), (apF||[]).join(" | ").slice(0,80));
       reg("Sem divergência, não inventa aviso", !(dA.conferir&&dA.conferir.length), (dA.conferir||[]).join(" | "));
       // agora um contrato em que a cláusula se contradiz: 30.000 declarado x 20.000 pela tabela
       var tB=tA.replace("dividido em 30.000 quotas no valor nominal de R$ 1,00","dividido em 20.000 quotas no valor nominal de R$ 1,00");
