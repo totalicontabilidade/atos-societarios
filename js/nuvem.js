@@ -20,7 +20,20 @@
   "use strict";
 
   var app = null, db = null, auth = null, pronto = false, motivo = "";
-  var _usuario = null, _daEquipe = false, _admin = false, _ouvintes = [];
+  var _usuario = null, _daEquipe = false, _admin = false, _offline = false, _ouvintes = [];
+
+  /* Permissão confirmada no servidor fica guardada por alguns dias, e SÓ serve quando não há
+     rede. Com rede, a permissão é sempre reconferida no servidor — senão bastaria ficar offline
+     para manter acesso depois de ser removido da equipe. */
+  var DIAS_OFFLINE = 7;
+  function guardarAcesso(uid) { try { localStorage.setItem("tinaAcesso", JSON.stringify({ uid: uid, em: Date.now() })); } catch (e) {} }
+  function limparAcesso() { try { localStorage.removeItem("tinaAcesso"); } catch (e) {} }
+  function acessoValido(uid) {
+    try {
+      var a = JSON.parse(localStorage.getItem("tinaAcesso") || "null");
+      return !!(a && a.uid === uid && (Date.now() - a.em) < DIAS_OFFLINE * 86400000);
+    } catch (e) { return false; }
+  }
 
   function cfgValida() {
     var c = window.ATOS_FIREBASE || {};
@@ -40,6 +53,7 @@
       logado: !!_usuario,
       daEquipe: _daEquipe,
       admin: _admin,
+      modoOffline: _offline,
       email: _usuario ? _usuario.email : "",
       uid: _usuario ? _usuario.uid : "",
       online: (typeof navigator !== "undefined") ? navigator.onLine !== false : true
@@ -68,9 +82,19 @@
             var x = d.exists ? (d.data() || {}) : {};
             _daEquipe = x.ativo === true;
             _admin = _daEquipe && x.admin === true;
+            _offline = false;
+            if (_daEquipe) guardarAcesso(u.uid); else limparAcesso();
             avisar();
           })
-          .catch(function () { _daEquipe = false; _admin = false; avisar(); });
+          /* Sem rede a checagem no servidor falha — e o app é offline-first: quem já entrou
+             precisa continuar trabalhando no cliente, no cartório, sem sinal. Vale então a
+             permissão confirmada há pouco, por tempo limitado. Administrar equipe, não: isso
+             exige servidor, e fica bloqueado no modo offline. */
+          .catch(function () {
+            if (acessoValido(u.uid)) { _daEquipe = true; _admin = false; _offline = true; }
+            else { _daEquipe = false; _admin = false; _offline = false; }
+            avisar();
+          });
       });
       pronto = true; motivo = "";
     } catch (e) { motivo = (e && e.message) || "falha ao iniciar"; }
@@ -91,7 +115,7 @@
       });
   }
 
-  function sair() { return pronto ? auth.signOut().catch(function () {}) : Promise.resolve(); }
+  function sair() { limparAcesso(); return pronto ? auth.signOut().catch(function () {}) : Promise.resolve(); }
 
   // devolve BOOLEANO de verdade: sem o !! isto entregava null quando ninguém estava logado,
   // e quem chama compara com false

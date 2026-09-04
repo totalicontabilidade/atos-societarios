@@ -373,6 +373,31 @@
         cAdm?cAdm.texto.slice(0,60):"");
     }catch(e){ reg("Bateria de cláusulas preservadas",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b5b. CSP x endereços realmente usados ----------
+       Esta bateria nasceu de um bug caro: a consulta de CNPJ e o Firebase foram adicionados sem
+       abrir os endereços na política de segurança da página, e ficaram bloqueados em silêncio por
+       duas versões. O sintoma no login era "sem conexão" — parecia rede, era CSP. A regra aqui é
+       simples: todo endereço https que o código chama tem de estar liberado em connect-src. */
+    grupo("Segurança — CSP");
+    try{
+      var meta=D.querySelector('meta[http-equiv="Content-Security-Policy"]');
+      reg("A página declara uma política de segurança", !!meta);
+      var csp=meta?meta.getAttribute("content"):"";
+      var conn=(csp.match(/connect-src([^;]*)/)||["",""])[1];
+      var fonte=await (await W.fetch("index.html?csp="+Date.now(),{cache:"no-store"})).text();
+      /* Só conta o que é CONEXÃO (fetch/XHR). Abrir o WhatsApp ou o Gmail é NAVEGAÇÃO — sai da
+         página, não busca dado de dentro dela, e connect-src não tem nada a ver com isso. */
+      var usados=[]; var re=/fetch\(\s*["'`]https:\/\/([a-z0-9.-]+)/gi, m;
+      while(m=re.exec(fonte)){ if(usados.indexOf(m[1])<0) usados.push(m[1]); }
+      var faltando=usados.filter(function(h){ return conn.indexOf(h)<0; });
+      reg("Todo endereço externo chamado pelo código está liberado na CSP",
+        faltando.length===0, faltando.length?("faltam: "+faltando.join(", ")):conn.trim().slice(0,120));
+      // e os quatro que o login e a nuvem precisam, nominalmente
+      ["identitytoolkit.googleapis.com","securetoken.googleapis.com","firestore.googleapis.com","brasilapi.com.br"]
+        .forEach(function(h){ reg("CSP libera "+h, conn.indexOf(h)>=0); });
+      reg("A CSP continua fechada para o resto", /default-src 'self'/.test(csp) && /object-src 'none'/.test(csp));
+    }catch(e){ reg("Bateria de CSP",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 6b6. Solicitações (fila interna) e camada de nuvem ----------
     grupo("Solicitações");
     try{
