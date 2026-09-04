@@ -373,6 +373,42 @@
         cAdm?cAdm.texto.slice(0,60):"");
     }catch(e){ reg("Bateria de cláusulas preservadas",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2f. Leitura ancorada na cláusula + dupla checagem ----------
+       O erro mais perigoso do leitor não é deixar campo vazio: é pegar o dado CERTO no lugar
+       ERRADO — como a sede da sócia PJ virando sede da empresa. Procurar dentro da cláusula do
+       assunto elimina a maior parte disso; o que sobrar, a dupla checagem denuncia. */
+    grupo("Leitura por cláusula");
+    try{
+      // capital e sede aparecem DUAS vezes no texto: uma dentro da cláusula certa, outra como
+      // menção de passagem noutro lugar. O leitor tem de ficar com a da cláusula.
+      var tA="ALTERAÇÃO E CONSOLIDAÇÃO DO CONTRATO SOCIAL DE EXEMPLO COMERCIO LTDA. "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Centro, Aracaju/SE, CEP: 49000-400; "
+        +"e MODELO PARTICIPACOES LTDA, CNPJ nº 44.555.666/0001-72, com sede na Rua da Socia, nº 999, Centro, Aracaju/SE, CEP: 49000-900, resolvem: "
+        +"CONTRATO SOCIAL CONSOLIDADO "
+        +"Cláusula 1ª - A sociedade gira sob o nome empresarial EXEMPLO COMERCIO LTDA. "
+        +"Cláusula 2ª - A sociedade tem sede na Rua da Empresa, nº 55, Centro, Aracaju/SE, CEP: 49000-000. "
+        +"Cláusula 3ª - A sociedade tem por objeto o comércio varejista de peças. "
+        +"Cláusula 4ª - O prazo de duração da sociedade é por tempo indeterminado. "
+        +"Cláusula 5ª - O capital social é de R$ 30.000,00, dividido em 30.000 quotas no valor nominal de R$ 1,00 cada uma. "
+        +"Cláusula 6ª - A sociedade pode abrir filiais, respeitado o capital de R$ 999.999,00 previsto em orçamento, e as atividades consubstanciadas no objeto social de importação. "
+        +"Cláusula 7ª - As divergências serão dirimidas no foro de Aracaju/SE. E por estarem justos, assinam.";
+      var pA=W.TINA._pdf.parseContratoTexto(tA,"","","");
+      var dA=(pA&&pA.d)||{};
+      reg("Sede vem da cláusula da sede, não do endereço da sócia",
+        /Rua da Empresa/i.test((dA.sede&&dA.sede.log)||""), (dA.sede&&dA.sede.log)||"(vazio)");
+      reg("Capital vem da cláusula do capital, não da menção de passagem",
+        dA.capital===30000, String(dA.capital));
+      reg("Objeto vem da cláusula do objeto",
+        /peças|pecas/i.test(dA.objeto||"") && !/importa[çc][ãa]o/i.test(dA.objeto||""), (dA.objeto||"").slice(0,60));
+      reg("Registra de onde o dado saiu", !!(dA.lidoDe&&dA.lidoDe.capital), dA.lidoDe?JSON.stringify(dA.lidoDe):"");
+      reg("Sem divergência, não inventa aviso", !(dA.conferir&&dA.conferir.length), (dA.conferir||[]).join(" | "));
+      // agora um contrato em que a cláusula se contradiz: 30.000 declarado x 20.000 pela tabela
+      var tB=tA.replace("dividido em 30.000 quotas no valor nominal de R$ 1,00","dividido em 20.000 quotas no valor nominal de R$ 1,00");
+      var dB=(W.TINA._pdf.parseContratoTexto(tB,"","","")||{}).d||{};
+      reg("Dupla checagem denuncia capital que não fecha com as quotas",
+        !!(dB.conferir||[]).some(function(x){ return /Capital/i.test(x); }), (dB.conferir||[]).join(" | ").slice(0,120));
+    }catch(e){ reg("Bateria de leitura por cláusula",false,String(e&&e.message||e).slice(0,120)); }
+
     /* ---------- 6b5b. CSP x endereços realmente usados ----------
        Esta bateria nasceu de um bug caro: a consulta de CNPJ e o Firebase foram adicionados sem
        abrir os endereços na política de segurança da página, e ficaram bloqueados em silêncio por
