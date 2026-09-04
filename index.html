@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.9" />
+<meta name="versao" content="1.10" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -330,7 +330,7 @@
               </select>
               <button class="btn p mini" type="button" id="btnAtrib">Aplicar</button>
               <span style="flex:1"></span>
-              <button class="btn o mini" type="button" id="btnCasoTeste" title="Salva a REDAÇÃO deste contrato como caso de teste, trocando nomes, documentos e endereços por fictícios">Guardar como caso de teste</button>
+              <button class="btn o mini" type="button" id="btnCasoTeste" title="Gera um arquivo com a REDAÇÃO deste contrato, trocando nomes, documentos e endereços por fictícios">Relatar problema de leitura</button>
               <span class="fldstat" id="atribStat"></span>
             </div>
           </details>
@@ -4410,14 +4410,21 @@ window.TINA=(function(){
       const sobrou=sobrouDadoReal(anon);
       if(sobrou.length){ st.className="fldstat bad";
         st.textContent="Não gerei o arquivo: ainda há "+sobrou.join(", ")+" no texto. Me avise para eu ajustar o anonimizador."; return; }
+      /* Quem administra o sistema está guardando um CASO DE TESTE; quem só usa está RELATANDO um
+         problema. É o mesmo arquivo e o mesmo cuidado com o dado — muda só o que a pessoa
+         precisa fazer com ele depois. */
+      const ehAdmin=!!(window.Nuvem && window.Nuvem.estado().admin);
       const blob=new Blob([JSON.stringify({app:"atos-societarios",tipo:"caso-de-teste",
-        criadoEm:new Date().toISOString(), observacao:"Redação real, dados fictícios. Serve para testar o leitor.",
+        criadoEm:new Date().toISOString(), versao:(document.querySelector('meta[name=versao]')||{}).content||"",
+        observacao:"Redação real, dados fictícios. Serve para testar o leitor.",
         texto:anon},null,2)],{type:"application/json"});
       const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-      a.download="caso-de-teste-"+new Date().toISOString().slice(0,10)+".json";
+      a.download=(ehAdmin?"caso-de-teste-":"relato-de-leitura-")+new Date().toISOString().slice(0,10)+".json";
       document.body.appendChild(a); a.click();
       setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},120);
-      st.className="fldstat ok"; st.textContent="Caso de teste baixado — pode me mandar o arquivo.";
+      st.className="fldstat ok";
+      st.textContent=ehAdmin ? "Caso de teste baixado."
+        : "Arquivo gerado — envie ao suporte do sistema. Ele não contém dados do seu cliente.";
     });
     if($("btnSolic")) $("btnSolic").addEventListener("click",()=>{ abrirSolic(); sincronizarSolic(); });
     if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>$("solicModal").classList.remove("open"));
@@ -4473,6 +4480,9 @@ window.TINA=(function(){
         }
         statusNuvem();
         if($("btnSairMenu")) $("btnSairMenu").style.display=e.daEquipe?"":"none";
+        // o botão é o mesmo; o rótulo muda com o papel de quem está usando
+        const bt=$("btnCasoTeste");
+        if(bt) bt.textContent = e.admin ? "Guardar como caso de teste" : "Relatar problema de leitura";
         const eb=$("equipeBloco"); if(eb) eb.style.display=e.admin?"":"none";
         if(e.admin && window.__renderEquipe) window.__renderEquipe();
         if(e.daEquipe){ sincronizarSolic(); sincronizarAtos(); ligarAvisoSolic(); }
