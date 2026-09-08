@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.16" />
+<meta name="versao" content="1.17" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -2001,6 +2001,13 @@ window.TINA=(function(){
     return {doc,nomeArq};
   }
 
+  /* Quebra de página como ESTILO, não como formatação direta.
+     O Word obedece às duas, mas o docx-preview — de onde saem a prévia na tela e o PDF — só lê a
+     quebra quando ela vem de um estilo nomeado. Com formatação direta a segunda parte do ato colava
+     na primeira, logo abaixo da assinatura. Declarando o estilo, Word, prévia e PDF quebram no mesmo
+     ponto. A propriedade direta continua junto, como reforço para leitores mais antigos. */
+  const ESTILO_QUEBRA={id:"QuebraPagina",name:"Quebra de Pagina",paragraph:{pageBreakBefore:true}};
+
   /* ===== Gerador Transformação EI → Ltda / SLU (modelo JUCESE em 2 partes) ===== */
   function gerarTransfLtda(md){
     const d=coletar(); const X=window.docxLib;
@@ -2022,6 +2029,7 @@ window.TINA=(function(){
     const admins=socios.filter(s=>s.administrador); const nA=admins.length||1, plA=admins.length>1;
     const acervo=d.acervo>0?d.acervo:d.capital, newCap=d.capital, aumentou=(newCap-acervo)>0.005;
     const cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"");
+    const mudou=(k)=>!!(d.changed&&d.changed.has(k));
     const qualifTit=(comNire)=> (tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")
       +", com sede na "+endLinha(d.sede)+", com Instrumento de Inscrição de Empresário Individual arquivado na "+_junta()
       +((comNire&&d.nire)?", NIRE nº "+d.nire:"")+", inscrit"+gT("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]");
@@ -2037,6 +2045,11 @@ window.TINA=(function(){
     cl1("O acervo deste Empresário Individual, no valor de "+reais(acervo)+" ("+extensoReais(acervo)+") passa a constituir o capital da Sociedade Limitada mencionada na cláusula anterior.");
     if(aumentou) cl1("Fica o capital social aumentado de "+reais(acervo)+" ("+extensoReais(acervo)+") para "+reais(newCap)+" ("+extensoReais(newCap)+"), dividido em "+numBR(d.numQuotas)+" quotas no valor nominal de "+reais(d.valorQuota)+" cada uma, sendo o aumento de "+reais(newCap-acervo)+" ("+extensoReais(newCap-acervo)+") integralizado neste ato "+formaIntegr(d,"em moeda corrente do País")+".");
     cl1("O endereço e sede da empresa serão: "+endLinha(d.sede)+".");
+    // o objeto tem de ser declarado AQUI: o contrato consolidado da parte 2 mostra a lista final, mas
+    // é a parte 1 que registra o que está sendo alterado. Sem esta cláusula a mudança de atividades
+    // ficava invisível no ato (só reaparecia consolidada, como se nada tivesse mudado).
+    cl1(mudou("objeto")?"Fica alterado o objeto social, que passa a ser o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+"."
+                       :"O objeto da sociedade será o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
     ch.push(corpo("Para tanto, firma nesta mesma data, em documento separado, o Contrato Social de constituição por transformação de Empresário Individual."));
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
@@ -2046,7 +2059,7 @@ window.TINA=(function(){
     ch.push(P([T("Titular")],CEN,{after:220,line:240,lineRule:AUTO}));
 
     /* ---------- QUEBRA DE PÁGINA + PARTE 2: contrato social consolidado (SEM NIRE) ---------- */
-    ch.push(new Paragraph({alignment:CEN,spacing:SP10_0,pageBreakBefore:true,children:[T("CONTRATO SOCIAL POR TRANSFORMAÇÃO DE EMPRESÁRIO INDIVIDUAL",{bold:true})]}));
+    ch.push(new Paragraph({alignment:CEN,spacing:SP10_0,style:"QuebraPagina",pageBreakBefore:true,children:[T("CONTRATO SOCIAL POR TRANSFORMAÇÃO DE EMPRESÁRIO INDIVIDUAL",{bold:true})]}));
     ch.push(tituloDoc(razaoUP+" LTDA"));
     ch.push(space());
     let preamb=qualifTit(false)+", resolve transformar o seu registro de empresário individual em "+(isSLU?"SOCIEDADE LIMITADA UNIPESSOAL, na forma do art. 1.052, §§ 1º e 2º, do Código Civil, ":"SOCIEDADE EMPRESÁRIA, ");
@@ -2110,7 +2123,7 @@ window.TINA=(function(){
     if(d.advIncluir) vistoAdvogado(ch,d,P,T,CEN,SP10_0,{after:220,line:240,lineRule:AUTO});   // a transformação gera contrato social → o visto cabe aqui
 
     const doc=new Document({creator:_autor(),title:"Transformação EI → "+(isSLU?"SLU":"Ltda")+" — "+(d.razao||""),
-      styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
+      styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}},paragraphStyles:[ESTILO_QUEBRA]},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
     const base=slugArq(d.razao||"EMPRESA");
     const nomeArq=("TRANSFORMACAO-EI-"+(isSLU?"SLU-":"LTDA-")+base)+".docx";
@@ -2147,6 +2160,9 @@ window.TINA=(function(){
     const cl1=(txt)=>ch.push(P([T("Cláusula "+ord1[o1++]+" – ",{bold:true}),...R(txt)],JUST,SP15));
     cl1("Fica transformada esta Sociedade Limitada em Empresário Individual, sob o nome empresarial de: "+nomeUP+", com sub-rogação de todos os direitos e obrigações pertinentes.");
     cl1("O acervo desta sociedade, no valor de "+reais(cap)+" ("+extensoReais(cap)+"), passa a constituir o capital do Empresário mencionado na cláusula anterior.");
+    // mesma razão da transformação EI → Ltda: sem isto a mudança de atividades não aparece no ato
+    cl1((d.changed&&d.changed.has("objeto"))?"Fica alterado o objeto, que passa a ser o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+"."
+                                            :"O Empresário Individual terá por objeto o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
     ch.push(corpo("Para tanto, firma nesta mesma data, em documento separado, a solicitação de sua inscrição como empresário, mediante Instrumento de Inscrição de Empresário Individual."));
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
@@ -2155,7 +2171,7 @@ window.TINA=(function(){
     sign(tit.nome,g("Sócio Remanescente","Sócia Remanescente"));
 
     /* ---------- QUEBRA + PARTE 2: instrumento de inscrição de EI (SEM NIRE) ---------- */
-    ch.push(new Paragraph({alignment:CEN,spacing:SP10_0,pageBreakBefore:true,children:[T("INSTRUMENTO DE INSCRIÇÃO DE EMPRESÁRIO INDIVIDUAL",{bold:true})]}));
+    ch.push(new Paragraph({alignment:CEN,spacing:SP10_0,style:"QuebraPagina",pageBreakBefore:true,children:[T("INSTRUMENTO DE INSCRIÇÃO DE EMPRESÁRIO INDIVIDUAL",{bold:true})]}));
     ch.push(tituloDoc("POR TRANSFORMAÇÃO DE SOCIEDADE LIMITADA"));
     ch.push(tituloDoc(nomeUP));
     ch.push(space());
@@ -2175,7 +2191,7 @@ window.TINA=(function(){
     sign(tit.nome,g("Empresário Titular","Empresária Titular"));
 
     const doc=new Document({creator:_autor(),title:"Transformação Ltda → EI — "+(d.razao||""),
-      styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
+      styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}},paragraphStyles:[ESTILO_QUEBRA]},
       sections:[{properties:{page:{size:{width:mm(210),height:mm(297)},margin:{top:mm(25),right:mm(25),bottom:mm(25),left:mm(25)}}},children:ch}]});
     const base=slugArq(d.razao||"EMPRESARIO");
     return {doc,nomeArq:"TRANSFORMACAO-LTDA-EI-"+base+".docx"};

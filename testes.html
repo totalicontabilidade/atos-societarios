@@ -846,6 +846,21 @@
         /declara\w*\s+que a sociedade (?:se enquadra|n[ãa]o se enquadra)[\s\S]{0,90}123/i.test(tT));
       reg("Transformação cita a sede e o arquivamento na Junta",
         /com sede na[\s\S]{0,200}Instrumento de Inscri[çc][ãa]o de Empres[áa]rio Individual arquivado na/i.test(tT));
+      // o contrato consolidado sempre mostrou a lista final; o que faltava era a PARTE 1 declarar o objeto,
+      // e sem isso uma mudança de atividades não aparecia em lugar nenhum do ato
+      var p1=tT.split(/CONTRATO SOCIAL\s*POR TRANSFORMA/i)[0];
+      reg("Parte 1 da transformação EI→Ltda declara o objeto",
+        /objeto[\s\S]{0,80}atividades econ[ôo]micas:/i.test(p1), p1.slice(-260).replace(/\s+/g," "));
+      // a quebra vem de estilo nomeado: é o único jeito de a prévia (e o PDF, que nasce dela) quebrarem junto com o Word
+      reg("Quebra de página entre o instrumento e o contrato social (EI→Ltda)",
+        D.querySelectorAll("section.docxprev").length>=2, D.querySelectorAll("section.docxprev").length+" seção(ões)");
+      modo("transf_ltda_ei"); await espera(200);
+      $("btnExemplo").click(); await espera(320);
+      await W.TINA.gerarPreview(); await espera(1100);
+      reg("Parte 1 da transformação Ltda→EI declara o objeto",
+        /objeto[\s\S]{0,80}atividades econ[ôo]micas:/i.test(texto().split(/INSTRUMENTO DE INSCRI/i)[0]));
+      reg("Quebra de página entre a alteração e o instrumento de inscrição (Ltda→EI)",
+        D.querySelectorAll("section.docxprev").length>=2, D.querySelectorAll("section.docxprev").length+" seção(ões)");
     }catch(e){ reg("Bateria de transformação",false,String(e&&e.message||e).slice(0,120)); }
 
     // ---------- 6b4. Aviso do MEI: manda para a aba de transformação, sem bloquear ----------
