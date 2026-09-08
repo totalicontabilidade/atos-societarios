@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.12" />
+<meta name="versao" content="1.13" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -1149,6 +1149,39 @@ window.TINA=(function(){
         <div><label>Representante legal</label><input type="text" data-f="pjRep" value="${escHtml(data.pjRep||'')}"></div>
         <div><label>Cargo do representante</label><input type="text" data-f="pjCargo" value="${escHtml(data.pjCargo||'administrador')}"></div>
       </div>
+      <!-- O representante assina o ato, então a Junta exige a qualificação DELE no documento. -->
+      <div class="pjonly" style="display:none">
+        <div class="hint" style="font-weight:700;color:var(--navy);margin:8px 0 4px">Qualificação do representante <span class="hint" style="font-weight:400">— exigida pela Junta: é quem assina pela sócia</span></div>
+        <div class="grid g4 row">
+          <div><label>CPF</label><input type="text" data-f="repCpf" value="${escHtml(data.repCpf||'')}" placeholder="000.000.000-00" maxlength="14"></div>
+          <div><label>Sexo</label><select data-f="repSexo"><option value="M" ${data.repSexo!=='F'?'selected':''}>Masculino</option><option value="F" ${data.repSexo==='F'?'selected':''}>Feminino</option></select></div>
+          <div><label>Nacionalidade</label><select data-f="repNac">${nacOpts(data.repNac)}</select></div>
+          <div><label>Profissão</label><input type="text" data-f="repProfissao" value="${escHtml(data.repProfissao||'')}"></div>
+        </div>
+        <div class="grid g4 row">
+          <div><label>Estado civil</label><select data-f="repEstadoCivil">${estcivOpts(data.repEstadoCivil)}</select></div>
+          <div><label>Regime de bens <span class="hint">(se casado)</span></label><select data-f="repRegime">${regimeOpts(data.repRegime)}</select></div>
+          <div><label>Nascimento</label><input type="text" data-f="repNascimento" value="${escHtml(data.repNascimento||'')}" placeholder="DD/MM/AAAA"></div>
+          <div><label>Natural de <span class="hint">(cidade/UF)</span></label><input type="text" data-f="repNaturalCidade" value="${escHtml(data.repNaturalCidade||'')}"></div>
+        </div>
+        <div class="grid g4 row">
+          <div><label>RG / CIN</label><input type="text" data-f="repRg" value="${escHtml(data.repRg||'')}"></div>
+          <div><label>Órgão expedidor</label><select data-f="repOrgao">${orgaoOpts(data.repOrgao)}</select></div>
+          <div><label>UF do órgão</label><select data-f="repOrgaoUF">${ufOpts(data.repOrgaoUF)}</select></div>
+          <div><label>UF (natural)</label><select data-f="repNaturalUF">${ufOpts(data.repNaturalUF)}</select></div>
+        </div>
+        <div class="grid g4 row">
+          <div><label>CEP</label><input type="text" data-f="repCep" value="${escHtml(data.repCep||'')}" placeholder="00000-000" maxlength="9"><div class="fldstat" data-f="repcepstat"></div></div>
+          <div style="grid-column:span 2"><label>Logradouro</label><input type="text" data-f="repLog" value="${escHtml(data.repLog||'')}"></div>
+          <div><label>Número</label><input type="text" data-f="repNum" value="${escHtml(data.repNum||'')}"></div>
+        </div>
+        <div class="grid g4 row">
+          <div><label>Complemento</label><input type="text" data-f="repComp" value="${escHtml(data.repComp||'')}"></div>
+          <div><label>Bairro</label><input type="text" data-f="repBairro" value="${escHtml(data.repBairro||'')}"></div>
+          <div><label>Município</label><input type="text" data-f="repMun" value="${escHtml(data.repMun||'')}"></div>
+          <div><label>UF</label><select data-f="repUF">${ufOpts(data.repUF)}</select></div>
+        </div>
+      </div>
       <div class="grid g4 row pfonly">
         <div><label>Nacionalidade</label><select data-f="nacionalidade">${nacOpts(data.nacionalidade)}</select></div>
         <div><label>Estado civil</label><select data-f="estadoCivil">${estcivOpts(data.estadoCivil)}</select></div>
@@ -1219,6 +1252,10 @@ window.TINA=(function(){
     pj.addEventListener("change",tglPJ); tglPJ();
     // CNPJ da sócia PJ: consulta a Receita ao sair do campo e preenche razão, endereço e representante
     if(q("pjCnpj")) attachCnpjPJ(q("pjCnpj"), q("pjcnpjstat"), {nome:q("nome"),log:q("log"),num:q("num"),comp:q("comp"),bairro:q("bairro"),mun:q("mun"),uf:q("uf"),cep:q("cep"),rep:q("pjRep"),cargo:q("pjCargo")});
+    // representante da sócia PJ: mesmas ajudas do sócio pessoa física
+    if(q("repCep")) attachCep(q("repCep"), q("repcepstat"), {log:q("repLog"),bairro:q("repBairro"),mun:q("repMun"),uf:q("repUF")});
+    if(q("repCpf")) q("repCpf").addEventListener("input",function(){this.value=fmtCpf(this.value);});
+    if(q("repNascimento")) attachData(q("repNascimento"));
     const adm=q("administrador"); if(adm)adm.addEventListener("change",recalc);  // atualiza a linha "Modo de administração"
     if(ehFormEI()){div.querySelectorAll(".ltdaonly").forEach(e=>e.style.display="none");const tg=div.querySelector(".tag");if(tg)tg.textContent="Titular";const pt=div.querySelector(".pjtoggle");if(pt)pt.style.display="none";}
     // quem revela .altonly é o switchMode; um card criado com o app JÁ em "Alteração" nasceria com a
@@ -1399,7 +1436,18 @@ window.TINA=(function(){
       const pp=["sociedade empresária limitada","inscrita no CNPJ sob o nº "+(s.pjCnpj||"[CNPJ]")];
       pp.push("com sede na "+endQ);
       if(s.pjNire)pp.push("com seus atos constitutivos registrados na "+_junta()+" sob NIRE "+s.pjNire);
-      pp.push("neste ato representada por seu "+(s.pjCargo||"administrador")+" "+((s.pjRep||"[REPRESENTANTE]").toUpperCase()));
+      /* O REPRESENTANTE da sócia PJ tem de sair QUALIFICADO, não só nomeado: é ele quem assina, e
+         a Junta recusa o ato sem a qualificação dele (modelo ALTERAÇÃO-CONTRATUAL: "representado,
+         neste ato, por seu procurador NOME, NACIONALIDADE, ESTADO CIVIL, … CPF, RESIDENTE E
+         DOMICILIADO no(a) …"). Monta uma pessoa física com os campos rep* e reaproveita a mesma
+         qualificação de sempre — assim as duas seguem idênticas quando uma for corrigida. */
+      const rep={ nome:s.pjRep, sexo:s.repSexo||"M", nacionalidade:s.repNac, estadoCivil:s.repEstadoCivil,
+        regime:s.repRegime, profissao:s.repProfissao, nascimento:s.repNascimento,
+        naturalCidade:s.repNaturalCidade, naturalUF:s.repNaturalUF,
+        cpf:s.repCpf, rg:s.repRg, orgao:s.repOrgao, orgaoCustom:s.repOrgaoCustom, orgaoUF:s.repOrgaoUF,
+        log:s.repLog, num:s.repNum, comp:s.repComp, bairro:s.repBairro, mun:s.repMun, uf:s.repUF, cep:s.repCep };
+      pp.push("neste ato representada por seu "+(s.pjCargo||"administrador")+" "
+        +((s.pjRep||"[REPRESENTANTE]").toUpperCase())+", "+qualificacao(rep).replace(/;?\s*$/,""));
       return pp.join(", ")+";"; }
     const p=[];
     const nac = s.nacionalidade==="estrangeiro"?g("estrangeiro","estrangeira")
@@ -2244,6 +2292,13 @@ window.TINA=(function(){
       if(so.tipoPessoa==="PJ"){
         if(!so.pjCnpj)m.push("CNPJ"); if(!so.pjRep)m.push("representante legal");
         ["cep","log","num","bairro","mun","uf"].forEach(k=>{if(!so[k])m.push("sede "+k);});
+        /* Quem assina pela sócia é o representante, pessoa física, e a Junta recusa o ato sem a
+           qualificação dele (modelo ALTERAÇÃO-CONTRATUAL). Sem isto o sistema deixava passar. */
+        if(!so.repCpf)m.push("CPF do representante"); else if(!validaCPF(so.repCpf))m.push("CPF do representante inválido");
+        if(!so.repEstadoCivil)m.push("estado civil do representante");
+        if(so.repEstadoCivil==="casado"&&!so.repRegime)m.push("regime de bens do representante");
+        if(!so.repProfissao)m.push("profissão do representante");
+        if(!so.repLog||!so.repMun)m.push("endereço do representante");
       } else {
         if(!so.cpf)m.push("CPF"); else if(!validaCPF(so.cpf))m.push("CPF inválido");
         if(!so.nacionalidade)m.push("nacionalidade");
@@ -2316,7 +2371,10 @@ window.TINA=(function(){
   function cepUF(cep){const d=(cep||"").replace(/\D/g,"");if(d.length<5)return null;const p=parseInt(d.slice(0,5),10);if(isNaN(p))return null;for(let i=0;i<CEP_UF.length;i++){if(p>=CEP_UF[i][0]&&p<=CEP_UF[i][1])return CEP_UF[i][2];}return null;}
   function checarConsistencia(d){const w=[];const isDist=MODE.startsWith("dist");const isEI=ehFormEI();const isAlt=MODE.endsWith("alt");const isTransf=MODE.startsWith("transf");
     const ato=_parseBR(d.atoData);
-    (d.socios||[]).forEach((so,i)=>{ if(so.tipoPessoa==="PJ")return; const rot=(isEI?"Titular":"Sócio "+(i+1))+(so.nome?" ("+so.nome+")":"");
+    /* Coerência de datas e CEP × UF. A checagem de campos obrigatórios (inclusive a qualificação
+       do representante da sócia PJ) fica em validar(); aqui só entram avisos que não bloqueiam. */
+    (d.socios||[]).forEach((so,i)=>{ if(so.tipoPessoa==="PJ")return;
+      const rot=(isEI?"Titular":"Sócio "+(i+1))+(so.nome?" ("+so.nome+")":"");
       const nasc=_parseBR(so.nascimento); if(nasc&&ato&&nasc>=ato)w.push(rot+": nascimento posterior à data do ato — verifique.");
       const uf=cepUF(so.cep); if(uf&&so.uf&&uf!==so.uf)w.push(rot+": o CEP "+so.cep+" costuma ser de "+uf+", mas a UF marcada é "+so.uf+".");
     });
@@ -3836,12 +3894,27 @@ window.TINA=(function(){
         const mid=t.slice(pjRe.lastIndex, pjRe.lastIndex+500);
         const rm=mid.match(/representad[ao]\s+(?:neste\s+ato\s+)?por\s+(?:seu[ao]?\s+|sua\s+)?((?:s[óo]cio[- ])?administrador[a]?|s[óo]cio-administrador[a]?|procurador[a]?|representante\s+legal|diretor[a]?|presidente)?\s*([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,55}?)\s*[,;]/i);
         const cargo=((rm&&rm[1])||"administrador").toLowerCase().trim(); const rep=rm?limparNome(rm[2],razao):"";
+        /* Qualificação do REPRESENTANTE. No contrato ela vem logo depois do nome dele
+           ("…por seu administrador FULANO, brasileiro, casado…, CPF…, residente…"). Antes esse
+           trecho era só descartado junto com o "sócio fantasma"; agora é lido e guardado, porque
+           a Junta exige a qualificação de quem assina pela sócia. */
+        let qrep={};
+        if(rm){ const iRep=mid.indexOf(rm[0]);
+          /* Lê do TEXTO INTEIRO, não do recorte de 500 caracteres: a qualificação do representante
+             termina no endereço, que é longo, e o recorte cortava o logradouro no meio. */
+          if(iRep>=0){ const ini=pjRe.lastIndex+iRep+rm[0].length-1;
+            qrep=parseSocioQualif(t.slice(ini, ini+900))||{}; } }
         let sede={}; const sm=mid.match(/sede\s+(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/i)||mid.match(/sede\s+(?:na|à|no|em)\s+(.+?)(?:,?\s*com\b|,\s*NIRE)/i); if(sm)sede=parseEndereco(sm[1]);
         const nireM=mid.match(/NIRE\s*([\d][\d. ]{8,16}\d)/i);
         // administrador:false — administrador de limitada tem de ser pessoa NATURAL (art. 997, VI, e art. 1.062
         // do Código Civil). Sócia PJ nunca entra marcada; se o representante dela for mesmo administrador,
         // isso é uma designação deliberada e o usuário marca na mão.
-        pjList.push({tipoPessoa:"PJ",sexo:"F",nome:razao,administrador:false,pjCnpj:cnpj,pjNire:nireM?nireM[1].replace(/[^\d]/g,""):"",pjRep:rep,pjCargo:cargo,cep:sede.cep,log:sede.log,num:sede.num,comp:sede.comp,bairro:sede.bairro,mun:sede.mun,uf:sede.uf}); } }
+        pjList.push({tipoPessoa:"PJ",sexo:"F",nome:razao,administrador:false,pjCnpj:cnpj,pjNire:nireM?nireM[1].replace(/[^\d]/g,""):"",pjRep:rep,pjCargo:cargo,
+          cep:sede.cep,log:sede.log,num:sede.num,comp:sede.comp,bairro:sede.bairro,mun:sede.mun,uf:sede.uf,
+          repSexo:qrep.sexo||"M", repNac:qrep.nacionalidade, repEstadoCivil:qrep.estadoCivil, repRegime:qrep.regime,
+          repProfissao:qrep.profissao, repNascimento:qrep.nascimento, repNaturalCidade:qrep.naturalCidade, repNaturalUF:qrep.naturalUF,
+          repCpf:qrep.cpf, repRg:qrep.rg, repOrgao:qrep.orgao, repOrgaoUF:qrep.orgaoUF,
+          repLog:qrep.log, repNum:qrep.num, repComp:qrep.comp, repBairro:qrep.bairro, repMun:qrep.mun, repUF:qrep.uf, repCep:qrep.cep}); } }
     // o representante de uma sócia PJ é qualificado ("brasileiro…") DENTRO da cláusula dela e é captado como se fosse sócio PF → remove esse fantasma
     if(pjList.length && socios.length){ const reps=pjList.map(p=>(p.pjRep||"").toUpperCase().trim()).filter(r=>r.length>=5);
       for(let i=socios.length-1;i>=0;i--){ const sn=(socios[i].nome||"").toUpperCase(); if(sn && reps.some(r=>sn.includes(r)||r.includes(sn))) socios.splice(i,1); } }
@@ -4789,7 +4862,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,sincronizarSolic,sincronizarAtos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,sincronizarSolic,sincronizarAtos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>

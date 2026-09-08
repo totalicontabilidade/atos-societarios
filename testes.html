@@ -275,6 +275,45 @@
       reg("Enquadramento DEMAIS é reconhecido", (pj&&pj.d&&pj.d.enquadramento)==="DEMAIS", String(pj&&pj.d&&pj.d.enquadramento));
     }catch(e){ reg("Bateria de sócio PJ",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2a2. Qualificação do representante da sócia PJ ----------
+       Quem assina pela sócia é uma pessoa física, e a Junta recusa o ato sem a qualificação dela.
+       O sistema nomeava o representante e parava aí. */
+    try{
+      var tRep="ALTERAÇÃO DO CONTRATO SOCIAL DA SOCIEDADE LIMITADA EXEMPLO COMERCIO LTDA "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Centro, Aracaju/SE, CEP: 49000-400; "
+        +"único sócio da sociedade EXEMPLO COMERCIO LTDA, com matriz na Praça Dois, nº 55, Centro, Aracaju/SE, CEP: 49000-000, inscrita no CNPJ da matriz sob o n.º 11.222.333/0001-81, resolve: "
+        +"Cláusula Primeira – Vende 18.000 quotas à sociedade MODELO PARTICIPACOES LTDA, sociedade empresária limitada inscrita no CNPJ sob o n.º 44.555.666/0001-72, com sede na Rua Quatro, nº 254, Centro, Aracaju/SE, CEP: 49000-200, "
+        +"neste ato representada por seu administrador CARLOS MODELO LIMA, brasileiro, natural de Aracaju/SE, casado sob o regime de comunhão parcial de bens, nascido em 03/03/1975, contador, portador do CPF sob o n.º 111.444.777-35, RG n.º 1234567 expedido pela SSP/SE, residente e domiciliado na Rua Cinco, nº 201, Bairro Sul, Aracaju/SE, CEP: 49000-300; a qual é admitida na sociedade.";
+      var pR=W.TINA._pdf.parseContratoTexto(tRep,"","","");
+      var pjR=(((pR&&pR.d)||{}).socios||[]).filter(function(s){return s.tipoPessoa==="PJ";})[0]||{};
+      reg("Lê o CPF do representante da sócia PJ", /111\.444\.777-35/.test(pjR.repCpf||""), pjR.repCpf||"(vazio)");
+      reg("Lê estado civil, regime e profissão do representante",
+        pjR.repEstadoCivil==="casado" && /comunh[ãa]o parcial/i.test(pjR.repRegime||"") && /contador/i.test(pjR.repProfissao||""),
+        [pjR.repEstadoCivil,pjR.repRegime,pjR.repProfissao].join(" · "));
+      reg("Lê o endereço COMPLETO do representante (não corta no logradouro)",
+        /Rua Cinco/i.test(pjR.repLog||"") && /201/.test(pjR.repNum||"") && /Aracaju/i.test(pjR.repMun||"") && /49000-300/.test(pjR.repCep||""),
+        [pjR.repLog,pjR.repNum,pjR.repBairro,pjR.repMun,pjR.repCep].join(", "));
+      reg("Lê RG e nascimento do representante", /1234567/.test(pjR.repRg||"") && /03\/03\/1975/.test(pjR.repNascimento||""));
+      // e o documento gerado tem de trazer essa qualificação
+      modo("alt"); await espera(200);
+      W.TINA._pdf.aplicarDadosContrato(pR); await espera(700);
+      await W.TINA.gerarPreview(); await espera(1300);
+      var tg=texto();
+      reg("O documento qualifica o representante, não só o nomeia",
+        /representada por seu administrador CARLOS MODELO LIMA,\s*brasileiro/i.test(tg)
+        && /CPF n[º°] 111\.444\.777-35/.test(tg)
+        && /residente e domiciliado na Rua Cinco/i.test(tg),
+        (tg.match(/representada por seu[\s\S]{0,200}/)||[""])[0].replace(/\s+/g," ").slice(0,150));
+      var pj2=[].slice.call(D.querySelectorAll("#socios .socio:not(.filial):not(.guardado)")).filter(function(c){
+        var e=c.querySelector('[data-f="tipoPJ"]'); return e&&e.checked; })[0];
+      if(pj2){ ["repCpf","repEstadoCivil","repProfissao","repLog"].forEach(function(k){
+        var e=pj2.querySelector('[data-f="'+k+'"]'); if(e){ e.value=""; e.dispatchEvent(new W.Event("input",{bubbles:true})); } }); }
+      var fR2=await W.TINA.validar();
+      reg("Validação cobra CPF, estado civil, profissão e endereço do representante",
+        (fR2||[]).some(function(x){ return /CPF do representante/i.test(x); }),
+        (fR2||[]).filter(function(x){return /representante/i.test(x);}).join(" | ").slice(0,110));
+    }catch(e){ reg("Bateria do representante da sócia PJ",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 6b2b. Sócio que se retira: assina o ato, sai do consolidado ----------
     try{
       await recarregar();
