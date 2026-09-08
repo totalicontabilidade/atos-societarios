@@ -38,6 +38,16 @@
       return !!(a && a.uid === uid && (Date.now() - a.em) < DIAS_OFFLINE * 86400000);
     } catch (e) { return false; }
   }
+  /* Este navegador já teve alguém da equipe confirmado há pouco? Serve para ABRIR O SISTEMA DIRETO,
+     sem espera nem formulário, enquanto a sessão é conferida em segundo plano. Se a conferência
+     desmentir, o portão aparece. Isso é seguro porque o portão nunca foi a proteção real — quem
+     protege os dados são as regras do Firestore, no servidor. */
+  function jaEntrouAqui() {
+    try {
+      var a = JSON.parse(localStorage.getItem("tinaAcesso") || "null");
+      return !!(a && a.uid && (Date.now() - a.em) < DIAS_OFFLINE * 86400000);
+    } catch (e) { return false; }
+  }
 
   function cfgValida() {
     var c = window.ATOS_FIREBASE || {};
@@ -258,6 +268,7 @@
 
   window.Nuvem = {
     iniciar: iniciar,
+    jaEntrouAqui: jaEntrouAqui,
     ouvirNovos: ouvirNovos,
     eqListar: eqListar, eqCadastrar: eqCadastrar, eqAtualizar: eqAtualizar,
     estado: estado,

@@ -503,6 +503,20 @@
     try{
       reg("A camada de nuvem diz quando terminou de verificar",
         typeof (W.Nuvem.estado().verificado)==="boolean");
+      /* ENTRADA OTIMISTA: quem já entrou neste navegador não pode ver tela nenhuma na frente
+         enquanto a sessão é conferida. Segurar a tela até a conferência produziu o pior caso —
+         anel, depois login, depois sistema — que é o que estes casos impedem de voltar. */
+      var dm=W.__deveMostrarPortao;
+      reg("Quem já entrou aqui NÃO vê o portão enquanto confere",
+        dm({configurado:true,verificado:false,daEquipe:false},true)===false);
+      reg("Quem nunca entrou aqui vê a espera enquanto confere",
+        dm({configurado:true,verificado:false,daEquipe:false},false)===true);
+      reg("Conferido e sem acesso: o portão aparece mesmo tendo entrado antes",
+        dm({configurado:true,verificado:true,daEquipe:false},true)===true);
+      reg("Quem é da equipe nunca vê o portão",
+        dm({configurado:true,verificado:true,daEquipe:true},false)===false);
+      reg("Sem projeto configurado, não há portão",
+        dm({configurado:false,verificado:false,daEquipe:false},false)===false);
       reg("Existe a tela de espera com anel e ícone",
         !!$("ptEspera") && !!D.querySelector(".pt-anel img"));
       var anel=D.querySelector(".pt-anel");

@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.15" />
+<meta name="versao" content="1.16" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -4668,6 +4668,19 @@ window.TINA=(function(){
     /* O portão tem três estados, e a distinção importa: enquanto o Firebase não resolve a sessão
        NÃO se sabe se a pessoa está dentro, e mostrar o formulário nessa hora faz ele piscar para
        quem já estava logado. "espera" cobre esse intervalo e também o momento do login. */
+    /* Quando o portão deve estar na frente do sistema. Vale a pena estar isolado: a regra é curta
+       mas tem três casos que se confundem fácil, e errar aqui é o que produziu o vaivém de telas.
+         • sem projeto configurado → nunca (não haveria como autenticar)
+         • já é da equipe          → nunca
+         • ainda conferindo E este navegador já teve acesso → nunca (entrada otimista)
+         • no resto                → sim */
+    function deveMostrarPortao(e,lembrou){
+      if(!e.configurado) return false;
+      if(e.daEquipe) return false;
+      if(!e.verificado && lembrou) return false;
+      return true;
+    }
+    window.__deveMostrarPortao=deveMostrarPortao;   // usado pelos testes
     function mostrarPortao(mostrar,modo,texto){
       const p=$("portao"); if(!p) return;
       p.style.display=mostrar?"":"none";
@@ -4691,10 +4704,15 @@ window.TINA=(function(){
     if(window.Nuvem){
       window.Nuvem.iniciar();
       const est0=window.Nuvem.estado();
-      // já sobe fechado quando há projeto: evita o sistema aparecer por um instante antes do login
-      mostrarPortao(est0.configurado,"espera","Carregando…");
+      /* ENTRADA OTIMISTA. Quem já entrou neste navegador nos últimos dias vê o sistema NA HORA —
+         sem espera e sem formulário. A sessão é conferida em segundo plano; se desmentir, o
+         portão aparece. Isso é seguro porque o portão nunca foi a proteção real: quem protege os
+         dados são as regras do Firestore, no servidor. Antes eu segurava a tela até a conferência
+         terminar, e o resultado foi o pior dos mundos — anel, depois login, depois sistema. */
+      mostrarPortao(deveMostrarPortao(est0,window.Nuvem.jaEntrouAqui()), "espera", "Carregando…");
       window.Nuvem.aoMudar(e=>{
-        mostrarPortao(e.configurado && !e.daEquipe, e.verificado?"login":"espera", "Verificando o acesso…");
+        mostrarPortao(deveMostrarPortao(e,window.Nuvem.jaEntrouAqui()),
+                      e.verificado?"login":"espera", "Verificando o acesso…");
         if(e.configurado && e.logado && !e.daEquipe){
           const st=$("ptStat"); if(st){ st.style.color="var(--err)";
             st.textContent="Esta conta não está liberada para a equipe."; }
