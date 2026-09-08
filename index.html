@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.11" />
+<meta name="versao" content="1.12" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -203,6 +203,28 @@
   .pt-box input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
   .pt-box .btn{width:100%;margin-top:16px;justify-content:center}
   .pt-stat{font-size:12.5px;margin-top:10px;min-height:16px;text-align:center}
+  /* Painel de casos: rolagem lateral que não some */
+  .casos-rol{overflow-x:auto;overflow-y:hidden;padding-bottom:4px;scrollbar-gutter:stable}
+  .casos-rol::-webkit-scrollbar{height:11px}
+  .casos-rol::-webkit-scrollbar-track{background:#eef1f5;border-radius:6px}
+  .casos-rol::-webkit-scrollbar-thumb{background:#b9c2cd;border-radius:6px;border:2px solid #eef1f5}
+  .casos-rol::-webkit-scrollbar-thumb:hover{background:#8b97a6}
+  /* Abas das configurações */
+  .cfg-abas{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:-4px 0 14px;padding-bottom:0}
+  .cfg-aba{background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;font:inherit;font-size:13px;
+    color:var(--muted);cursor:pointer;border-radius:6px 6px 0 0}
+  .cfg-aba:hover{background:#eef1f5;color:#1b1f24}
+  .cfg-aba.ativa{color:var(--navy);font-weight:700;border-bottom-color:var(--navy)}
+  .cfg-aba:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+  /* Itens do cabeçalho: um clique, sempre à vista */
+  .head-nav{display:flex;gap:6px;align-items:center;margin-right:8px}
+  .head-item{position:relative;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);
+    color:#fff;border-radius:9px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer;transition:background .18s;white-space:nowrap}
+  .head-item:hover{background:rgba(255,255,255,.22)}
+  .head-item:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .head-item .badge{position:absolute;top:-6px;right:-6px;margin:0}
+  .so-mobile{display:none}
+  @media(max-width:900px){ .head-nav{display:none} .so-mobile{display:block} }
   /* Menu do usuário */
   .usermenu{position:relative}
   .menu-pop{position:absolute;right:10px;top:40px;min-width:250px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;display:none;z-index:60}
@@ -256,14 +278,23 @@
   <button class="head-install" id="btnInstalar" type="button" title="Instalar como aplicativo" style="display:none">⤓ Instalar app</button>
   <!-- Menu do usuário: reúne o que NÃO é do documento (solicitações, casos, e-mail, configurações).
        A barra de ações abaixo do formulário ficou só com o que age sobre o arquivo. -->
+  <!-- O que se usa o tempo todo fica a UM clique, no próprio cabeçalho. O menu guarda o resto. -->
+  <nav class="head-nav">
+    <button class="head-item" id="btnSolic" type="button">🗂 <span>Solicitações</span><span class="badge" id="solicBadge" style="display:none">0</span></button>
+    <button class="head-item" id="btnPainel" type="button">📁 <span>Painel de casos</span></button>
+    <button class="head-item" id="btnEmail" type="button">✉ <span>E-mail</span></button>
+  </nav>
   <div class="usermenu">
     <button class="head-gear" id="btnMenu" type="button" title="Menu" aria-label="Menu" aria-haspopup="true" aria-expanded="false">☰<span class="badge" id="menuBadge" style="display:none">0</span></button>
     <div class="menu-pop" id="menuPop" role="menu">
       <div class="menu-quem" id="menuQuem"></div>
-      <button type="button" role="menuitem" id="btnSolic">🗂 Solicitações <span class="badge" id="solicBadge" style="display:none">0</span></button>
-      <button type="button" role="menuitem" id="btnPainel">📁 Painel de casos</button>
-      <button type="button" role="menuitem" id="btnEmail">✉ E-mail de confirmação</button>
-      <div class="menu-sep"></div>
+      <!-- no celular o cabeçalho não cabe: os mesmos itens reaparecem aqui -->
+      <div class="so-mobile">
+        <button type="button" role="menuitem" id="btnSolicM">🗂 Solicitações</button>
+        <button type="button" role="menuitem" id="btnPainelM">📁 Painel de casos</button>
+        <button type="button" role="menuitem" id="btnEmailM">✉ E-mail de confirmação</button>
+        <div class="menu-sep"></div>
+      </div>
       <button type="button" role="menuitem" id="btnConfig">⚙ Configurações</button>
       <button type="button" role="menuitem" id="btnSairMenu" style="display:none">⎋ Sair</button>
     </div>
@@ -795,9 +826,16 @@
   <div class="modal">
     <div class="mh"><span>⚙ Configurações do escritório</span><button class="x" id="btnConfigClose">Fechar</button></div>
     <div class="mb">
-      <div class="hint" style="margin-bottom:12px">Personalize a marca e os dados que se repetem. Fica salvo <b>só neste navegador</b>. Nada aqui entra nos documentos como dado de cliente — é a identidade do seu escritório e valores padrão.</div>
+      <div class="cfg-abas" role="tablist">
+        <button type="button" class="cfg-aba ativa" data-cfg="escritorio" role="tab">Escritório</button>
+        <button type="button" class="cfg-aba" data-cfg="padroes" role="tab">Padrões</button>
+        <button type="button" class="cfg-aba" data-cfg="avisos" role="tab">Avisos</button>
+        <button type="button" class="cfg-aba" data-cfg="nuvem" role="tab">Nuvem</button>
+        <button type="button" class="cfg-aba" data-cfg="equipe" role="tab" id="cfgAbaEquipe" style="display:none">Equipe</button>
+      </div>
 
-      <div class="hint" style="font-weight:700;color:var(--navy);margin:4px 0 6px">Identidade (marca)</div>
+      <section class="cfg-painel" data-cfg="escritorio">
+      <div class="hint" style="margin-bottom:10px">A identidade do seu escritório nos documentos e no e-mail. Fica salvo <b>só neste navegador</b>.</div>
       <div class="grid g2 row">
         <div><label for="cfgEscritorio">Nome do escritório</label><input type="text" id="cfgEscritorio" placeholder="Ex.: Sua Contabilidade Ltda"></div>
         <div><label for="cfgCor">Cor principal <span class="hint">(destaque do topo/botões)</span></label><input type="color" id="cfgCor" value="#14293f" style="height:42px;padding:4px"></div>
@@ -811,16 +849,22 @@
         </div>
       </div>
 
-      <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Dados que se repetem</div>
+      <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Quem assina os e-mails</div>
       <div class="grid g2 row">
         <div><label for="cfgParalegal">Paralegal responsável <span class="hint">(assinatura do e-mail)</span></label><input type="text" id="cfgParalegal" placeholder="Seu nome"></div>
         <div><label for="cfgRemetente">E-mail do remetente</label><input type="text" id="cfgRemetente" placeholder="voce@seuescritorio.com.br"></div>
       </div>
-      <div class="grid g2 row">
-        <div><label for="cfgAvisoWhats">WhatsApp para avisos <span class="hint">(solicitação nova)</span></label><input type="text" id="cfgAvisoWhats" placeholder="(79) 90000-0000"></div>
-        <div><label for="cfgAvisoEmail">E-mail para avisos</label><input type="text" id="cfgAvisoEmail" placeholder="equipe@seuescritorio.com.br"></div>
-      </div>
-      <div class="hint" style="font-weight:700;color:var(--navy);margin:14px 0 6px">Nuvem <span class="hint" style="font-weight:400">— entra para compartilhar solicitações e casos entre computadores</span></div>
+      </section>
+
+      <section class="cfg-painel" data-cfg="avisos" hidden>
+        <div class="hint" style="margin-bottom:10px">Para onde mandar o aviso quando alguém da equipe lança uma solicitação nova. O envio é a um clique, pelo botão <b>Avisar</b> na solicitação.</div>
+        <div class="grid g2 row">
+          <div><label for="cfgAvisoWhats">WhatsApp para avisos</label><input type="text" id="cfgAvisoWhats" placeholder="(79) 90000-0000"></div>
+          <div><label for="cfgAvisoEmail">E-mail para avisos</label><input type="text" id="cfgAvisoEmail" placeholder="equipe@seuescritorio.com.br"></div>
+        </div>
+      </section>
+      <section class="cfg-painel" data-cfg="nuvem" hidden>
+      <div class="hint" style="margin-bottom:10px">Entrar compartilha solicitações e casos entre computadores. Sem isso o sistema funciona igual, só neste navegador.</div>
       <div class="grid g3 row" id="nuvemLogin">
         <div><label for="nvEmail">E-mail</label><input type="text" id="nvEmail" autocomplete="username"></div>
         <div><label for="nvSenha">Senha</label><input type="password" id="nvSenha" autocomplete="current-password"></div>
@@ -830,8 +874,11 @@
         </div>
       </div>
       <div class="hint" id="nvStatus" style="margin-top:4px"></div>
-      <div id="equipeBloco" style="display:none;margin-top:10px">
-        <div class="hint" style="font-weight:700;color:var(--navy);margin-bottom:6px">Equipe</div>
+      </section>
+
+      <section class="cfg-painel" data-cfg="equipe" hidden>
+      <div id="equipeBloco" style="display:none">
+        <div class="hint" style="margin-bottom:10px">Cadastre quem usa o sistema. Peça para trocarem a senha no primeiro acesso — o sistema não força.</div>
         <div class="grid g4 row">
           <div><label for="eqNome">Nome</label><input type="text" id="eqNome"></div>
           <div><label for="eqEmail">E-mail</label><input type="text" id="eqEmail" autocomplete="off"></div>
@@ -842,8 +889,12 @@
           </div>
         </div>
         <div class="fldstat" id="eqStat"></div>
-        <div id="eqLista" style="margin-top:8px"></div>
+        <div id="eqLista" style="margin-top:10px"></div>
       </div>
+      <div class="hint" id="equipeSemAdmin">Só quem é administrador cadastra e remove pessoas. Entre na aba <b>Nuvem</b> com uma conta de administrador.</div>
+      </section>
+
+      <section class="cfg-painel" data-cfg="padroes" hidden>
 
       <div class="row">
         <label for="cfgJunta">Junta Comercial <span class="hint">— nome que aparece nos documentos; troque para o seu estado</span></label>
@@ -868,6 +919,8 @@
         <div><label for="cfgOrgaoUF">UF do órgão</label><select id="cfgOrgaoUF"></select></div>
       </div>
       <div class="row"><label for="cfgForo">Foro padrão <span class="hint">(comarca)</span></label><input type="text" id="cfgForo" placeholder="Ex.: Aracaju - SE"></div>
+
+      </section>
 
       <div class="bar" style="margin-top:14px">
         <button class="btn p mini" id="btnConfigSalvar">Salvar configurações</button>
@@ -2640,39 +2693,70 @@ window.TINA=(function(){
   }
   /* Traz da nuvem o que não existe aqui (outro computador, ou navegador limpo).
      Não sobrescreve o que é mais novo localmente — em conflito, o mais recente vence. */
+  // mesma lógica de mão dupla dos atos: desce (com exclusões) e sobe o que só existe aqui
   function sincronizarSolic(){
     if(!(window.Nuvem&&window.Nuvem.podeGravar())) return Promise.resolve();
     return window.Nuvem.listar("solicitacoes",{limite:500}).then(r=>{
       if(!r.ok) return;
-      const local=lerSolic(); const porId={}; local.forEach(x=>porId[x.id]=x);
+      let local=lerSolic(); const remoto={}; r.itens.forEach(x=>remoto[x.id]=x);
       let mudou=false;
       r.itens.forEach(rem=>{
-        const loc=porId[rem.id];
+        if(rem.excluido){ if(local.some(x=>x.id===rem.id)){ local=local.filter(x=>x.id!==rem.id); mudou=true; } return; }
+        const loc=local.find(x=>x.id===rem.id);
         if(!loc){ local.push(rem); mudou=true; }
-        else if((rem.alteradoEm||"")>(loc.alteradoEm||"")){ Object.assign(loc,rem); mudou=true; }
+        else if(_maisNovo(rem.alteradoEm,loc.alteradoEm)){ Object.assign(loc,rem); mudou=true; }
       });
       if(mudou){ local.sort((a,b)=>String(b.alteradoEm||"").localeCompare(String(a.alteradoEm||""))); salvarSolic(local); renderSolic(); }
+      const subir=local.filter(s=>{ const rem=remoto[s.id];
+        if(rem&&rem.excluido) return false;
+        return !rem || _maisNovo(s.alteradoEm,rem.alteradoEm); });
+      if(!subir.length) return;
+      return Promise.all(subir.slice(0,80).map(s=>window.Nuvem.salvar("solicitacoes",s.id,s)));
     });
   }
   /* Traz da nuvem os atos que faltam neste navegador (outro computador, ou cache limpo).
      O trabalho completo vem junto e é gravado no armazenamento de "trabalhos em espera",
      que é de onde o painel já sabe reabrir um caso. */
+  /* Sincronização de mão dupla. A primeira versão só PUXAVA, e isso deixava dois buracos que
+     apareceram no uso real: (1) o que já existia neste navegador antes da nuvem nunca subia, então
+     um colega novo via a fila vazia; (2) exclusão não descia, porque uma lista de quem existe não
+     sabe dizer quem deixou de existir. Agora: sobe o que falta lá, desce o que falta aqui, e as
+     lápides (ver nuvem.js) apagam de verdade dos dois lados. Em conflito, vence o mais recente. */
+  function _maisNovo(a,b){ return String(a||"")>String(b||""); }
   function sincronizarAtos(){
     if(!(window.Nuvem&&window.Nuvem.podeGravar())) return Promise.resolve();
     return window.Nuvem.listar("atos",{limite:500}).then(r=>{
       if(!r.ok) return;
-      const cs=lerCasos(); const por={}; cs.forEach(c=>por[c.id]=c);
-      const tr=lerTrabalhos(); let mudou=false, mudouTr=false;
+      let cs=lerCasos(); const tr=lerTrabalhos();
+      const remoto={}; r.itens.forEach(x=>remoto[x.id]=x);
+      let mudou=false, mudouTr=false;
+      // 1) desce: novos, mais recentes e exclusões
       r.itens.forEach(rem=>{
+        if(rem.excluido){                                     // apagado noutro computador
+          if(cs.some(c=>c.id===rem.id)){ cs=cs.filter(c=>c.id!==rem.id); mudou=true; }
+          if(tr[rem.id]){ delete tr[rem.id]; mudouTr=true; }
+          if(casoAtualId===rem.id) casoAtualId=null;
+          return;
+        }
         const {trabalho,...caso}=rem;
-        const loc=por[caso.id];
+        const loc=cs.find(c=>c.id===caso.id);
         if(!loc){ cs.push(caso); mudou=true; }
-        else if((rem.alteradoEm||"")>(loc.alteradoEm||"")){ Object.assign(loc,caso); mudou=true; }
+        else if(_maisNovo(rem.alteradoEm,loc.alteradoEm)){ Object.assign(loc,caso); mudou=true; }
         if(trabalho && !tr[caso.id]){ tr[caso.id]={ts:Date.parse(rem.alteradoEm||"")||Date.now(), snap:trabalho}; mudouTr=true; }
       });
       if(mudou) salvarCasos(cs);
       if(mudouTr) gravarTrabalhos(tr);
       if(mudou||mudouTr) renderPainel();
+      // 2) sobe: o que só existe aqui (inclusive o que é anterior à nuvem) ou está mais novo aqui
+      const subir=cs.filter(c=>{ const rem=remoto[c.id];
+        if(rem&&rem.excluido) return false;                   // não ressuscita o que foi excluído
+        return !rem || _maisNovo(c.alteradoEm,rem.alteradoEm); });
+      if(!subir.length) return;
+      return Promise.all(subir.slice(0,80).map(c=>{
+        const t=tr[c.id]; const dados=Object.assign({},c,{alteradoEm:c.alteradoEm||new Date(c.criadoEm||Date.now()).toISOString()});
+        if(t&&t.snap) dados.trabalho=t.snap;
+        return window.Nuvem.salvar("atos",c.id,dados);
+      })).then(()=>{ if(subir.length) salvarCasos(cs); });
     });
   }
   /* ===== Aviso de solicitação nova =====
@@ -2922,7 +3006,9 @@ window.TINA=(function(){
     else casos.sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0));
     if(!todos){box.innerHTML="<p class='hint'>Nenhum caso salvo ainda. Preencha um ato e clique em \"+ Salvar caso atual\" (ou salve pelo e-mail de confirmação).</p>";return;}
     if(!casos.length){box.innerHTML="<p class='hint'>Nenhum caso corresponde à busca \""+escHtml(q)+"\".</p>";return;}
-    box.innerHTML="<div style='overflow-x:auto'><table style='width:100%;font-size:12px;border-collapse:collapse' class='casostbl'>"+
+    // rolagem lateral com barra SEMPRE visível: com a barra sobreposta do Windows ela some quando
+    // o ponteiro sai, e a coluna de ações à direita parecia não existir
+    box.innerHTML="<div class='casos-rol'><table style='min-width:640px;width:100%;font-size:12px;border-collapse:collapse' class='casostbl'>"+
       "<tr><th style='text-align:left'>ID</th><th style='text-align:left'>Empresa</th><th style='text-align:left'>Tipo</th><th>Data</th><th>Situação</th><th></th></tr>"+
       casos.map(c=>"<tr data-id='"+escHtml(c.id)+"'"+(c.id===casoAtualId?" style='background:#f2f7ff'":"")+">"+
         "<td><code>#"+escHtml(c.id)+"</code></td>"+
@@ -4384,6 +4470,14 @@ window.TINA=(function(){
     $("btnPDF").addEventListener("click",baixarPDF);
     $("s_uf").innerHTML=ufOpts();
     if($("advOabUf")) $("advOabUf").innerHTML=ufOpts();
+    /* Abas das configurações: tudo estava numa coluna só, e achar um campo virava rolagem.
+       O conteúdo é o mesmo — só passou a ficar separado por assunto. */
+    document.querySelectorAll(".cfg-aba").forEach(b=>b.addEventListener("click",()=>{
+      const alvo=b.dataset.cfg;
+      document.querySelectorAll(".cfg-aba").forEach(x=>x.classList.toggle("ativa",x===b));
+      document.querySelectorAll(".cfg-painel").forEach(p=>{ p.hidden=(p.dataset.cfg!==alvo); });
+      const mb=b.closest(".mb"); if(mb) mb.scrollTop=0;
+    }));
     /* Nuvem: liga os controles e mantém o rodapé em dia. Se não houver configuração
        (arquivo nuvem-config.js em branco), tudo continua funcionando só no navegador. */
     /* Menu do usuário: abre no clique, fecha ao escolher, ao clicar fora ou com Esc. */
@@ -4439,6 +4533,10 @@ window.TINA=(function(){
       st.textContent=ehAdmin ? "Caso de teste baixado."
         : "Arquivo gerado — envie ao suporte do sistema. Ele não contém dados do seu cliente.";
     });
+    // os itens do celular fazem o mesmo que os do cabeçalho
+    if($("btnSolicM")) $("btnSolicM").addEventListener("click",()=>$("btnSolic").click());
+    if($("btnPainelM")) $("btnPainelM").addEventListener("click",()=>$("btnPainel").click());
+    if($("btnEmailM")) $("btnEmailM").addEventListener("click",()=>$("btnEmail").click());
     if($("btnSolic")) $("btnSolic").addEventListener("click",()=>{ abrirSolic(); sincronizarSolic(); });
     if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>$("solicModal").classList.remove("open"));
     if($("btnSolicNova")) $("btnSolicNova").addEventListener("click",novaSolic);
@@ -4497,6 +4595,8 @@ window.TINA=(function(){
         const bt=$("btnCasoTeste");
         if(bt) bt.textContent = e.admin ? "Guardar como caso de teste" : "Relatar problema de leitura";
         const eb=$("equipeBloco"); if(eb) eb.style.display=e.admin?"":"none";
+        const semAdm=$("equipeSemAdmin"); if(semAdm) semAdm.style.display=e.admin?"none":"";
+        const abaEq=$("cfgAbaEquipe"); if(abaEq) abaEq.style.display=e.configurado?"":"none";
         if(e.admin && window.__renderEquipe) window.__renderEquipe();
         if(e.daEquipe){ sincronizarSolic(); sincronizarAtos(); ligarAvisoSolic(); }
       });
@@ -4689,7 +4789,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,sincronizarSolic,sincronizarAtos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>

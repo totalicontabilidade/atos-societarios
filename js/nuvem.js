@@ -155,9 +155,20 @@
       .catch(function (e) { return { ok: false, msg: (e && e.message) || "falha ao ler", itens: [] }; });
   }
 
+  /* Excluir deixa uma LÁPIDE no lugar do documento, em vez de apagar a linha.
+     Motivo: apagar de verdade não se propaga. Quem já baixou o registro noutro computador
+     continuaria com ele para sempre — a sincronização não tem como saber a diferença entre
+     "nunca existiu aqui" e "foi excluído lá". A lápide resolve isso e NÃO guarda dado pessoal:
+     o set() sem merge substitui o documento inteiro, então nome, CNPJ, sócios e endereços
+     desaparecem da nuvem no mesmo instante. Fica só o identificador e a data. */
   function excluir(colecao, id) {
     if (!podeGravar()) return Promise.resolve({ ok: false, msg: "não conectado" });
-    return db.collection(colecao).doc(String(id)).delete()
+    return db.collection(colecao).doc(String(id)).set({
+      excluido: true,
+      excluidoEm: new Date().toISOString(),
+      autorUid: _usuario.uid,
+      atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+    })
       .then(function () { return { ok: true }; })
       .catch(function (e) { return { ok: false, msg: (e && e.message) || "falha ao excluir" }; });
   }
@@ -231,6 +242,7 @@
         snap.docChanges().forEach(function (c) {
           if (c.type !== "added") return;
           var x = c.doc.data() || {}; x.id = c.doc.id;
+          if (x.excluido) return;                                   // lápide não é novidade
           if (x.autorUid && x.autorUid === _usuario.uid) return;   // não avisa do próprio lançamento
           try { aoChegar(x); } catch (e) {}
         });

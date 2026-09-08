@@ -436,6 +436,53 @@
         !!(dB.conferir||[]).some(function(x){ return /Capital/i.test(x); }), (dB.conferir||[]).join(" | ").slice(0,120));
     }catch(e){ reg("Bateria de leitura por cláusula",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2k. Sincronização de mão dupla ----------
+       A primeira versão só PUXAVA da nuvem. No uso real isso deixou dois buracos: o que já
+       existia no navegador antes da nuvem nunca subia (o colega novo via a fila vazia), e a
+       exclusão não descia (uma lista de quem existe não diz quem deixou de existir). */
+    grupo("Sincronização");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      // nuvem simulada: guarda o que sobe e devolve o que "existe lá"
+      var nuvem={}, enviados=[];
+      W.Nuvem.podeGravar=function(){ return true; };
+      W.Nuvem.listar=function(col){ return Promise.resolve({ok:true,itens:Object.keys(nuvem).map(function(k){return nuvem[k];})}); };
+      W.Nuvem.salvar=function(col,id,dados){ enviados.push(id); nuvem[id]=Object.assign({id:id},dados); return Promise.resolve({ok:true,id:id}); };
+      W.Nuvem.trilha=function(){ return Promise.resolve({ok:true}); };
+
+      // 1) SOBE o que só existe aqui (registro anterior à nuvem, sem alteradoEm)
+      W.localStorage.setItem("tinaSolic",JSON.stringify([
+        {id:"S-ANTIGA",empresa:"ANTERIOR A NUVEM",status:"nova",alteradoEm:"2026-01-01T00:00:00.000Z"}]));
+      await W.TINA._ux.sincronizarSolic(); await espera(300);
+      reg("Sobe para a nuvem o que já existia neste navegador",
+        !!nuvem["S-ANTIGA"] && enviados.indexOf("S-ANTIGA")>=0, JSON.stringify(Object.keys(nuvem)));
+
+      // 2) DESCE o que foi criado noutro computador
+      nuvem["S-OUTRA"]={id:"S-OUTRA",empresa:"CRIADA NO OUTRO PC",status:"nova",alteradoEm:"2026-02-01T00:00:00.000Z"};
+      await W.TINA._ux.sincronizarSolic(); await espera(300);
+      var loc=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]");
+      reg("Desce o que foi criado noutro computador", loc.some(function(x){return x.id==="S-OUTRA";}), loc.length+" local");
+
+      // 3) EXCLUSÃO desce: a lápide apaga aqui também
+      nuvem["S-OUTRA"]={id:"S-OUTRA",excluido:true,excluidoEm:"2026-03-01T00:00:00.000Z"};
+      await W.TINA._ux.sincronizarSolic(); await espera(300);
+      loc=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]");
+      reg("Excluída noutro computador some daqui também",
+        !loc.some(function(x){return x.id==="S-OUTRA";}), loc.map(function(x){return x.id;}).join(","));
+      reg("E o que não foi excluído permanece", loc.some(function(x){return x.id==="S-ANTIGA";}));
+
+      // 4) o excluído NÃO volta a subir na próxima sincronização
+      enviados.length=0;
+      await W.TINA._ux.sincronizarSolic(); await espera(300);
+      reg("Registro excluído não ressuscita ao sincronizar de novo",
+        enviados.indexOf("S-OUTRA")<0 && !!nuvem["S-OUTRA"].excluido, enviados.join(","));
+
+      // 5) a lápide não guarda dado pessoal
+      reg("A lápide não guarda nome nem CNPJ",
+        !nuvem["S-OUTRA"].empresa && !nuvem["S-OUTRA"].cnpj, JSON.stringify(Object.keys(nuvem["S-OUTRA"])));
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+    }catch(e){ reg("Bateria de sincronização",false,String(e&&e.message||e).slice(0,130)); }
+
     /* ---------- 6b2j. Anonimizador: guardar a redação sem guardar o cliente ---------- */
     grupo("Caso de teste anonimizado");
     try{
