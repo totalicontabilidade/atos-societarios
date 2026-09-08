@@ -294,6 +294,27 @@
         /Rua Cinco/i.test(pjR.repLog||"") && /201/.test(pjR.repNum||"") && /Aracaju/i.test(pjR.repMun||"") && /49000-300/.test(pjR.repCep||""),
         [pjR.repLog,pjR.repNum,pjR.repBairro,pjR.repMun,pjR.repCep].join(", "));
       reg("Lê RG e nascimento do representante", /1234567/.test(pjR.repRg||"") && /03\/03\/1975/.test(pjR.repNascimento||""));
+      // a qualificação também tem de ser EDITÁVEL na tela, atrás de um botão para não poluir
+      modo("alt"); await espera(200);
+      $("btnExemplo").click(); await espera(400);
+      var linhas=[].slice.call(D.querySelectorAll("#socios .socio:not(.filial):not(.guardado)"));
+      var chk=linhas[1].querySelector('[data-f="tipoPJ"]'); chk.checked=true; chk.dispatchEvent(new W.Event("change",{bubbles:true}));
+      await espera(400);
+      var qq=function(k){ return linhas[1].querySelector('[data-f="'+k+'"]'); };
+      reg("Há botão para a qualificação do representante", !!qq("btnRep"));
+      reg("Campos do representante são editáveis na tela",
+        ["repCpf","repEstadoCivil","repProfissao","repLog","repMun","repCep","repNascimento"].every(function(k){ return !!qq(k); }));
+      reg("Resumo aponta o que falta sem precisar abrir",
+        /faltam/i.test((qq("repResumo")||{}).textContent||""), (qq("repResumo")||{}).textContent||"");
+      qq("btnRep").click(); await espera(200);
+      reg("O botão abre e fecha o bloco", (qq("blocoRep")||{}).style.display!=="none");
+      var põe=function(k,v){ var e=qq(k); e.value=v; e.dispatchEvent(new W.Event("input",{bubbles:true})); e.dispatchEvent(new W.Event("change",{bubbles:true})); };
+      põe("repCpf","111.444.777-35"); põe("repEstadoCivil","solteiro"); põe("repProfissao","contador");
+      põe("repLog","Rua Teste"); põe("repMun","Aracaju");
+      await espera(250);
+      reg("Preenchendo, o resumo passa a “completa”", /completa/i.test((qq("repResumo")||{}).textContent||""), (qq("repResumo")||{}).textContent||"");
+      reg("O que é digitado à mão chega ao documento",
+        /111\.444\.777-35/.test(JSON.stringify(W.TINA._ux.snapshotForm().socios||[])));
       // e o documento gerado tem de trazer essa qualificação
       modo("alt"); await espera(200);
       W.TINA._pdf.aplicarDadosContrato(pR); await espera(700);

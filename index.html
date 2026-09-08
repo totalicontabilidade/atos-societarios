@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.13" />
+<meta name="versao" content="1.14" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -1151,7 +1151,13 @@ window.TINA=(function(){
       </div>
       <!-- O representante assina o ato, então a Junta exige a qualificação DELE no documento. -->
       <div class="pjonly" style="display:none">
-        <div class="hint" style="font-weight:700;color:var(--navy);margin:8px 0 4px">Qualificação do representante <span class="hint" style="font-weight:400">— exigida pela Junta: é quem assina pela sócia</span></div>
+        <!-- Fica recolhido: são muitos campos e, na maioria das vezes, o leitor já os preencheu.
+             O resumo ao lado diz se está completa, para não precisar abrir só para conferir. -->
+        <div class="bar" style="margin:8px 0 4px">
+          <button type="button" class="btn o mini" data-f="btnRep">Qualificação do representante</button>
+          <span class="hint" data-f="repResumo"></span>
+        </div>
+        <div data-f="blocoRep" style="display:none">
         <div class="grid g4 row">
           <div><label>CPF</label><input type="text" data-f="repCpf" value="${escHtml(data.repCpf||'')}" placeholder="000.000.000-00" maxlength="14"></div>
           <div><label>Sexo</label><select data-f="repSexo"><option value="M" ${data.repSexo!=='F'?'selected':''}>Masculino</option><option value="F" ${data.repSexo==='F'?'selected':''}>Feminino</option></select></div>
@@ -1180,6 +1186,7 @@ window.TINA=(function(){
           <div><label>Bairro</label><input type="text" data-f="repBairro" value="${escHtml(data.repBairro||'')}"></div>
           <div><label>Município</label><input type="text" data-f="repMun" value="${escHtml(data.repMun||'')}"></div>
           <div><label>UF</label><select data-f="repUF">${ufOpts(data.repUF)}</select></div>
+        </div>
         </div>
       </div>
       <div class="grid g4 row pfonly">
@@ -1256,6 +1263,23 @@ window.TINA=(function(){
     if(q("repCep")) attachCep(q("repCep"), q("repcepstat"), {log:q("repLog"),bairro:q("repBairro"),mun:q("repMun"),uf:q("repUF")});
     if(q("repCpf")) q("repCpf").addEventListener("input",function(){this.value=fmtCpf(this.value);});
     if(q("repNascimento")) attachData(q("repNascimento"));
+    /* Abre/fecha a qualificação do representante e mantém o resumo em dia. O resumo é o que
+       permite deixar recolhido sem esconder problema: ele diz o que falta. */
+    { const bloco=q("blocoRep"), bt=q("btnRep"), res=q("repResumo");
+      const atualiza=()=>{ if(!res)return;
+        const v=k=>((q(k)||{}).value||"").trim();
+        const falta=[]; if(!v("repCpf"))falta.push("CPF"); if(!v("repEstadoCivil"))falta.push("estado civil");
+        if(!v("repProfissao"))falta.push("profissão"); if(!v("repLog")||!v("repMun"))falta.push("endereço");
+        if(falta.length){ res.style.color="var(--warn)"; res.textContent="faltam: "+falta.join(", "); }
+        else { res.style.color="var(--ok)"; res.textContent="✓ completa"; } };
+      if(bt&&bloco) bt.addEventListener("click",()=>{ const abrir=bloco.style.display==="none";
+        bloco.style.display=abrir?"":"none"; bt.classList.toggle("p",abrir); });
+      if(bloco) bloco.addEventListener("input",atualiza);
+      if(bloco) bloco.addEventListener("change",atualiza);
+      atualiza();
+      // se o leitor deixou algo faltando, já abre — senão o problema fica escondido atrás do botão
+      if(bloco && isPJ && res && /faltam/.test(res.textContent)) bloco.style.display="";
+    }
     const adm=q("administrador"); if(adm)adm.addEventListener("change",recalc);  // atualiza a linha "Modo de administração"
     if(ehFormEI()){div.querySelectorAll(".ltdaonly").forEach(e=>e.style.display="none");const tg=div.querySelector(".tag");if(tg)tg.textContent="Titular";const pt=div.querySelector(".pjtoggle");if(pt)pt.style.display="none";}
     // quem revela .altonly é o switchMode; um card criado com o app JÁ em "Alteração" nasceria com a
