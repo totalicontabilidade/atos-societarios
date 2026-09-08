@@ -21,6 +21,10 @@
 
   var app = null, db = null, auth = null, pronto = false, motivo = "";
   var _usuario = null, _daEquipe = false, _admin = false, _offline = false, _ouvintes = [];
+  /* Enquanto isto for false, ainda NÃO se sabe se há alguém logado: o Firebase resolve a sessão
+     de forma assíncrona. Sem esse estado, a tela mostrava o formulário de login por um instante
+     mesmo para quem já estava dentro — o formulário piscava e sumia. */
+  var _verificado = false;
 
   /* Permissão confirmada no servidor fica guardada por alguns dias, e SÓ serve quando não há
      rede. Com rede, a permissão é sempre reconferida no servidor — senão bastaria ficar offline
@@ -54,6 +58,7 @@
       daEquipe: _daEquipe,
       admin: _admin,
       modoOffline: _offline,
+      verificado: _verificado || !cfgValida(),
       email: _usuario ? _usuario.email : "",
       uid: _usuario ? _usuario.uid : "",
       online: (typeof navigator !== "undefined") ? navigator.onLine !== false : true
@@ -73,7 +78,7 @@
       try { db.enablePersistence({ synchronizeTabs: true }).catch(function () {}); } catch (e) {}
       auth.onAuthStateChanged(function (u) {
         _usuario = u || null; _daEquipe = false; _admin = false;
-        if (!u) { avisar(); return; }
+        if (!u) { _verificado = true; avisar(); return; }
         /* source:"server" de propósito: com o cache ligado, um get() comum pode
            devolver um estado ANTIGO da equipe — inclusive dizer que alguém ainda
            está ativo depois de removido. Permissão se confere no servidor. */
@@ -82,7 +87,7 @@
             var x = d.exists ? (d.data() || {}) : {};
             _daEquipe = x.ativo === true;
             _admin = _daEquipe && x.admin === true;
-            _offline = false;
+            _offline = false; _verificado = true;
             if (_daEquipe) guardarAcesso(u.uid); else limparAcesso();
             avisar();
           })
@@ -93,10 +98,11 @@
           .catch(function () {
             if (acessoValido(u.uid)) { _daEquipe = true; _admin = false; _offline = true; }
             else { _daEquipe = false; _admin = false; _offline = false; }
-            avisar();
+            _verificado = true; avisar();
           });
       });
       pronto = true; motivo = "";
+      setTimeout(function () { if (!_verificado) { _verificado = true; avisar(); } }, 8000);
     } catch (e) { motivo = (e && e.message) || "falha ao iniciar"; }
     avisar();
   }

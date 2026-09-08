@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.14" />
+<meta name="versao" content="1.15" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -203,6 +203,16 @@
   .pt-box input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
   .pt-box .btn{width:100%;margin-top:16px;justify-content:center}
   .pt-stat{font-size:12.5px;margin-top:10px;min-height:16px;text-align:center}
+  /* Espera: anel girando em volta do ícone do sistema */
+  #ptEspera{text-align:center;padding:34px 24px}
+  .pt-anel{position:relative;width:104px;height:104px;margin:0 auto}
+  .pt-anel img{position:absolute;inset:22px;width:60px;height:60px;object-fit:contain}
+  .pt-anel::before,.pt-anel::after{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid transparent}
+  .pt-anel::before{border-color:rgba(20,41,63,.10)}
+  .pt-anel::after{border-top-color:var(--gold);border-right-color:var(--gold);animation:ptGira 1s cubic-bezier(.55,.15,.45,.85) infinite}
+  @keyframes ptGira{to{transform:rotate(360deg)}}
+  /* sem movimento: o anel fica parado, mas continua visível como estado de espera */
+  @media(prefers-reduced-motion:reduce){ .pt-anel::after{animation:none;border-color:var(--gold) transparent transparent transparent} }
   /* Painel de casos: rolagem lateral que não some */
   .casos-rol{overflow-x:auto;overflow-y:hidden;padding-bottom:4px;scrollbar-gutter:stable}
   .casos-rol::-webkit-scrollbar{height:11px}
@@ -247,7 +257,13 @@
 <!-- Portão de entrada: cobre o sistema inteiro até alguém da equipe entrar.
      Só existe quando há projeto configurado; sem projeto não há como autenticar. -->
 <div id="portao" style="display:none">
-  <form class="pt-box" id="portaoForm" autocomplete="on">
+  <!-- Enquanto o Firebase não diz se há sessão, mostra a espera — não o formulário. Sem isto o
+       login piscava na tela de quem já estava dentro. -->
+  <div class="pt-box" id="ptEspera">
+    <div class="pt-anel"><img src="assets/icone-192.png" alt=""></div>
+    <div class="pt-sub" id="ptEsperaTxt" style="margin:14px 0 0">Carregando…</div>
+  </div>
+  <form class="pt-box" id="portaoForm" autocomplete="on" style="display:none">
     <img src="assets/logo-fundo-claro.png" alt="Atos Societários" class="pt-logo">
     <div class="pt-sub" style="margin-top:0">Entre com a sua conta da equipe.</div>
     <label for="ptEmail">E-mail</label>
@@ -4649,27 +4665,36 @@ window.TINA=(function(){
        protege de verdade — os dados — está nas regras do Firestore, no servidor.
        Sem projeto configurado NÃO há portão: não haveria como autenticar, e o app ficaria
        inutilizável em vez de protegido. */
-    function mostrarPortao(mostrar){
+    /* O portão tem três estados, e a distinção importa: enquanto o Firebase não resolve a sessão
+       NÃO se sabe se a pessoa está dentro, e mostrar o formulário nessa hora faz ele piscar para
+       quem já estava logado. "espera" cobre esse intervalo e também o momento do login. */
+    function mostrarPortao(mostrar,modo,texto){
       const p=$("portao"); if(!p) return;
       p.style.display=mostrar?"":"none";
       document.body.style.overflow=mostrar?"hidden":"";
-      if(mostrar){ const c=$("ptEmail"); if(c && !c.value) setTimeout(()=>c.focus(),80); }
+      if(!mostrar) return;
+      const esperando=(modo==="espera");
+      if($("ptEspera")) $("ptEspera").style.display=esperando?"":"none";
+      if($("portaoForm")) $("portaoForm").style.display=esperando?"none":"";
+      if(esperando && $("ptEsperaTxt")) $("ptEsperaTxt").textContent=texto||"Carregando…";
+      if(!esperando){ const c=$("ptEmail"); if(c && !c.value) setTimeout(()=>c.focus(),80); }
     }
     if($("portaoForm")) $("portaoForm").addEventListener("submit",async(ev)=>{
       ev.preventDefault();
-      const st=$("ptStat"); st.style.color="var(--muted)"; st.textContent="Entrando…";
-      const r=await window.Nuvem.entrar(($("ptEmail")||{}).value,($("ptSenha")||{}).value);
+      const st=$("ptStat"); st.style.color="var(--muted)"; st.textContent="";
+      const email=($("ptEmail")||{}).value, senha=($("ptSenha")||{}).value;
+      mostrarPortao(true,"espera","Entrando…");
+      const r=await window.Nuvem.entrar(email,senha);
       if($("ptSenha")) $("ptSenha").value="";
-      if(!r.ok){ st.style.color="var(--err)"; st.textContent=r.msg; }
-      else st.textContent="";
+      if(!r.ok){ mostrarPortao(true,"login"); st.style.color="var(--err)"; st.textContent=r.msg; }
     });
     if(window.Nuvem){
       window.Nuvem.iniciar();
       const est0=window.Nuvem.estado();
       // já sobe fechado quando há projeto: evita o sistema aparecer por um instante antes do login
-      mostrarPortao(est0.configurado);
+      mostrarPortao(est0.configurado,"espera","Carregando…");
       window.Nuvem.aoMudar(e=>{
-        mostrarPortao(e.configurado && !e.daEquipe);
+        mostrarPortao(e.configurado && !e.daEquipe, e.verificado?"login":"espera", "Verificando o acesso…");
         if(e.configurado && e.logado && !e.daEquipe){
           const st=$("ptStat"); if(st){ st.style.color="var(--err)";
             st.textContent="Esta conta não está liberada para a equipe."; }

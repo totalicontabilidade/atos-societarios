@@ -496,6 +496,27 @@
         !!(dB.conferir||[]).some(function(x){ return /Capital/i.test(x); }), (dB.conferir||[]).join(" | ").slice(0,120));
     }catch(e){ reg("Bateria de leitura por cláusula",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2k0. Espera na entrada ----------
+       O formulário de login piscava para quem já estava dentro: o Firebase resolve a sessão de
+       forma assíncrona, e a tela não distinguia "ninguém logado" de "ainda não sei". */
+    grupo("Entrada");
+    try{
+      reg("A camada de nuvem diz quando terminou de verificar",
+        typeof (W.Nuvem.estado().verificado)==="boolean");
+      reg("Existe a tela de espera com anel e ícone",
+        !!$("ptEspera") && !!D.querySelector(".pt-anel img"));
+      var anel=D.querySelector(".pt-anel");
+      var estAnel=anel?W.getComputedStyle(anel,"::after"):null;
+      reg("O anel gira", !!estAnel && /ptGira/.test(estAnel.animationName||""), estAnel?estAnel.animationName:"");
+      // sem verificação concluída, quem manda na tela é a espera — não o formulário
+      reg("Enquanto não verificou, o formulário não aparece",
+        $("portaoForm") && ($("ptEspera").style.display==="none") === ($("portaoForm").style.display!=="none"),
+        "espera="+$("ptEspera").style.display+" form="+$("portaoForm").style.display);
+      // sem projeto configurado não há o que verificar: verificado nasce true e o app não trava
+      reg("Sem projeto configurado, não fica esperando para sempre",
+        W.Nuvem.estado().configurado ? true : W.Nuvem.estado().verificado===true);
+    }catch(e){ reg("Bateria da entrada",false,String(e&&e.message||e).slice(0,120)); }
+
     /* ---------- 6b2k. Sincronização de mão dupla ----------
        A primeira versão só PUXAVA da nuvem. No uso real isso deixou dois buracos: o que já
        existia no navegador antes da nuvem nunca subia (o colega novo via a fila vazia), e a
