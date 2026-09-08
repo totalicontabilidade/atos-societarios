@@ -147,12 +147,16 @@
 
   /* ---- Coleções ---- */
 
-  function salvar(colecao, id, dados) {
+  /* opc.substituir troca o documento INTEIRO em vez de mesclar. É a única forma de fazer um campo
+     DESAPARECER da nuvem: com merge, apagar o campo aqui deixa a cópia de lá intacta e a próxima
+     sincronização traz tudo de volta. Foi o que aconteceu com o rascunho do ato já concluído. */
+  function salvar(colecao, id, dados, opc) {
     if (!podeGravar()) return Promise.resolve({ ok: false, msg: "não conectado" });
     var ref = id ? db.collection(colecao).doc(String(id)) : db.collection(colecao).doc();
     var novo = carimbo(JSON.parse(JSON.stringify(dados || {})));
     if (!id) novo.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
-    return ref.set(novo, { merge: true })
+    var p = (opc && opc.substituir) ? ref.set(novo) : ref.set(novo, { merge: true });
+    return p
       .then(function () { return { ok: true, id: ref.id }; })
       .catch(function (e) { return { ok: false, msg: (e && e.message) || "falha ao gravar" }; });
   }
@@ -266,10 +270,30 @@
     } catch (e) { return function () {}; }
   }
 
+  /* Espelho ao vivo de uma coleção inteira.
+     ouvirNovos existe para NOTIFICAR: ignora a primeira resposta, as lápides e o que eu mesmo
+     gravei — tudo certo para um aviso, tudo errado para manter uma tela igual à nuvem. Aqui
+     interessa o oposto: toda mudança, inclusive exclusão e o que eu gravei noutro computador,
+     e também a primeira resposta, que é justamente o estado inicial. */
+  function ouvirColecao(colecao, aoMudar) {
+    if (!(pronto && _usuario)) return function () {};
+    try {
+      return db.collection(colecao).onSnapshot(function (snap) {
+        var mudancas = [];
+        snap.docChanges().forEach(function (c) {
+          var x = c.doc.data() || {}; x.id = c.doc.id;
+          mudancas.push({ saiu: (c.type === "removed" || !!x.excluido), item: x });
+        });
+        if (mudancas.length) { try { aoMudar(mudancas); } catch (e) {} }
+      }, function () {});
+    } catch (e) { return function () {}; }
+  }
+
   window.Nuvem = {
     iniciar: iniciar,
     jaEntrouAqui: jaEntrouAqui,
     ouvirNovos: ouvirNovos,
+    ouvirColecao: ouvirColecao,
     eqListar: eqListar, eqCadastrar: eqCadastrar, eqAtualizar: eqAtualizar,
     estado: estado,
     aoMudar: function (fn) { if (typeof fn === "function") { _ouvintes.push(fn); try { fn(estado()); } catch (e) {} } },

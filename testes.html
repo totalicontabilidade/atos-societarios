@@ -578,6 +578,68 @@
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de sincronização",false,String(e&&e.message||e).slice(0,130)); }
 
+    /* ---------- 6b2i-2. Painel de casos: a nuvem manda e o painel acompanha ao vivo ---------- */
+    grupo("Painel na nuvem");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      var nv={}, ouvinte=null;
+      W.Nuvem.podeGravar=function(){ return true; };
+      W.Nuvem.listar=function(){ return Promise.resolve({ok:true,itens:Object.keys(nv).map(function(k){return nv[k];})}); };
+      // a nuvem de verdade MESCLA por padrão; só substitui quando pedido. É essa diferença que
+      // fazia o trabalho do ato concluído voltar do além.
+      W.Nuvem.salvar=function(col,id,dados,opc){
+        nv[id]=(opc&&opc.substituir)?Object.assign({id:id},dados):Object.assign({},nv[id]||{},dados,{id:id});
+        return Promise.resolve({ok:true,id:id}); };
+      W.Nuvem.trilha=function(){ return Promise.resolve({ok:true}); };
+      W.Nuvem.ouvirColecao=function(col,fn){ ouvinte=fn; return function(){ ouvinte=null; }; };
+
+      modo("alt"); await espera(200);
+      $("btnExemplo").click(); await espera(360);
+      var c1=W.TINA._ux.registrarCaso();
+      reg("O caso guardado leva a data da alteração aqui também", !!c1.alteradoEm, String(c1.alteradoEm||"sem carimbo"));
+      reg("E a nuvem recebe a mesma data (nenhum lado nasce mais novo que o outro)",
+        nv[c1.id] && nv[c1.id].alteradoEm===c1.alteradoEm, (nv[c1.id]||{}).alteradoEm+" x "+c1.alteradoEm);
+      reg("O trabalho em andamento sobe junto, para retomar de outro computador", !!(nv[c1.id]&&nv[c1.id].trabalho));
+
+      // conclui o ato: baixar o documento tem de tirar o trabalho DOS DOIS lados
+      W.TINA._ux.registrarCasoAuto(); await espera(250);
+      reg("Ato concluído: o trabalho sai da nuvem", !(nv[c1.id]&&nv[c1.id].trabalho), JSON.stringify(Object.keys(nv[c1.id]||{})));
+      await W.TINA._ux.sincronizarAtos(); await espera(300);
+      var tr=JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}");
+      reg("E não volta na sincronização seguinte (era isso que “não atualizava”)", !tr[c1.id], JSON.stringify(Object.keys(tr)));
+
+      // espelho ao vivo: mudança feita por outra pessoa entra no painel sem recarregar
+      W.TINA._ux.ligarEspelhoAtos();
+      reg("O painel fica ouvindo a nuvem", typeof ouvinte==="function");
+      ouvinte([{saiu:false,item:{id:"20260101-0009",empresa:"CRIADA NO OUTRO PC",tipo:"3ª Alteração Contratual",
+                                 data:"01/01/2026",modo:"alt",criadoEm:1767225600000,alteradoEm:"2026-01-01T00:00:00.000Z"}}]);
+      await espera(200);
+      var cs=JSON.parse(W.localStorage.getItem("tinaCasos")||"[]");
+      reg("Caso criado por outra pessoa aparece na hora", cs.some(function(x){return x.id==="20260101-0009";}), cs.length+" caso(s)");
+      reg("E o painel já mostra a linha nova", /CRIADA NO OUTRO PC/.test(($("painelLista")||{}).innerHTML||""));
+      reg("O painel diz que os casos estão na nuvem, não no navegador",
+        /na nuvem/i.test(($("painelLista")||{}).innerHTML||"") && !/salvo\(s\) <b>só neste navegador/i.test(($("painelLista")||{}).innerHTML||""));
+      ouvinte([{saiu:true,item:{id:"20260101-0009",excluido:true}}]);
+      await espera(200);
+      cs=JSON.parse(W.localStorage.getItem("tinaCasos")||"[]");
+      reg("Excluído por outra pessoa some na hora", !cs.some(function(x){return x.id==="20260101-0009";}), cs.length+" caso(s)");
+      // com a nuvem ligada o lembrete de backup não faz sentido: a nuvem já é a segunda cópia
+      W.localStorage.setItem("tinaCasos",JSON.stringify([
+        {id:"20260101-0001",empresa:"UM",criadoEm:1},{id:"20260101-0002",empresa:"DOIS",criadoEm:2},
+        {id:"20260101-0003",empresa:"TRES",criadoEm:3},{id:"20260101-0004",empresa:"QUATRO",criadoEm:4},
+        {id:"20260101-0005",empresa:"CINCO",criadoEm:5},{id:"20260101-0006",empresa:"SEIS",criadoEm:6}]));
+      try{ W.localStorage.removeItem("tinaBackup"); }catch(e){}
+      W.TINA._ux.checarBackup();
+      reg("Com nuvem ligada o painel não pede backup manual",
+        (($("painelAvisoBackup")||{}).style||{}).display==="none", "display="+((($("painelAvisoBackup")||{}).style||{}).display));
+      W.Nuvem.podeGravar=function(){ return false; };
+      W.TINA._ux.checarBackup();
+      reg("Sem nuvem o lembrete de backup continua aparecendo",
+        /Faça um backup/.test(($("painelAvisoBackup")||{}).innerHTML||""), (($("painelAvisoBackup")||{}).innerHTML||"").replace(/<[^>]+>/g,"").slice(0,70));
+      W.Nuvem.podeGravar=function(){ return true; };
+      try{ W.localStorage.removeItem("tinaCasos"); W.localStorage.removeItem("tinaTrabalhos"); }catch(e){}
+    }catch(e){ reg("Bateria do painel na nuvem",false,String(e&&e.message||e).slice(0,130)); }
+
     /* ---------- 6b2j. Anonimizador: guardar a redação sem guardar o cliente ---------- */
     grupo("Caso de teste anonimizado");
     try{

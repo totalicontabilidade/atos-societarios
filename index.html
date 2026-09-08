@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.17" />
+<meta name="versao" content="1.18" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -2856,7 +2856,9 @@ window.TINA=(function(){
         const loc=cs.find(c=>c.id===caso.id);
         if(!loc){ cs.push(caso); mudou=true; }
         else if(_maisNovo(rem.alteradoEm,loc.alteradoEm)){ Object.assign(loc,caso); mudou=true; }
-        if(trabalho && !tr[caso.id]){ tr[caso.id]={ts:Date.parse(rem.alteradoEm||"")||Date.now(), snap:trabalho}; mudouTr=true; }
+        if(trabalho){ if(!tr[caso.id]){ tr[caso.id]={ts:Date.parse(rem.alteradoEm||"")||Date.now(), snap:trabalho}; mudouTr=true; } }
+        // ato concluído: a nuvem não tem mais o trabalho, então ele sai daqui em vez de ressuscitar
+        else if(tr[caso.id] && _maisNovo(rem.alteradoEm,new Date(tr[caso.id].ts||0).toISOString())){ delete tr[caso.id]; mudouTr=true; }
       });
       if(mudou) salvarCasos(cs);
       if(mudouTr) gravarTrabalhos(tr);
@@ -2873,6 +2875,36 @@ window.TINA=(function(){
       })).then(()=>{ if(subir.length) salvarCasos(cs); });
     });
   }
+  /* Espelho ao vivo do painel de casos. Antes o painel só mudava quando alguém o abria de novo:
+     o que o colega salvava (ou o que eu mesmo salvava noutro computador) aparecia na próxima
+     abertura, nunca na hora. Aqui a nuvem manda — o armazenamento do navegador vira só a cópia
+     que mantém o sistema em pé quando a internet cai. */
+  let _pararEspelhoAtos=null;
+  function ligarEspelhoAtos(){
+    if(_pararEspelhoAtos||!(window.Nuvem&&window.Nuvem.ouvirColecao&&window.Nuvem.podeGravar())) return;
+    _pararEspelhoAtos=window.Nuvem.ouvirColecao("atos",(mudancas)=>{
+      let cs=lerCasos(); const tr=lerTrabalhos(); let mudou=false, mudouTr=false;
+      mudancas.forEach(({saiu,item})=>{
+        if(saiu){
+          if(cs.some(c=>c.id===item.id)){ cs=cs.filter(c=>c.id!==item.id); mudou=true; }
+          if(tr[item.id]){ delete tr[item.id]; mudouTr=true; }
+          if(casoAtualId===item.id) casoAtualId=null;
+          return;
+        }
+        const {trabalho,...caso}=item;
+        const loc=cs.find(c=>c.id===caso.id);
+        if(!loc){ cs.push(caso); mudou=true; }
+        else if(_maisNovo(caso.alteradoEm,loc.alteradoEm)){ Object.assign(loc,caso); mudou=true; }
+        if(trabalho){ if(!tr[caso.id]){ tr[caso.id]={ts:Date.parse(caso.alteradoEm||"")||Date.now(),snap:trabalho}; mudouTr=true; } }
+        // ato concluído noutro computador: o trabalho sai daqui também, com os dados pessoais junto
+        else if(tr[caso.id] && _maisNovo(caso.alteradoEm,new Date(tr[caso.id].ts||0).toISOString())){ delete tr[caso.id]; mudouTr=true; }
+      });
+      if(mudou) salvarCasos(cs);
+      if(mudouTr) gravarTrabalhos(tr);
+      if(mudou||mudouTr) renderPainel();
+    });
+  }
+
   /* ===== Aviso de solicitação nova =====
      Sem servidor: o app fica ouvindo a coleção e avisa quando OUTRA pessoa da equipe lança
      uma solicitação. O aviso é discreto — um número no menu e um toast — e o número some
@@ -3006,15 +3038,20 @@ window.TINA=(function(){
     let max=0; lerCasos().forEach(c=>{ if(c&&typeof c.id==="string"&&c.id.indexOf(ymd)===0){ const n=parseInt(c.id.slice(9),10); if(n>max)max=n; } });
     return ymd+"-"+String(max+1).padStart(4,"0");}
   function registrarCaso(){const d=coletar(); const data=d.atoData||hojeBR(); const cs=lerCasos();
+    /* O MESMO carimbo vai para o registro daqui e para o da nuvem. Antes o carimbo só existia na
+       cópia da nuvem: o registro local ficava sem data e perdia toda comparação de "vence o mais
+       recente", então a sincronização seguinte escrevia a cópia da nuvem por cima do que acabara
+       de ser alterado aqui. */
+    const agora=new Date().toISOString();
     let c=casoAtualId?cs.find(x=>x.id===casoAtualId):null;
-    if(c){ c.empresa=(d.razao||"").toUpperCase(); c.cnpj=d.cnpj||""; c.tipo=tipoAto(d); c.data=data; c.modo=MODE; }
-    else { c={id:novoIdCaso(data),empresa:(d.razao||"").toUpperCase(),cnpj:d.cnpj||"",tipo:tipoAto(d),data:data,modo:MODE,criadoEm:Date.now()}; cs.push(c); casoAtualId=c.id; }
+    if(c){ c.empresa=(d.razao||"").toUpperCase(); c.cnpj=d.cnpj||""; c.tipo=tipoAto(d); c.data=data; c.modo=MODE; c.alteradoEm=agora; }
+    else { c={id:novoIdCaso(data),empresa:(d.razao||"").toUpperCase(),cnpj:d.cnpj||"",tipo:tipoAto(d),data:data,modo:MODE,criadoEm:Date.now(),alteradoEm:agora}; cs.push(c); casoAtualId=c.id; }
     salvarCasos(cs);
     /* Nuvem: o cadastro do ato vai junto com o TRABALHO INTEIRO (decisão do escritório) para
        permitir retomar de outro computador. É dado pessoal — por isso só a equipe logada lê,
        e a exclusão apaga de verdade (ver firestore.rules). */
     if(window.Nuvem&&window.Nuvem.podeGravar()){
-      window.Nuvem.salvar("atos",c.id,Object.assign({},c,{trabalho:snapshotForm(),alteradoEm:new Date().toISOString()}));
+      window.Nuvem.salvar("atos",c.id,Object.assign({},c,{trabalho:snapshotForm()}));
       window.Nuvem.trilha("ato.salvar",c.id,c.tipo||"");
     }
     return c;}
@@ -3110,6 +3147,8 @@ window.TINA=(function(){
     const pos=irmaos.findIndex(x=>x.id===c.id)+1;
     return "<br><span class='hint' style='color:var(--navy)'>"+pos+"º de "+irmaos.length+" atos desta empresa</span>";
   }
+  // onde os casos realmente moram agora: com login é a nuvem, e o navegador é só a cópia offline
+  function _naNuvem(){ return !!(window.Nuvem&&window.Nuvem.podeGravar()); }
   function renderPainel(){const box=$("painelLista"); if(!box)return; let casos=lerCasos();
     const todos=casos.length;
     const q=(($("painelBusca")&&$("painelBusca").value)||"").trim().toLowerCase();
@@ -3136,8 +3175,11 @@ window.TINA=(function(){
         "<td style='white-space:nowrap'>"
           +(temTrabalho(c.id)?"<button class='btn p mini' data-abrir title='Retomar este ato com todos os dados preenchidos'>▸ Retomar</button> ":"")
           +"<button class='btn s mini' data-dup title='Iniciar um novo ato para esta empresa'>⧉ Duplicar</button> <button class='btn o mini' data-loc title='Localizar a resposta deste caso no seu Gmail'>🔎 Gmail</button> <button class='btn del mini' data-del title='Remover'>×</button></td></tr>").join("")+"</table></div>"+
-      "<p class='hint' style='margin-top:8px'>"+casos.length+" caso(s) salvo(s) neste navegador. Use ▸ para retomar um ato guardado; ⧉ para começar outro ato da mesma empresa; 🔎 para achar a resposta no Gmail; × para remover.</p>"
-      +(Object.keys(lerTrabalhos()).length?"<p class='hint' style='margin-top:4px'>Os atos com <b>▸ Retomar</b> guardam os <b>dados preenchidos</b> do cliente neste navegador (some ao gerar o documento ou após 60 dias).</p>":"");
+      "<p class='hint' style='margin-top:8px'>"+casos.length+" caso(s) "+(_naNuvem()
+        ?"<b>na nuvem</b>, atualizados aqui na hora em que alguém da equipe altera algum"
+        :"salvo(s) <b>só neste navegador</b> — entre com o seu login para guardá-los na nuvem")
+      +". Use ▸ para retomar um ato guardado; ⧉ para começar outro ato da mesma empresa; 🔎 para achar a resposta no Gmail; × para remover.</p>"
+      +(Object.keys(lerTrabalhos()).length?"<p class='hint' style='margin-top:4px'>Os atos com <b>▸ Retomar</b> guardam os <b>dados preenchidos</b> do cliente"+(_naNuvem()?" na nuvem, para retomar de qualquer computador":" neste navegador")+" (somem ao gerar o documento ou após 60 dias).</p>":"");
     box.querySelectorAll("tr[data-id]").forEach(tr=>{const id=tr.dataset.id;
       const ju=tr.querySelector("[data-just]"); if(ju)ju.addEventListener("click",()=>verJustificativa(id));
       const ab=tr.querySelector("[data-abrir]"); if(ab)ab.addEventListener("click",()=>abrirTrabalho(id));
@@ -4476,10 +4518,13 @@ window.TINA=(function(){
   }finally{_suppressDraft=false;}salvarRascunho();}
 
   /* ===== Backup do painel (exportar/importar JSON) ===== */
-  // Lembrete de backup: os casos só existem neste navegador — limpar o histórico apaga tudo.
-  // Avisa quando há casos novos desde o último backup (ou se nunca houve).
+  // Lembrete de backup: sem login os casos só existem neste navegador — limpar o histórico apaga
+  // tudo. Com login a nuvem já é a segunda cópia, então o lembrete cala a boca (a exportação
+  // continua disponível no botão, para quem quiser um arquivo na mão).
   function marcarBackup(){try{localStorage.setItem("tinaBackup",JSON.stringify({ts:Date.now(),n:lerCasos().length}));}catch(e){}}
   function checarBackup(){
+    const av0=$("painelAvisoBackup");
+    if(_naNuvem()){ if(av0) av0.style.display="none"; return; }
     const casos=lerCasos(); if(casos.length<3) return;
     let b=null; try{b=JSON.parse(localStorage.getItem("tinaBackup")||"null");}catch(e){}
     const novos=casos.length-((b&&b.n)||0);
@@ -4531,9 +4576,15 @@ window.TINA=(function(){
   function limparComConfirmacao(){if(draftTemConteudo(snapshotForm())){if(!confirm("Limpar todos os campos do formulário? O preenchimento atual será apagado."))return;}limpar();aplicarPadroesForm();limparRascunho();toast("Formulário limpo.","info");}
 
   /* ===== Registrar caso automaticamente ao baixar (docx/PDF) — o download sinaliza que o preenchimento foi finalizado ===== */
-  function registrarCasoAuto(){ const d=coletar(); if(!d.razao) return null; const jaExistia=!!casoAtualId; const c=registrarCaso(); if(document.getElementById("painelModal") && document.getElementById("painelModal").classList.contains("open")) renderPainel();
+  function registrarCasoAuto(){ const d=coletar(); if(!d.razao) return null; const jaExistia=!!casoAtualId; const c=registrarCaso();
     limparRascunho();   // documento entregue: o rascunho (com CPF/RG/endereço dos sócios) sai do navegador. Os campos seguem na tela para reuso.
     excluirTrabalho(c.id);   // ato concluído: o trabalho guardado também sai
+    /* E sai da nuvem também. Antes saía só daqui: como a gravação é por mesclagem, o trabalho
+       continuava lá e a sincronização seguinte o trazia de volta — o caso reaparecia exatamente
+       como estava antes do download, com o botão "Retomar" e com os dados pessoais que este
+       trecho tinha acabado de tirar do navegador. Por isso baixar o contrato "não atualizava". */
+    if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("atos",c.id,c,{substituir:true});
+    renderPainel();
     toast((jaExistia?"✓ Ato atualizado no painel de casos — ID #":"✓ Ato salvo no painel de casos — ID #")+c.id,"ok"); return c; }
 
   /* ===== Biblioteca de objetos sociais (localStorage) ===== */
@@ -4754,7 +4805,7 @@ window.TINA=(function(){
         const semAdm=$("equipeSemAdmin"); if(semAdm) semAdm.style.display=e.admin?"none":"";
         const abaEq=$("cfgAbaEquipe"); if(abaEq) abaEq.style.display=e.configurado?"":"none";
         if(e.admin && window.__renderEquipe) window.__renderEquipe();
-        if(e.daEquipe){ sincronizarSolic(); sincronizarAtos(); ligarAvisoSolic(); }
+        if(e.daEquipe){ sincronizarSolic(); sincronizarAtos(); ligarAvisoSolic(); ligarEspelhoAtos(); }
       });
       // Equipe — visível só para administrador
       const renderEquipe=async()=>{
@@ -4945,7 +4996,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,sincronizarSolic,sincronizarAtos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
