@@ -640,6 +640,56 @@
       try{ W.localStorage.removeItem("tinaCasos"); W.localStorage.removeItem("tinaTrabalhos"); }catch(e){}
     }catch(e){ reg("Bateria do painel na nuvem",false,String(e&&e.message||e).slice(0,130)); }
 
+    /* ---------- 6b2i-3. Faxina dos concluídos e navegador sem espaço ---------- */
+    grupo("Concluídos e espaço");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      var nu={}, subs=[];
+      W.Nuvem.podeGravar=function(){ return true; };
+      W.Nuvem.listar=function(){ return Promise.resolve({ok:true,itens:Object.keys(nu).map(function(k){return nu[k];})}); };
+      W.Nuvem.salvar=function(col,id,dados,opc){
+        if(opc&&opc.substituir){ subs.push(id); nu[id]=Object.assign({id:id},dados); }
+        else nu[id]=Object.assign({},nu[id]||{},dados,{id:id});
+        return Promise.resolve({ok:true,id:id}); };
+      W.Nuvem.trilha=function(){ return Promise.resolve({ok:true}); };
+
+      // ato ANTIGO, sem carimbo de conclusão, mas confirmado pelo cliente: o documento já saiu,
+      // então o formulário preenchido não tem por que continuar guardado
+      // datas recentes: o trabalho em espera vence em 60 dias, e com data antiga o teste mediria a validade
+      var ontem=new Date(Date.now()-86400000).toISOString(), hoje=new Date().toISOString();
+      nu["20260101-0001"]={id:"20260101-0001",empresa:"JA ENTREGUE",confirmado:true,confirmadoEm:"01/01/2026",
+                           alteradoEm:ontem,trabalho:{mode:"alt",fields:{razao:"JA ENTREGUE"}}};
+      // ato EM ANDAMENTO: ninguém encosta nele
+      nu["20260101-0002"]={id:"20260101-0002",empresa:"EM ANDAMENTO",
+                           alteradoEm:hoje,trabalho:{mode:"alt",fields:{razao:"EM ANDAMENTO"}}};
+      await W.TINA._ux.sincronizarAtos(); await espera(400);
+      reg("Faxina tira o trabalho do ato já entregue", !nu["20260101-0001"].trabalho, JSON.stringify(Object.keys(nu["20260101-0001"])));
+      reg("E não encosta no ato em andamento", !!nu["20260101-0002"].trabalho);
+      var trab=JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}");
+      reg("O concluído também não desce para este navegador", !trab["20260101-0001"], JSON.stringify(Object.keys(trab)));
+      reg("O que está em andamento continua descendo, para retomar aqui", !!trab["20260101-0002"]);
+
+      // navegador sem espaço: em vez de travar o download, descarta o trabalho (que a nuvem tem)
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      var grande={}; for(var i=0;i<400;i++) grande["k"+i]="x".repeat(400);
+      // dentro da validade de 60 dias, para o teste medir o descarte por FALTA DE ESPAÇO e não o vencimento
+      var trabs={}; for(var j=0;j<6;j++) trabs["2026010"+j+"-0001"]={ts:Date.now()-(6-j)*86400000,snap:grande};
+      W.localStorage.setItem("tinaTrabalhos",JSON.stringify(trabs));
+      var real=W.localStorage.setItem.bind(W.localStorage), cheio=true;
+      W.localStorage.setItem=function(k,v){
+        // simula a cota estourada: só volta a aceitar "tinaCasos" quando algum trabalho for descartado
+        if(k==="tinaCasos"&&cheio) throw new W.Error("QuotaExceededError");
+        if(k==="tinaTrabalhos"&&Object.keys(JSON.parse(v)).length<6) cheio=false;
+        return real(k,v); };
+      var ok=W.TINA._ux.salvarCasos([{id:"20260101-0009",empresa:"TESTE"}]);
+      W.localStorage.setItem=real;
+      reg("Sem espaço, o sistema descarta trabalho antigo e grava o caso assim mesmo", ok===true, "salvarCasos="+ok);
+      reg("E o trabalho descartado é o mais antigo",
+        !JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}")["20260100-0001"],
+        Object.keys(JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}")).join(","));
+      try{ W.localStorage.removeItem("tinaCasos"); W.localStorage.removeItem("tinaTrabalhos"); }catch(e){}
+    }catch(e){ reg("Bateria de concluídos e espaço",false,String(e&&e.message||e).slice(0,130)); }
+
     /* ---------- 6b2j. Anonimizador: guardar a redação sem guardar o cliente ---------- */
     grupo("Caso de teste anonimizado");
     try{
