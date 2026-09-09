@@ -924,7 +924,7 @@
       W.Nuvem.trilha=function(){ return Promise.resolve({ok:true}); };
       W.Nuvem.enviarAnexo=function(col,rid,f,prog){ if(prog){prog(40);prog(100);}
         return Promise.resolve({ok:true,anexo:{id:"A1",nome:f.name,tipo:f.type,tamanho:f.size,
-          caminho:col+"/"+rid+"/A1-"+f.name,url:"blob:fake/"+f.name,em:new Date().toISOString()}}); };
+          caminho:col+"/"+rid+"/A1-"+f.name,url:"data:text/plain;base64,ZmFrZQ==",em:new Date().toISOString()}}); };
       W.Nuvem.excluirAnexo=function(c){ apagados.push(c); return Promise.resolve({ok:true}); };
 
       reg("O rótulo do campo é “Descrição”, não “Observações”",
@@ -1070,6 +1070,38 @@
       reg("Sem o endereço anterior, a validação cobra na transformação",
         (fS||[]).some(function(x){ return /Endereço ANTERIOR/i.test(x); }), (fS||[]).join(" | ").slice(0,90));
     }catch(e){ reg("Bateria de transformação",false,String(e&&e.message||e).slice(0,120)); }
+
+    /* ---------- 6b3a. Tempo verbal do consolidado — REGRA DA JUNTA ----------
+       No consolidado, a cláusula ALTERADA neste ato vai no FUTURO e as demais no presente.
+       Consolidado inteiro no presente é recusado pela Junta. Já uniformizei no presente uma vez,
+       achando que ficava mais coerente, e estava errado — esta bateria existe para barrar isso. */
+    grupo("Tempo verbal do consolidado");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      $("btnExemplo").click(); await espera(340);
+      // muda SÓ a sede: ela vai ao futuro, o resto continua no presente
+      ["alt_nome","alt_fantasia","alt_objeto","alt_capital","alt_quadro","alt_enquadramento"].forEach(function(id){ if($(id)) $(id).checked=false; });
+      if($("alt_sede")) $("alt_sede").checked=true;
+      val("sedeAnterior","Rua Antiga, nº 10, Centro, Aracaju - SE, CEP: 49000-111");
+      val("s_log","Avenida Nova"); val("s_num","250");
+      await W.TINA.gerarPreview(); await espera(1200);
+      var tc=texto(), consol=tc.slice(tc.search(/CONTRATO SOCIAL CONSOLIDADO/i));
+      reg("Cláusula ALTERADA entra no consolidado no futuro",
+        /A sociedade ter[áa] sua sede/i.test(consol), (consol.match(/A sociedade [^.]{0,60}sede[^.]{0,40}/i)||[""])[0]);
+      reg("Cláusula não alterada fica no presente (nome)",
+        /A sociedade gira sob o nome empresarial/i.test(consol), (consol.match(/A sociedade [^.]{0,50}nome empresarial/i)||[""])[0]);
+      reg("Cláusula não alterada fica no presente (objeto)",
+        /A sociedade tem por objeto/i.test(consol), (consol.match(/A sociedade [^.]{0,30}por objeto/i)||[""])[0]);
+      reg("E o consolidado NÃO fica todo no presente", /ter[áa] sua sede/i.test(consol));
+      // agora muda o objeto também: ele passa ao futuro, a sede continua no futuro, o nome no presente
+      if($("alt_objeto")) $("alt_objeto").checked=true;
+      await W.TINA.gerarPreview(); await espera(1200);
+      var c2=texto(); c2=c2.slice(c2.search(/CONTRATO SOCIAL CONSOLIDADO/i));
+      reg("Alterar o objeto leva a cláusula do objeto ao futuro",
+        /A sociedade ter[áa] por objeto/i.test(c2), (c2.match(/A sociedade [^.]{0,30}por objeto/i)||[""])[0]);
+      reg("E o nome, que não mudou, segue no presente", /A sociedade gira sob o nome empresarial/i.test(c2));
+    }catch(e){ reg("Bateria do tempo verbal do consolidado",false,String(e&&e.message||e).slice(0,130)); }
 
     /* ---------- 6b3b. "para:" escrito junto nos comandos ---------- */
     grupo("Comandos com dois-pontos");
