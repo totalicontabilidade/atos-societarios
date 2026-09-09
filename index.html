@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.21" />
+<meta name="versao" content="1.22" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -1603,7 +1603,12 @@ window.TINA=(function(){
     let ri=0;const nx=()=>roman[ri++];
     const isAlt=(md==="alt"),isTransf=md.startsWith("transf"),isSLU=(md==="transf_ei_slu"),cons=isAlt||isTransf,CH=d.changed||new Set();
     const isRetifica=isAlt && !!d.retifica;   // rerratificação (correção de erro em ato arquivado) — art. 118 IN DREI 81/2020
-    const fut=(k)=>isTransf?false:(isAlt?CH.has(k):true);
+    /* Tempo verbal do texto consolidado. Antes só as cláusulas ALTERADAS iam para o futuro, e o
+       resultado era um contrato falando de dois jeitos ao mesmo tempo: "A sociedade gira sob o nome
+       empresarial X" (presente) ao lado de "A sociedade terá sua sede em Y" (futuro). O consolidado
+       descreve a sociedade COMO ELA FICA a partir deste ato — logo, presente do início ao fim. O
+       futuro só cabe na constituição, onde a sociedade ainda não existe. */
+    const fut=(k)=>!cons;
     const space=()=>new Paragraph({spacing:{after:120,line:240,lineRule:AUTO}});
     const resolvem=(pluralSig?"Os sócios resolvem":gSoleSig("O sócio resolve","A sócia resolve"));   // quem delibera é quem assina
     const ordExt=["Primeira","Segunda","Terceira","Quarta","Quinta","Sexta","Sétima","Oitava","Nona","Décima","Décima Primeira","Décima Segunda","Décima Terceira"];
@@ -1631,7 +1636,7 @@ window.TINA=(function(){
       let dci=0;const delib=(tema,texto)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(texto)],JUST,SP15));
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolvem+" "+av+" o nome empresarial da sociedade, "+pass+" "+razaoUP+" LTDA.");
       if(CH.has("fantasia")) delib((isRetifica?"Da retificação do":"Do")+" título do estabelecimento",d.fantasia?(resolvem+" "+(isRetifica?("retificar o título de estabelecimento (nome fantasia), "+pass+" "+fantUP):("adotar como título de estabelecimento (nome fantasia) a expressão "+fantUP))+"."):(resolvem+" suprimir o nome fantasia da sociedade."));
-      if(CH.has("sede")) delib(tmud+" da sede",resolvem+" "+(isRetifica?"retificar a sede da sociedade, "+pass+" o seguinte endereço":"transferir a sede da sociedade, que passa a ser no seguinte endereço")+": "+endLinha(d.sede)+".");
+      if(CH.has("sede")) delib(tmud+" da sede",resolvem+" "+(isRetifica?"retificar a sede da sociedade, "+pass+" o seguinte endereço":"transferir a sede da sociedade, que passa a localizar-se na")+" "+endLinha(d.sede)+".");
       if(CH.has("objeto")) delib(tmud+" do objeto social",resolvem+" "+av+" o objeto social, "+pass+" o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
       if(CH.has("capital")){
         // com o capital anterior informado, segue a redação do modelo JUCESE ("que era de … passa a ser de …")
@@ -1781,7 +1786,7 @@ window.TINA=(function(){
       : (s.nome||"").toUpperCase();
     const nomesAdm=admins.length?admins.map(admName).join(admins.length>2?", ":" e "):(FICAM[0]?admName(FICAM[0]):"[ADMINISTRADOR]");
     const modo = plA ? d.modoAdm : "ISOLADAMENTE";
-    const futAdm=isTransf?false:(isAlt?CH.has("quadro"):true);
+    const futAdm=!cons;   // mesma regra do fut(): consolidado fala no presente
     const soloPJ=!plA && (soleAdm||FICAM[0]) && (soleAdm||FICAM[0]).tipoPessoa==="PJ";
     if(plA) pushC(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" pelos sócios "+nomesAdm+" que "+(futAdm?"representarão":"representam")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderão":"podem")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
     else if(soloPJ) pushC(corpo("A administração da sociedade "+(futAdm?"será exercida":"é exercida")+" por "+nomesAdm+", que "+(futAdm?"representará":"representa")+" legalmente a sociedade "+modo+" e "+(futAdm?"poderá":"pode")+" praticar todo e qualquer ato de gestão pertinente ao objeto social."));
@@ -1794,7 +1799,7 @@ window.TINA=(function(){
     } else pushC(parag("Não constituindo o objeto social, a alienação ou a oneração de bens imóveis depende de autorização da maioria."));
     // VII - BALANÇO
     abre("DO BALANÇO PATRIMONIAL");
-    pushC(corpo("Ao término de cada exercício, em 31 de dezembro, o administrador "+(cons?"presta":"prestará")+" contas justificadas de sua administração, procedendo à elaboração do inventário, do balanço patrimonial e do balanço de resultado econômico, cabendo "+(plural?"aos sócios":("a"+gSole("o sócio","à sócia")))+" os lucros ou perdas apurados na proporção de suas quotas."));
+    pushC(corpo("Ao término de cada exercício, em 31 de dezembro, "+(plA?"os administradores ":gAdm("o administrador ","a administradora "))+(plA?(cons?"prestam":"prestarão"):(cons?"presta":"prestará"))+" contas justificadas de sua administração, procedendo à elaboração do inventário, do balanço patrimonial e do balanço de resultado econômico, cabendo "+(plural?"aos sócios":("a"+gSole("o sócio","à sócia")))+" os lucros ou perdas apurados na proporção de suas quotas."));
     // VIII - DESIMPEDIMENTO
     abre("DECLARAÇÃO DE DESIMPEDIMENTO DE ADMINISTRADOR");
     const decl = plA
@@ -1811,7 +1816,7 @@ window.TINA=(function(){
     pushC(corpo("A sociedade poderá levantar balanços intermediários ou intercalares e distribuir os lucros neles evidenciados."));
     // XI - RETIRADA/FALECIMENTO
     abre("DA RETIRADA OU FALECIMENTO DE SÓCIO");
-    pushC(corpo("Retirando-se, falecendo ou interditado qualquer sócio, a sociedade continuará suas atividades com os herdeiros, sucessores e o incapaz, desde que autorizado legalmente. Não sendo possível ou inexistindo interesse destes ou dos sócios remanescentes na continuidade da sociedade, esta será liquidada após a apuração do Balanço Patrimonial na data do evento. O resultado positivo ou negativo será distribuído ou suportado "+(plural?"pelos sócios":("pel"+gSole("o sócio","a sócia")))+" na proporção de suas quotas."));
+    pushC(corpo("Em caso de retirada, falecimento ou interdição de qualquer sócio, a sociedade continuará suas atividades com os herdeiros, sucessores e o incapaz, desde que autorizado legalmente. Não sendo possível ou inexistindo interesse destes ou dos sócios remanescentes na continuidade da sociedade, esta será liquidada após a apuração do Balanço Patrimonial na data do evento. O resultado positivo ou negativo será distribuído ou suportado "+(plural?"pelos sócios":("pel"+gSole("o sócio","a sócia")))+" na proporção de suas quotas."));
     pushC(parag("O mesmo procedimento será adotado em outros casos em que a sociedade se resolva em relação a um sócio."));
     // XII - CESSÃO
     abre("DA CESSÃO DE QUOTAS");
@@ -1859,7 +1864,7 @@ window.TINA=(function(){
     }
     // XV - FORO
     abre("DO FORO");
-    pushC(corpo("Fica eleito o Foro da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" - "+(d.sede.uf||"")+", para qualquer ação fundada neste contrato, renunciando-se a qualquer outro por mais especial que seja."));
+    pushC(corpo("Fica eleito o Foro da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" - "+(d.sede.uf||"")+", para qualquer ação fundada neste contrato, renunciando-se a qualquer outro, por mais privilegiado que seja."));
 
     _alvo=null;   // daqui para a frente volta a escrever direto no documento
     emitirCorpo();
@@ -1941,7 +1946,12 @@ window.TINA=(function(){
     // mesma regra para a sede: no preâmbulo vai o endereço ATUAL; o novo só na cláusula e no consolidado
     const mudouSede=isAlt && CH.has("sede") && !!(d.sedeAnterior||"").trim();
     const sedeCab=mudouSede?d.sedeAnterior.trim():endLinha(d.sede);
-    const fut=(k)=>isTransf?false:(isAlt?CH.has(k):true);
+    /* Tempo verbal do texto consolidado. Antes só as cláusulas ALTERADAS iam para o futuro, e o
+       resultado era um contrato falando de dois jeitos ao mesmo tempo: "A sociedade gira sob o nome
+       empresarial X" (presente) ao lado de "A sociedade terá sua sede em Y" (futuro). O consolidado
+       descreve a sociedade COMO ELA FICA a partir deste ato — logo, presente do início ao fim. O
+       futuro só cabe na constituição, onde a sociedade ainda não existe. */
+    const fut=(k)=>!cons;
     const space=()=>new Paragraph({spacing:{after:120,line:240,lineRule:AUTO}});
     const roman=ROMANOS; let ri=0; const nx=()=>roman[ri++];
     const ordExt=["Primeira","Segunda","Terceira","Quarta","Quinta","Sexta","Sétima","Oitava","Nona","Décima"];
@@ -1952,13 +1962,13 @@ window.TINA=(function(){
     ch.push(space());
     ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit)),JUST,SP10));
     if(isAlt){
-      ch.push(P(R("na qualidade de "+g("titular","titular")+" do Empresário Individual que gira sob o nome empresarial "+nomeCabUP+", com sede à "+sedeCab+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração do instrumento de inscrição,"))+" mediante as cláusulas seguintes:"),JUST,SP15));
+      ch.push(P(R("na qualidade de "+g("titular","titular")+" do Empresário Individual que gira sob o nome empresarial "+nomeCabUP+", com sede na "+sedeCab+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração do instrumento de inscrição,"))+" mediante as cláusulas seguintes:"),JUST,SP15));
       const resolve=g("O titular resolve","A titular resolve");
       const tmud=isRetifica?"Da retificação":"Da alteração", av=isRetifica?"retificar":"alterar", pass=isRetifica?"que por erro material passa a constar":"que passa a ser";
       let dci=0; const delib=(tema,txt)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(txt)],JUST,SP15));
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolve+" "+av+" o nome empresarial, "+pass+" "+nomeUP+".");
       if(CH.has("fantasia")) delib((isRetifica?"Da retificação do":"Do")+" título do estabelecimento", d.fantasia?resolve+" "+(isRetifica?"retificar o nome fantasia, "+pass:"adotar como nome fantasia a expressão")+" "+fantUP+".":resolve+" suprimir o nome fantasia.");
-      if(CH.has("sede")) delib(tmud+" da sede",resolve+" "+(isRetifica?"retificar a sede, "+pass+" à":"transferir a sede, que passa a ser à")+" "+endLinha(d.sede)+".");
+      if(CH.has("sede")) delib(tmud+" da sede",resolve+" "+(isRetifica?"retificar a sede, "+pass+" à":"transferir a sede, que passa a localizar-se na")+" "+endLinha(d.sede)+".");
       if(CH.has("objeto")) delib(tmud+" do objeto",resolve+" "+av+" o objeto, "+pass+" o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
       if(CH.has("capital")) delib(tmud+" do capital", d.capitalAnterior>0
         ? ("O capital destacado, que era de "+reais(d.capitalAnterior)+" ("+extensoReais(d.capitalAnterior)+"), "+(isRetifica?"por erro material passa a constar":"passa a ser")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado "+formaIntegr(d,"em moeda corrente do País")+".")
@@ -1982,7 +1992,7 @@ window.TINA=(function(){
     ch.push(corpo("O capital destacado para o exercício da atividade do Empresário Individual "+(fut("capital")?"será":"é")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado "+formaIntegr(d,"em moeda corrente do País")+"."));
     // III - SEDE
     ch.push(heading(nx(),"DA SEDE"));
-    ch.push(corpo("O Empresário Individual "+(fut("sede")?"terá":"tem")+" sua sede à "+endLinha(d.sede)+"."));
+    ch.push(corpo("O Empresário Individual "+(fut("sede")?"terá":"tem")+" sua sede no seguinte endereço: "+endLinha(d.sede)+"."));
     // DAS FILIAIS (art. 969 do CC) — só quando houver
     if(d.filiais&&d.filiais.length){
       ch.push(heading(nx(),"DAS FILIAIS"));
@@ -2077,12 +2087,17 @@ window.TINA=(function(){
     const ch=[];
     /* ---------- PARTE 1: instrumento de transformação (com NIRE) + assinatura ---------- */
     ch.push(tituloDoc("ALTERAÇÃO DE INSTRUMENTO DE EMPRESÁRIO INDIVIDUAL POR TRANSFORMAÇÃO EM SOCIEDADE LIMITADA"+(isSLU?" UNIPESSOAL":"")));
+    /* Nome empresarial ATUAL do Empresário Individual, como no modelo da Junta. Vindo do MEI, ele
+       inclui os dígitos do CNPJ ("11.222.333 FULANA DE TAL EXEMPLO") — e é esse o nome registrado até o
+       arquivamento deste ato. Trocá-lo aqui pelo nome novo faria o instrumento identificar uma
+       empresa que ainda não existe; o nome novo entra na Cláusula Primeira e no contrato da parte 2. */
+    ch.push(tituloDoc(razAntUP));
     ch.push(space());
     ch.push(P(R(qualifTit(true)+", resolve:"),JUST,SP10));
     const ord1=["Primeira","Segunda","Terceira","Quarta","Quinta"]; let o1=0;
     const cl1=(txt)=>ch.push(P([T("Cláusula "+ord1[o1++]+" – ",{bold:true}),...R(txt)],JUST,SP15));
     cl1("Fica transformado este Empresário Individual em Sociedade Limitada"+(isSLU?" Unipessoal":"")+", sob o nome empresarial de: "+razaoUP+" LTDA, com sub-rogação de todos os direitos e obrigações pertinentes."+(d.fantasia?" E como nome de fantasia: "+fantUP+".":""));
-    cl1("O acervo deste Empresário Individual, no valor de "+reais(acervo)+" ("+extensoReais(acervo)+") passa a constituir o capital da Sociedade Limitada mencionada na cláusula anterior.");
+    cl1("O acervo deste Empresário Individual, no valor de "+reais(acervo)+" ("+extensoReais(acervo)+") passa a constituir o capital da Sociedade Limitada"+(isSLU?" Unipessoal":"")+" mencionada na cláusula anterior.");
     if(aumentou) cl1("Fica o capital social aumentado de "+reais(acervo)+" ("+extensoReais(acervo)+") para "+reais(newCap)+" ("+extensoReais(newCap)+"), dividido em "+numBR(d.numQuotas)+" quotas no valor nominal de "+reais(d.valorQuota)+" cada uma, sendo o aumento de "+reais(newCap-acervo)+" ("+extensoReais(newCap-acervo)+") integralizado neste ato "+formaIntegr(d,"em moeda corrente do País")+".");
     cl1("O endereço e sede da empresa serão: "+endLinha(d.sede)+".");
     // o objeto tem de ser declarado AQUI: o contrato consolidado da parte 2 mostra a lista final, mas
@@ -2115,12 +2130,12 @@ window.TINA=(function(){
     let c2=0; const cl2=(txt)=>ch.push(P([T("Cláusula "+(++c2)+"ª – ",{bold:true}),...R(txt)],JUST,SP15));
     cl2("A sociedade girará sob a denominação social "+razaoUP+" LTDA.");
     if(d.fantasia) cl2("A sociedade terá como título do estabelecimento "+fantUP+".");
-    cl2("A sociedade terá sede e foro na "+endLinha(d.sede)+".");
-    cl2("O objeto da sociedade será "+(d.objeto||"[OBJETO]")+".");
+    cl2("A sociedade tem sede na "+endLinha(d.sede)+".");   // o foro tem cláusula própria: dizer aqui duplicava
+    cl2("O objeto da sociedade é o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
     cl2("A sociedade pode a qualquer tempo, instalar, manter e extinguir filiais e quaisquer outros estabelecimentos necessários ao bom desempenho das atividades consubstanciadas no objeto social, em qualquer parte do território nacional ou no exterior, respeitadas as prescrições e exigências legais pertinentes, mediante alteração contratual assinada "+(plural?"pelos sócios":gT("pelo sócio","pela sócia"))+".");
     cl2("A sociedade pode mudar a qualquer tempo a forma jurídica ora adotada, "+(plural?"deliberada por maioria simples do capital social, entendendo-se que cada quota possuída dá direito a um voto nas deliberações":gT("por decisão do único sócio","por decisão da única sócia"))+".");
     cl2("O prazo de duração da sociedade é por tempo indeterminado e suas atividades tiveram início em "+(d.dataInicioOrig||d.atoData||"[DATA]")+".");
-    ch.push(P([T("Cláusula "+(++c2)+"ª – ",{bold:true}),...R("O capital social será "+reais(newCap)+" ("+extensoReais(newCap)+") dividido em "+numBR(d.numQuotas)+" quotas de valor nominal "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, integralizadas, neste ato "+formaIntegr(d,"em moeda corrente do País")+", "+(plural?"pelos sócios":gT("pelo sócio","pela sócia"))+":")],JUST,SP15));
+    ch.push(P([T("Cláusula "+(++c2)+"ª – ",{bold:true}),...R("O capital social será de "+reais(newCap)+" ("+extensoReais(newCap)+") dividido em "+numBR(d.numQuotas)+" quotas de valor nominal "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, integralizadas, neste ato "+formaIntegr(d,"em moeda corrente do País")+", "+(plural?"pelos sócios":gT("pelo sócio","pela sócia"))+":")],JUST,SP15));
     ch.push(tabelaQuotas(d,X)); ch.push(new Paragraph({spacing:{after:0,line:240,lineRule:AUTO},children:[T(" ")]}));   // linha em branco após a tabela
     cl2(plural
       ? "As quotas são indivisíveis e não podem ser cedidas ou transferidas a terceiros sem o consentimento do outro sócio, a quem fica assegurado, em igualdade de condições e preço, direito de preferência para a sua aquisição se postas à venda, formalizando, se realizada a cessão delas, a alteração contratual pertinente."
@@ -2128,7 +2143,8 @@ window.TINA=(function(){
     cl2(plural
       ? "A responsabilidade de cada sócio é restrita ao valor de suas quotas, mas todos respondem solidariamente pela integralização do capital social."
       : "A responsabilidade "+gT("do sócio","da sócia")+" é restrita ao valor de suas quotas, respondendo pela integralização do capital social.");
-    cl2("A sociedade será administrada por "+nA+" ("+extensoInt(nA)+") "+(nA>1?"sócios":"sócio")+".");
+    cl2(nA>1?("A administração da sociedade será exercida por "+nA+" ("+extensoInt(nA)+") sócios.")
+           :(plural?"A administração da sociedade será exercida por 1 (um) sócio.":gT("A administração da sociedade será exercida pelo único sócio.","A administração da sociedade será exercida pela única sócia.")));
     const nomesAdm=admins.length?admins.map(s=>(s.nome||"").toUpperCase()).join(admins.length>2?", ":" e "):(tit.nome||"[ADMINISTRADOR]").toUpperCase();
     const modo=plA?d.modoAdm:"ISOLADAMENTE";
     cl2(plA
@@ -2138,12 +2154,12 @@ window.TINA=(function(){
     cl2("É expressamente vedado à administração o exercício de atividades estranhas ao interesse social ou assumir obrigações seja em favor de qualquer dos quotistas ou de terceiros, bem como onerar ou alienar bens imóveis da sociedade, "+(plural?"sem autorização dos demais sócios":"cabendo tal decisão exclusivamente "+gT("ao único sócio","à única sócia"))+".");
     cl2((plA?"Os administradores declaram":gsex(admins[0]||tit,"O administrador declara","A administradora declara"))+", sob as penas da lei, que não "+(plA?"estão impedidos":"está "+gsex(admins[0]||tit,"impedido","impedida"))+" de exercer a administração da sociedade, por lei especial, ou em virtude de condenação criminal, ou por se encontrar sob os efeitos dela, a pena que vede, ainda que temporariamente, o acesso a cargos públicos; ou por crime falimentar, de prevaricação, peita ou suborno, concussão, peculato, ou contra a economia popular, contra o sistema financeiro nacional, contra normas de defesa da concorrência, contra as relações de consumo, fé pública, ou a propriedade.");
     cl2((plural?"Os sócios podem, de comum acordo, fixar":gT("O sócio pode fixar","A sócia pode fixar"))+" uma retirada mensal, a título de “pró-labore”, observadas as disposições regulamentares pertinentes.");
-    cl2("Ao término de cada exercício social, em 31 de dezembro, o administrador presta contas justificadas de sua administração, procedendo à elaboração do inventário, do balanço patrimonial e do balanço de resultado econômico, cabendo "+(plural?"aos sócios, na proporção de suas quotas,":gT("ao sócio","à sócia"))+" os lucros ou perdas apurados, podendo, a critério "+(plural?"dos sócios":"d"+gT("o sócio","a sócia"))+", ficarem em reserva na sociedade.");
-    cl2("Os prejuízos que porventura se verificam são mantidos em conta especial para serem amortizados nos exercícios futuros, e não o sendo são suportados "+(plural?"pelos sócios proporcionalmente ao capital de cada um":gT("pelo único sócio","pela única sócia"))+".");
+    cl2("Ao término de cada exercício social, em 31 de dezembro, "+(plA?"os administradores prestam":gsex(admins[0]||tit,"o administrador presta","a administradora presta"))+" contas justificadas de sua administração, procedendo à elaboração do inventário, do balanço patrimonial e do balanço de resultado econômico, cabendo "+(plural?"aos sócios, na proporção de suas quotas,":gT("ao sócio","à sócia"))+" os lucros ou perdas apurados, podendo, a critério "+(plural?"dos sócios":"d"+gT("o sócio","a sócia"))+", ficarem em reserva na sociedade.");
+    cl2("Os prejuízos que porventura se verificarem são mantidos em conta especial para serem amortizados nos exercícios futuros, e não o sendo são suportados "+(plural?"pelos sócios proporcionalmente ao capital de cada um":gT("pelo único sócio","pela única sócia"))+".");
     cl2("Nos quatro meses seguintes ao término do exercício social, "+(plural?"os sócios deliberam sobre as contas e designam administradores":gT("o sócio delibera sobre as contas e designa administrador","a sócia delibera sobre as contas e designa administrador"))+" quando for o caso.");
     cl2("Em caso de aumento de capital, "+(plural?"os sócios o subscrevem em igualdade de condições e na proporção exata das quotas que possuem, salvo se renunciarem":gT("o sócio o subscreve","a sócia o subscreve")+" em igualdade de condições e na proporção exata das quotas que possui, salvo se renunciar")+" ao direito de subscrição.");
-    cl2("O sócio que deseja se retirar da sociedade dá a esta "+(plural?"e aos demais sócios ":"")+"o conhecimento de sua decisão, por escrito, com 30 (trinta) dias de antecedência.");
-    ch.push(P([T("Cláusula "+(++c2)+"ª – ",{bold:true}),...R("Falecendo ou interditado qualquer sócio, a sociedade continua suas atividades com os herdeiros, sucessores e o incapaz. Não sendo possível ou inexistindo interesse destes ou "+(plural?"dos sócios remanescentes":"do sócio remanescente")+", o valor de seus haveres é apurado e liquidado com base na situação patrimonial da sociedade, à data da resolução, verificada em balanço especialmente levantado.")],JUST,SP15));
+    cl2("O sócio que desejar retirar-se da sociedade dá a esta "+(plural?"e aos demais sócios ":"")+"o conhecimento de sua decisão, por escrito, com 30 (trinta) dias de antecedência.");
+    ch.push(P([T("Cláusula "+(++c2)+"ª – ",{bold:true}),...R("Em caso de falecimento ou interdição de qualquer sócio, a sociedade continua suas atividades com os herdeiros, sucessores e o incapaz. Não sendo possível ou inexistindo interesse destes"+(plural?" ou dos sócios remanescentes":"")+", o valor de seus haveres é apurado e liquidado com base na situação patrimonial da sociedade, à data da resolução, verificada em balanço especialmente levantado.")],JUST,SP15));
     ch.push(P([T("Parágrafo único - ",{bold:true}),T("O mesmo procedimento é adotado em outros casos em que a sociedade se resolva em relação a seu sócio.")],JUST,SP15));
     /* DO ENQUADRAMENTO (ME/EPP). O manual da Junta (item 5.2) exige que o enquadramento conste de
        CLÁUSULA ESPECÍFICA no contrato social ou de instrumento próprio; como a transformação já gera
@@ -2216,6 +2232,7 @@ window.TINA=(function(){
     ch.push(new Paragraph({alignment:CEN,spacing:SP10_0,style:"QuebraPagina",pageBreakBefore:true,children:[T("INSTRUMENTO DE INSCRIÇÃO DE EMPRESÁRIO INDIVIDUAL",{bold:true})]}));
     ch.push(tituloDoc("POR TRANSFORMAÇÃO DE SOCIEDADE LIMITADA"));
     ch.push(tituloDoc(nomeUP));
+    if(d.cnpj) ch.push(tituloDoc("CNPJ: "+d.cnpj));   // consta do cabeçalho no modelo da Junta
     ch.push(space());
     ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")+", resolve constituir-se como Empresário Individual, mediante as seguintes cláusulas:"),JUST,SP10));
     const ord2=["Primeira","Segunda","Terceira","Quarta","Quinta","Sexta","Sétima"]; let o2=0;

@@ -1060,7 +1060,7 @@
       reg("Preâmbulo da transformação usa o endereço ATUAL, não o novo",
         /Rua Antiga/.test(pre) && !/Avenida Nova/.test(pre), pre.slice(-160).replace(/\s+/g," "));
       reg("O endereço NOVO aparece na cláusula que o altera", /endereço e sede da empresa serão:[^.]*Avenida Nova/i.test(tS));
-      reg("E também no contrato consolidado", /sede e foro na[^.]*Avenida Nova/i.test(tS));
+      reg("E também no contrato consolidado", /A sociedade tem sede na[^.]*Avenida Nova/i.test(tS));
       var p2=tS.split(/CONTRATO SOCIAL\s*POR TRANSFORMA/i)[1]||"";
       reg("O preâmbulo do consolidado também qualifica pelo endereço atual",
         /Rua Antiga/.test(p2.slice(0,900)), p2.slice(0,300).replace(/\s+/g," "));
@@ -1164,7 +1164,7 @@
       var ck=$("alt_sede"); if(ck){ ck.checked=true; ck.dispatchEvent(new W.Event("change",{bubbles:true})); }
       await W.TINA.gerarPreview(); await espera(1000);
       var t2=texto();
-      var pre=t2.slice(Math.max(0,t2.search(/com sede à/i)), t2.search(/com sede à/i)+70);
+      var pre=t2.slice(Math.max(0,t2.search(/com sede na/i)), t2.search(/com sede na/i)+70);
       reg("Preâmbulo cita o endereço ANTERIOR", /Rua Antiga/.test(pre) && !/Rua NOVA/.test(pre), pre.replace(/\n+/g," "));
       reg("Cláusula de alteração cita o endereço NOVO", /transferir a sede[\s\S]{0,80}Rua NOVA/i.test(t2));
       reg("Consolidado cita o endereço NOVO", /DA SEDE[\s\S]{0,90}Rua NOVA/.test(t2));
