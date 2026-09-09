@@ -1071,6 +1071,34 @@
         (fS||[]).some(function(x){ return /Endereço ANTERIOR/i.test(x); }), (fS||[]).join(" | ").slice(0,90));
     }catch(e){ reg("Bateria de transformação",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2z. Data e assinatura inteira na mesma página ---------- */
+    grupo("Data e assinatura");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("const"); await espera(220);
+      $("btnExemplo").click(); await espera(360);
+      val("atoData","09/09/2026");
+      await W.TINA.gerarPreview(); await espera(1300);
+      var td=texto();
+      reg("Dia de um algarismo sai com zero à esquerda",
+        /,\s0\d de [a-zç]+ de \d{4}/.test(td) && !/,\s\d de [a-zç]+ de \d{4}/.test(td),
+        (td.match(/[^,]{0,14}, \d{1,2} de [a-zç]+ de \d{4}/)||[""])[0]);
+      // a linha ______, o nome e o papel formam um bloco: partido entre páginas o ato fica confuso
+      var dd=W.TINA._ux.domToPdfmake(), blocos=dd.filter(function(x){ return x.stack; });
+      reg("Cada assinatura vira um bloco que o PDF não quebra",
+        blocos.length===2 && blocos.every(function(b){ return b.unbreakable===true; }), blocos.length+" bloco(s)");
+      reg("O bloco leva a linha, o nome e o papel juntos",
+        blocos[0] && blocos[0].stack.length===3
+        && /^_+$/.test(blocos[0].stack[0].text.map(function(f){return f.text;}).join("").trim()),
+        blocos[0]?blocos[0].stack.map(function(x){return x.text.map(function(f){return f.text;}).join("").slice(0,22);}).join(" | "):"");
+      var bl=(await W.TINA._pdf.buildBlob()).blob;
+      var zip=await W.JSZip.loadAsync(bl), xml=await zip.file("word/document.xml").async("string");
+      reg("No .docx a assinatura usa keepNext (o Word também não separa)",
+        (xml.match(/<w:keepNext\/>/g)||[]).length>=2, (xml.match(/<w:keepNext\/>/g)||[]).length+" marcações");
+      var pb=await W.TINA.gerarPdfBlob();
+      reg("E o PDF continua sendo gerado", pb && pb.size>2000, (pb?pb.size:0)+" bytes");
+    }catch(e){ reg("Bateria de data e assinatura",false,String(e&&e.message||e).slice(0,130)); }
+
     /* ---------- 6b3a. Tempo verbal do consolidado — REGRA DA JUNTA ----------
        No consolidado, a cláusula ALTERADA neste ato vai no FUTURO e as demais no presente.
        Consolidado inteiro no presente é recusado pela Junta. Já uniformizei no presente uma vez,

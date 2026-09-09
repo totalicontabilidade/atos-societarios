@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.23" />
+<meta name="versao" content="1.24" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -1057,7 +1057,9 @@ window.TINA=(function(){
   const numBR=(n)=>(Number(n)||0).toLocaleString("pt-BR");
   const pct=(v)=>(Number(v)||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+"%";
   const MESES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
-  function dataExtenso(dmy){ const m=(dmy||"").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(!m)return dmy||"[DATA]"; return parseInt(m[1],10)+" de "+(MESES[parseInt(m[2],10)-1]||"?")+" de "+m[3]; }
+  // dia com dois dígitos: os atos da Junta saem "09 de setembro", não "9 de setembro" — e o dia
+  // solto ainda facilita a adulteração do documento depois de assinado
+  function dataExtenso(dmy){ const m=(dmy||"").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(!m)return dmy||"[DATA]"; return String(parseInt(m[1],10)).padStart(2,"0")+" de "+(MESES[parseInt(m[2],10)-1]||"?")+" de "+m[3]; }
 
   /* extenso */
   const U=["zero","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez","onze","doze","treze","quatorze","quinze","dezesseis","dezessete","dezoito","dezenove"];
@@ -1573,7 +1575,9 @@ window.TINA=(function(){
     const sedeCabL=mudouSedeL?d.sedeAnterior.trim():endLinha(d.sede);
     const BOLDS=[razaoUP+" LTDA",razaoUP,razAntUP+" LTDA",razAntUP,fantUP,...d.socios.map(s=>(s.nome||"").toUpperCase())].filter(Boolean);
     const R=(t)=>makeRuns(t,BOLDS,TextRun);
-    const P=(ch,al,sp)=>new Paragraph({alignment:al||JUST,spacing:sp||SP15,children:ch});
+    const P=(ch,al,sp,junto)=>{const o={alignment:al||JUST,spacing:sp||SP15,children:ch};
+      if(junto)o.keepNext=true;   // não deixa a página quebrar entre este parágrafo e o próximo
+      return new Paragraph(o);};
     const T=(t,o)=>new TextRun(Object.assign({text:t},o||{}));
     const tituloDoc=(t)=>P([T(t,{bold:true})],CEN,SP10_0);
     const heading=(rom,tema)=>P([T("CLÁUSULA "+rom+" - "+tema,{bold:true})],LEFT,SP10);
@@ -1879,13 +1883,13 @@ window.TINA=(function(){
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
     // Assinaturas — linha (1,5) para não colar no nome; nome (1,0) negrito; papel (1,0)
     d.socios.forEach(s=>{
-      ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
+      ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
       // quem sai assina o ato como retirante — o papel na assinatura precisa dizer isso
       if(s.tipoPessoa==="PJ"){ // PJ assina pelo representante legal
-        ch.push(P([T((s.nome||"[RAZÃO]").toUpperCase(),{bold:true})],CEN,SP10_0));
+        ch.push(P([T((s.nome||"[RAZÃO]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
         ch.push(P([T((s.retirante?"Sócia retirante":(s.administrador?"Sócia/Administradora":"Sócia"))+" — representada por "+((s.pjRep||"[REPRESENTANTE]").toUpperCase())+" ("+(s.pjCargo||"administrador")+")")],CEN,{after:220,line:240,lineRule:AUTO}));
       } else {
-        ch.push(P([T((s.nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0));
+        ch.push(P([T((s.nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
         ch.push(P([T(s.retirante ? gsex(s,"Sócio retirante","Sócia retirante") : (s.administrador ? gsex(s,"Sócio/Administrador","Sócia/Administradora") : gsex(s,"Sócio","Sócia")))],CEN,{after:220,line:240,lineRule:AUTO}));
       }
     });
@@ -1902,9 +1906,9 @@ window.TINA=(function(){
   /* Bloco do visto, na posição do modelo da Junta: logo abaixo das assinaturas, com a referência ao
      art. 36 do Decreto nº 1.800/1996 e a inscrição na Seccional da OAB. */
   function vistoAdvogado(ch,d,P,T,CEN,SP0,SPfim){
-    ch.push(P([T("(art. 36, Decreto nº 1.800, de 1996)")],CEN,SP0));
-    ch.push(P([T("_".repeat(46))],CEN,SP0));
-    ch.push(P([T("Visto: "+(d.advNome||"[NOME DO ADVOGADO]").toUpperCase(),{bold:true})],CEN,SP0));
+    ch.push(P([T("(art. 36, Decreto nº 1.800, de 1996)")],CEN,SP0,true));
+    ch.push(P([T("_".repeat(46))],CEN,SP0,true));
+    ch.push(P([T("Visto: "+(d.advNome||"[NOME DO ADVOGADO]").toUpperCase(),{bold:true})],CEN,SP0,true));
     ch.push(P([T("OAB/"+(d.advOabUf||"[UF]")+" nº "+(d.advOab||"[Nº DE INSCRIÇÃO]"))],CEN,SPfim||SP0));
   }
   function tabelaQuotas(d,X){
@@ -1932,7 +1936,9 @@ window.TINA=(function(){
     const nomeUP=(d.razao||"[NOME EMPRESARIAL]").toUpperCase(), fantUP=(d.fantasia||"").toUpperCase(), razAntUP=(d.razaoAnterior||"[RAZÃO ANTERIOR]").toUpperCase();
     const BOLDS=[nomeUP,fantUP,razAntUP,(tit.nome||"").toUpperCase()].filter(Boolean);
     const R=(x)=>makeRuns(x,BOLDS,TextRun);
-    const P=(ch,al,sp)=>new Paragraph({alignment:al||JUST,spacing:sp||SP15,children:ch});
+    const P=(ch,al,sp,junto)=>{const o={alignment:al||JUST,spacing:sp||SP15,children:ch};
+      if(junto)o.keepNext=true;   // não deixa a página quebrar entre este parágrafo e o próximo
+      return new Paragraph(o);};
     const T=(x,o)=>new TextRun(Object.assign({text:x},o||{}));
     const tituloDoc=(x)=>P([T(x,{bold:true})],CEN,SP10_0);
     const heading=(rom,tema)=>P([T("CLÁUSULA "+rom+" - "+tema,{bold:true})],LEFT,SP10);
@@ -2033,8 +2039,8 @@ window.TINA=(function(){
       : "E, por estar assim "+g("justo","justa")+" e "+g("firmado","firmada")+", "+g("o titular assina","a titular assina")+" o presente instrumento, em via única."));
     ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+" – "+(d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
-    ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
-    ch.push(P([T((tit.nome||"[TITULAR]").toUpperCase(),{bold:true})],CEN,SP10_0));
+    ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
+    ch.push(P([T((tit.nome||"[TITULAR]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
     ch.push(P([T(g("Empresário Titular","Empresária Titular"))],CEN,{after:220,line:240,lineRule:AUTO}));
     const doc=new Document({creator:_autor(),title:(isAlt?"Alteração EI — ":isTransf?"Transformação → EI — ":"Inscrição EI — ")+(d.razao||""),
       styles:{default:{document:{run:{font:"Times New Roman",size:24},paragraph:{spacing:SP15,alignment:JUST}}}},
@@ -2062,7 +2068,9 @@ window.TINA=(function(){
     const socios=d.socios, tit=socios[0]||{};
     const BOLDS=[razaoUP+" LTDA",razaoUP,razAntUP,fantUP,...socios.map(s=>(s.nome||"").toUpperCase())].filter(Boolean);
     const R=(t)=>makeRuns(t,BOLDS,TextRun);
-    const P=(ch,al,sp)=>new Paragraph({alignment:al||JUST,spacing:sp||SP15,children:ch});
+    const P=(ch,al,sp,junto)=>{const o={alignment:al||JUST,spacing:sp||SP15,children:ch};
+      if(junto)o.keepNext=true;   // não deixa a página quebrar entre este parágrafo e o próximo
+      return new Paragraph(o);};
     const T=(t,o)=>new TextRun(Object.assign({text:t},o||{}));
     const tituloDoc=(t)=>P([T(t,{bold:true})],CEN,SP10_0);
     const corpo=(t)=>P(R(t),JUST,SP15);
@@ -2107,8 +2115,8 @@ window.TINA=(function(){
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
-    ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
-    ch.push(P([T((tit.nome||"[TITULAR]").toUpperCase(),{bold:true})],CEN,SP10_0));
+    ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
+    ch.push(P([T((tit.nome||"[TITULAR]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
     ch.push(P([T("Titular")],CEN,{after:220,line:240,lineRule:AUTO}));
 
     /* ---------- QUEBRA DE PÁGINA + PARTE 2: contrato social consolidado (SEM NIRE) ---------- */
@@ -2171,8 +2179,8 @@ window.TINA=(function(){
     ch.push(corpo("E, por estarem justos e contratados, "+(plural?"assinam":"assina")+" o presente instrumento particular em via única."));
     ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
-    socios.forEach(s=>{ ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
-      ch.push(P([T((s.nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0));
+    socios.forEach(s=>{ ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
+      ch.push(P([T((s.nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
       ch.push(P([T(s.administrador?gsex(s,"Sócio/Administrador","Sócia/Administradora"):gsex(s,"Sócio","Sócia"))],CEN,{after:220,line:240,lineRule:AUTO})); });
     if(d.advIncluir) vistoAdvogado(ch,d,P,T,CEN,SP10_0,{after:220,line:240,lineRule:AUTO});   // a transformação gera contrato social → o visto cabe aqui
 
@@ -2194,7 +2202,9 @@ window.TINA=(function(){
     const tit=d.socios[0]||{};
     const BOLDS=[nomeUP,razAntUP+" LTDA",razAntUP,(tit.nome||"").toUpperCase(),retira.toUpperCase()].filter(Boolean);
     const R=(t)=>makeRuns(t,BOLDS,TextRun);
-    const P=(ch,al,sp)=>new Paragraph({alignment:al||JUST,spacing:sp||SP15,children:ch});
+    const P=(ch,al,sp,junto)=>{const o={alignment:al||JUST,spacing:sp||SP15,children:ch};
+      if(junto)o.keepNext=true;   // não deixa a página quebrar entre este parágrafo e o próximo
+      return new Paragraph(o);};
     const T=(t,o)=>new TextRun(Object.assign({text:t},o||{}));
     const tituloDoc=(t)=>P([T(t,{bold:true})],CEN,SP10_0);
     const corpo=(t)=>P(R(t),JUST,SP15);
@@ -2203,7 +2213,7 @@ window.TINA=(function(){
     const cap=d.capital, cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"");
     // preâmbulo com o endereço REGISTRADO HOJE (o novo só na cláusula e no instrumento consolidado)
     const sedeCabEI=(d.changed&&d.changed.has("sede")&&(d.sedeAnterior||"").trim())?d.sedeAnterior.trim():endLinha(d.sede);
-    const sign=(nome,papel)=>{ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));ch.push(P([T((nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0));ch.push(P([T(papel)],CEN,{after:220,line:240,lineRule:AUTO}));};
+    const sign=(nome,papel)=>{ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));ch.push(P([T((nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0,true));ch.push(P([T(papel)],CEN,{after:220,line:240,lineRule:AUTO}));};
     const ch=[];
     /* ---------- PARTE 1: alteração de contrato / transformação em empresário (com NIRE) ---------- */
     ch.push(tituloDoc("ALTERAÇÃO DE CONTRATO SOCIAL — TRANSFORMAÇÃO EM EMPRESÁRIO INDIVIDUAL"));
@@ -2265,7 +2275,9 @@ window.TINA=(function(){
     const socios=d.socios, tit=socios[0]||{};
     const BOLDS=[razaoUP+" LTDA",razaoUP,...socios.map(s=>(s.nome||"").toUpperCase())].filter(Boolean);
     const R=(t)=>makeRuns(t,BOLDS,TextRun);
-    const P=(ch,al,sp)=>new Paragraph({alignment:al||JUST,spacing:sp||SP15,children:ch});
+    const P=(ch,al,sp,junto)=>{const o={alignment:al||JUST,spacing:sp||SP15,children:ch};
+      if(junto)o.keepNext=true;   // não deixa a página quebrar entre este parágrafo e o próximo
+      return new Paragraph(o);};
     const T=(t,o)=>new TextRun(Object.assign({text:t},o||{}));
     const tituloDoc=(t)=>P([T(t,{bold:true})],CEN,SP10_0);
     const corpo=(t)=>P(R(t),JUST,SP15);
@@ -2296,8 +2308,8 @@ window.TINA=(function(){
       ch.push(corpo("E, por estar assim ajustado, "+g("o empresário individual assina","a empresária individual assina")+" o presente Instrumento de Extinção, em via única, que será destinado ao registro e arquivamento na "+_junta()+"."));
       ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
       ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
-      ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
-      ch.push(P([T((tit.nome||"[TITULAR]").toUpperCase(),{bold:true})],CEN,SP10_0));
+      ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
+      ch.push(P([T((tit.nome||"[TITULAR]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
       ch.push(P([T(g("Empresário Individual","Empresária Individual"))],CEN,{after:220,line:240,lineRule:AUTO}));
     } else {
       /* ---------- DISTRATO DE SOCIEDADE LIMITADA ---------- */
@@ -2319,8 +2331,8 @@ window.TINA=(function(){
       ch.push(corpo("E, por estarem assim justos e acertados, "+(plural?"assinam":"assina")+" o presente Distrato Social, em via única, que será destinad"+(plural?"o":"o")+" ao registro e arquivamento na "+_junta()+"."));
       ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
       ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
-      socios.forEach(s=>{ ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));
-        ch.push(P([T((s.nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0));
+      socios.forEach(s=>{ ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
+        ch.push(P([T((s.nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
         ch.push(P([T(s.administrador?gsex(s,"Sócio Administrador","Sócia Administradora"):gsex(s,"Sócio","Sócia"))],CEN,{after:220,line:240,lineRule:AUTO})); });
     }
 
@@ -2540,12 +2552,37 @@ window.TINA=(function(){
     if(!out.length){ const t=p.textContent; if(t) out.push({t,b:false}); }
     for(let i=0;i<out.length-1;i++){ const m=out[i+1].t.match(/^[,.;:!?)\]]+/); if(m && out[i].t && !/\s$/.test(out[i].t)){ out[i].t+=m[0]; out[i+1].t=out[i+1].t.slice(m[0].length); } }   // move pontuação inicial p/ o fim do trecho anterior (ex.: negrito "LTDA" + ", inscrita" -> "LTDA," + " inscrita")
     return out.map(r=>({text:r.t,bold:r.b})); }
+  /* Um bloco de assinatura é a linha ______, o nome e o papel ("Titular", "Sócio/Administrador").
+     Partido entre duas páginas, o documento fica confuso e a Junta lê como assinatura solta. No
+     .docx isso é resolvido com keepNext; aqui o equivalente é empilhar os parágrafos num bloco
+     que o pdfmake não pode quebrar. */
+  const _soLinha = t => /^_{6,}$/.test(String(t||"").trim());
+  // um parágrafo da prévia vira um parágrafo do PDF, com o mesmo alinhamento e espaçamento
+  function _paraPdf(node,brk){ const runs=_runs(node); const st=node.style; const al=(st.textAlign||"left").replace("start","left");
+    const o={ text:_frag(runs), alignment:al, margin:[0,_pt(st.marginTop),0,_pt(st.marginBottom)], lineHeight:(parseFloat(st.lineHeight)||1.15) };
+    if(brk)o.pageBreak="before"; return o; }
   function _domToPdfmake(){ const secs=[...document.querySelectorAll("section.docxprev")]; const content=[];
     secs.forEach((sec,si)=>{ const root=sec.querySelector("article")||sec; let first=(si>0);   // page break entre seções do Word
-      [...root.children].forEach(node=>{ const brk=first||(node.style&&(node.style.pageBreakBefore==="always"||node.style.breakBefore==="page")); first=false;
-        if(node.tagName==="P"){ const runs=_runs(node); const st=node.style; const al=(st.textAlign||"left").replace("start","left");
-          const o={ text: _frag(runs), alignment:al, margin:[0,_pt(st.marginTop),0,_pt(st.marginBottom)], lineHeight:(parseFloat(st.lineHeight)||1.15) };   // espaçamento natural (sem forçar) — documento contínuo no padrão
-          if(brk)o.pageBreak="before"; content.push(o);
+      const filhos=[...root.children]; let pulaAte=-1;
+      filhos.forEach((node,idx)=>{ const brk=first||(node.style&&(node.style.pageBreakBefore==="always"||node.style.breakBefore==="page")); first=false;
+        if(idx<=pulaAte) return;                                   // já entrou num bloco de assinatura
+        // linha de assinatura: junta com o que vem depois (nome e papel) num bloco inquebrável
+        if(node.tagName==="P" && _soLinha(node.textContent)){
+          const pilha=[]; let j=idx;
+          while(j<filhos.length && pilha.length<4){
+            const n2=filhos[j];
+            if(n2.tagName!=="P") break;
+            if(j>idx && _soLinha(n2.textContent)) break;            // começou a próxima assinatura
+            const t2=(n2.textContent||"").trim();
+            if(j>idx && (t2.length>140 || (n2.style.textAlign||"")!=="center")) break;
+            pilha.push(_paraPdf(n2,false)); j++;
+          }
+          pulaAte=j-1;
+          const bloco={ stack:pilha, unbreakable:true };
+          if(brk)bloco.pageBreak="before";
+          content.push(bloco); return;
+        }
+        if(node.tagName==="P"){ const o=_paraPdf(node,brk); content.push(o);
         } else if(node.tagName==="TABLE"){ const rows=[...node.querySelectorAll("tr")]; if(!rows.length)return;
           const widths=[...rows[0].children].map((c,i)=> i===0?"*":(_pt(c.style.width)||60));
           const body=rows.map(tr=>[...tr.children].map(td=>{ const pp=td.querySelector("p"); const rr=pp?_runs(pp):[{text:td.textContent,bold:false}]; const al=((pp&&pp.style.textAlign)||"left").replace("start","left");
@@ -5262,7 +5299,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
