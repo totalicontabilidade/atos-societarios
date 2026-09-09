@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.20" />
+<meta name="versao" content="1.21" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -463,7 +463,9 @@
         <div><label for="s_mun">Município</label><input type="text" id="s_mun"></div>
         <div><label for="s_uf">UF</label><select id="s_uf"></select></div>
       </div>
-      <div class="row altonly" style="display:none">
+      <!-- vale na alteração E na transformação: nas duas o preâmbulo qualifica a empresa pelo endereço
+           REGISTRADO HOJE, e o novo só aparece na cláusula que o altera e no consolidado -->
+      <div class="row alt-transf" style="display:none">
         <label for="sedeAnterior">Endereço ANTERIOR <span class="hint">— o que está registrado hoje; aparece no preâmbulo. Preenchido sozinho pelo comando de endereço.</span></label>
         <input type="text" id="sedeAnterior" placeholder="Rua Antiga, nº 10, Centro, Aracaju - SE, CEP: 49000-000">
       </div>
@@ -2063,8 +2065,13 @@ window.TINA=(function(){
     const acervo=d.acervo>0?d.acervo:d.capital, newCap=d.capital, aumentou=(newCap-acervo)>0.005;
     const cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"");
     const mudou=(k)=>!!(d.changed&&d.changed.has(k));
+    /* O preâmbulo qualifica a empresa como ela está HOJE na Junta — inclusive quando o endereço é
+       uma das coisas que este ato muda. Colocar ali o endereço novo descreve uma empresa que ainda
+       não existe, e a Junta lê o preâmbulo como identificação do registro em vigor. O endereço novo
+       aparece só na cláusula que o altera e no contrato consolidado. */
+    const sedeCab=(mudou("sede")&&(d.sedeAnterior||"").trim())?d.sedeAnterior.trim():endLinha(d.sede);
     const qualifTit=(comNire)=> (tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")
-      +", com sede na "+endLinha(d.sede)+", com Instrumento de Inscrição de Empresário Individual arquivado na "+_junta()
+      +", com sede na "+sedeCab+", com Instrumento de Inscrição de Empresário Individual arquivado na "+_junta()
       +((comNire&&d.nire)?", NIRE nº "+d.nire:"")+", inscrit"+gT("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]");
 
     const ch=[];
@@ -2180,13 +2187,15 @@ window.TINA=(function(){
     const g=(m,f)=>gsex(tit,m,f);
     const space=()=>new Paragraph({spacing:{after:120,line:240,lineRule:AUTO}});
     const cap=d.capital, cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"");
+    // preâmbulo com o endereço REGISTRADO HOJE (o novo só na cláusula e no instrumento consolidado)
+    const sedeCabEI=(d.changed&&d.changed.has("sede")&&(d.sedeAnterior||"").trim())?d.sedeAnterior.trim():endLinha(d.sede);
     const sign=(nome,papel)=>{ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0));ch.push(P([T((nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0));ch.push(P([T(papel)],CEN,{after:220,line:240,lineRule:AUTO}));};
     const ch=[];
     /* ---------- PARTE 1: alteração de contrato / transformação em empresário (com NIRE) ---------- */
     ch.push(tituloDoc("ALTERAÇÃO DE CONTRATO SOCIAL — TRANSFORMAÇÃO EM EMPRESÁRIO INDIVIDUAL"));
     ch.push(tituloDoc(razAntUP+" LTDA"));
     ch.push(space());
-    ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")+", "+(retira?g("sócio remanescente","sócia remanescente"):g("único sócio","única sócia"))+" da sociedade empresária limitada "+razAntUP+" LTDA, com sede na "+endLinha(d.sede)+", com contrato social arquivado na "+_junta()+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve:"),JUST,SP10));
+    ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")+", "+(retira?g("sócio remanescente","sócia remanescente"):g("único sócio","única sócia"))+" da sociedade empresária limitada "+razAntUP+" LTDA, com sede na "+sedeCabEI+", com contrato social arquivado na "+_junta()+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve:"),JUST,SP10));
     const retiraF=(d.socioRetiraSexo==="F");
     if(retira) ch.push(P([T("Item de alteração: ",{bold:true}),...R("Retira-se da sociedade "+(retiraF?"a sócia ":"o sócio ")+retira.toUpperCase()+", que cede e transfere a totalidade de suas quotas para "+g("o sócio remanescente","a sócia remanescente")+" "+(tit.nome||"[TITULAR]").toUpperCase()+", dando-se mutuamente plena, geral e irrevogável quitação.")],JUST,SP15));
     const ord1=["Primeira","Segunda","Terceira"]; let o1=0;
@@ -2324,6 +2333,7 @@ window.TINA=(function(){
     document.querySelectorAll(".transfsub .t[data-mode]").forEach(t=>t.classList.toggle("active",t.dataset.mode===m));
     document.querySelectorAll(".distsub .t[data-mode]").forEach(t=>t.classList.toggle("active",t.dataset.mode===m));
     document.querySelectorAll(".altonly").forEach(el=>el.style.display=isAlt?"":"none");
+    document.querySelectorAll(".alt-transf").forEach(el=>el.style.display=(isAlt||isTransf)?"":"none");
     document.querySelectorAll(".ltdaonly").forEach(el=>el.style.display=formEI?"none":"");
     document.querySelectorAll(".eionly").forEach(el=>el.style.display=isEI?"":"none");
     document.querySelectorAll(".transfonly").forEach(el=>el.style.display=isTransf?"":"none");
@@ -2439,6 +2449,9 @@ window.TINA=(function(){
       if(!d.razaoAnterior) f.push("Nome empresarial anterior (origem)");
       if(!d.cnpj) f.push("CNPJ de origem (mantido na transformação)");
       if(!d.dataInicioOrig) f.push("Início original das atividades");
+      // mesma exigência da alteração: sem o endereço de hoje, o preâmbulo qualificaria a empresa
+      // pelo endereço que ela ainda não tem
+      if(d.changed&&d.changed.has("sede")&&!(d.sedeAnterior||"").trim()) f.push("Endereço ANTERIOR (atual) — vai no preâmbulo; o novo fica só na cláusula e no consolidado");
     }
     if(d.admNaoSocio){ if(!(d.admnsNome||"").trim()) f.push("Administrador não sócio: nome");
       if(!(d.admnsQualif||"").trim()) f.push("Administrador não sócio: qualificação (exigida pela IN)"); }
@@ -4378,10 +4391,10 @@ window.TINA=(function(){
           applied.push("retirada de sócio: "+nomeCard+" (fica no preâmbulo e assina; sai do consolidado)");
         } else { card.remove(); applied.push("excluir sócio: "+nomeCard); }
         chk("alt_quadro"); recalc(); continue;}
-      if(m=s.match(/(?:nome\s+)?fantasia\s+(?:para|:)\s*(.+)/i)){$("fantasia").value=m[1].trim();chk("alt_fantasia");applied.push("fantasia → "+m[1].trim());continue;}
-      if(m=s.match(/(?:raz[aã]o(?:\s+social)?|nome\s+empresarial|firma)\s+(?:para|:)\s*(.+)/i)){const atual=($("razao").value||"").trim();if(atual&&$("razaoAnterior")&&!($("razaoAnterior").value||"").trim())$("razaoAnterior").value=atual;/* preserva o nome ATUAL como "anterior" p/ o título/preâmbulo */ $("razao").value=m[1].trim().replace(/\s+ltda\.?$/i,"");chk("alt_nome");applied.push("razão social → "+$("razao").value);continue;}
-      if(m=s.match(/capital(?:\s+social)?\s+(?:para|:)\s*(?:r\$\s*)?([\d.,]+)/i)){const atualCap=Number($("capital").value)||0;if(atualCap>0&&$("capitalAnterior")&&!(Number($("capitalAnterior").value)||0))$("capitalAnterior").value=atualCap;/* preserva o capital ATUAL como "anterior" p/ o "que era de …" */ $("capital").value=brNum(m[1]);chk("alt_capital");applied.push("capital → "+reais(brNum(m[1])));continue;}
-      if(m=s.match(/(?:porte|enquadr\w*)\s+(?:para|como|:)\s*(.+)/i)){const v=m[1].toLowerCase();const e=(v.includes("epp")||v.includes("pequeno"))?"EPP":((v.includes("micro")||/\bme\b/.test(v))?"ME":"DEMAIS");$("enquadramento").value=e;chk("alt_enquadramento");applied.push("porte → "+e);continue;}
+      if(m=s.match(/(?:nome\s+)?fantasia\s+(?:para|:)\s*:?\s*(.+)/i)){$("fantasia").value=m[1].trim();chk("alt_fantasia");applied.push("fantasia → "+m[1].trim());continue;}
+      if(m=s.match(/(?:raz[aã]o(?:\s+social)?|nome\s+empresarial|firma)\s+(?:para|:)\s*:?\s*(.+)/i)){const atual=($("razao").value||"").trim();if(atual&&$("razaoAnterior")&&!($("razaoAnterior").value||"").trim())$("razaoAnterior").value=atual;/* preserva o nome ATUAL como "anterior" p/ o título/preâmbulo */ $("razao").value=m[1].trim().replace(/\s+ltda\.?$/i,"");chk("alt_nome");applied.push("razão social → "+$("razao").value);continue;}
+      if(m=s.match(/capital(?:\s+social)?\s+(?:para|:)\s*:?\s*(?:r\$\s*)?([\d.,]+)/i)){const atualCap=Number($("capital").value)||0;if(atualCap>0&&$("capitalAnterior")&&!(Number($("capitalAnterior").value)||0))$("capitalAnterior").value=atualCap;/* preserva o capital ATUAL como "anterior" p/ o "que era de …" */ $("capital").value=brNum(m[1]);chk("alt_capital");applied.push("capital → "+reais(brNum(m[1])));continue;}
+      if(m=s.match(/(?:porte|enquadr\w*)\s+(?:para|como|:)\s*:?\s*(.+)/i)){const v=m[1].toLowerCase();const e=(v.includes("epp")||v.includes("pequeno"))?"EPP":((v.includes("micro")||/\bme\b/.test(v))?"ME":"DEMAIS");$("enquadramento").value=e;chk("alt_enquadramento");applied.push("porte → "+e);continue;}
       // limpar TODAS as atividades (sem um alvo específico depois) → zera o objeto
       if(/^(?:exclu\w+|remov\w+|retir\w+|limp\w+|apag\w+|zer\w+)\s+(?:tod[oa]s?\s+)?(?:[oa]s?\s+)?(?:atividades?|objeto(?:\s+social)?|cnaes?)\s*$/i.test(s)){$("objeto").value="";chk("alt_objeto");applied.push("excluir todas as atividades");continue;}
       if(m=s.match(/(?:inclu\w+|adicion\w+|acrescent\w+)\s+(?:a |as |o |os |no )?(?:atividade|cnae|objeto)?s?\s*:?\s*(.+)/i)){const cur=$("objeto").value.trim();const nova=normalizarAtividades(m[1],manterCnaeAtivo());if(!nova){applied.push("atividade ignorada (vazia após o ajuste)");continue;}$("objeto").value=normalizarAtividades((cur?cur.replace(/[;.\s]*$/,"")+"; ":"")+nova,manterCnaeAtivo());chk("alt_objeto");applied.push("incluir atividade: "+nova);continue;}
@@ -4400,8 +4413,10 @@ window.TINA=(function(){
           applied.push("excluir atividade: "+m[1].trim()); }
         else applied.push("⚠ não achei a atividade para excluir: "+m[1].trim());
         continue;}
-      if(m=s.match(/objeto(?:\s+social)?\s+(?:para|:)\s*(.+)/i)){$("objeto").value=normalizarAtividades(m[1],manterCnaeAtivo());chk("alt_objeto");applied.push("objeto (novo)");continue;}
-      if(m=s.match(/(?:endereç\w+|sede)\s+(?:para|:)\s*(.+)/i)){
+      if(m=s.match(/objeto(?:\s+social)?\s+(?:para|:)\s*:?\s*(.+)/i)){$("objeto").value=normalizarAtividades(m[1],manterCnaeAtivo());chk("alt_objeto");applied.push("objeto (novo)");continue;}
+      // "para:" junto é a escrita natural ("endereço para: Rua X") — sem os dois-pontos no grupo,
+      // eles sobravam colados no logradouro e o documento saía com ": Avenida Central"
+      if(m=s.match(/(?:endereç\w+|sede)\s+(?:para|:)\s*:?\s*(.+)/i)){
         const e=parseEnderecoComando(m[1]); chk("alt_sede");
         // guarda o endereço ATUAL como "anterior" — é ele que vai no preâmbulo (mesmo padrão da razão social)
         if($("sedeAnterior") && !($("sedeAnterior").value||"").trim()){

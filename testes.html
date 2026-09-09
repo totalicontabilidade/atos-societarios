@@ -1048,7 +1048,48 @@
         /objeto[\s\S]{0,80}atividades econ[ôo]micas:/i.test(texto().split(/INSTRUMENTO DE INSCRI/i)[0]));
       reg("Quebra de página entre a alteração e o instrumento de inscrição (Ltda→EI)",
         D.querySelectorAll("section.docxprev").length>=2, D.querySelectorAll("section.docxprev").length+" seção(ões)");
+      /* O preâmbulo qualifica a empresa como ela está HOJE na Junta. Com o endereço novo ali, o ato
+         descreve uma empresa que ainda não existe — e foi assim que saiu um contrato real. */
+      modo("transf_ei_ltda"); await espera(220);
+      $("btnExemplo").click(); await espera(340);
+      val("sedeAnterior","Rua Antiga, nº 10, Bairro Velho, Aracaju - SE, CEP: 49000-111");
+      val("s_log","Avenida Nova"); val("s_num","250"); val("s_bairro","Centro"); val("s_mun","Itabaiana"); val("s_cep","49500-000");
+      if($("alt_sede")) $("alt_sede").checked=true;
+      await W.TINA.gerarPreview(); await espera(1200);
+      var tS=texto(), pre=tS.slice(0,tS.search(/Cláusula Primeira/i));
+      reg("Preâmbulo da transformação usa o endereço ATUAL, não o novo",
+        /Rua Antiga/.test(pre) && !/Avenida Nova/.test(pre), pre.slice(-160).replace(/\s+/g," "));
+      reg("O endereço NOVO aparece na cláusula que o altera", /endereço e sede da empresa serão:[^.]*Avenida Nova/i.test(tS));
+      reg("E também no contrato consolidado", /sede e foro na[^.]*Avenida Nova/i.test(tS));
+      var p2=tS.split(/CONTRATO SOCIAL\s*POR TRANSFORMA/i)[1]||"";
+      reg("O preâmbulo do consolidado também qualifica pelo endereço atual",
+        /Rua Antiga/.test(p2.slice(0,900)), p2.slice(0,300).replace(/\s+/g," "));
+      // sem o endereço anterior a validação tem de cobrar, como já cobrava na alteração
+      val("sedeAnterior","");
+      var fS=await W.TINA.validar();
+      reg("Sem o endereço anterior, a validação cobra na transformação",
+        (fS||[]).some(function(x){ return /Endereço ANTERIOR/i.test(x); }), (fS||[]).join(" | ").slice(0,90));
     }catch(e){ reg("Bateria de transformação",false,String(e&&e.message||e).slice(0,120)); }
+
+    /* ---------- 6b3b. "para:" escrito junto nos comandos ---------- */
+    grupo("Comandos com dois-pontos");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(220);
+      val("razao","EMPRESA ATUAL"); val("s_log","Rua Velha"); val("s_num","1"); val("s_bairro","Centro");
+      val("s_mun","Aracaju"); val("s_uf","SE"); val("s_cep","49000-000"); val("capital","10000");
+      W.TINA._cmd.parseComandos("razão social para: NOVA RAZAO; fantasia para: Loja Nova; capital para: R$ 50.000; porte para: EPP; endereço para: Avenida Central, nº 250, Centro, Itabaiana - SE, CEP: 49500-000; objeto para: Comércio varejista de teste");
+      await espera(300);
+      reg("“razão social para:” não deixa os dois-pontos no nome", ($("razao")||{}).value==="NOVA RAZAO", ($("razao")||{}).value);
+      reg("“fantasia para:” idem", ($("fantasia")||{}).value==="Loja Nova", ($("fantasia")||{}).value);
+      reg("“endereço para:” não deixa os dois-pontos no logradouro",
+        ($("s_log")||{}).value==="Avenida Central", ($("s_log")||{}).value);
+      reg("“capital para:” lê o valor", Number(($("capital")||{}).value)===50000, ($("capital")||{}).value);
+      reg("“porte para:” lê o enquadramento", ($("enquadramento")||{}).value==="EPP", ($("enquadramento")||{}).value);
+      reg("“objeto para:” não deixa os dois-pontos na primeira atividade",
+        /^Com[ée]rcio varejista de teste/.test(($("objeto")||{}).value||""), ($("objeto")||{}).value);
+      reg("O endereço ANTERIOR foi guardado sozinho", /Rua Velha/.test(($("sedeAnterior")||{}).value||""), ($("sedeAnterior")||{}).value);
+    }catch(e){ reg("Bateria de comandos com dois-pontos",false,String(e&&e.message||e).slice(0,130)); }
 
     // ---------- 6b4. Aviso do MEI: manda para a aba de transformação, sem bloquear ----------
     grupo("Aviso do MEI");
