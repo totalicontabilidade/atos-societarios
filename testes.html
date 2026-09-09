@@ -911,6 +911,81 @@
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de solicitações",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b4b. Anexos da solicitação e o papel do comercial ---------- */
+    grupo("Solicitações — anexos");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+      var nv={}, apagados=[];
+      W.Nuvem.podeGravar=function(){ return true; };
+      W.Nuvem.listar=function(){ return Promise.resolve({ok:true,itens:Object.keys(nv).map(function(k){return nv[k];})}); };
+      W.Nuvem.salvar=function(c,id,d){ nv[id]=Object.assign({},d,{id:id}); return Promise.resolve({ok:true,id:id}); };
+      W.Nuvem.excluir=function(c,id){ nv[id]={id:id,excluido:true}; return Promise.resolve({ok:true}); };
+      W.Nuvem.trilha=function(){ return Promise.resolve({ok:true}); };
+      W.Nuvem.enviarAnexo=function(col,rid,f,prog){ if(prog){prog(40);prog(100);}
+        return Promise.resolve({ok:true,anexo:{id:"A1",nome:f.name,tipo:f.type,tamanho:f.size,
+          caminho:col+"/"+rid+"/A1-"+f.name,url:"blob:fake/"+f.name,em:new Date().toISOString()}}); };
+      W.Nuvem.excluirAnexo=function(c){ apagados.push(c); return Promise.resolve({ok:true}); };
+
+      reg("O rótulo do campo é “Descrição”, não “Observações”",
+        /Descri[çc][ãa]o/.test((D.querySelector('label[for="sObs"]')||{}).textContent||"")
+        && !/Observa[çc]/.test((D.querySelector('label[for="sObs"]')||{}).textContent||""));
+
+      $("btnSolic").click(); await espera(320);
+      $("btnSolicNova").click(); await espera(220);
+      val("sEmpresa","EXEMPLO COMERCIO LTDA"); val("sObs","O cliente mandou o áudio explicando.");
+      await W.TINA._ux.anexarArquivos([new W.File(["a"],"recado.mp3",{type:"audio/mpeg"}),
+                                       new W.File(["b"],"comprovante.png",{type:"image/png"})]);
+      await espera(300);
+      reg("Aceita áudio e imagem no mesmo envio", $("sAnexos").children.length===2, $("sAnexos").children.length+" anexo(s)");
+      $("btnSolicSalvar").click(); await espera(450);
+      var s0=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
+      reg("O anexo fica guardado no registro", (s0.anexos||[]).length===2, JSON.stringify((s0.anexos||[]).map(function(a){return a.nome;})));
+      reg("O caminho do arquivo nasce dentro da pasta do registro",
+        (s0.anexos||[]).every(function(a){ return a.caminho.indexOf("solicitacoes/"+s0.id+"/")===0; }), (s0.anexos[0]||{}).caminho);
+      reg("O anexo sobe para a nuvem junto com a solicitação", ((nv[s0.id]||{}).anexos||[]).length===2);
+      reg("Quem vai cadastrar vê o anexo na própria lista",
+        /recado\.mp3/.test($("solicLista").innerHTML) && /🎧/.test($("solicLista").innerHTML));
+
+      // anexo tirado da lista tem de sair do Storage — arquivo órfão é dado de cliente esquecido
+      apagados.length=0;
+      W.TINA._ux.editarSolic(s0.id); await espera(250);
+      D.querySelector('#sAnexos [data-anexo-x="0"]').click(); await espera(160);
+      reg("Remover da lista ainda não apaga o arquivo (só ao confirmar)", apagados.length===0);
+      $("btnSolicSalvar").click(); await espera(420);
+      reg("Ao salvar, o anexo removido é apagado do armazenamento",
+        apagados.length===1 && /recado\.mp3/.test(apagados[0]), apagados.join(","));
+
+      // anexo enviado e depois cancelado não pode ficar órfão
+      apagados.length=0;
+      $("btnSolicNova").click(); await espera(220);
+      await W.TINA._ux.anexarArquivos([new W.File(["x"],"rascunho.pdf",{type:"application/pdf"})]);
+      await espera(250);
+      $("btnSolicCancelar").click(); await espera(250);
+      reg("Cancelar apaga o anexo que tinha acabado de subir",
+        apagados.some(function(c){ return /rascunho\.pdf/.test(c); }), apagados.join(","));
+
+      // excluir a solicitação leva os anexos junto
+      apagados.length=0;
+      var conf=W.confirm; W.confirm=function(){ return true; };
+      D.querySelector("[data-sol-excluir]").click(); await espera(350); W.confirm=conf;
+      reg("Excluir a solicitação apaga os anexos dela",
+        apagados.some(function(c){ return /comprovante\.png/.test(c); }), apagados.join(","));
+
+      // papel do comercial: a tela de solicitações passa a ser o sistema inteiro
+      W.TINA._ux.aplicarModoComercial(true); await espera(250);
+      reg("Comercial não vê o gerador de atos", W.getComputedStyle(D.querySelector(".wrap")).display==="none");
+      reg("Comercial não vê o menu de atos", W.getComputedStyle(D.querySelector(".head-nav")).display==="none");
+      reg("A tela de solicitações abre sozinha e não fecha", $("solicModal").classList.contains("open")
+        && W.getComputedStyle($("btnSolicClose")).display==="none");
+      W.TINA._ux.novaSolic(); val("sEmpresa","OUTRA EXEMPLO"); $("btnSolicSalvar").click(); await espera(400);
+      reg("Para o comercial não aparece “Trabalhar” (abriria o gerador)", !/Trabalhar/.test($("solicLista").innerHTML));
+      W.TINA._ux.aplicarModoComercial(false); await espera(250);
+      reg("Fora do modo comercial o sistema volta inteiro",
+        W.getComputedStyle(D.querySelector(".wrap")).display!=="none" && /Trabalhar/.test($("solicLista").innerHTML));
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+    }catch(e){ reg("Bateria de anexos das solicitações",false,String(e&&e.message||e).slice(0,130)); }
+
     // ---------- 6b5. Visto de advogado (regra do Manual de LTDA, item 7 e roteiro 8/8.1) ----------
     grupo("Visto de advogado");
     try{

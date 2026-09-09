@@ -19,8 +19,11 @@
 (function () {
   "use strict";
 
-  var app = null, db = null, auth = null, pronto = false, motivo = "";
+  var app = null, db = null, auth = null, armaz = null, pronto = false, motivo = "";
   var _usuario = null, _daEquipe = false, _admin = false, _offline = false, _ouvintes = [];
+  /* Papel na conta: "comercial" abre direto nas solicitações, sem o gerador de atos.
+     Vazio (ou "cadastro") é o uso completo. Quem define é o administrador, pela tela. */
+  var _papel = "";
   /* Enquanto isto for false, ainda NÃO se sabe se há alguém logado: o Firebase resolve a sessão
      de forma assíncrona. Sem esse estado, a tela mostrava o formulário de login por um instante
      mesmo para quem já estava dentro — o formulário piscava e sumia. */
@@ -30,7 +33,12 @@
      rede. Com rede, a permissão é sempre reconferida no servidor — senão bastaria ficar offline
      para manter acesso depois de ser removido da equipe. */
   var DIAS_OFFLINE = 7;
-  function guardarAcesso(uid) { try { localStorage.setItem("tinaAcesso", JSON.stringify({ uid: uid, em: Date.now() })); } catch (e) {} }
+  function guardarAcesso(uid, papel) { try { localStorage.setItem("tinaAcesso", JSON.stringify({ uid: uid, em: Date.now(), papel: papel || "" })); } catch (e) {} }
+  /* O papel também fica lembrado. Sem isso, quem é do comercial via o gerador de atos piscar na
+     tela antes de a conferência no servidor terminar — e a entrada é otimista de propósito. */
+  function papelLembrado() {
+    try { var a = JSON.parse(localStorage.getItem("tinaAcesso") || "null"); return (a && a.papel) || ""; } catch (e) { return ""; }
+  }
   function limparAcesso() { try { localStorage.removeItem("tinaAcesso"); } catch (e) {} }
   function acessoValido(uid) {
     try {
@@ -67,6 +75,8 @@
       logado: !!_usuario,
       daEquipe: _daEquipe,
       admin: _admin,
+      papel: _papel,
+      soSolicitacoes: _daEquipe && _papel === "comercial" && !_admin,
       modoOffline: _offline,
       verificado: _verificado || !cfgValida(),
       email: _usuario ? _usuario.email : "",
@@ -82,12 +92,13 @@
       app = firebase.initializeApp(window.ATOS_FIREBASE);
       db = firebase.firestore();
       auth = firebase.auth();
+      try { armaz = firebase.storage ? firebase.storage() : null; } catch (e) { armaz = null; }
       /* Cache local do Firestore: além de deixar rápido, é o que faz a leitura
          continuar respondendo sem internet. A gravação feita offline fica na fila
          e sobe sozinha quando a conexão volta. */
       try { db.enablePersistence({ synchronizeTabs: true }).catch(function () {}); } catch (e) {}
       auth.onAuthStateChanged(function (u) {
-        _usuario = u || null; _daEquipe = false; _admin = false;
+        _usuario = u || null; _daEquipe = false; _admin = false; _papel = "";
         if (!u) { _verificado = true; avisar(); return; }
         /* source:"server" de propósito: com o cache ligado, um get() comum pode
            devolver um estado ANTIGO da equipe — inclusive dizer que alguém ainda
@@ -97,8 +108,9 @@
             var x = d.exists ? (d.data() || {}) : {};
             _daEquipe = x.ativo === true;
             _admin = _daEquipe && x.admin === true;
+            _papel = _daEquipe ? String(x.papel || "") : "";
             _offline = false; _verificado = true;
-            if (_daEquipe) guardarAcesso(u.uid); else limparAcesso();
+            if (_daEquipe) guardarAcesso(u.uid, _papel); else limparAcesso();
             avisar();
           })
           /* Sem rede a checagem no servidor falha — e o app é offline-first: quem já entrou
@@ -106,8 +118,8 @@
              permissão confirmada há pouco, por tempo limitado. Administrar equipe, não: isso
              exige servidor, e fica bloqueado no modo offline. */
           .catch(function () {
-            if (acessoValido(u.uid)) { _daEquipe = true; _admin = false; _offline = true; }
-            else { _daEquipe = false; _admin = false; _offline = false; }
+            if (acessoValido(u.uid)) { _daEquipe = true; _admin = false; _papel = papelLembrado(); _offline = true; }
+            else { _daEquipe = false; _admin = false; _papel = ""; _offline = false; }
             _verificado = true; avisar();
           });
       });
@@ -193,6 +205,50 @@
       .catch(function (e) { return { ok: false, msg: (e && e.message) || "falha ao excluir" }; });
   }
 
+  /* ---- Anexos (Firebase Storage) ----
+     O anexo NÃO cabe no Firestore nem no navegador: um vídeo de celular passa fácil dos 20 MB, e
+     o localStorage inteiro tem 5. Vai para o Storage, e a solicitação guarda só a ficha do arquivo
+     (nome, tipo, tamanho, caminho e link). O caminho começa com a coleção e o id do registro, para
+     que apagar a solicitação saiba exatamente o que apagar junto. */
+  var LIMITE_ANEXO = 25 * 1024 * 1024;
+
+  function _nomeSeguro(n) {
+    return String(n || "arquivo").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 120) || "arquivo";
+  }
+
+  /* aoProgresso recebe 0..100. Devolve {ok, anexo:{...}} ou {ok:false, msg}. Nunca lança. */
+  function enviarAnexo(colecao, registroId, file, aoProgresso) {
+    if (!podeGravar()) return Promise.resolve({ ok: false, msg: "entre com o seu login para anexar" });
+    if (!armaz) return Promise.resolve({ ok: false, msg: "armazenamento de arquivos indisponível" });
+    if (!file) return Promise.resolve({ ok: false, msg: "nenhum arquivo" });
+    if (file.size > LIMITE_ANEXO) return Promise.resolve({ ok: false, msg: "o arquivo tem " + Math.round(file.size / 1048576) + " MB — o limite é 25 MB" });
+    var id = "A" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    var caminho = colecao + "/" + String(registroId) + "/" + id + "-" + _nomeSeguro(file.name);
+    try {
+      var tarefa = armaz.ref(caminho).put(file, { contentType: file.type || "application/octet-stream" });
+      return new Promise(function (res) {
+        tarefa.on("state_changed",
+          function (s) { if (aoProgresso && s.totalBytes) { try { aoProgresso(Math.round(s.bytesTransferred / s.totalBytes * 100)); } catch (e) {} } },
+          function (e) { res({ ok: false, msg: (e && e.code === "storage/unauthorized") ? "sem permissão para anexar (publique as regras do Storage)" : ((e && e.message) || "falha ao enviar") }); },
+          function () {
+            tarefa.snapshot.ref.getDownloadURL()
+              .then(function (url) {
+                res({ ok: true, anexo: { id: id, nome: String(file.name || "arquivo").slice(0, 160), tipo: file.type || "", tamanho: file.size, caminho: caminho, url: url, em: new Date().toISOString() } });
+              })
+              .catch(function (e) { res({ ok: false, msg: (e && e.message) || "enviado, mas sem link" }); });
+          });
+      });
+    } catch (e) { return Promise.resolve({ ok: false, msg: (e && e.message) || "falha ao enviar" }); }
+  }
+
+  function excluirAnexo(caminho) {
+    if (!(podeGravar() && armaz && caminho)) return Promise.resolve({ ok: false });
+    return armaz.ref(String(caminho)).delete()
+      .then(function () { return { ok: true }; })
+      // já apagado (ou nunca existiu) não é erro: o objetivo era não existir mais
+      .catch(function (e) { return { ok: /object-not-found/.test((e && e.code) || ""), msg: (e && e.message) || "falha ao excluir" }; });
+  }
+
   /* Trilha de auditoria: registra QUE algo aconteceu, sem dado pessoal.
      Nunca leva nome de sócio, CPF nem endereço — só o identificador do ato. */
   function trilha(acao, refId, detalhe) {
@@ -211,7 +267,7 @@
      no meio do cadastro. O secundário nasce, cria a conta, faz signOut e é destruído. */
   function eqListar() { return listar("equipe", {}); }
 
-  function eqCadastrar(nome, email, senha, admin) {
+  function eqCadastrar(nome, email, senha, admin, papel) {
     if (!(pronto && _admin)) return Promise.resolve({ ok: false, msg: "só administrador" });
     email = String(email || "").trim(); senha = String(senha || "");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return Promise.resolve({ ok: false, msg: "e-mail inválido" });
@@ -226,6 +282,7 @@
           return db.collection("equipe").doc(uid).set({
             nome: String(nome || "").trim() || email,
             email: email, ativo: true, admin: admin === true,
+            papel: (papel === "comercial") ? "comercial" : "",
             criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
             criadoPor: _usuario ? _usuario.uid : ""
           });
@@ -294,6 +351,10 @@
     jaEntrouAqui: jaEntrouAqui,
     ouvirNovos: ouvirNovos,
     ouvirColecao: ouvirColecao,
+    enviarAnexo: enviarAnexo,
+    excluirAnexo: excluirAnexo,
+    LIMITE_ANEXO: LIMITE_ANEXO,
+    papelLembrado: papelLembrado,
     eqListar: eqListar, eqCadastrar: eqCadastrar, eqAtualizar: eqAtualizar,
     estado: estado,
     aoMudar: function (fn) { if (typeof fn === "function") { _ouvintes.push(fn); try { fn(estado()); } catch (e) {} } },

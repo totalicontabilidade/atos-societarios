@@ -6,10 +6,10 @@
      'wasm-unsafe-eval' (e NÃO 'unsafe-eval') basta para o wasm do pdf.js/Tesseract — 'unsafe-eval' era o que
      permitia a CVE-2024-4367 do pdf.js, então não reintroduzir. connect-src é restrito ao ViaCEP: aberto em
      "https:" ele seria o canal de exfiltração. object/base/form fechados. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.19" />
+<meta name="versao" content="1.20" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -85,6 +85,23 @@
   .btn.mini{padding:6px 11px;font-size:12px;border-radius:9px}
   .btn.del{background:var(--errbg);color:var(--err)}.btn.del:hover{background:#fbdad6}
   .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  /* Anexos da solicitação */
+  .solta{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;font-size:12px;color:var(--muted);background:var(--line2);cursor:pointer;transition:.15s}
+  .solta:hover,.solta:focus{border-color:var(--navy2);color:var(--ink2);outline:none}
+  .solta.sobre{border-color:var(--gold);background:var(--warnbg);color:var(--ink)}
+  .anexos{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .anexo{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:12px}
+  .anexo .ic{font-size:16px;line-height:1}
+  .anexo .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .anexo .tm{color:var(--muted);font-size:10.5px;white-space:nowrap}
+  .anexo img.thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+  .anexo .barra{height:3px;background:var(--line);border-radius:2px;overflow:hidden;width:70px}
+  .anexo .barra i{display:block;height:100%;background:var(--navy2);width:0}
+  /* Tela cheia do comercial: quem só lança solicitação não vê o gerador de atos. */
+  body.so-solic>header .head-nav,body.so-solic>header .head-item,body.so-solic .wrap{display:none!important}
+  body.so-solic #solicModal{background:var(--bg)}
+  body.so-solic #solicModal>.modal{max-width:980px;width:100%;height:100vh;max-height:100vh;border-radius:0;margin:0}
+  body.so-solic #btnSolicClose{display:none}
   .checkline{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink2)}
   .checkline input{width:auto;accent-color:var(--navy2)}
   .val{margin-top:14px;border-radius:11px;padding:11px 13px;font-size:12.5px;border:1px solid;font-weight:500}
@@ -818,7 +835,18 @@
             <option value="cliente">Aguardando cliente</option><option value="protocolada">Protocolada</option>
             <option value="concluida">Concluída</option></select></div>
         </div>
-        <div class="row"><label for="sObs">Observações</label><textarea id="sObs" rows="2"></textarea></div>
+        <div class="row"><label for="sObs">Descrição <span class="hint">— o que o cliente pediu, com as suas palavras</span></label>
+          <textarea id="sObs" rows="4" placeholder="Ex.: trocar o endereço da sede e incluir a filha como sócia com 20%. O cliente mandou o comprovante de endereço no anexo."></textarea></div>
+        <!-- Anexo: o comercial recebe print, áudio e foto de documento pelo WhatsApp o dia inteiro.
+             Sem isto, esse material era redigitado (ou perdido) no caminho até o cadastro. -->
+        <div class="row">
+          <label>Anexos <span class="hint">— áudio, foto, vídeo ou documento, até 25 MB cada</span></label>
+          <div id="sSolta" class="solta" tabindex="0">
+            <input type="file" id="sArquivo" multiple style="display:none">
+            <span>Arraste aqui, <b>cole</b> (Ctrl+V) ou <button type="button" class="btn s mini" id="btnSolicAnexar">escolher arquivo</button></span>
+          </div>
+          <div id="sAnexos" class="anexos"></div>
+        </div>
         <div class="bar" style="margin-top:8px">
           <button class="btn p mini" id="btnSolicSalvar">Salvar</button>
           <button class="btn s mini" id="btnSolicCancelar">Cancelar</button>
@@ -899,10 +927,14 @@
           <div><label for="eqNome">Nome</label><input type="text" id="eqNome"></div>
           <div><label for="eqEmail">E-mail</label><input type="text" id="eqEmail" autocomplete="off"></div>
           <div><label for="eqSenha">Senha inicial</label><input type="password" id="eqSenha" autocomplete="new-password"></div>
-          <div style="display:flex;align-items:flex-end;gap:6px">
-            <label class="checkline" style="margin:0"><input type="checkbox" id="eqAdmin"> Admin</label>
-            <button class="btn p mini" type="button" id="btnEqAdd">Cadastrar</button>
-          </div>
+          <div><label for="eqPapel">Papel</label><select id="eqPapel">
+            <option value="">Cadastro (sistema completo)</option>
+            <option value="comercial">Comercial (só solicitações)</option></select></div>
+        </div>
+        <div class="bar row">
+          <label class="checkline" style="margin:0"><input type="checkbox" id="eqAdmin"> Admin</label>
+          <span class="hint" style="flex:1">Quem é <b>Comercial</b> abre o sistema direto na tela de solicitações, sem o gerador de atos. Marcar <b>Admin</b> dá o sistema completo, mesmo com papel de comercial.</span>
+          <button class="btn p mini" type="button" id="btnEqAdd">Cadastrar</button>
         </div>
         <div class="fldstat" id="eqStat"></div>
         <div id="eqLista" style="margin-top:10px"></div>
@@ -993,6 +1025,7 @@ window.__pdfjsFallback=function(){
 <script defer src="lib/firebase-app-compat.js"></script>
 <script defer src="lib/firebase-auth-compat.js"></script>
 <script defer src="lib/firebase-firestore-compat.js"></script>
+<script defer src="lib/firebase-storage-compat.js"></script>
 <script defer src="js/nuvem-config.js"></script>
 <script defer src="js/nuvem.js"></script>
 <script src="lib/pdfmake.min.js"></script>
@@ -2714,7 +2747,8 @@ window.TINA=(function(){
     el.style.color = e.daEquipe ? "var(--ok)" : "var(--muted)";
   }
   function novaSolic(){
-    _solicEditando=null;
+    descartarAnexosSoltos();
+    _solicEditando=null; _solicNovoId=null; _anexos=[]; _anexosDoBanco=[]; renderAnexos();
     ["sEmpresa","sCnpj","sPrazo","sResp","sContato","sFone","sObs"].forEach(id=>{if($(id))$(id).value="";});
     if($("sStatus"))$("sStatus").value="nova";
     if($("sTipo"))$("sTipo").value="alt";
@@ -2722,17 +2756,27 @@ window.TINA=(function(){
     if($("solicForm"))$("solicForm").style.display="";
     if($("sEmpresa"))$("sEmpresa").focus();
   }
+  // cancelar/trocar de registro: o que subiu e não vai ficar preso a nada é apagado do Storage
+  function descartarAnexosSoltos(){
+    if(!(window.Nuvem&&window.Nuvem.excluirAnexo)) return;
+    _anexos.forEach(a=>{ if(a.caminho && !_anexosDoBanco.some(x=>x.caminho===a.caminho)) window.Nuvem.excluirAnexo(a.caminho); });
+  }
   function gravarSolic(){
     const st=$("solicStat"); const emp=($("sEmpresa").value||"").trim();
     if(!emp){ st.className="fldstat bad"; st.textContent="Informe a empresa."; return; }
     const pz=($("sPrazo").value||"").trim();
     if(pz && !dataValida(pz)){ st.className="fldstat bad"; st.textContent="Prazo inválido (DD/MM/AAAA)."; return; }
+    if(_anexos.some(a=>a.enviando!=null)){ st.className="fldstat bad"; st.textContent="Espere o anexo terminar de subir."; return; }
     const lista=lerSolic();
-    const reg=_solicEditando||{id:"S"+Date.now().toString(36).toUpperCase(),criadoEm:new Date().toISOString()};
+    // o id do registro é o mesmo que já nomeou a pasta dos anexos no Storage
+    const reg=_solicEditando||{id:_idSolicAtual(),criadoEm:new Date().toISOString()};
     reg.empresa=emp; reg.cnpj=($("sCnpj").value||"").trim(); reg.tipo=$("sTipo").value;
     reg.prazo=pz; reg.responsavel=($("sResp").value||"").trim();
     reg.contato=($("sContato").value||"").trim(); reg.fone=($("sFone").value||"").trim();
     reg.status=$("sStatus").value; reg.obs=($("sObs").value||"").trim();
+    // anexo tirado da lista some do Storage junto: arquivo sem registro apontando é dado de cliente esquecido
+    (_anexosDoBanco||[]).forEach(a=>{ if(a.caminho && !_anexos.some(x=>x.caminho===a.caminho) && window.Nuvem&&window.Nuvem.excluirAnexo) window.Nuvem.excluirAnexo(a.caminho); });
+    reg.anexos=_anexos.slice();
     reg.alteradoEm=new Date().toISOString();
     const i=lista.findIndex(x=>x.id===reg.id);
     if(i>=0) lista[i]=reg; else lista.unshift(reg);
@@ -2741,22 +2785,95 @@ window.TINA=(function(){
     if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",reg.id,reg).then(r=>{
       if(st) st.textContent = r.ok ? "Salvo aqui e na nuvem." : "Salvo aqui (nuvem: "+(r.msg||"indisponível")+").";
     });
-    _solicEditando=null; $("solicForm").style.display="none"; renderSolic();
+    _solicEditando=null; _solicNovoId=null; _anexos=[]; _anexosDoBanco=[]; renderAnexos();
+    $("solicForm").style.display="none"; renderSolic();
   }
   function editarSolic(id){
     const r=lerSolic().find(x=>x.id===id); if(!r)return;
-    _solicEditando=r;
+    descartarAnexosSoltos();
+    _solicEditando=r; _solicNovoId=null; _anexosDoBanco=Array.isArray(r.anexos)?r.anexos.slice():[];
     $("sEmpresa").value=r.empresa||""; $("sCnpj").value=r.cnpj||""; $("sTipo").value=r.tipo||"alt";
     $("sPrazo").value=r.prazo||""; $("sResp").value=r.responsavel||""; $("sContato").value=r.contato||"";
     $("sFone").value=r.fone||""; $("sStatus").value=r.status||"nova"; $("sObs").value=r.obs||"";
+    _anexos=Array.isArray(r.anexos)?r.anexos.slice():[]; renderAnexos();
     if($("solicStat"))$("solicStat").textContent="";
     $("solicForm").style.display=""; $("sEmpresa").focus();
   }
+
+  /* ===== Anexos da solicitação =====
+     O arquivo sobe para o Storage assim que é escolhido, não ao salvar: o comercial larga o
+     áudio do cliente e continua escrevendo enquanto o envio corre. O registro guarda só a
+     ficha do arquivo. Anexo escolhido e depois cancelado é apagado lá também — arquivo órfão
+     é dado pessoal de cliente ocupando espaço sem nada apontando para ele. */
+  let _anexos=[], _anexosDoBanco=[];
+  const _ICONE=t=>/^image\//.test(t)?"🖼":/^audio\//.test(t)?"🎧":/^video\//.test(t)?"🎬":/pdf/.test(t)?"📕":/(word|document|text)/.test(t)?"📄":/(sheet|excel|csv)/.test(t)?"📊":"📎";
+  function _tam(n){ n=Number(n)||0; return n<1024?n+" B":n<1048576?(n/1024).toFixed(0)+" KB":(n/1048576).toFixed(1)+" MB"; }
+  function renderAnexos(){
+    const box=$("sAnexos"); if(!box) return;
+    box.innerHTML=_anexos.map((a,i)=>'<div class="anexo">'
+      +(/^image\//.test(a.tipo||"")&&a.url?'<img class="thumb" src="'+escHtml(a.url)+'" alt="">':'<span class="ic">'+_ICONE(a.tipo||"")+'</span>')
+      +'<span class="nm">'+(a.url?'<a href="'+escHtml(a.url)+'" target="_blank" rel="noopener noreferrer">'+escHtml(a.nome||"arquivo")+'</a>':escHtml(a.nome||"arquivo"))+'</span>'
+      +(a.enviando!=null?'<span class="barra"><i style="width:'+(a.enviando||0)+'%"></i></span>':'<span class="tm">'+_tam(a.tamanho)+'</span>')
+      +(a.enviando!=null?'':'<button type="button" class="btn del mini" data-anexo-x="'+i+'" title="Remover">×</button>')
+      +'</div>').join("");
+    box.querySelectorAll("[data-anexo-x]").forEach(b=>b.addEventListener("click",()=>removerAnexo(Number(b.dataset.anexoX))));
+  }
+  function removerAnexo(i){
+    const a=_anexos[i]; if(!a) return;
+    _anexos.splice(i,1); renderAnexos();
+    // só apaga do Storage o que ainda não está preso a um registro salvo; o resto sai ao salvar
+    if(a.caminho && !_anexosDoBanco.some(x=>x.caminho===a.caminho) && window.Nuvem&&window.Nuvem.excluirAnexo) window.Nuvem.excluirAnexo(a.caminho);
+  }
+  function _idSolicAtual(){ return (_solicEditando&&_solicEditando.id)||(_solicNovoId=_solicNovoId||("S"+Date.now().toString(36).toUpperCase())); }
+  let _solicNovoId=null;
+  async function anexarArquivos(lista){
+    const st=$("solicStat");
+    if(!(window.Nuvem&&window.Nuvem.podeGravar())){
+      if(st){ st.className="fldstat bad"; st.textContent="Entre com o seu login para anexar arquivos."; }
+      return;
+    }
+    for(const f of Array.from(lista||[])){
+      if(f.size>(window.Nuvem.LIMITE_ANEXO||26214400)){
+        if(st){ st.className="fldstat bad"; st.textContent="“"+f.name+"” tem "+_tam(f.size)+" — o limite é 25 MB."; }
+        continue;
+      }
+      const item={nome:f.name,tipo:f.type,tamanho:f.size,enviando:0};
+      _anexos.push(item); renderAnexos();
+      const r=await window.Nuvem.enviarAnexo("solicitacoes",_idSolicAtual(),f,(p)=>{ item.enviando=p; renderAnexos(); });
+      const i=_anexos.indexOf(item);
+      if(r.ok){ if(i>=0)_anexos[i]=r.anexo; if(st){ st.className="fldstat ok"; st.textContent="Anexo enviado."; } }
+      else { if(i>=0)_anexos.splice(i,1); if(st){ st.className="fldstat bad"; st.textContent="Não foi possível anexar “"+f.name+"”: "+(r.msg||"falha"); } }
+      renderAnexos();
+    }
+  }
+  function ligarAnexos(){
+    const zona=$("sSolta"), inp=$("sArquivo"); if(!zona||!inp) return;
+    const abrir=()=>inp.click();
+    const btn=$("btnSolicAnexar"); if(btn) btn.addEventListener("click",e=>{e.stopPropagation();abrir();});
+    zona.addEventListener("click",abrir);
+    zona.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); abrir(); } });
+    inp.addEventListener("change",()=>{ anexarArquivos(inp.files); inp.value=""; });
+    ["dragenter","dragover"].forEach(ev=>zona.addEventListener(ev,e=>{e.preventDefault();zona.classList.add("sobre");}));
+    ["dragleave","drop"].forEach(ev=>zona.addEventListener(ev,e=>{e.preventDefault();zona.classList.remove("sobre");}));
+    zona.addEventListener("drop",e=>{ if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length) anexarArquivos(e.dataTransfer.files); });
+    // colar print direto do WhatsApp/recorte de tela, sem salvar arquivo antes
+    document.addEventListener("paste",e=>{
+      const form=$("solicForm"); if(!form||form.style.display==="none") return;
+      const itens=(e.clipboardData&&e.clipboardData.items)||[]; const arq=[];
+      for(const it of itens){ if(it.kind==="file"){ const f=it.getAsFile(); if(f) arq.push(f); } }
+      if(arq.length){ e.preventDefault(); anexarArquivos(arq); }
+    });
+  }
   function excluirSolic(id){
     const r=lerSolic().find(x=>x.id===id); if(!r)return;
-    if(!confirm("Excluir a solicitação de "+(r.empresa||"(sem empresa)")+"?"))return;
+    const n=(r.anexos||[]).length;
+    if(!confirm("Excluir a solicitação de "+(r.empresa||"(sem empresa)")+"?"+(n?"\n\nOs "+n+" anexo(s) também serão apagados.":"")))return;
     salvarSolic(lerSolic().filter(x=>x.id!==id));
-    if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.excluir("solicitacoes",id); window.Nuvem.trilha("solicitacao.excluir",id,""); }
+    if(window.Nuvem&&window.Nuvem.podeGravar()){
+      // a lápide substitui o registro e leva junto a lista de anexos; o arquivo em si tem de sair à mão
+      (r.anexos||[]).forEach(a=>{ if(a.caminho) window.Nuvem.excluirAnexo(a.caminho); });
+      window.Nuvem.excluir("solicitacoes",id); window.Nuvem.trilha("solicitacao.excluir",id,"");
+    }
     renderSolic();
   }
   // leva a solicitação para o formulário: abre o modo do ato e adianta empresa e CNPJ
@@ -2770,6 +2887,17 @@ window.TINA=(function(){
       if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",id,r); }
     $("solicModal").classList.remove("open"); recalc();
     toast("Solicitação aberta no formulário.","ok");
+  }
+  /* Modo comercial: quem só lança solicitação não precisa ver — nem esbarrar em — o gerador de
+     atos. A tela de solicitações deixa de ser uma janela sobre o sistema e passa a SER o sistema.
+     Isto é conveniência, não segurança: quem protege os dados são as regras do servidor. */
+  let _modoComercial=false;
+  function aplicarModoComercial(ligar){
+    if(_modoComercial===!!ligar) return;
+    _modoComercial=!!ligar;
+    document.body.classList.toggle("so-solic",_modoComercial);
+    if(_modoComercial){ const m=$("solicModal"); if(m) m.classList.add("open"); marcarNovas(0); }
+    renderSolic();   // a lista muda com o modo: "Trabalhar" abre o gerador e some para o comercial
   }
   function renderSolic(){
     statusNuvem();
@@ -2792,9 +2920,14 @@ window.TINA=(function(){
         +'<div class="hint">'+escHtml(T[r.tipo]||r.tipo||"")+(r.cnpj?" · "+escHtml(r.cnpj):"")
         +(r.responsavel?" · "+escHtml(r.responsavel):"")
         +(r.prazo?' · <span'+(atras?' style="color:var(--err);font-weight:700"':'')+'>prazo '+escHtml(r.prazo)+(atras?" (vencido)":"")+'</span>':"")+'</div>'
-        +(r.obs?'<div class="hint" style="margin-top:4px">'+escHtml(r.obs)+'</div>':"")
+        +(r.obs?'<div class="hint" style="margin-top:4px;white-space:pre-wrap">'+escHtml(r.obs)+'</div>':"")
+        // o anexo aparece na própria lista: quem vai cadastrar abre o áudio ou a foto sem entrar em modo de edição
+        +((r.anexos||[]).length?'<div class="bar" style="margin-top:6px;gap:6px">'+r.anexos.map(a=>
+            '<a class="btn s mini" href="'+escHtml(a.url||"#")+'" target="_blank" rel="noopener noreferrer" title="'+escHtml(a.nome||"")+' · '+_tam(a.tamanho)+'">'
+            +_ICONE(a.tipo||"")+' '+escHtml((a.nome||"arquivo").slice(0,26))+'</a>').join("")+'</div>':"")
         +'<div class="bar" style="margin-top:6px">'
-        +'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'">Trabalhar</button>'
+        // "Trabalhar" abre o gerador de atos — para quem só lança solicitação, é botão que não leva a lugar nenhum
+        +(_modoComercial?'':'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'">Trabalhar</button>')
         +'<button class="btn o mini" data-sol-editar="'+escHtml(r.id)+'">Editar</button>'
         +'<button class="btn o mini" data-sol-avisar="'+escHtml(r.id)+'" title="Manda a solicitação pronta por WhatsApp ou e-mail">Avisar</button>'
         +'<button class="btn del mini" data-sol-excluir="'+escHtml(r.id)+'">Excluir</button>'
@@ -4786,7 +4919,11 @@ window.TINA=(function(){
     if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>$("solicModal").classList.remove("open"));
     if($("btnSolicNova")) $("btnSolicNova").addEventListener("click",novaSolic);
     if($("btnSolicSalvar")) $("btnSolicSalvar").addEventListener("click",gravarSolic);
-    if($("btnSolicCancelar")) $("btnSolicCancelar").addEventListener("click",()=>{_solicEditando=null;$("solicForm").style.display="none";});
+    if($("btnSolicCancelar")) $("btnSolicCancelar").addEventListener("click",()=>{
+      descartarAnexosSoltos();
+      _solicEditando=null;_solicNovoId=null;_anexos=[];_anexosDoBanco=[];renderAnexos();
+      $("solicForm").style.display="none";});
+    ligarAnexos();
     if($("solicBusca")) $("solicBusca").addEventListener("input",renderSolic);
     if($("solicFiltro")) $("solicFiltro").addEventListener("change",renderSolic);
     if($("sCnpj")) $("sCnpj").addEventListener("input",function(){this.value=fmtCnpj(this.value);});
@@ -4842,7 +4979,11 @@ window.TINA=(function(){
          dados são as regras do Firestore, no servidor. Antes eu segurava a tela até a conferência
          terminar, e o resultado foi o pior dos mundos — anel, depois login, depois sistema. */
       mostrarPortao(deveMostrarPortao(est0,window.Nuvem.jaEntrouAqui()), "espera", "Carregando…");
+      // o papel lembrado entra junto com a entrada otimista: sem isso o comercial via o gerador
+      // de atos aparecer e sumir enquanto o servidor confirmava quem ele é
+      if(window.Nuvem.papelLembrado&&window.Nuvem.papelLembrado()==="comercial"&&window.Nuvem.jaEntrouAqui()) aplicarModoComercial(true);
       window.Nuvem.aoMudar(e=>{
+        if(e.verificado||e.daEquipe) aplicarModoComercial(!!e.soSolicitacoes);
         mostrarPortao(deveMostrarPortao(e,window.Nuvem.jaEntrouAqui()),
                       e.verificado?"login":"espera", "Verificando o acesso…");
         if(e.configurado && e.logado && !e.daEquipe){
@@ -4880,24 +5021,26 @@ window.TINA=(function(){
         const eu=window.Nuvem.estado().uid;
         box.innerHTML=r.itens.map(m=>'<div class="caso" style="padding:6px 8px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline">'
           +"<b>"+escHtml(m.nome||m.email||m.id)+"</b>"
-          +'<span class="hint">'+escHtml(m.email||"")+(m.admin?" · admin":"")+(m.ativo===false?" · inativo":"")+(m.id===eu?" · você":"")+"</span></div>"
+          +'<span class="hint">'+escHtml(m.email||"")+(m.admin?" · admin":"")+(m.papel==="comercial"?" · comercial":"")+(m.ativo===false?" · inativo":"")+(m.id===eu?" · você":"")+"</span></div>"
           +(m.id===eu?'<div class="hint">Seu próprio acesso só pode ser alterado por outro administrador.</div>'
             :'<div class="bar" style="margin-top:4px">'
              +'<button class="btn o mini" data-eq-ativo="'+escHtml(m.id)+'" data-v="'+(m.ativo===false?"1":"0")+'">'+(m.ativo===false?"Reativar":"Desativar")+"</button>"
              +'<button class="btn o mini" data-eq-admin="'+escHtml(m.id)+'" data-v="'+(m.admin?"0":"1")+'">'+(m.admin?"Tirar admin":"Tornar admin")+"</button>"
+             +'<button class="btn o mini" data-eq-papel="'+escHtml(m.id)+'" data-v="'+(m.papel==="comercial"?"":"comercial")+'">'+(m.papel==="comercial"?"Dar sistema completo":"Deixar só solicitações")+"</button>"
              +"</div>")
           +"</div>").join("")||'<div class="hint">Ninguém cadastrado ainda.</div>';
         const toca=async(uid,campos)=>{ const x=await window.Nuvem.eqAtualizar(uid,campos);
           if(!x.ok) toast(x.msg||"não foi possível alterar","err"); renderEquipe(); };
         box.querySelectorAll("[data-eq-ativo]").forEach(b=>b.addEventListener("click",()=>toca(b.dataset.eqAtivo,{ativo:b.dataset.v==="1"})));
         box.querySelectorAll("[data-eq-admin]").forEach(b=>b.addEventListener("click",()=>toca(b.dataset.eqAdmin,{admin:b.dataset.v==="1"})));
+        box.querySelectorAll("[data-eq-papel]").forEach(b=>b.addEventListener("click",()=>toca(b.dataset.eqPapel,{papel:b.dataset.v})));
       };
       window.__renderEquipe=renderEquipe;
       if($("btnEqAdd")) $("btnEqAdd").addEventListener("click",async()=>{
         const st=$("eqStat"); st.className="fldstat load"; st.textContent="Cadastrando…";
-        const r=await window.Nuvem.eqCadastrar(($("eqNome")||{}).value,($("eqEmail")||{}).value,($("eqSenha")||{}).value,($("eqAdmin")||{}).checked);
+        const r=await window.Nuvem.eqCadastrar(($("eqNome")||{}).value,($("eqEmail")||{}).value,($("eqSenha")||{}).value,($("eqAdmin")||{}).checked,($("eqPapel")||{}).value);
         if(r.ok){ st.className="fldstat ok"; st.textContent="Cadastrado. Peça para trocar a senha no primeiro acesso.";
-          ["eqNome","eqEmail","eqSenha"].forEach(id=>{if($(id))$(id).value="";}); if($("eqAdmin"))$("eqAdmin").checked=false; renderEquipe(); }
+          ["eqNome","eqEmail","eqSenha"].forEach(id=>{if($(id))$(id).value="";}); if($("eqAdmin"))$("eqAdmin").checked=false; if($("eqPapel"))$("eqPapel").value=""; renderEquipe(); }
         else { st.className="fldstat bad"; st.textContent=r.msg||"não foi possível cadastrar"; }
       });
       if($("btnNvEntrar")) $("btnNvEntrar").addEventListener("click",async()=>{
@@ -5061,7 +5204,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>

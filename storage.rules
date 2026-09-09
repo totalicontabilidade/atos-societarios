@@ -1,0 +1,37 @@
+rules_version = '2';
+
+/* Anexos das solicitações — Atos Societários / Totali.
+
+   Mesmo princípio das regras do Firestore: quem manda é o servidor, não a tela.
+   O app esconder um botão não protege nada; o que protege é isto aqui.
+
+   Só a EQUIPE ATIVA lê e escreve, e a fonte da verdade sobre quem é da equipe
+   continua sendo a coleção /equipe do Firestore — não um campo do token, que o
+   cliente poderia influenciar.
+
+   O limite de 25 MB é repetido aqui de propósito: no app ele é conveniência
+   (avisa antes de gastar a internet do usuário), aqui é regra.                */
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function daEquipe() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/equipe/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/equipe/$(request.auth.uid)).data.ativo == true;
+    }
+
+    // anexos de solicitação: solicitacoes/{id do registro}/{arquivo}
+    match /solicitacoes/{registroId}/{arquivo} {
+      allow read: if daEquipe();
+      allow write: if daEquipe()
+                   && request.resource.size <= 25 * 1024 * 1024;
+      allow delete: if daEquipe();
+    }
+
+    // nada mais é gravável: caminho novo exige regra nova, escrita conscientemente
+    match /{caminho=**} {
+      allow read, write: if false;
+    }
+  }
+}
