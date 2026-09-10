@@ -901,13 +901,18 @@
       $("btnSolicSalvar").click(); await espera(320);
       reg("Prazo inexistente é recusado", /inv[áa]lido/i.test(($("solicStat")||{}).textContent||"")
         && JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").length===1);
-      // "Trabalhar" abre o modo e adianta os dados
+      /* "Trabalhar" MARCA o início e não preenche nada. A solicitação é um pedido escrito às
+         pressas — nome como o cliente fala, CNPJ digitado de ouvido — e uma vez no campo esse
+         dado tende a ficar. O ato nasce da fonte: cartão CNPJ, contrato, CCMEI. */
       $("btnSolicCancelar").click(); await espera(200);
+      val("razao",""); val("cnpj","");
       var bt=D.querySelector("[data-sol-abrir]"); if(bt) bt.click(); await espera(600);
-      reg("“Trabalhar” abre a solicitação no formulário",
-        ($("razao")||{}).value==="PADARIA EXEMPLO LTDA" && /\d{2}\.\d{3}\.\d{3}/.test(($("cnpj")||{}).value||""));
+      reg("“Trabalhar” NÃO joga os dados da solicitação no formulário",
+        !($("razao")||{}).value && !($("cnpj")||{}).value,
+        "razão “"+($("razao")||{}).value+"” · CNPJ “"+($("cnpj")||{}).value+"”");
       reg("Ao trabalhar, a solicitação sai de “Nova”",
         (JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{}).status==="andamento");
+      reg("E a tela continua na lista, sem pular para o ato", $("solicModal").classList.contains("open"));
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de solicitações",false,String(e&&e.message||e).slice(0,120)); }
 

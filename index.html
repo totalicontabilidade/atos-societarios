@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.27" />
+<meta name="versao" content="1.28" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -1039,8 +1039,8 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.27"></script>
-<script defer src="js/nuvem.js?v=1.27"></script>
+<script defer src="js/nuvem-config.js?v=1.28"></script>
+<script defer src="js/nuvem.js?v=1.28"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -2991,16 +2991,23 @@ window.TINA=(function(){
     renderSolic();
   }
   // leva a solicitação para o formulário: abre o modo do ato e adianta empresa e CNPJ
+  /* "Trabalhar" MARCA o início; não preenche o formulário.
+     Antes ele jogava a empresa e o CNPJ da solicitação direto no ato. Parecia adiantar trabalho,
+     mas a solicitação é um PEDIDO escrito às pressas pelo comercial, muitas vezes com o nome como
+     o cliente fala e o CNPJ digitado de ouvido — e uma vez no campo, esse dado tende a ficar. O
+     ato tem de nascer da fonte: cartão CNPJ, contrato, CCMEI. Aqui o sistema só registra que o
+     processo começou (é assim que o comercial acompanha) e recomenda começar agora. */
   function trabalharSolic(id){
-    const r=lerSolic().find(x=>x.id===id); if(!r)return;
-    switchMode(r.tipo||"alt");
-    if(r.empresa&&$("razao")){ $("razao").value=r.empresa; $("razao").classList.add("revisar"); }
-    if(r.cnpj&&$("cnpj")){ $("cnpj").value=r.cnpj; $("cnpj").classList.add("revisar"); }
-    if(r.status==="nova"){ r.status="andamento"; r.alteradoEm=new Date().toISOString();
-      const l=lerSolic(); const i=l.findIndex(x=>x.id===id); if(i>=0){ l[i]=r; salvarSolic(l); }
-      if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",id,r); }
-    $("solicModal").classList.remove("open"); recalc();
-    toast("Solicitação aberta no formulário.","ok");
+    const l=lerSolic(); const i=l.findIndex(x=>x.id===id); if(i<0)return;
+    const r=l[i]; const eraNova=(r.status==="nova");
+    if(eraNova){
+      r.status="andamento"; r.alteradoEm=new Date().toISOString();
+      salvarSolic(l);
+      if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",id,r);
+    }
+    renderSolic();
+    toast(( eraNova ? "Em andamento — o comercial já está vendo. " : "Já estava em andamento. " )
+      +"Comece o ato pelo cartão CNPJ ou pelo contrato: a solicitação é o pedido, não a fonte dos dados.","ok");
   }
   /* Modo comercial: quem só lança solicitação não precisa ver — nem esbarrar em — o gerador de
      atos. A tela de solicitações deixa de ser uma janela sobre o sistema e passa a SER o sistema.
@@ -3073,7 +3080,7 @@ window.TINA=(function(){
             +_ICONE(a.tipo||"")+' '+escHtml((a.nome||"arquivo").slice(0,26))+'</a>').join("")+'</div>':"")
         +'<div class="bar" style="margin-top:6px">'
         // "Trabalhar" abre o gerador de atos — para quem só lança solicitação, é botão que não leva a lugar nenhum
-        +(_modoComercial?'':'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'">Trabalhar</button>')
+        +(_modoComercial?'':'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'" title="Marca o processo como em andamento para o comercial acompanhar. Não preenche o formulário: os dados do ato vêm do cartão CNPJ ou do contrato.">Trabalhar</button>')
         // finalizar é ato de quem faz o cadastro; o comercial acompanha, não encerra
         +((!_modoComercial && r.status!=="concluida")?'<button class="btn ok mini" data-sol-fim="'+escHtml(r.id)+'" title="Marcar o processo como finalizado — quem abriu a solicitação passa a ver">✓ Finalizar</button>':"")
         +((!_modoComercial && r.status==="concluida")?'<button class="btn o mini" data-sol-reabrir="'+escHtml(r.id)+'" title="Voltar para “Em andamento”">↺ Reabrir</button>':"")
