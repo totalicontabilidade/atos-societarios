@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.28" />
+<meta name="versao" content="1.29" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -584,6 +584,7 @@
       <h2><span class="n">D</span> Encerramento</h2>
       <div class="grid g3 row">
         <div><label for="dataEncerramento">Encerramento das operações</label><input type="text" id="dataEncerramento" placeholder="DD/MM/AAAA"></div>
+        <div class="ltdaonly"><label for="haveres">Haveres restituídos (R$) <span class="hint">— em branco = nada a restituir</span></label><input type="number" id="haveres" step="0.01" placeholder="0,00"></div>
         <div class="ltdaonly"><label for="guardiaoLivros">Guardião dos livros <span class="hint">(um dos sócios)</span></label><input type="text" id="guardiaoLivros" placeholder="(vazio = 1º sócio)"></div>
         <div></div>
       </div>
@@ -1039,8 +1040,8 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.28"></script>
-<script defer src="js/nuvem.js?v=1.28"></script>
+<script defer src="js/nuvem-config.js?v=1.29"></script>
+<script defer src="js/nuvem.js?v=1.29"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -1510,7 +1511,7 @@ window.TINA=(function(){
       cessao:!!($("alt_cessao")&&$("alt_cessao").checked), cedNome:v("cedNome"), cessNome:v("cessNome"),
       cedQuotas:Number($("cedQuotas")&&$("cedQuotas").value)||0, cedValor:Number($("cedValor")&&$("cedValor").value)||0,
       cedRetira:!!($("cedRetira")&&$("cedRetira").checked),
-      cnpj:v("cnpj"),nire:v("nire"),numAlteracao:v("numAlteracao"),dataInicioOrig:v("dataInicioOrig"),razaoAnterior:v("razaoAnterior"),socioRetira:v("socioRetira"),socioRetiraSexo:v("socioRetiraSexo"),acervo:Number($("acervo")&&$("acervo").value)||0,dataEncerramento:v("dataEncerramento"),guardiaoLivros:v("guardiaoLivros"),clausulasExtra:semNEA(v("clausulasExtra")),
+      cnpj:v("cnpj"),nire:v("nire"),numAlteracao:v("numAlteracao"),dataInicioOrig:v("dataInicioOrig"),razaoAnterior:v("razaoAnterior"),socioRetira:v("socioRetira"),socioRetiraSexo:v("socioRetiraSexo"),acervo:Number($("acervo")&&$("acervo").value)||0,dataEncerramento:v("dataEncerramento"),guardiaoLivros:v("guardiaoLivros"),haveres:Number($("haveres")&&$("haveres").value)||0,clausulasExtra:semNEA(v("clausulasExtra")),
       retifica:!!($("altRetifica")&&$("altRetifica").checked),retificaRef:v("retificaRef"),changed:CHG};}
 
   function endLinha(e){let s="";if(e.log)s+=e.log;if(e.num)s+=", nº "+e.num;if(e.comp)s+=", "+e.comp;if(e.bairro)s+=", "+e.bairro;
@@ -1650,7 +1651,7 @@ window.TINA=(function(){
       let dci=0;const delib=(tema,texto)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(texto)],JUST,SP15));
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolvem+" "+av+" o nome empresarial da sociedade, "+pass+" "+razaoUP+" LTDA.");
       if(CH.has("fantasia")) delib((isRetifica?"Da retificação do":"Do")+" título do estabelecimento",d.fantasia?(resolvem+" "+(isRetifica?("retificar o título de estabelecimento (nome fantasia), "+pass+" "+fantUP):("adotar como título de estabelecimento (nome fantasia) a expressão "+fantUP))+"."):(resolvem+" suprimir o nome fantasia da sociedade."));
-      if(CH.has("sede")) delib(tmud+" da sede",resolvem+" "+(isRetifica?"retificar a sede da sociedade, "+pass+" o seguinte endereço":"transferir a sede da sociedade, que passa a localizar-se na")+" "+endLinha(d.sede)+".");
+      if(CH.has("sede")) delib(tmud+" da sede",resolvem+" "+(isRetifica?"retificar a sede da sociedade, que, corrigido o erro material, passa a localizar-se na":"transferir a sede da sociedade, que passa a localizar-se na")+" "+endLinha(d.sede)+".");
       if(CH.has("objeto")) delib(tmud+" do objeto social",resolvem+" "+av+" o objeto social, "+pass+" o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
       if(CH.has("capital")){
         // com o capital anterior informado, segue a redação do modelo JUCESE ("que era de … passa a ser de …")
@@ -1791,7 +1792,7 @@ window.TINA=(function(){
     const futCap=isTransf?false:(isAlt?(CH.has("capital")||CH.has("quadro")):true);
     abre("DO CAPITAL");
     pushC(corpo("O capital social "+(futCap?"será":"é")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), dividido em "+numBR(d.numQuotas)+" ("+extensoInt(d.numQuotas)+") quotas, no valor nominal de "+reais(d.valorQuota)+" ("+extensoReais(d.valorQuota)+") cada uma, totalmente integralizado "+formaIntegr(d,"em moeda corrente do País")+"."));
-    pushC(P([T("Parágrafo único. ",{bold:true}),T("O capital encontra-se subscrito e integralizado "+(plural?"pelos sócios":("pel"+gSole("o sócio","a sócia")))+" da seguinte forma:")],JUST,SP15));
+    pushC(P([T("Parágrafo único. ",{bold:true}),T("O capital encontra-se subscrito e integralizado "+(plural?"pelos sócios":("pel"+gSole("o sócio único","a sócia única")))+" da seguinte forma:")],JUST,SP15));
     pushC(tabelaQuotas(dFica,X)); pushC(gap());
     // VI - ADMINISTRAÇÃO
     abre("DA ADMINISTRAÇÃO");
@@ -1886,10 +1887,10 @@ window.TINA=(function(){
     // Fecho
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(corpo(isAlt
-      ? "E por estarem assim justos e contratados, "+(plural?"assinam":"assina")+" o presente instrumento de alteração e consolidação contratual em uma única via, que será destinada ao registro e arquivamento na "+_junta()+"."
+      ? (pluralSig?"E por estarem assim justos e contratados, assinam":gSoleSig("E por estar assim justo e contratado, assina","E por estar assim justa e contratada, assina"))+" o presente instrumento de alteração e consolidação contratual em uma única via, que será destinada ao registro e arquivamento na "+_junta()+"."
       : isTransf
       ? "E por estarem assim justos e acordados com a transformação ora deliberada, "+(plural?"assinam":"assina")+" o presente instrumento em uma única via, que será destinada ao registro e arquivamento na "+_junta()+"."
-      : "E por estarem em perfeito acordo, em tudo que neste instrumento particular foi lavrado, "+(pluralSig?"obrigam-se":"obriga-se")+" a cumprir o presente ato constitutivo, e "+(pluralSig?"assinam":"assina")+" o presente instrumento em uma única via que será destinada ao registro e arquivamento na "+_junta()+"."));
+      : (pluralSig?"E por estarem em perfeito acordo":"E por estar em perfeito acordo")+", em tudo que neste instrumento particular foi lavrado, "+(pluralSig?"obrigam-se":"obriga-se")+" a cumprir o presente ato constitutivo, e "+(pluralSig?"assinam":"assina")+" o presente instrumento em uma única via que será destinada ao registro e arquivamento na "+_junta()+"."));
     ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+" - "+(d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
     // Assinaturas — linha (1,5) para não colar no nome; nome (1,0) negrito; papel (1,0)
@@ -1904,6 +1905,14 @@ window.TINA=(function(){
         ch.push(P([T(s.retirante ? gsex(s,"Sócio retirante","Sócia retirante") : (s.administrador ? gsex(s,"Sócio/Administrador","Sócia/Administradora") : gsex(s,"Sócio","Sócia")))],CEN,{after:220,line:240,lineRule:AUTO}));
       }
     });
+    /* O administrador não sócio assina o ato: é dele a declaração de desimpedimento, e o modelo da
+       Junta reserva a linha "Administrador não sócio (se houver)". Sem a assinatura, a declaração
+       ficava no texto sem ninguém respondendo por ela. */
+    if(d.admNaoSocio && (d.admnsNome||"").trim()){
+      ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
+      ch.push(P([T(d.admnsNome.trim().toUpperCase(),{bold:true})],CEN,SP10_0,true));
+      ch.push(P([T("Administrador não sócio")],CEN,{after:220,line:240,lineRule:AUTO}));
+    }
     if(d.advIncluir) vistoAdvogado(ch,d,P,T,CEN,SP10_0,{after:220,line:240,lineRule:AUTO});
 
     const doc=new Document({creator:_autor(),title:(isAlt?"Alteração Contratual — ":isTransf?"Transformação — ":"Contrato Social — ")+(d.razao||""),
@@ -1983,7 +1992,7 @@ window.TINA=(function(){
       let dci=0; const delib=(tema,txt)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(txt)],JUST,SP15));
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolve+" "+av+" o nome empresarial, "+pass+" "+nomeUP+".");
       if(CH.has("fantasia")) delib((isRetifica?"Da retificação do":"Do")+" título do estabelecimento", d.fantasia?resolve+" "+(isRetifica?"retificar o nome fantasia, "+pass:"adotar como nome fantasia a expressão")+" "+fantUP+".":resolve+" suprimir o nome fantasia.");
-      if(CH.has("sede")) delib(tmud+" da sede",resolve+" "+(isRetifica?"retificar a sede, "+pass+" à":"transferir a sede, que passa a localizar-se na")+" "+endLinha(d.sede)+".");
+      if(CH.has("sede")) delib(tmud+" da sede",resolve+" "+(isRetifica?"retificar a sede, que, corrigido o erro material, passa a localizar-se na":"transferir a sede, que passa a localizar-se na")+" "+endLinha(d.sede)+".");
       if(CH.has("objeto")) delib(tmud+" do objeto",resolve+" "+av+" o objeto, "+pass+" o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
       if(CH.has("capital")) delib(tmud+" do capital", d.capitalAnterior>0
         ? ("O capital destacado, que era de "+reais(d.capitalAnterior)+" ("+extensoReais(d.capitalAnterior)+"), "+(isRetifica?"por erro material passa a constar":"passa a ser")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado "+formaIntegr(d,"em moeda corrente do País")+".")
@@ -2310,7 +2319,7 @@ window.TINA=(function(){
       ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")
         +", na qualidade de "+g("titular","titular")+" da empresa "+razaoUP+", com sede na "+sedeStr
         +", com registro na "+_junta()+(d.nire?" sob NIRE "+d.nire:"")+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")
-        +", resolve, por não mais interessar a sua continuidade, promover a EXTINÇÃO definitiva da empresa, mediante a seguinte cláusula:"),JUST,SP10));
+        +", resolve, por não mais interessar a sua continuidade, promover a EXTINÇÃO definitiva da empresa, mediante as seguintes cláusulas:"),JUST,SP10));
       cl("A empresa iniciou suas atividades em "+inicio+" e encerrou todas as suas operações e atividades em "+encer+".");
       cl("Procedida a liquidação, "+g("o titular assume","a titular assume")+" o ativo e o passivo porventura remanescentes da empresa ora extinta, respondendo por eventuais direitos e obrigações supervenientes.");
       const guardaEI=(d.guardiaoLivros||tit.nome||"[TITULAR]").toUpperCase();
@@ -2331,7 +2340,9 @@ window.TINA=(function(){
       const gS=(m,f)=>plural?m:g(m,f);
       ch.push(P(R((plural?"Os sócios":gS("O sócio","A sócia"))+" acima qualificad"+(plural?"os":g("o","a"))+", únic"+(plural?"os componentes":g("o componente","a componente"))+" da sociedade empresária limitada "+razaoUP+" LTDA, com sede na "+sedeStr+", com registro na "+_junta()+(d.nire?" sob NIRE "+d.nire:"")+", inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+", resolve"+(plural?"m":"")+", por não mais "+(plural?"lhes":"lhe")+" interessar a continuidade da sociedade, dissolvê-la e extingui-la, mediante as seguintes cláusulas:"),JUST,SP15));
       cl("A sociedade iniciou suas atividades em "+inicio+" e encerrou todas as suas operações e atividades em "+encer+".");
-      cl("Procedida a liquidação da sociedade, não há valores a serem restituídos "+(plural?"aos sócios":gS("ao sócio","à sócia"))+".");
+      // modelo da Junta: quem recebe haveres declara quanto; sem haveres, declara que nada há a restituir
+      if(d.haveres>0) cl("Procedida a liquidação da sociedade, "+(plural?"os sócios recebem, neste ato, por saldo de seus haveres, na proporção de suas quotas, a importância total de":gS("o sócio recebe","a sócia recebe")+", neste ato, por saldo de seus haveres, a importância de")+" "+reais(d.haveres)+" ("+extensoReais(d.haveres)+"), correspondente ao valor de suas quotas.");
+      else cl("Procedida a liquidação da sociedade, não há valores a serem restituídos "+(plural?"aos sócios":gS("ao sócio","à sócia"))+".");
       cl((plural?"Os sócios dão entre si e à sociedade":gS("O sócio dá","A sócia dá")+" à sociedade")+" plena, geral e irrevogável quitação, para nada mais reclamar"+(plural?(nS>2?"em uns dos outros":"em um do outro"):"")+", seja a que título for, com fundamento no contrato social e suas alterações, declarando, ainda, extinta, para todos os efeitos, a sociedade em referência, com o arquivamento deste distrato na "+_junta()+".");
       const guarda=(d.guardiaoLivros||(tit.nome||"[SÓCIO]")).toUpperCase();
       const guardaS=(d.guardiaoLivros?socios.find(s=>{const a=(s.nome||"").toUpperCase(),b=d.guardiaoLivros.toUpperCase();return a&&(a.includes(b)||b.includes(a));}):null)||tit;   // gênero do guardião = do sócio escolhido, não do 1º
@@ -2339,7 +2350,7 @@ window.TINA=(function(){
       const nomes=socios.map(s=>(s.nome||"").toUpperCase()).join(plural?(nS>2?", ":" e "):"");
       cl("A responsabilidade pelo ativo e passivo, porventura supervenientes, fica a cargo d"+(plural?"os ex-sócios":g("o ex-sócio","a ex-sócia"))+" "+nomes+".");
       ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
-      ch.push(corpo("E, por estarem assim justos e acertados, "+(plural?"assinam":"assina")+" o presente Distrato Social, em via única, que será destinad"+(plural?"o":"o")+" ao registro e arquivamento na "+_junta()+"."));
+      ch.push(corpo((plural?"E, por estarem assim justos e acertados, assinam":gS("E, por estar assim justo e acertado, assina","E, por estar assim justa e acertada, assina"))+" o presente Distrato Social, em via única, que será destinado ao registro e arquivamento na "+_junta()+"."));
       ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
       ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
       socios.forEach(s=>{ ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
@@ -3418,7 +3429,7 @@ window.TINA=(function(){
     const chg=d.changed?[...d.changed].sort().join(","):"";
     return _hashStr([MODE,d.razao,d.fantasia,d.cnpj,d.nire,d.numAlteracao,d.capital,d.capitalAnterior,d.numQuotas,d.valorQuota,d.objeto,
       JSON.stringify(d.sede),d.enquadramento,d.modoAdm,d.integralizacao,d.atoData,d.atoCidade,d.foro,
-      d.dataInicioOrig,d.retifica?1:0,d.retificaRef,d.clausulasExtra,d.acervo,d.dataEncerramento,d.guardiaoLivros,
+      d.dataInicioOrig,d.retifica?1:0,d.retificaRef,d.clausulasExtra,d.acervo,d.dataEncerramento,d.guardiaoLivros,d.haveres,
       // tudo o que entra no documento precisa entrar aqui: senão dá para acrescentar uma cessão de quotas,
       // um administrador ou uma filial DEPOIS de o cliente confirmar, e o portão libera sem reconfirmar.
       d.cessao?1:0,d.cedNome,d.cessNome,d.cedQuotas,d.cedValor,d.cedRetira?1:0,
@@ -3651,7 +3662,7 @@ window.TINA=(function(){
     casoAtualId=null;       // formulário novo/zerado = caso novo (o próximo "salvar" cria outro registro)
     valoresAntes=null;      // some com o estado "antes" ao limpar o formulário
     _clausulasOrig=[]; mostrarPreservacao();   // as cláusulas lidas eram do contrato ANTERIOR
-    ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","advNome","advOab","advOabUf"].forEach(id=>{if($(id))$(id).value="";});
+    ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","haveres","clausulasExtra","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","advNome","advOab","advOabUf"].forEach(id=>{if($(id))$(id).value="";});
     ["admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","alt_cessao","cedRetira","advIncluir"].forEach(id=>{if($(id))$(id).checked=false;});
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach(id=>{if($(id))$(id).style.display="none";});
     if($("filiais"))$("filiais").innerHTML=""; if($("conselhoMembros"))$("conselhoMembros").value="3";
@@ -4776,7 +4787,7 @@ window.TINA=(function(){
   function resetConfig(){CFG=cfgDefault();salvarCfg(CFG);aplicarCfg();abrirConfig();toast("Configurações restauradas ao padrão.","info");}
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
-  const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros","advNome","advOab","advOabUf"];
+  const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","haveres","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros","advNome","advOab","advOabUf"];
   const DRAFT_CHECKS=["alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae","advIncluir","preservarClausulas"];
   function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:

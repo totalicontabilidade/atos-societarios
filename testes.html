@@ -57,7 +57,15 @@
         s=linhas.filter(function(l){return l.ok===null;}).length;
     placar.innerHTML='<span class="ok">'+p+' passaram</span>'+(f?'<span class="err">'+f+' FALHARAM</span>':'<span>0 falharam</span>')+(s?'<span>'+s+' pulados</span>':'');
   }
-  function espera(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+  /* Espera fora da thread principal. Com a aba escondida por mais de 5 minutos, o Chrome passa a
+     acordar os temporizadores da página uma vez por minuto — e a bateria, que é uma corrente de
+     esperas curtas, rastejava a um teste por minuto. Um Worker não sofre esse freio. Se não der
+     para criar o Worker (política de conteúdo, navegador antigo), cai no setTimeout de sempre. */
+  var _wk=null, _wkSeq=0, _wkPend={};
+  try{ _wk=new Worker(URL.createObjectURL(new Blob(["onmessage=function(e){setTimeout(function(){postMessage(e.data.id)},e.data.ms)}"],{type:"text/javascript"})));
+       _wk.onmessage=function(e){ var f=_wkPend[e.data]; delete _wkPend[e.data]; if(f) f(); };
+       _wk.onerror=function(){ _wk=null; }; }catch(e){ _wk=null; }
+  function espera(ms){ return new Promise(function(r){ if(!_wk){ setTimeout(r,ms); return; } var id=++_wkSeq; _wkPend[id]=r; try{ _wk.postMessage({id:id,ms:ms}); }catch(e){ delete _wkPend[id]; setTimeout(r,ms); } }); }
   function ate(cond,limite){ limite=limite||15000; var ini=Date.now();
     return new Promise(function(res,rej){ (function tenta(){
       var v; try{ v=cond(); }catch(e){ v=false; }
@@ -361,7 +369,7 @@
       reg("Aritmética fecha em 100% só com quem fica", /100,00%/.test(($("valCapital")||{}).textContent||""));
       await W.TINA.gerarPreview(); await espera(1200);
       var tR=texto();
-      var iC=tR.indexOf("CONTRATO SOCIAL CONSOLIDADO"), iF=tR.indexOf("E por estarem");
+      var iC=tR.indexOf("CONTRATO SOCIAL CONSOLIDADO"), iF=tR.search(/E por esta(r|rem) assim/);   // o fecho concorda com quem assina
       var cons=tR.slice(iC, iF>iC?iF:tR.length);
       reg("Sócio que sai É qualificado no preâmbulo", /MODELO PARTICIPACOES LTDA, sociedade empres/.test(tR));
       reg("Sai o preâmbulo no plural (conta quem assina)", /Os s[óo]cios acima qualificados/.test(tR));
@@ -1196,6 +1204,44 @@
       var pb=await W.TINA.gerarPdfBlob();
       reg("E o PDF continua sendo gerado", pb && pb.size>2000, (pb?pb.size:0)+" bytes");
     }catch(e){ reg("Bateria de data e assinatura",false,String(e&&e.message||e).slice(0,130)); }
+
+    /* ---------- 6b2x. Varredura de redação: concordância nas variantes ---------- */
+    grupo("Redação — variantes");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      var tirarSocios=function(){ var cs=D.querySelectorAll("#socios .socio:not(.filial)"); for(var i=1;i<cs.length;i++) cs[i].remove();
+        var q=cs[0].querySelector('[data-f="quotas"]'); if(q){ q.value=10000; q.dispatchEvent(new W.Event("input",{bubbles:true})); } };
+      // constituição com UM sócio: fecho e parágrafo do capital no singular
+      modo("const"); await espera(220); $("btnExemplo").click(); await espera(340); tirarSocios();
+      await W.TINA.gerarPreview(); await espera(1200); var tc=texto();
+      reg("Um sócio: fecho no singular (“por estar… obriga-se… assina”)",
+        /E por estar em perfeito acordo[^.]*obriga-se[^.]*assina o presente/.test(tc) && !/por estarem/.test(tc), (tc.match(/E por esta[^,]*/)||[""])[0]);
+      reg("Um sócio: “subscrito e integralizado pelo sócio único”", /integralizado pelo sócio único/.test(tc));
+      // administrador não sócio assina o ato
+      $("admNaoSocio").checked=true; $("admNaoSocio").dispatchEvent(new W.Event("change",{bubbles:true}));
+      val("admnsNome","Carlos Modelo Rocha"); val("admnsQualif","brasileiro, solteiro, administrador, CPF nº 529.982.247-25");
+      await W.TINA.gerarPreview(); await espera(1200); tc=texto();
+      reg("Administrador não sócio entra na administração", /CARLOS MODELO ROCHA[^.]*administrador não sócio/i.test(tc));
+      reg("E tem linha de assinatura própria", /_{10,}\s*\n\s*CARLOS MODELO ROCHA\s*\n\s*Administrador não sócio/.test(tc), (tc.match(/CARLOS MODELO ROCHA\s*\n\s*[^\n]*/g)||[]).slice(-1).join(" "));
+      // rerratificação da sede: regressão minha de 09/09 — tinha sumido o ":" e a regência
+      modo("alt"); await espera(220); $("btnExemplo").click(); await espera(340);
+      $("altRetifica").checked=true; $("altRetifica").dispatchEvent(new W.Event("change",{bubbles:true}));
+      await W.TINA.gerarPreview(); await espera(1200); tc=texto();
+      reg("Rerratificação da sede: “corrigido o erro material, passa a localizar-se na”",
+        /retificar a sede da sociedade, que, corrigido o erro material, passa a localizar-se na Rua/.test(tc), (tc.match(/retificar a sede[^.]{0,120}/)||[""])[0]);
+      // distrato com um sócio: fecho no singular; e haveres quando informados
+      modo("dist_ltda"); await espera(220); $("btnExemplo").click(); await espera(340); tirarSocios();
+      await W.TINA.gerarPreview(); await espera(1200); tc=texto();
+      reg("Distrato com um sócio: “por estar assim justo e acertado, assina”", /E, por estar assim justo e acertado, assina o presente Distrato/.test(tc), (tc.match(/E, por esta[^,]*,[^,]*/)||[""])[0]);
+      reg("Sem haveres informados, declara que nada há a restituir", /não há valores a serem restituídos ao sócio/.test(tc));
+      val("haveres","2500"); await W.TINA.gerarPreview(); await espera(1200); tc=texto();
+      reg("Com haveres, declara quanto o sócio recebe (como no modelo da Junta)",
+        /o sócio recebe, neste ato, por saldo de seus haveres, a importância de R\$ 2\.500,00 \(dois mil e quinhentos reais\)/.test(tc), (tc.match(/Procedida a liquidação[^.]{0,160}/)||[""])[0]);
+      // extinção de EI: três cláusulas, plural
+      modo("dist_ei"); await espera(220); $("btnExemplo").click(); await espera(340);
+      await W.TINA.gerarPreview(); await espera(1200); tc=texto();
+      reg("Extinção: “mediante as seguintes cláusulas” (são três)", /mediante as seguintes cláusulas:/.test(tc) && (tc.match(/Cláusula (Primeira|Segunda|Terceira)\./g)||[]).length===3);
+    }catch(e){ reg("Bateria de redação das variantes",false,String(e&&e.message||e).slice(0,130)); }
 
     /* ---------- 6b3a. Tempo verbal do consolidado — REGRA DA JUNTA ----------
        No consolidado, a cláusula ALTERADA neste ato vai no FUTURO e as demais no presente.
