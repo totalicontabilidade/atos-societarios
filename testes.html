@@ -972,9 +972,30 @@
       reg("Excluir a solicitação apaga os anexos dela",
         apagados.some(function(c){ return /comprovante\.png/.test(c); }), apagados.join(","));
 
+      // o CNPJ traz a razão social da Receita, mas NUNCA por cima do que já foi digitado —
+      // muita empresa é conhecida pelo fantasia, e quem escreveu o nome manda
+      $("btnSolicNova").click(); await espera(220);
+      val("sEmpresa","NOME ESCRITO A MAO");
+      $("sCnpj").value="11222333000181";
+      $("sCnpj").dispatchEvent(new W.Event("input",{bubbles:true}));
+      $("sCnpj").dispatchEvent(new W.Event("blur",{bubbles:true}));
+      await espera(400);
+      reg("CNPJ formata sozinho no campo da solicitação", ($("sCnpj")||{}).value==="11.222.333/0001-81", ($("sCnpj")||{}).value);
+      reg("Com o nome já escrito, o CNPJ não consulta nem sobrescreve",
+        ($("sEmpresa")||{}).value==="NOME ESCRITO A MAO" && !/Consultando/i.test(($("solicStat")||{}).textContent||""),
+        ($("sEmpresa")||{}).value);
+      $("btnSolicCancelar").click(); await espera(200);
+
       // papel do comercial: a tela de solicitações passa a ser o sistema inteiro
       W.TINA._ux.aplicarModoComercial(true); await espera(250);
       reg("Comercial não vê o gerador de atos", W.getComputedStyle(D.querySelector(".wrap")).display==="none");
+      // o campo "Ato" era montado só no clique do botão Solicitações, caminho que o comercial não faz
+      reg("O campo “Ato” chega preenchido para o comercial", ($("sTipo")||{}).options.length>0, (($("sTipo")||{}).options.length||0)+" opção(ões)");
+      // a tela cheia cobria o cabeçalho e o comercial ficava sem menu — sem Configurações e sem Sair
+      var cab=D.querySelector("header"), jan=$("solicModal").querySelector(".modal");
+      reg("O cabeçalho continua alcançável na tela cheia",
+        !!$("btnMenu").offsetParent && jan.getBoundingClientRect().top >= cab.getBoundingClientRect().bottom-1,
+        "topo da janela "+Math.round(jan.getBoundingClientRect().top)+" · base do cabeçalho "+Math.round(cab.getBoundingClientRect().bottom));
       reg("Comercial não vê o menu de atos", W.getComputedStyle(D.querySelector(".head-nav")).display==="none");
       reg("A tela de solicitações abre sozinha e não fecha", $("solicModal").classList.contains("open")
         && W.getComputedStyle($("btnSolicClose")).display==="none");

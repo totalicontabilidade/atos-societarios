@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.25" />
+<meta name="versao" content="1.26" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -99,8 +99,13 @@
   .anexo .barra i{display:block;height:100%;background:var(--navy2);width:0}
   /* Tela cheia do comercial: quem só lança solicitação não vê o gerador de atos. */
   body.so-solic>header .head-nav,body.so-solic>header .head-item,body.so-solic .wrap{display:none!important}
-  body.so-solic #solicModal{background:var(--bg)}
-  body.so-solic #solicModal>.modal{max-width:980px;width:100%;height:100vh;max-height:100vh;border-radius:0;margin:0}
+  /* O cabeçalho fica ACIMA da tela cheia e ela começa abaixo dele. Antes a tela cobria o cabeçalho
+     inteiro e o comercial perdia o menu ☰ — sem Configurações (onde fica o destino do "Avisar") e
+     sem "Sair". A altura vem medida em --alturaCab, porque o cabeçalho quebra em duas linhas no
+     celular e um valor fixo deixaria um pedaço da tela escondido. */
+  body.so-solic>header{z-index:60}
+  body.so-solic #solicModal{background:var(--bg);align-items:flex-start;padding:0}
+  body.so-solic #solicModal>.modal{max-width:980px;width:100%;height:calc(100vh - var(--alturaCab,66px));max-height:none;border-radius:0;margin:var(--alturaCab,66px) auto 0}
   body.so-solic #btnSolicClose{display:none}
   .checkline{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink2)}
   .checkline input{width:auto;accent-color:var(--navy2)}
@@ -1032,8 +1037,8 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.25"></script>
-<script defer src="js/nuvem.js?v=1.25"></script>
+<script defer src="js/nuvem-config.js?v=1.26"></script>
+<script defer src="js/nuvem.js?v=1.26"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -2799,9 +2804,17 @@ window.TINA=(function(){
   function lerSolic(){ try{ const a=JSON.parse(localStorage.getItem("tinaSolic")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
   function salvarSolic(l){ try{ localStorage.setItem("tinaSolic",JSON.stringify(l)); return true; }catch(e){ return false; } }
   function tiposAto(){ const t={alt:"Alteração Contratual (Ltda)",ei_alt:"Alteração de Empresário Individual"}; Object.keys(ATO_EMAIL).forEach(k=>t[k]=ATO_EMAIL[k]); return t; }
+  /* A lista de atos ficava presa em abrirSolic(), que só roda quando alguém clica no botão
+     "Solicitações". O comercial não passa por ali — entra com a tela já aberta — e o campo "Ato"
+     aparecia vazio para ele. Agora quem monta a lista é uma função própria, chamada dos dois
+     caminhos: o botão e a entrada direta do comercial. */
+  function montarTiposAto(){
+    const sel=$("sTipo"); if(!sel || sel.options.length) return;
+    const t=tiposAto();
+    sel.innerHTML=Object.keys(t).map(k=>'<option value="'+k+'">'+escHtml(t[k])+"</option>").join("");
+  }
   function abrirSolic(){
-    const sel=$("sTipo");
-    if(sel && !sel.options.length){ const t=tiposAto(); sel.innerHTML=Object.keys(t).map(k=>'<option value="'+k+'">'+escHtml(t[k])+"</option>").join(""); }
+    montarTiposAto();
     if($("solicForm"))$("solicForm").style.display="none";
     marcarNovas(0);
     renderSolic(); $("solicModal").classList.add("open");
@@ -2899,6 +2912,7 @@ window.TINA=(function(){
     const st=$("solicStat");
     if(!(window.Nuvem&&window.Nuvem.podeGravar())){
       if(st){ st.className="fldstat bad"; st.textContent="Entre com o seu login para anexar arquivos."; }
+      toast("Entre com o seu login para anexar arquivos.","warn");
       return;
     }
     for(const f of Array.from(lista||[])){
@@ -2911,9 +2925,31 @@ window.TINA=(function(){
       const r=await window.Nuvem.enviarAnexo("solicitacoes",_idSolicAtual(),f,(p)=>{ item.enviando=p; renderAnexos(); });
       const i=_anexos.indexOf(item);
       if(r.ok){ if(i>=0)_anexos[i]=r.anexo; if(st){ st.className="fldstat ok"; st.textContent="Anexo enviado."; } }
-      else { if(i>=0)_anexos.splice(i,1); if(st){ st.className="fldstat bad"; st.textContent="Não foi possível anexar “"+f.name+"”: "+(r.msg||"falha"); } }
+      else { if(i>=0)_anexos.splice(i,1);
+        const msg="Não foi possível anexar “"+f.name+"”: "+(r.msg||"falha");
+        if(st){ st.className="fldstat bad"; st.textContent=msg; }
+        toast(msg,"err");   // só o texto no rodapé do formulário passava batido e parecia que nada acontecia
+      }
       renderAnexos();
     }
+  }
+  /* CNPJ da solicitação: ao sair do campo, busca a razão social na Receita e preenche o nome da
+     empresa SE ele ainda estiver vazio — quem digitou o nome à mão manda, porque muita empresa é
+     conhecida pelo fantasia e não pela razão social. Mesmo caminho já usado no sócio pessoa jurídica. */
+  function ligarCnpjSolic(){
+    const el=$("sCnpj"), emp=$("sEmpresa"), st=$("solicStat"); if(!el) return;
+    el.addEventListener("input",()=>{ el.value=fmtCnpj(el.value); });
+    el.addEventListener("blur",async()=>{
+      const raw=(el.value||"").trim();
+      if(!raw || (emp && (emp.value||"").trim())) return;   // sem CNPJ, ou nome já preenchido: não mexe
+      if(st){ st.className="fldstat load"; st.textContent="Consultando a Receita…"; }
+      const r=await buscaCnpj(raw);
+      if(!r.ok){ if(st){ st.className=r.offline?"fldstat warn":"fldstat bad";
+        st.textContent=(r.offline?"⚠ ":"✗ ")+r.msg+" — escreva o nome da empresa à mão"; } return; }
+      const razao=(r.data&&(r.data.razao_social||r.data.nome_empresarial))||"";
+      if(emp && razao && !(emp.value||"").trim()){ emp.value=razao; emp.classList.add("revisar"); }
+      if(st){ st.className="fldstat ok"; st.textContent=razao?("Empresa: "+razao):"CNPJ conferido na Receita."; }
+    });
   }
   function ligarAnexos(){
     const zona=$("sSolta"), inp=$("sArquivo"); if(!zona||!inp) return;
@@ -2961,11 +2997,16 @@ window.TINA=(function(){
      atos. A tela de solicitações deixa de ser uma janela sobre o sistema e passa a SER o sistema.
      Isto é conveniência, não segurança: quem protege os dados são as regras do servidor. */
   let _modoComercial=false;
+  // o cabeçalho quebra em duas linhas no celular: a tela cheia precisa saber a altura real dele
+  function medirCabecalho(){
+    const cab=document.querySelector("header"); if(!cab) return;
+    document.documentElement.style.setProperty("--alturaCab", cab.offsetHeight+"px");
+  }
   function aplicarModoComercial(ligar){
     if(_modoComercial===!!ligar) return;
     _modoComercial=!!ligar;
     document.body.classList.toggle("so-solic",_modoComercial);
-    if(_modoComercial){ const m=$("solicModal"); if(m) m.classList.add("open"); marcarNovas(0); }
+    if(_modoComercial){ montarTiposAto(); medirCabecalho(); const m=$("solicModal"); if(m) m.classList.add("open"); marcarNovas(0); }
     renderSolic();   // a lista muda com o modo: "Trabalhar" abre o gerador e some para o comercial
   }
   function renderSolic(){
@@ -5025,6 +5066,7 @@ window.TINA=(function(){
       _solicEditando=null;_solicNovoId=null;_anexos=[];_anexosDoBanco=[];renderAnexos();
       $("solicForm").style.display="none";});
     ligarAnexos();
+    ligarCnpjSolic();
     if($("solicBusca")) $("solicBusca").addEventListener("input",renderSolic);
     if($("solicFiltro")) $("solicFiltro").addEventListener("change",renderSolic);
     if($("sCnpj")) $("sCnpj").addEventListener("input",function(){this.value=fmtCnpj(this.value);});
@@ -5230,7 +5272,7 @@ window.TINA=(function(){
     document.addEventListener("input",e=>{if(e.target&&e.target.classList&&e.target.classList.contains("revisar"))e.target.classList.remove("revisar");});
     // abas-grupo (Sociedade Limitada, EI, Transformação, Distrato) caem no primeiro modo do grupo — a ordem é a de uso: alteração antes da abertura
     document.querySelectorAll(".typebar .t[data-mode]").forEach(t=>t.addEventListener("click",()=>{const m0=t.dataset.mode;switchMode(m0==="ltda"?"alt":m0==="ei"?"ei_alt":m0==="transf"?"transf_ei_ltda":m0==="dist"?"dist_ltda":m0);}));
-    window.addEventListener("resize",()=>{clearTimeout(fitPreview._t);fitPreview._t=setTimeout(fitPreview,150);});
+    window.addEventListener("resize",()=>{clearTimeout(fitPreview._t);fitPreview._t=setTimeout(()=>{fitPreview();medirCabecalho();},150);});
     $("s_cep").addEventListener("input",()=>$("s_cep").value=fmtCep($("s_cep").value));
     attachCep($("s_cep"),$("s_cep_stat"),{log:$("s_log"),bairro:$("s_bairro"),mun:$("s_mun"),uf:$("s_uf")});
     ligarCidadeAto();
