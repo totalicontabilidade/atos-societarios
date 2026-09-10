@@ -1243,6 +1243,36 @@
       reg("Extinção: “mediante as seguintes cláusulas” (são três)", /mediante as seguintes cláusulas:/.test(tc) && (tc.match(/Cláusula (Primeira|Segunda|Terceira)\./g)||[]).length===3);
     }catch(e){ reg("Bateria de redação das variantes",false,String(e&&e.message||e).slice(0,130)); }
 
+    /* ---------- 6b2w. Transformação EI → Ltda COM transferência de titularidade (modelos 01/02) ---------- */
+    grupo("Transformação com troca de titular");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("transf_ei_ltda"); await espera(220); $("btnExemplo").click(); await espera(360);
+      var cards=D.querySelectorAll("#socios .socio:not(.filial)");
+      reg("O card do sócio mostra a opção de titular retirante na transformação",
+        !!cards[0].querySelector('[data-f="retirante"]') && cards[0].querySelector(".alt-transfei").style.display!=="none");
+      // sócio 1 (titular de hoje) transfere; sócio 2 assume
+      var ret=cards[0].querySelector('[data-f="retirante"]'); ret.checked=true; ret.dispatchEvent(new W.Event("change",{bubbles:true}));
+      var q2=cards[1].querySelector('[data-f="quotas"]'); q2.value=20000; q2.dispatchEvent(new W.Event("input",{bubbles:true}));
+      val("transfModal","doacao");
+      await W.TINA.gerarPreview(); await espera(1300);
+      var tt=texto(), p1=tt.split(/CONTRATO SOCIAL\s*POR TRANSFORMA/i)[0], p2=tt.split(/CONTRATO SOCIAL\s*POR TRANSFORMA/i)[1]||"";
+      reg("Parte 1 qualifica o titular ATUAL (quem transfere)", /^[\s\S]{0,400}JOÃO DA SILVA LIMA, brasileiro/.test(p1), p1.slice(0,120).replace(/\s+/g," "));
+      reg("Item 1 registra a transferência com a modalidade",
+        /Item 1 – JOÃO DA SILVA LIMA transfere a empresa a MARIA DE SOUZA LIMA, [\s\S]*?por doação, a qual assume o ativo e o passivo/.test(p1), (p1.match(/Item 1[^.]{0,160}/)||[""])[0]);
+      reg("Quitação recíproca no Item 1", /dando-se as partes, reciprocamente, plena, geral e irrevogável quitação/.test(p1));
+      reg("Assinam titular retirante e titular admitido",
+        /JOÃO DA SILVA LIMA\s*\n\s*Titular retirante/.test(p1) && /MARIA DE SOUZA LIMA\s*\n\s*Titular admitido/.test(p1));
+      reg("Parte 2 é do titular admitido (quem assumiu transforma o registro)",
+        /^[\s\S]{0,500}MARIA DE SOUZA LIMA, brasileira[\s\S]{0,700}resolve transformar o seu registro/.test(p2), p2.slice(0,100).replace(/\s+/g," "));
+      reg("Quem transferiu não entra no quadro da sociedade", !/JOÃO DA SILVA LIMA/.test(p2), "");
+      reg("Sociedade nasce unipessoal, com a admitida como única sócia", /SOCIEDADE EMPRESÁRIA, a qual se regerá/.test(p2) && /pela única sócia|por decisão da única sócia/.test(p2));
+      // validação: retirante sem ninguém para assumir
+      cards=D.querySelectorAll("#socios .socio:not(.filial)"); cards[1].remove();
+      var fv=await W.TINA.validar();
+      reg("Validação barra retirante sem titular admitido", (fv||[]).some(function(x){ return /ninguém para assumir/i.test(x); }), (fv||[]).join(" | ").slice(0,100));
+    }catch(e){ reg("Bateria da transformação com troca de titular",false,String(e&&e.message||e).slice(0,130)); }
+
     /* ---------- 6b3a. Tempo verbal do consolidado — REGRA DA JUNTA ----------
        No consolidado, a cláusula ALTERADA neste ato vai no FUTURO e as demais no presente.
        Consolidado inteiro no presente é recusado pela Junta. Já uniformizei no presente uma vez,

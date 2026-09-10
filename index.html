@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.29" />
+<meta name="versao" content="1.30" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -447,6 +447,8 @@
         <div><label for="cnpj">CNPJ <span class="hint transfonly" style="display:none">— mantido</span></label><input type="text" id="cnpj" placeholder="00.000.000/0001-00"></div>
         <div><label for="nire">NIRE <span class="hint">(opcional — em branco, é omitido do texto)</span></label><input type="text" id="nire" placeholder="28XXXXXXXXX"></div>
         <div class="altonly"><label for="numAlteracao">Nº desta alteração <span class="hint">(opcional)</span></label><input type="text" id="numAlteracao" placeholder="Ex.: 3 — em branco, sai sem o número"></div>
+        <div class="transfeionly" style="display:none"><label for="transfModal">Transferência de titularidade <span class="hint">— vale só com um sócio marcado como titular retirante</span></label>
+          <select id="transfModal"><option value="venda">por venda</option><option value="doacao">por doação</option></select></div>
         <div><label for="dataInicioOrig">Início original das atividades</label><input type="text" id="dataInicioOrig" placeholder="DD/MM/AAAA"></div>
         <div class="transfeionly" style="display:none"><label for="acervo">Acervo (R$) <span class="hint">— capital atual do EI</span></label><input type="number" id="acervo" step="0.01" placeholder="1.00"></div>
       </div>
@@ -1040,8 +1042,8 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.29"></script>
-<script defer src="js/nuvem.js?v=1.29"></script>
+<script defer src="js/nuvem-config.js?v=1.30"></script>
+<script defer src="js/nuvem.js?v=1.30"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -1291,7 +1293,7 @@ window.TINA=(function(){
       </div>
       <div class="bar">
         <label class="checkline ltdaonly"><input type="checkbox" data-f="administrador" ${(data.administrador===false||(data.tipoPessoa==='PJ'&&data.administrador===undefined))?'':'checked'}> É administrador <span class="hint pjonly" style="display:none">— administrador é sempre pessoa natural: marcar aqui designa o <b>representante</b> da sócia</span></label>
-        <label class="checkline altonly" style="display:none"><input type="checkbox" data-f="retirante" ${data.retirante?'checked':''}> <b>Retira-se</b> nesta alteração <span class="hint">— continua qualificado no preâmbulo e assina o ato; sai do quadro e do consolidado</span></label>
+        <label class="checkline alt-transfei" style="display:none"><input type="checkbox" data-f="retirante" ${data.retirante?'checked':''}> <span class="altonly"><b>Retira-se</b> nesta alteração <span class="hint">— continua qualificado no preâmbulo e assina o ato; sai do quadro e do consolidado</span></span><span class="transfeionly"><b>Titular retirante</b> <span class="hint">— transfere a empresa ao próximo sócio da lista (modelo da Junta com transferência de titularidade); é qualificado e assina a parte 1, mas não entra na sociedade</span></span></label>
         <label class="checkline pfonly"><input type="checkbox" data-f="temProc" ${data.temProc?'checked':''}> Representado por procurador</label>
         <button class="btn del mini" type="button" onclick="TINA.removeSocio(${idx})">Remover</button>
       </div>
@@ -1350,6 +1352,8 @@ window.TINA=(function(){
     // quem revela .altonly é o switchMode; um card criado com o app JÁ em "Alteração" nasceria com a
     // caixa de retirada escondida até o usuário trocar de aba e voltar
     if(typeof MODE!=="undefined" && MODE==="alt") div.querySelectorAll(".altonly").forEach(e=>e.style.display="");
+    if(typeof MODE!=="undefined" && (MODE==="alt"||MODE==="transf_ei_ltda"||MODE==="transf_ei_slu")) div.querySelectorAll(".alt-transfei").forEach(e=>e.style.display="");
+    if(typeof MODE!=="undefined" && (MODE==="transf_ei_ltda"||MODE==="transf_ei_slu")) div.querySelectorAll(".transfeionly").forEach(e=>e.style.display="");
     const ret=q("retirante"); if(ret)ret.addEventListener("change",recalc);   // sai do quadro → recalcula os percentuais
     recalc();
   }
@@ -1511,7 +1515,7 @@ window.TINA=(function(){
       cessao:!!($("alt_cessao")&&$("alt_cessao").checked), cedNome:v("cedNome"), cessNome:v("cessNome"),
       cedQuotas:Number($("cedQuotas")&&$("cedQuotas").value)||0, cedValor:Number($("cedValor")&&$("cedValor").value)||0,
       cedRetira:!!($("cedRetira")&&$("cedRetira").checked),
-      cnpj:v("cnpj"),nire:v("nire"),numAlteracao:v("numAlteracao"),dataInicioOrig:v("dataInicioOrig"),razaoAnterior:v("razaoAnterior"),socioRetira:v("socioRetira"),socioRetiraSexo:v("socioRetiraSexo"),acervo:Number($("acervo")&&$("acervo").value)||0,dataEncerramento:v("dataEncerramento"),guardiaoLivros:v("guardiaoLivros"),haveres:Number($("haveres")&&$("haveres").value)||0,clausulasExtra:semNEA(v("clausulasExtra")),
+      cnpj:v("cnpj"),nire:v("nire"),numAlteracao:v("numAlteracao"),transfModal:v("transfModal")||"venda",dataInicioOrig:v("dataInicioOrig"),razaoAnterior:v("razaoAnterior"),socioRetira:v("socioRetira"),socioRetiraSexo:v("socioRetiraSexo"),acervo:Number($("acervo")&&$("acervo").value)||0,dataEncerramento:v("dataEncerramento"),guardiaoLivros:v("guardiaoLivros"),haveres:Number($("haveres")&&$("haveres").value)||0,clausulasExtra:semNEA(v("clausulasExtra")),
       retifica:!!($("altRetifica")&&$("altRetifica").checked),retificaRef:v("retificaRef"),changed:CHG};}
 
   function endLinha(e){let s="";if(e.log)s+=e.log;if(e.num)s+=", nº "+e.num;if(e.comp)s+=", "+e.comp;if(e.bairro)s+=", "+e.bairro;
@@ -2085,8 +2089,17 @@ window.TINA=(function(){
     const SP15={after:120,line:360,lineRule:AUTO},SP10={after:120,line:240,lineRule:AUTO},SP10_0={after:0,line:240,lineRule:AUTO},SPLINE15_0={after:0,line:360,lineRule:AUTO};
     const isSLU=(md==="transf_ei_slu");
     const razaoUP=(d.razao||"[RAZÃO SOCIAL]").toUpperCase(),fantUP=(d.fantasia||"").toUpperCase(),razAntUP=(d.razaoAnterior||"[NOME ANTERIOR]").toUpperCase();
-    const socios=d.socios, tit=socios[0]||{};
-    const BOLDS=[razaoUP+" LTDA",razaoUP,razAntUP,fantUP,...socios.map(s=>(s.nome||"").toUpperCase())].filter(Boolean);
+    /* Transferência de titularidade (modelos 01 e 02 da Junta): o titular ATUAL transfere a empresa
+       — por venda ou doação — a quem assume o ativo e o passivo, e é este quem transforma o
+       registro em sociedade. O retirante é qualificado e assina a parte 1 ("Titular retirante"),
+       mas não entra no quadro nem no contrato da parte 2. */
+    const RETIR=d.socios.filter(s=>s.retirante), FICAM=d.socios.filter(s=>!s.retirante);
+    const troca=RETIR.length===1 && FICAM.length>=1;
+    const socios=troca?FICAM:d.socios;          // a sociedade que nasce
+    const titRet=troca?RETIR[0]:null;           // quem transfere e sai
+    const tit=socios[0]||{};                     // titular da parte 2 (o admitido, havendo troca)
+    const titP1=troca?titRet:tit;               // qualificado na parte 1: o titular registrado HOJE
+    const BOLDS=[razaoUP+" LTDA",razaoUP,razAntUP,fantUP,...d.socios.map(s=>(s.nome||"").toUpperCase())].filter(Boolean);
     const R=(t)=>makeRuns(t,BOLDS,TextRun);
     const P=(ch,al,sp,junto)=>{const o={alignment:al||JUST,spacing:sp||SP15,children:ch};
       if(junto)o.keepNext=true;   // não deixa a página quebrar entre este parágrafo e o próximo
@@ -2106,9 +2119,9 @@ window.TINA=(function(){
        não existe, e a Junta lê o preâmbulo como identificação do registro em vigor. O endereço novo
        aparece só na cláusula que o altera e no contrato consolidado. */
     const sedeCab=(mudou("sede")&&(d.sedeAnterior||"").trim())?d.sedeAnterior.trim():endLinha(d.sede);
-    const qualifTit=(comNire)=> (tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")
+    const qualifTit=(comNire,quem)=>{ const q=quem||tit; return (q.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(q).replace(/;?\s*$/,"")
       +", com sede na "+sedeCab+", com Instrumento de Inscrição de Empresário Individual arquivado na "+_junta()
-      +((comNire&&d.nire)?", NIRE nº "+d.nire:"")+", inscrit"+gT("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]");
+      +((comNire&&d.nire)?", NIRE nº "+d.nire:"")+", inscrit"+gsex(q,"o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]"); };
 
     const ch=[];
     /* ---------- PARTE 1: instrumento de transformação (com NIRE) + assinatura ---------- */
@@ -2119,7 +2132,14 @@ window.TINA=(function(){
        empresa que ainda não existe; o nome novo entra na Cláusula Primeira e no contrato da parte 2. */
     ch.push(tituloDoc(razAntUP));
     ch.push(space());
-    ch.push(P(R(qualifTit(true)+", resolve:"),JUST,SP10));
+    ch.push(P(R(qualifTit(true,titP1)+", resolve:"),JUST,SP10));
+    if(troca){
+      // "Item 1" do modelo da Junta: a transferência vem ANTES das cláusulas da transformação
+      const modal=(d.transfModal==="doacao")?"doação":"venda";
+      ch.push(P([T("Item 1 – ",{bold:true}),...R((titRet.nome||"[TITULAR RETIRANTE]").toUpperCase()+" transfere a empresa a "
+        +(tit.nome||"[TITULAR ADMITIDO]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")+", por "+modal
+        +", "+gsex(tit,"o qual","a qual")+" assume o ativo e o passivo da empresa, dando-se as partes, reciprocamente, plena, geral e irrevogável quitação pelo ato firmado.")],JUST,SP15));
+    }
     const ord1=["Primeira","Segunda","Terceira","Quarta","Quinta"]; let o1=0;
     const cl1=(txt)=>ch.push(P([T("Cláusula "+ord1[o1++]+" – ",{bold:true}),...R(txt)],JUST,SP15));
     cl1("Fica transformado este Empresário Individual em Sociedade Limitada"+(isSLU?" Unipessoal":"")+", sob o nome empresarial de: "+razaoUP+" LTDA, com sub-rogação de todos os direitos e obrigações pertinentes."+(d.fantasia?" E como nome de fantasia: "+fantUP+".":""));
@@ -2135,9 +2155,19 @@ window.TINA=(function(){
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
-    ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
-    ch.push(P([T((tit.nome||"[TITULAR]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
-    ch.push(P([T("Titular")],CEN,{after:220,line:240,lineRule:AUTO}));
+    if(troca){
+      // assinam os dois: quem transfere ("Titular retirante") e quem assume ("Titular admitido")
+      ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
+      ch.push(P([T((titRet.nome||"[TITULAR RETIRANTE]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
+      ch.push(P([T("Titular retirante")],CEN,{after:220,line:240,lineRule:AUTO}));
+      ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
+      ch.push(P([T((tit.nome||"[TITULAR ADMITIDO]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
+      ch.push(P([T("Titular admitido")],CEN,{after:220,line:240,lineRule:AUTO}));
+    } else {
+      ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
+      ch.push(P([T((tit.nome||"[TITULAR]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
+      ch.push(P([T("Titular")],CEN,{after:220,line:240,lineRule:AUTO}));
+    }
 
     /* ---------- QUEBRA DE PÁGINA + PARTE 2: contrato social consolidado (SEM NIRE) ---------- */
     ch.push(new Paragraph({alignment:CEN,spacing:SP10_0,style:"QuebraPagina",pageBreakBefore:true,children:[T("CONTRATO SOCIAL POR TRANSFORMAÇÃO DE EMPRESÁRIO INDIVIDUAL",{bold:true})]}));
@@ -2383,6 +2413,7 @@ window.TINA=(function(){
     document.querySelectorAll(".distsub .t[data-mode]").forEach(t=>t.classList.toggle("active",t.dataset.mode===m));
     document.querySelectorAll(".altonly").forEach(el=>el.style.display=isAlt?"":"none");
     document.querySelectorAll(".alt-transf").forEach(el=>el.style.display=(isAlt||isTransf)?"":"none");
+    document.querySelectorAll(".alt-transfei").forEach(el=>el.style.display=(isAlt||m==="transf_ei_ltda"||m==="transf_ei_slu")?"":"none");
     document.querySelectorAll(".ltdaonly").forEach(el=>el.style.display=formEI?"none":"");
     document.querySelectorAll(".eionly").forEach(el=>el.style.display=isEI?"":"none");
     document.querySelectorAll(".transfonly").forEach(el=>el.style.display=isTransf?"":"none");
@@ -2501,6 +2532,13 @@ window.TINA=(function(){
       // mesma exigência da alteração: sem o endereço de hoje, o preâmbulo qualificaria a empresa
       // pelo endereço que ela ainda não tem
       if(d.changed&&d.changed.has("sede")&&!(d.sedeAnterior||"").trim()) f.push("Endereço ANTERIOR (atual) — vai no preâmbulo; o novo fica só na cláusula e no consolidado");
+      // transferência de titularidade: um único retirante, e alguém para assumir
+      if(MODE==="transf_ei_ltda"||MODE==="transf_ei_slu"){
+        const ret=(d.socios||[]).filter(so=>so.retirante), fic=(d.socios||[]).filter(so=>!so.retirante);
+        if(ret.length>1) f.push("Só um titular pode transferir a empresa — desmarque os demais retirantes");
+        if(ret.length===1 && !fic.length) f.push("Titular retirante marcado, mas ninguém para assumir a empresa: adicione o titular admitido");
+        if(MODE==="transf_ei_slu" && ret.length===1 && fic.length>1) f.push("Sociedade unipessoal: com transferência, só o titular admitido pode ficar no quadro");
+      }
     }
     if(d.admNaoSocio){ if(!(d.admnsNome||"").trim()) f.push("Administrador não sócio: nome");
       if(!(d.admnsQualif||"").trim()) f.push("Administrador não sócio: qualificação (exigida pela IN)"); }
