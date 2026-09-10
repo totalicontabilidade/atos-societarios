@@ -4,7 +4,7 @@
      e guarda a cópia mais nova para uso offline. Assim, abrir o app online = sempre a última versão.
    - Demais recursos do mesmo domínio (libs grandes, ícones): cache primeiro (rápido/offline).
    - Recursos externos (ViaCEP): passam direto pela rede. */
-const CACHE = "atos-shell-v55";
+const CACHE = "atos-shell-v56";
 const CORE = [
   "./",
   "./index.html",
@@ -49,6 +49,27 @@ self.addEventListener("fetch", e => {
         return fresh;
       } catch (_) {
         return (await caches.match("./index.html")) || (await caches.match("./")) || Response.error();
+      }
+    })());
+    return;
+  }
+
+  /* CÓDIGO DO PRÓPRIO APP (js/): REDE PRIMEIRO, como a página.
+     O index.html sempre vem da rede, mas js/nuvem.js vinha do cache — então uma versão NOVA da
+     página podia rodar junto de um nuvem.js VELHO, e recursos que dependem dos dois simplesmente
+     não funcionavam, sem nenhum erro na tela. Foi o que aconteceu com o papel "comercial": a
+     página já sabia abrir direto nas solicitações, o nuvem.js antigo nem sabia o que era papel.
+     As bibliotecas de lib/ continuam no cache: são grandes, versionadas pelo nome e não mudam. */
+  if (/\/js\/[^/]+\.js$/.test(url.pathname)) {
+    e.respondWith((async () => {
+      try {
+        const fresh = await fetch(req.url, { cache: "no-store" });
+        if (fresh && fresh.ok && fresh.type === "basic") {
+          caches.open(CACHE).then(c => c.put(req, fresh.clone())).catch(() => {});
+        }
+        return fresh;
+      } catch (_) {
+        return (await caches.match(req)) || new Response("", { status: 504, statusText: "offline" });
       }
     })());
     return;

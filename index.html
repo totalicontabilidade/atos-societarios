@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.24" />
+<meta name="versao" content="1.25" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -1028,8 +1028,12 @@ window.__pdfjsFallback=function(){
 <script defer src="lib/firebase-auth-compat.js"></script>
 <script defer src="lib/firebase-firestore-compat.js"></script>
 <script defer src="lib/firebase-storage-compat.js"></script>
-<script defer src="js/nuvem-config.js"></script>
-<script defer src="js/nuvem.js"></script>
+<!-- O ?v= é a versão do app e PRECISA subir junto com <meta name="versao"> (há um teste que confere).
+     Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
+     da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
+     js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
+<script defer src="js/nuvem-config.js?v=1.25"></script>
+<script defer src="js/nuvem.js?v=1.25"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -4960,7 +4964,10 @@ window.TINA=(function(){
         const abrir=!pop.classList.contains("open");
         pop.classList.toggle("open",abrir); bt.setAttribute("aria-expanded",abrir?"true":"false");
         if(abrir){ const q=$("menuQuem"), es=window.Nuvem?window.Nuvem.estado():null;
-          if(q) q.textContent = es&&es.daEquipe ? es.email : (es&&es.configurado ? "Sem login" : ""); } });
+          // o papel aparece aqui para a própria pessoa: sem isso não havia como conferir, por
+          // dentro do sistema, se o cadastro dela ficou como comercial ou como cadastro completo
+          const papel = es&&es.daEquipe ? (es.admin?" · administrador":(es.papel==="comercial"?" · comercial":" · cadastro")) : "";
+          if(q) q.textContent = es&&es.daEquipe ? (es.email+papel) : (es&&es.configurado ? "Sem login" : ""); } });
       pop.addEventListener("click",e=>{ if(e.target.closest("button")) fechar(); });
       document.addEventListener("click",e=>{ if(!e.target.closest(".usermenu")) fechar(); });
       document.addEventListener("keydown",e=>{ if(e.key==="Escape") fechar(); });

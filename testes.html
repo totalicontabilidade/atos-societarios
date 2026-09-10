@@ -1071,6 +1071,24 @@
         (fS||[]).some(function(x){ return /Endereço ANTERIOR/i.test(x); }), (fS||[]).join(" | ").slice(0,90));
     }catch(e){ reg("Bateria de transformação",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2y. O código do app não pode ficar para trás ----------
+       A página vem sempre da rede, mas js/ vinha do cache: uma versão nova do index.html podia
+       rodar com um js/nuvem.js velho e o que dependia dos dois falhava sem erro nenhum na tela.
+       Foi assim que o papel "comercial" não pegou. Duas travas: o ?v= dos scripts acompanha a
+       versão do app, e o service worker busca js/ pela rede primeiro. */
+    grupo("Versão do código");
+    try{
+      var htmlApp=await (await fetch("index.html?x="+Date.now(),{cache:"no-store"})).text();
+      var versao=(htmlApp.match(/<meta name="versao" content="([\d.]+)"/)||[])[1]||"";
+      var tags=htmlApp.match(/<script defer src="js\/[^"]+"><\/script>/g)||[];
+      reg("Os scripts do app carregam com ?v=", tags.length>0 && tags.every(function(t){ return /\?v=[\d.]+/.test(t); }), tags.join(" "));
+      reg("O ?v= é igual à versão do app (senão o navegador serve código velho)",
+        !!versao && tags.every(function(t){ return t.indexOf("?v="+versao+'"')>0; }), "versão "+versao+" · "+tags.join(" "));
+      var sw=await (await fetch("sw.js?x="+Date.now(),{cache:"no-store"})).text();
+      reg("O service worker busca js/ pela rede primeiro", /\\\/js\\\/\[\^\/\]\+\\\.js\$|js\\\/\[\^/.test(sw) || /\/js\//.test(sw), "");
+      reg("E o cache do service worker foi renomeado nesta versão", /const CACHE = "atos-shell-v\d+"/.test(sw), (sw.match(/atos-shell-v\d+/)||[""])[0]);
+    }catch(e){ reg("Bateria da versão do código",false,String(e&&e.message||e).slice(0,130)); }
+
     /* ---------- 6b2z. Data e assinatura inteira na mesma página ---------- */
     grupo("Data e assinatura");
     try{
