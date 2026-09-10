@@ -1007,6 +1007,60 @@
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de anexos das solicitações",false,String(e&&e.message||e).slice(0,130)); }
 
+    /* ---------- 6b4c. Finalizar a solicitação e o comercial ficar sabendo ---------- */
+    grupo("Solicitações — finalizar");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+      var nu={}, ouvinte=null;
+      W.Nuvem.podeGravar=function(){ return true; };
+      W.Nuvem.listar=function(){ return Promise.resolve({ok:true,itens:Object.keys(nu).map(function(k){return nu[k];})}); };
+      W.Nuvem.salvar=function(c,id,d,o){ nu[id]=(o&&o.substituir)?Object.assign({id:id},d):Object.assign({},nu[id]||{},d,{id:id}); return Promise.resolve({ok:true,id:id}); };
+      W.Nuvem.trilha=function(){ return Promise.resolve({ok:true}); };
+      W.Nuvem.ouvirColecao=function(c,fn){ ouvinte=fn; return function(){}; };
+      var est0=W.Nuvem.estado;
+      W.Nuvem.estado=function(){ return Object.assign({},est0(),{email:"cadastro@exemplo.com",uid:"U1",daEquipe:true}); };
+
+      $("btnSolic").click(); await espera(300);
+      $("btnSolicNova").click(); await espera(220);
+      val("sEmpresa","EXEMPLO COMERCIO LTDA"); val("sObs","Mudar o endereço da sede.");
+      $("btnSolicSalvar").click(); await espera(450);
+      reg("Quem faz o cadastro tem o botão Finalizar", /Finalizar/.test($("solicLista").innerText));
+      D.querySelector("[data-sol-fim]").click(); await espera(350);
+      var s1=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
+      reg("Finalizar marca o processo como finalizado", s1.status==="concluida", s1.status);
+      reg("E registra quando e por quem", !!s1.finalizadoEm && s1.finalizadoPor==="cadastro", s1.finalizadoPor+" · "+s1.finalizadoEm);
+      reg("O cartão mostra o selo de finalizada", /✓ Finalizada/.test($("solicLista").innerText),
+        ($("solicLista").innerText.match(/✓ Finalizada[^\n]*/)||[""])[0]);
+      reg("Finalizada há pouco continua à vista no filtro padrão (é como o comercial vê o desfecho)",
+        $("solicLista").innerText.indexOf("EXEMPLO COMERCIO")>=0 && ($("solicFiltro")||{}).value==="abertas");
+      reg("E aparece o botão de reabrir no lugar do de finalizar",
+        /data-sol-reabrir/.test($("solicLista").innerHTML) && !/data-sol-fim/.test($("solicLista").innerHTML));
+
+      // reabrir precisa APAGAR os campos de finalização — com mesclagem eles sobreviveriam na nuvem
+      D.querySelector("[data-sol-reabrir]").click(); await espera(350);
+      var s2=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
+      reg("Reabrir volta para em andamento e limpa o registro da finalização",
+        s2.status==="andamento" && !s2.finalizadoEm && !s2.finalizadoPor, s2.status);
+      reg("E a nuvem também deixa de ter o registro (gravação sem mesclagem)",
+        !nu[s2.id].finalizadoEm && !nu[s2.id].finalizadoPor, Object.keys(nu[s2.id]).join(","));
+
+      // o comercial: sem botão de finalizar, mas recebe a notícia ao vivo
+      W.TINA._ux.aplicarModoComercial(true); await espera(300);
+      reg("O comercial não finaliza (acompanha, não encerra)", !/data-sol-fim/.test($("solicLista").innerHTML));
+      W.TINA._ux.ligarAvisoSolic();
+      reg("A tela do comercial fica ouvindo a nuvem", typeof ouvinte==="function");
+      var jaFinalizada=Object.assign({},s2,{status:"concluida",finalizadoEm:new Date().toISOString(),
+        finalizadoPor:"cadastro",alteradoEm:new Date(Date.now()+5000).toISOString()});
+      ouvinte([{saiu:false,item:jaFinalizada}]); await espera(400);
+      reg("Finalizada noutro computador chega na hora, sem recarregar",
+        (JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{}).status==="concluida"
+        && /✓ Finalizada/.test($("solicLista").innerText));
+      W.TINA._ux.aplicarModoComercial(false); await espera(200);
+      W.Nuvem.estado=est0;
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+    }catch(e){ reg("Bateria de finalizar solicitação",false,String(e&&e.message||e).slice(0,130)); }
+
     // ---------- 6b5. Visto de advogado (regra do Manual de LTDA, item 7 e roteiro 8/8.1) ----------
     grupo("Visto de advogado");
     try{

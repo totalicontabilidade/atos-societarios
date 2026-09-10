@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.26" />
+<meta name="versao" content="1.27" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -83,7 +83,9 @@
   .btn.o{background:#fff;color:var(--navy);border:1px solid #d7deea}.btn.o:hover{background:#f5f7fb}
   .btn.s{background:#eef1f6;color:var(--ink2)}.btn.s:hover{background:#e5eaf1}
   .btn.mini{padding:6px 11px;font-size:12px;border-radius:9px}
-  .btn.del{background:var(--errbg);color:var(--err)}.btn.del:hover{background:#fbdad6}
+  .btn.del{background:var(--errbg);color:var(--err)}
+  .btn.ok{background:var(--okbg);color:var(--ok);border:1px solid var(--okln)}
+  .selo-fim{margin-top:6px;display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;background:var(--okbg);color:var(--ok);border:1px solid var(--okln)}.btn.del:hover{background:#fbdad6}
   .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   /* Anexos da solicitação */
   .solta{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;font-size:12px;color:var(--muted);background:var(--line2);cursor:pointer;transition:.15s}
@@ -840,7 +842,7 @@
           <div><label for="sStatus">Situação</label><select id="sStatus">
             <option value="nova">Nova</option><option value="andamento">Em andamento</option>
             <option value="cliente">Aguardando cliente</option><option value="protocolada">Protocolada</option>
-            <option value="concluida">Concluída</option></select></div>
+            <option value="concluida">Finalizada</option></select></div>
         </div>
         <div class="row"><label for="sObs">Descrição <span class="hint">— o que o cliente pediu, com as suas palavras</span></label>
           <textarea id="sObs" rows="4" placeholder="Ex.: trocar o endereço da sede e incluir a filha como sócia com 20%. O cliente mandou o comprovante de endereço no anexo."></textarea></div>
@@ -863,10 +865,10 @@
       <div class="grid g2 row" style="margin-top:10px">
         <div><input type="text" id="solicBusca" placeholder="🔎 Empresa, CNPJ ou responsável…"></div>
         <div><select id="solicFiltro">
-          <option value="abertas">Em aberto</option><option value="todas">Todas</option>
+          <option value="abertas">Em aberto e recém-finalizadas</option><option value="todas">Todas</option>
           <option value="nova">Novas</option><option value="andamento">Em andamento</option>
           <option value="cliente">Aguardando cliente</option><option value="protocolada">Protocoladas</option>
-          <option value="concluida">Concluídas</option></select></div>
+          <option value="concluida">Finalizadas</option></select></div>
       </div>
       <div id="solicLista" style="margin-top:12px"></div>
     </div>
@@ -1037,8 +1039,8 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.26"></script>
-<script defer src="js/nuvem.js?v=1.26"></script>
+<script defer src="js/nuvem-config.js?v=1.27"></script>
+<script defer src="js/nuvem.js?v=1.27"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -2798,7 +2800,14 @@ window.TINA=(function(){
   /* ===== Solicitações (fila de trabalho da equipe) =====
      Guarda no navegador e, quando há login na nuvem, também no Firestore. O local é a
      fonte do dia a dia; a nuvem é o registro compartilhado. Nunca depende da rede. */
-  const SOLIC_STATUS={nova:"Nova",andamento:"Em andamento",cliente:"Aguardando cliente",protocolada:"Protocolada",concluida:"Concluída"};
+  const SOLIC_STATUS={nova:"Nova",andamento:"Em andamento",cliente:"Aguardando cliente",protocolada:"Protocolada",concluida:"Finalizada"};
+  // finalizada há pouco continua à vista de quem pediu: é como o comercial fica sabendo que acabou
+  const DIAS_RECEM_FINALIZADA=7;
+  function _recemFinalizada(r){
+    if(!r || r.status!=="concluida" || !r.finalizadoEm) return false;
+    const t=Date.parse(r.finalizadoEm); if(isNaN(t)) return false;
+    return (Date.now()-t) < DIAS_RECEM_FINALIZADA*86400000;
+  }
   const SOLIC_ABERTAS=["nova","andamento","cliente","protocolada"];
   let _solicEditando=null;
   function lerSolic(){ try{ const a=JSON.parse(localStorage.getItem("tinaSolic")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
@@ -3009,12 +3018,38 @@ window.TINA=(function(){
     if(_modoComercial){ montarTiposAto(); medirCabecalho(); const m=$("solicModal"); if(m) m.classList.add("open"); marcarNovas(0); }
     renderSolic();   // a lista muda com o modo: "Trabalhar" abre o gerador e some para o comercial
   }
+  function _dataBR(iso){ const d=new Date(iso); return isNaN(d)?"":String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear(); }
+  /* Finalizar é o fim do processo, não uma edição qualquer: fica registrado QUANDO e POR QUEM, e
+     é isso que aparece para quem abriu a solicitação. Reabrir desfaz, apagando o registro — senão
+     o cartão continuaria dizendo "finalizada" com a solicitação em andamento. */
+  function finalizarSolic(id,fim){
+    const l=lerSolic(); const i=l.findIndex(x=>x.id===id); if(i<0) return;
+    const r=l[i];
+    if(fim){
+      r.status="concluida";
+      r.finalizadoEm=new Date().toISOString();
+      r.finalizadoPor=((window.Nuvem&&window.Nuvem.estado().email)||"").split("@")[0]||"";
+    } else {
+      r.status="andamento"; delete r.finalizadoEm; delete r.finalizadoPor;
+    }
+    r.alteradoEm=new Date().toISOString();
+    salvarSolic(l);
+    if(window.Nuvem&&window.Nuvem.podeGravar()){
+      // sem merge: reabrir precisa APAGAR os campos de finalização da nuvem, e mesclar os manteria
+      window.Nuvem.salvar("solicitacoes",r.id,r,{substituir:true});
+      window.Nuvem.trilha(fim?"solicitacao.finalizar":"solicitacao.reabrir",r.id,r.empresa?"":"");
+    }
+    renderSolic();
+    toast(fim?("✓ Finalizada: "+(r.empresa||"solicitação")):("↺ Reaberta: "+(r.empresa||"solicitação")),"ok");
+  }
   function renderSolic(){
     statusNuvem();
     const box=$("solicLista"); if(!box)return;
     let l=lerSolic();
     const f=($("solicFiltro")||{}).value||"abertas";
-    if(f==="abertas") l=l.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0);
+    // "Em aberto" inclui as finalizadas há pouco: sem isso o comercial nunca via o desfecho,
+    // porque o padrão da tela esconde tudo o que já foi concluído
+    if(f==="abertas") l=l.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0 || _recemFinalizada(x));
     else if(f!=="todas") l=l.filter(x=>x.status===f);
     const q=(($("solicBusca")||{}).value||"").toLowerCase().trim();
     if(q) l=l.filter(x=>((x.empresa||"")+" "+(x.cnpj||"")+" "+(x.responsavel||"")).toLowerCase().includes(q));
@@ -3030,6 +3065,7 @@ window.TINA=(function(){
         +'<div class="hint">'+escHtml(T[r.tipo]||r.tipo||"")+(r.cnpj?" · "+escHtml(r.cnpj):"")
         +(r.responsavel?" · "+escHtml(r.responsavel):"")
         +(r.prazo?' · <span'+(atras?' style="color:var(--err);font-weight:700"':'')+'>prazo '+escHtml(r.prazo)+(atras?" (vencido)":"")+'</span>':"")+'</div>'
+        +(r.status==="concluida"?'<div class="selo-fim">✓ Finalizada'+(r.finalizadoEm?" em "+escHtml(_dataBR(r.finalizadoEm)):"")+(r.finalizadoPor?" por "+escHtml(r.finalizadoPor):"")+'</div>':"")
         +(r.obs?'<div class="hint" style="margin-top:4px;white-space:pre-wrap">'+escHtml(r.obs)+'</div>':"")
         // o anexo aparece na própria lista: quem vai cadastrar abre o áudio ou a foto sem entrar em modo de edição
         +((r.anexos||[]).length?'<div class="bar" style="margin-top:6px;gap:6px">'+r.anexos.map(a=>
@@ -3038,6 +3074,9 @@ window.TINA=(function(){
         +'<div class="bar" style="margin-top:6px">'
         // "Trabalhar" abre o gerador de atos — para quem só lança solicitação, é botão que não leva a lugar nenhum
         +(_modoComercial?'':'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'">Trabalhar</button>')
+        // finalizar é ato de quem faz o cadastro; o comercial acompanha, não encerra
+        +((!_modoComercial && r.status!=="concluida")?'<button class="btn ok mini" data-sol-fim="'+escHtml(r.id)+'" title="Marcar o processo como finalizado — quem abriu a solicitação passa a ver">✓ Finalizar</button>':"")
+        +((!_modoComercial && r.status==="concluida")?'<button class="btn o mini" data-sol-reabrir="'+escHtml(r.id)+'" title="Voltar para “Em andamento”">↺ Reabrir</button>':"")
         +'<button class="btn o mini" data-sol-editar="'+escHtml(r.id)+'">Editar</button>'
         +'<button class="btn o mini" data-sol-avisar="'+escHtml(r.id)+'" title="Manda a solicitação pronta por WhatsApp ou e-mail">Avisar</button>'
         +'<button class="btn del mini" data-sol-excluir="'+escHtml(r.id)+'">Excluir</button>'
@@ -3047,6 +3086,8 @@ window.TINA=(function(){
     box.querySelectorAll("[data-sol-editar]").forEach(b=>b.addEventListener("click",()=>editarSolic(b.dataset.solEditar)));
     box.querySelectorAll("[data-sol-avisar]").forEach(b=>b.addEventListener("click",()=>avisarSolic(b.dataset.solAvisar)));
     box.querySelectorAll("[data-sol-excluir]").forEach(b=>b.addEventListener("click",()=>excluirSolic(b.dataset.solExcluir)));
+    box.querySelectorAll("[data-sol-fim]").forEach(b=>b.addEventListener("click",()=>finalizarSolic(b.dataset.solFim,true)));
+    box.querySelectorAll("[data-sol-reabrir]").forEach(b=>b.addEventListener("click",()=>finalizarSolic(b.dataset.solReabrir,false)));
   }
   /* Traz da nuvem o que não existe aqui (outro computador, ou navegador limpo).
      Não sobrescreve o que é mais novo localmente — em conflito, o mais recente vence. */
@@ -3179,16 +3220,35 @@ window.TINA=(function(){
     [["menuBadge"],["solicBadge"]].forEach(([id])=>{ const b=$(id); if(!b)return;
       b.textContent=String(_novasSolic); b.style.display=_novasSolic?"":"none"; });
   }
+  /* Espelho ao vivo das solicitações. Antes só a CRIAÇÃO chegava (ouvirNovos), e por isso o
+     comercial nunca via o desfecho: quem faz o cadastro finalizava e do outro lado a tela
+     continuava dizendo "em andamento" até alguém recarregar. Agora toda mudança desce — inclusive
+     a finalização e a exclusão — e o aviso na tela distingue as duas notícias que importam:
+     solicitação nova (para quem cadastra) e solicitação finalizada (para quem pediu). */
   function ligarAvisoSolic(){
-    if(_pararAviso||!(window.Nuvem&&window.Nuvem.podeGravar())) return;
-    _pararAviso=window.Nuvem.ouvirNovos("solicitacoes",(s)=>{
-      // grava local para a lista já mostrar, e avisa
-      const l=lerSolic(); if(!l.some(x=>x.id===s.id)){ l.unshift(s); salvarSolic(l); }
-      marcarNovas(_novasSolic+1);
-      toast("Nova solicitação: "+((s.empresa||"sem empresa").slice(0,40)),"info");
+    if(_pararAviso||!(window.Nuvem&&window.Nuvem.ouvirColecao&&window.Nuvem.podeGravar())) return;
+    _pararAviso=window.Nuvem.ouvirColecao("solicitacoes",(mudancas)=>{
+      let l=lerSolic(); let mudou=false, novas=0; const finalizadas=[];
+      mudancas.forEach(({saiu,item})=>{
+        if(saiu){ if(l.some(x=>x.id===item.id)){ l=l.filter(x=>x.id!==item.id); mudou=true; } return; }
+        const i=l.findIndex(x=>x.id===item.id);
+        const antes=i>=0?l[i]:null;
+        if(!antes){ l.unshift(item); mudou=true; if(item.status==="nova"&&!_meuLancamento(item)) novas++; }
+        else if(_maisNovo(item.alteradoEm,antes.alteradoEm)){
+          const virouFim = item.status==="concluida" && antes.status!=="concluida";
+          l[i]=item; mudou=true;
+          if(virouFim) finalizadas.push(item);
+        }
+      });
+      if(!mudou) return;
+      l.sort((a,b)=>String(b.alteradoEm||"").localeCompare(String(a.alteradoEm||"")));
+      salvarSolic(l);
+      if(novas){ marcarNovas(_novasSolic+novas); toast(novas===1?"Nova solicitação recebida.":(novas+" solicitações novas."),"info"); }
+      finalizadas.forEach(r=>toast("✓ Finalizada: "+((r.empresa||"solicitação").slice(0,40))+(r.finalizadoPor?" — por "+r.finalizadoPor:""),"ok"));
       if(document.getElementById("solicModal").classList.contains("open")) renderSolic();
     });
   }
+  function _meuLancamento(r){ const e=window.Nuvem&&window.Nuvem.estado(); return !!(e&&r&&r.autorUid&&r.autorUid===e.uid); }
   /* Aviso fora do sistema. Enviar e-mail ou WhatsApp SOZINHO exigiria um servidor guardando
      credencial — coisa que não pode viver no navegador. O que dá para fazer com honestidade é
      deixar a mensagem pronta a um clique, no botão "Avisar" de cada solicitação. */
@@ -5348,7 +5408,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
