@@ -130,7 +130,7 @@
 
     // ---------- 2. Documentos ----------
     grupo("Documentos");
-    var MODOS=["const","alt","ei_const","ei_alt","transf_ei_ltda","transf_ei_slu","transf_ltda_ei","dist_ltda","dist_ei"];
+    var MODOS=["const","alt","ei_const","ei_alt","transf_ei_ltda","transf_ei_slu","transf_ltda_ei","dist_ltda","dist_ei","coop_const"];
     for(var i=0;i<MODOS.length;i++){
       var m=MODOS[i];
       modo(m); await espera(140);
@@ -1272,6 +1272,69 @@
       var fv=await W.TINA.validar();
       reg("Validação barra retirante sem titular admitido", (fv||[]).some(function(x){ return /ninguém para assumir/i.test(x); }), (fv||[]).join(" | ").slice(0,100));
     }catch(e){ reg("Bateria da transformação com troca de titular",false,String(e&&e.message||e).slice(0,130)); }
+
+    /* ---------- 6b2v. Cooperativa: ata de constituição + estatuto (modelos oficiais) ---------- */
+    grupo("Cooperativa");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      reg("O estatuto oficial carregou (63 artigos no geral, 72 no de trabalho)",
+        !!W.MODELOS_COOP && W.MODELOS_COOP.geral.blocos.filter(function(b){return b.art;}).length>=63 && W.MODELOS_COOP.trabalho.blocos.filter(function(b){return b.art;}).length>=72);
+      modo("coop_const"); await espera(260);
+      reg("A aba Cooperativa mostra o card próprio e esconde o capital da Ltda",
+        $("cardCoop").style.display!=="none" && $("cardCapital").style.display==="none");
+      $("btnExemplo").click(); await espera(700);
+      reg("O exemplo cria 20 fundadores (mínimo legal da cooperativa singular)", D.querySelectorAll("#socios .socio:not(.filial)").length===20);
+      reg("A mesa é escolhida entre os fundadores", ($("coopPresMesa")||{}).options.length>=20 && ($("coopPresMesa")||{}).value==="Fundador Exemplo 1");
+      var fv=await W.TINA.validar();
+      reg("O exemplo passa na validação (sem variável solta no documento)", !(fv||[]).length, (fv||[]).join(" | ").slice(0,160));
+      await W.TINA.gerarPreview(); await espera(2500);
+      var tc=texto();
+      reg("Ata: título e denominação", /ATA DA ASSEMBLEIA GERAL DE CONSTITUIÇÃO\s*\n\s*COOPERATIVA EXEMPLO DE TRANSPORTE/.test(tc));
+      reg("Ata: local, hora e propósito (art. 15, I)", /Aos \d{2} de [a-zç]+ de \d{4}, às 19:00 horas, em Rua Exemplo[\s\S]*?CEP: 49000-000, reuniram-se, com o propósito de constituírem uma sociedade cooperativa/.test(tc));
+      reg("Ata: qualifica TODOS os fundadores com quotas e integralização (art. 15, III e IV)",
+        (tc.match(/subscrevendo 100 \(cem\) quotas-partes, no valor total de R\$ 1\.000,00/g)||[]).length===20, (tc.match(/subscrevendo/g)||[]).length+" fundador(es)");
+      reg("Ata: mesa (art. 15, II)", /presidir os trabalhos o Senhor FUNDADOR EXEMPLO 1, que convidou o Senhor FUNDADOR EXEMPLO 3/.test(tc));
+      reg("Ata: estatuto aprovado artigo por artigo", /explicado e debatido o Projeto de Estatuto[^.]*artigo por artigo/.test(tc));
+      reg("Ata: eleitos com cargo e qualificação (art. 15, VII)", /Presidente: FUNDADOR EXEMPLO 1, brasileiro/.test(tc) && /Conselho Fiscal foram eleitos: Conselheiro Fiscal efetivo: FUNDADORA EXEMPLO 4/.test(tc) && /suplentes: Conselheiro Fiscal suplente: FUNDADOR EXEMPLO 7/.test(tc));
+      reg("Ata: declaração de desimpedimento e de não parentesco, em maiúsculas como no modelo", /OS ELEITOS DECLARAM, SOB AS PENAS DA LEI, QUE NÃO ESTÃO IMPEDIDOS[\s\S]*NÃO SÃO PARENTES ENTRE SI ATÉ SEGUNDO GRAU/.test(tc));
+      reg("Ata: declaração de constituição com denominação, sede e objeto (art. 15, VI)", /declarou definitivamente constituída, desta data para o futuro, a COOPERATIVA EXEMPLO DE TRANSPORTE, com sede em Rua Exemplo[^,]*, nº 100[^.]*, que tem por objeto: a prestação de serviços de transporte/.test(tc));
+      reg("Ata: assinam presidente, secretário e todos os fundadores (art. 15, VIII)",
+        /Presidente da Assembleia/.test(tc) && /Secretário da Assembleia/.test(tc) && (tc.match(/fundador(a)?\s*$/gm)||[]).length>=20);
+      // estatuto
+      reg("Estatuto começa em página nova, com título e denominação", D.querySelectorAll("section.docxprev").length>=2 && /ESTATUTO SOCIAL DE COOPERATIVA\s*\n\s*COOPERATIVA EXEMPLO DE TRANSPORTE/.test(tc));
+      reg("Art. 1º com sede, área e prazo indeterminado", /Art\. 1º A COOPERATIVA EXEMPLO DE TRANSPORTE, constituída em \d{2}\/\d{2}\/\d{4}/.test(tc) && /a\) sede, administração e foro jurídico em Rua Exemplo/.test(tc) && /b\) área de admissão de associados, abrangendo o Estado de Sergipe/.test(tc) && /c\) prazo de duração indeterminado/.test(tc));
+      reg("Art. 4º: mínimo de vinte pessoas físicas", /Art\. 4º O número de associados será ilimitado quanto ao máximo, não podendo ser inferior a vinte pessoas físicas/.test(tc));
+      reg("Incisos numerados em romanos (direitos do associado)", /Art\. 6º São direitos do associado:\s*\n\s*I – ser convocado[\s\S]*VIII – demitir-se/.test(tc));
+      reg("Responsabilidade limitada (escolha do formulário)", /Art\. 13\. O associado responde pelos compromissos da Cooperativa limitado ao valor do capital/.test(tc) && !/de forma pessoal, solidária/.test(tc));
+      reg("Capital mínimo, quota e mínimo de quotas com extenso", /não podendo ser inferior a R\$ 20\.000,00 \(vinte mil reais\)/.test(tc) && /valor unitário igual a R\$ 10,00 \(dez reais\)/.test(tc) && /não poderá ser inferior a 100 \(cem\) quotas-partes/.test(tc));
+      reg("Órgão de administração com artigo certo: “O Conselho de Administração é…” e “do Conselho de Administração”",
+        /Art\. 36\. O Conselho de Administração é o órgão competente/.test(tc) && /Não podem fazer parte do Conselho de Administração/.test(tc) && !/do O Conselho/.test(tc) && !/\{\{/.test(tc));
+      reg("Art. 37: 3 (três) membros, mandato de 3 (três) anos, demais cargos", /composto de 3 \(três\) membros, sendo um Presidente e um Vice-Presidente e um Secretário[^.]*mandato de 3 \(três\) anos/.test(tc));
+      reg("Cláusula opcional dos livros entrou (marcada por padrão)", /Livro de Matrícula os associados serão inscritos por ordem cronológica/.test(tc));
+      reg("Sem enquadramento ME/EPP (não é cooperativa de consumo)", !/cooperativa de consumo se enquadra/.test(tc));
+      reg("OCB e imóveis preenchidos", /ouvida, sempre que necessário, a Organização das Cooperativas do Estado de Sergipe – OCB\/SE/.test(tc) && /dependerá de autorização da Assembleia Geral/.test(tc));
+      reg("Visto de advogado no estatuto (Manual, 9.7)", /Visto: FULANO ADVOGADO EXEMPLO/.test(tc) && /OAB\/SE nº 12\.345/.test(tc));
+      // trabalho
+      val("coopTipo","trabalho"); $("coopTipo").dispatchEvent(new W.Event("change",{bubbles:true})); await espera(150);
+      $("btnExemplo").click(); await espera(600);
+      reg("Cooperativa de trabalho: exemplo com 7 fundadores", D.querySelectorAll("#socios .socio:not(.filial)").length===7);
+      fv=await W.TINA.validar();
+      reg("Cooperativa de trabalho passa na validação", !(fv||[]).length, (fv||[]).join(" | ").slice(0,160));
+      await W.TINA.gerarPreview(); await espera(2500); tc=texto();
+      reg("Título e lei próprios da cooperativa de trabalho", /ESTATUTO SOCIAL DA COOPERATIVA DE TRABALHO/.test(tc) && /Lei nº 12\.690, de 2012/.test(tc));
+      reg("Art. 5º: mínimo de sete pessoas físicas", /Art\. 5º O número de sócios será ilimitado quanto ao máximo, não podendo ser inferior a sete pessoas físicas/.test(tc));
+      reg("Direitos da Lei 12.690 (piso, jornada, repouso, seguro)", /retiradas não inferiores ao piso da categoria profissional/.test(tc) && /seguro de acidente de trabalho;/.test(tc));
+      reg("Quorum de terceira convocação da cooperativa de trabalho", /cinquenta associados, ou, no mínimo, vinte por cento do total de sócios/.test(tc));
+      reg("Assembleia Geral Especial (art. 42)", /Art\. 42\. Será realizada no segundo semestre de todo ano/.test(tc));
+      reg("Numeração vai até o art. 72 e não sobra variável", /Art\. 72\./.test(tc) && !/\{\{/.test(tc) && !/\[[A-Z]{3,}\]/.test(tc));
+      // validação barra o que a lei barra
+      val("coopMandato","5"); fv=await W.TINA.validar();
+      reg("Mandato acima de 4 anos é barrado (art. 47 da Lei 5.764)", (fv||[]).some(function(x){return /4 anos/.test(x);}));
+      val("coopMandato","3"); val("razao","TRANSPORTES EXEMPLO"); fv=await W.TINA.validar();
+      reg("Denominação sem “Cooperativa de Trabalho” é barrada (art. 10, § 1º, da Lei 12.690)", (fv||[]).some(function(x){return /Cooperativa de Trabalho/.test(x);}));
+      D.querySelectorAll("#socios .socio:not(.filial)")[6].remove(); fv=await W.TINA.validar();
+      reg("Menos de 7 fundadores é barrado", (fv||[]).some(function(x){return /no mínimo 7 fundadores/.test(x);}));
+    }catch(e){ reg("Bateria da cooperativa",false,String(e&&e.message||e).slice(0,130)); }
 
     /* ---------- 6b3a. Tempo verbal do consolidado — REGRA DA JUNTA ----------
        No consolidado, a cláusula ALTERADA neste ato vai no FUTURO e as demais no presente.
