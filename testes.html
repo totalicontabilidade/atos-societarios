@@ -144,6 +144,9 @@
       var place=/\[(?:NOME|RAZÃO|CNPJ|NIRE|OBJETO|TITULAR|FORO|DATA|ADMINISTRADOR|CIDADE)/.test(t);
       reg("Gera o documento — "+m, t.length>800 && !lixo && !place,
           t.length+" caracteres"+(lixo?" · contém undefined/NaN":"")+(place?" · sobrou campo entre colchetes":""));
+      // e o PDF de cada modo: o caminho docx → prévia → pdfmake precisa fechar em todos
+      try{ var pbm=await W.TINA.gerarPdfBlob(); reg("Gera o PDF — "+m, pbm && pbm.size>2000, (pbm?pbm.size:0)+" bytes"); }
+      catch(e){ reg("Gera o PDF — "+m,false,String(e&&e.message||e).slice(0,120)); }
     }
 
     // ---------- 3. Rótulo do quadro por tipo ----------
