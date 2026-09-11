@@ -1345,7 +1345,13 @@
       // 1) Ltda -> S.A.
       modo("sa_transf_ltda"); await espera(260);
       reg("A aba S.A. mostra o card próprio", $("cardSA").style.display!=="none");
+      reg("Na aba S.A. o submenu da Transformação (EI → Ltda…) fica escondido", (function(){ var e=D.querySelector(".transfsub"); return !e || W.getComputedStyle(e).display==="none"; })());
+      reg("Rótulos da S.A.: Acionistas, ações, diretor e denominação", $("lblQuadro").textContent==="Acionistas" && /Denominação/.test($("lblRazao").textContent) && /ação/.test($("lblValorQuota").textContent) && /Adicionar acionista/.test($("btnAddSocio").textContent));
+      reg("Porte travado em DEMAIS na S.A. (LC 123, art. 3º, § 4º, X)", $("enquadramento").value==="DEMAIS" && $("enquadramento").disabled===true);
+      reg("Blocos só de Ltda somem na S.A. (administrador não sócio, cláusulas opcionais, forma de integralização)", W.getComputedStyle($("admNaoSocio").closest(".row")).display==="none" && W.getComputedStyle($("cl_regencia").closest(".row")).display==="none" && W.getComputedStyle($("rowIntegralizacao")).display==="none");
+      reg("Visto de advogado marcado sozinho e explicado como obrigatório", $("advIncluir").checked===true && /Exigido neste ato/.test($("advMotivo").textContent));
       $("btnExemplo").click(); await espera(600);
+      reg("Card de acionista novo já sai com Acionista / Ações / É diretor", (function(){ var c=D.querySelector(".socio:not(.filial)"); return c && c.querySelector(".tag").textContent==="Acionista" && c.querySelector(".lblQuotas").textContent==="Ações" && c.querySelector(".lblAdm").textContent==="É diretor"; })());
       var fv=await W.TINA.validar();
       reg("Exemplo Ltda→S.A. passa na validação", !(fv||[]).length, (fv||[]).join(" | ").slice(0,160));
       await W.TINA.gerarPreview(); await espera(2600); var ts=texto();
@@ -1376,8 +1382,11 @@
       await W.TINA.gerarPreview(); await espera(2600); ts=texto();
       reg("Ata de constituição: subscrição total, entrada de 10% depositada e requisitos do art. 80",
         /ATA DA ASSEMBLEIA GERAL DE CONSTITUIÇÃO DA COMERCIAL MODELO S\/A/.test(ts) && /requisitos preliminares do art\. 80 da Lei nº 6\.404/.test(ts) && /10,00% do preço de emissão[^.]*R\$ 10\.000,00 \(dez mil reais\), depositado no Banco do Brasil S\.A\./.test(ts));
-      reg("Ata de constituição: estatuto aprovado, companhia declarada constituída e SÓ DEPOIS a Diretoria eleita (art. 87, § 2º)", /aprovado por unanimidade o projeto de Estatuto Social/.test(ts) && /declarou constituída a companhia COMERCIAL MODELO S\/A/.test(ts) && ts.indexOf("declarou constituída")<ts.indexOf("eleição da Diretoria") && /lido o respectivo recibo de depósito/.test(ts));
+      reg("Ata de constituição: estatuto aprovado, companhia declarada constituída e SÓ DEPOIS a Diretoria eleita (art. 87, § 2º)", /aprovado por unanimidade o projeto de Estatuto Social/.test(ts) && /declarou constituída a companhia COMERCIAL MODELO S\/A/.test(ts) && ts.indexOf("declarou constituída")<ts.indexOf("Passou-se, a seguir, à eleição da Diretoria") && /lido o respectivo recibo de depósito/.test(ts));
       reg("Estatuto da constituição com entrada de 10%: capital só subscrito e § 5º do art. 6º (arts. 80, II, e 106)", /Art\. 6º O capital social é de R\$ 100\.000,00 \(cem mil reais\), totalmente subscrito, dividido/.test(ts) && /§ 5º Do preço de emissão das ações subscritas, 10,00% foram realizados em dinheiro/.test(ts));
+      reg("Ata de constituição registra a ordem do dia (Manual de S.A., item 2, V)", /Ordem do dia: a\) verificação dos requisitos preliminares/.test(ts));
+      reg("Ata de constituição fixa a remuneração da Diretoria (art. 152; Manual, item 2, VI, b) — sem valor, 'sem remuneração'", /exercerão seus cargos sem remuneração até que a Assembleia Geral venha a fixá-la/.test(ts));
+      reg("Visto do advogado fica no estatuto, não na ata (Manual de S.A., item 2.2)", (ts.slice(0,ts.indexOf("ESTATUTO SOCIAL")).match(/Visto:/g)||[]).length===0 && (ts.slice(ts.indexOf("ESTATUTO SOCIAL"),ts.indexOf("ANEXO I DA")).match(/Visto:/g)||[]).length===1);
       reg("Anexo II da constituição: relação autenticada pelo presidente da assembleia (art. 95, II)", /Relação de subscritores autenticada pelo Presidente da Assembleia Geral de Constituição/.test(ts) && /Presidente da Assembleia/.test(ts));
       val("enquadramento","ME"); fv=await W.TINA.validar();
       reg("S.A. como ME/EPP é barrada (art. 3º, § 4º, X, da LC 123)", (fv||[]).some(function(x){return /LC 123|sociedade por ações|ME\/EPP/i.test(x);}), (fv||[]).join(" | ").slice(0,120));
@@ -1397,7 +1406,13 @@
       reg("Contrato social por transformação com preâmbulo de ACIONISTAS (não o de EIRELI do modelo)", /únicos acionistas da sociedade anônima de capital fechado COMERCIAL MODELO S\/A/.test(ts) && !/empresa individual de responsabilidade limitada/.test(ts) && !/art\. 968/.test(ts));
       reg("Contrato: 15 cláusulas, capital convertido (no futuro, como toda constituição), administração e foro", /Cláusula 15ª – Fica eleito o foro de Aracaju\/SE/.test(ts) && /O capital social será de R\$ 100\.000,00/.test(ts) && /resultantes da conversão das ações da sociedade transformada/.test(ts) && /A administração da sociedade será exercida pelos sócios JOÃO DA SILVA SANTOS e MARIA DE SOUZA LIMA/.test(ts));
       reg("Ata da AGE e contrato: secretária da mesa no feminino", /Secretária: MARIA DE SOUZA LIMA/.test(ts) && /pela Secretária da mesa/.test(ts));
+      reg("AGE cita a base do modelo 03 (arts. 1.052 e seguintes do CC) junto com a da transformação", /arts\. 1\.052 e seguintes e 1\.113 a 1\.115 do Código Civil e dos arts\. 220 a 222/.test(ts));
+      reg("S.A.→Ltda: visto do advogado na ata (como no modelo 03) e no contrato social", (ts.match(/Visto: FULANO ADVOGADO EXEMPLO/g)||[]).length===2 && ts.indexOf("Visto:")<ts.indexOf("CONTRATO SOCIAL DE CONSTITUIÇÃO"));
+      reg("S.A.→Ltda volta aos rótulos de Ltda (Quadro societário, quotas, porte editável)", $("lblQuadro").textContent==="Quadro societário" && $("enquadramento").disabled===false);
+      reg("Limpar zera o card da S.A. (nada do cliente anterior sobra)", (function(){ var c=W.confirm; W.confirm=function(){return true;}; $("btnLimpar").click(); W.confirm=c; return $("saHora").value==="" && $("saBanco").value==="" && $("saPresMesa").value===""; })());
       reg("Nenhuma variável solta nos três atos", !/\{\{/.test(ts) && !/\[[A-Z]{3,}[A-Z ]*\]/.test(ts));
+      // PDF dos três atos (tabelas + quebras de página por estilo)
+      for(var mSA of ["sa_transf_ltda","sa_const","sa_transf_sa_ltda"]){ modo(mSA); await espera(260); $("btnExemplo").click(); await espera(600); await W.TINA.gerarPreview(); await espera(2600); var pbSA=await W.TINA.gerarPdfBlob(); reg("PDF gerado — "+mSA, pbSA && pbSA.size>20000, (pbSA?pbSA.size:0)+" bytes"); }
     }catch(e){ reg("Bateria da sociedade anônima",false,String(e&&e.message||e).slice(0,130)); }
 
     /* ---------- 6b3a. Tempo verbal do consolidado — REGRA DA JUNTA ----------

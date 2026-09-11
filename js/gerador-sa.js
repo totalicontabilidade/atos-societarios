@@ -48,6 +48,13 @@
     return new TB({ width: { size: 100, type: WT.PERCENTAGE }, rows: linhas });
   }
 
+  /* Remuneração da Diretoria — a assembleia de constituição precisa fixá-la (art. 152 da Lei 6.404; Manual de S.A., Cap. II,
+     Seção I, item 2, VI, "b"). Sem valor informado, a deliberação registra que os cargos são exercidos sem remuneração. */
+  function honorarios(d, h) {
+    if (d.honorarios > 0) return "Fixada, por unanimidade, a remuneração global anual da Diretoria em até " + h.reais(d.honorarios) + " (" + h.extensoReais(d.honorarios) + "), a ser distribuída entre os Diretores na forma que deliberarem, nos termos do art. 152 da Lei nº 6.404, de 1976.";
+    return "Deliberou-se, por unanimidade, que os Diretores exercerão seus cargos sem remuneração até que a Assembleia Geral venha a fixá-la, nos termos do art. 152 da Lei nº 6.404, de 1976.";
+  }
+
   function assinatura(out, h, nome, papel) {
     out.push(h.P([h.T("_".repeat(46))], h.CEN, h.SPLINE15_0, true));
     out.push(h.P([h.T((nome || "[NOME]").toUpperCase(), { bold: true })], h.CEN, h.SP10_0, true));
@@ -88,6 +95,7 @@
     out.push(h.P([h.T("")], h.JUST, h.SP10_0));
     out.push(h.P(h.R("Logo em seguida, passou-se a eleger a Diretoria, de forma unânime e consensual, ficando todos os membros considerados empossados a partir da data de assinatura deste instrumento, da seguinte forma: "
       + d.diretores.map(function (s) { return nomeUP(s) + ", devidamente acima " + h.gsex(s, "qualificado", "qualificada") + ", para o cargo de " + h.gsex(s, "Diretor", "Diretora") + " sem designação específica"; }).join("; e ") + "."), h.JUST, h.SP15));
+    if (d.honorarios > 0) out.push(h.P(h.R(honorarios(d, h)), h.JUST, h.SP15));
     out.push(h.P(h.R("Deliberada a transformação, " + h.gsex(d.presMesa, "o Senhor Presidente", "a Senhora Presidente") + " solicitou a mim, " + h.gsex(d.secMesa, "secretário", "secretária") + ", que procedesse à leitura do Estatuto Social, das Declarações de Desimpedimento e Termos de Posse da Diretoria (Anexo I) e da Lista de Subscrição de Ações (Anexo II), os quais, lidos e postos em discussão, foram aprovados por unanimidade, sem restrições, e passam a fazer parte integrante da presente Ata."), h.JUST, h.SP15));
     out.push(h.P([h.T("ENCERRAMENTO: ", { bold: true })].concat(h.R("Nada mais havendo a tratar, colocou-se a palavra à disposição dos presentes e, como ninguém manifestou interesse em fazer uso dela, suspenderam-se os trabalhos pelo tempo necessário à lavratura da presente Ata, a qual, depois de lida e achada conforme, foi assinada pelos sócios e pelos membros da Diretoria eleitos.")), h.JUST, h.SP15));
     out.push(h.P([h.T(d.cidadeUF + ", " + h.dataExtenso(d.data))], h.CEN, h.SP15));
@@ -106,6 +114,7 @@
       + d.denominacaoUP + ": " + d.acionistas.map(function (s) { return qual(h, s); }).join("; ") + " — dispensada a convocação prévia, na forma do § 4º do art. 124 da Lei nº 6.404, de 15 de dezembro de 1976, por estarem presentes os subscritores de todo o capital."), h.JUST, h.SP15));
     out.push(h.P(h.R("Para presidir a Assembleia foi " + h.gsex(d.presMesa, "eleito", "eleita") + ", por aclamação, " + h.gsex(d.presMesa, "o Sr. ", "a Sra. ") + nomeUP(d.presMesa) + ", que convidou a mim, " + nomeUP(d.secMesa)
       + ", para " + h.gsex(d.presMesa, "secretariá-lo", "secretariá-la") + ", assim se constituindo a mesa."), h.JUST, h.SP15));
+    out.push(h.P([h.T("Ordem do dia: ", { bold: true })].concat(h.R("a) verificação dos requisitos preliminares de constituição da companhia (art. 80 da Lei nº 6.404, de 1976); b) leitura do recibo de depósito da entrada e discussão e votação do projeto de Estatuto Social; c) declaração de constituição da companhia; d) eleição da Diretoria e fixação de sua remuneração; e) instalação, ou não, do Conselho Fiscal.")), h.JUST, h.SP15));
     var nPess = d.acionistas.length, nPessExt = extInt(h, nPess).replace(/\bum\b/g, "uma").replace(/\bdois\b/g, "duas").replace(/entos\b/g, "entas");   // "pessoas" pede o feminino
     out.push(h.P(h.R("Instalada a Assembleia, " + h.gsex(d.presMesa, "o Presidente", "a Presidente") + " verificou o preenchimento dos requisitos preliminares do art. 80 da Lei nº 6.404, de 1976: a subscrição, por " + h.numBR(nPess) + " (" + nPessExt + ") pessoas, de todo o capital social, de "
       + h.reais(d.capital) + " (" + h.extensoReais(d.capital) + "), dividido em " + h.numBR(d.numQuotas) + " (" + extInt(h, d.numQuotas) + ") ações ordinárias nominativas, com valor nominal de " + h.reais(d.valorAcao) + " (" + h.extensoReais(d.valorAcao) + ") cada uma, conforme a lista de subscrição (Anexo II); e a realização, como entrada, de "
@@ -116,6 +125,7 @@
     out.push(h.P(h.R("Passou-se, a seguir, à eleição da Diretoria, ficando " + h.gsex(d.diretores[0] || {}, "eleito", "eleita") + (d.diretores.length > 1 ? "s" : "") + ", por unanimidade, com mandato de " + h.numBR(d.mandato) + " (" + extInt(h, d.mandato) + ") anos: "
       + d.diretores.map(function (s) { return nomeUP(s) + ", devidamente acima " + h.gsex(s, "qualificado", "qualificada") + ", para o cargo de " + h.gsex(s, "Diretor", "Diretora") + " sem designação específica"; }).join("; e ")
       + ". Os eleitos tomam posse mediante termo lavrado em separado, com a declaração de desimpedimento exigida pelo § 1º do art. 147 da Lei nº 6.404, de 1976 (Anexo I). O Conselho Fiscal não foi instalado."), h.JUST, h.SP15));
+    out.push(h.P(h.R(honorarios(d, h)), h.JUST, h.SP15));
     out.push(h.P([h.T("ENCERRAMENTO: ", { bold: true })].concat(h.R("Nada mais havendo a tratar, foram suspensos os trabalhos pelo tempo necessário à lavratura desta ata, que, lida e achada conforme, foi aprovada e assinada por todos os subscritores, " + h.gsex(d.presMesa, "pelo Presidente", "pela Presidente") + " e " + h.gsex(d.secMesa, "pelo Secretário", "pela Secretária") + " da mesa.")), h.JUST, h.SP15));
     out.push(h.P([h.T(d.cidadeUF + ", " + h.dataExtenso(d.data))], h.CEN, h.SP15));
     assinatura(out, h, d.presMesa.nome, "Presidente da Mesa");
@@ -185,7 +195,7 @@
     item("3", "Mesa", "Presidente: " + nomeUP(d.presMesa) + ". " + h.gsex(d.secMesa, "Secretário", "Secretária") + ": " + nomeUP(d.secMesa) + ".");
     item("4", "Ordem do dia", "a) transformação da sociedade anônima de capital fechado em sociedade limitada, sob a denominação de “" + d.denominacaoUP + " LTDA”; b) conversão da totalidade das ações da sociedade em quotas sociais; c) aprovação do contrato social da sociedade; d) autorização para o sócio administrador praticar os atos necessários à formalização das deliberações tomadas.");
     item("5", "Deliberações", "Instalada a Assembleia e feita a leitura da ordem do dia, o Presidente da mesa iniciou as deliberações, como segue: a) aprovada por unanimidade a transformação da sociedade anônima de capital fechado em sociedade limitada, sob a denominação de “"
-      + d.denominacaoUP + " LTDA”, nos termos dos arts. 220 a 222 da Lei nº 6.404, de 1976, e dos arts. 1.113 a 1.115 do Código Civil, independentemente de dissolução e liquidação, respondendo a sociedade transformada, para todos os fins e efeitos de direito, por todo o ativo e o passivo da sociedade anônima, que passa a ser regida pelo Código Civil e demais dispositivos aplicáveis; b) aprovada por unanimidade a conversão das "
+      + d.denominacaoUP + " LTDA”, nos termos dos arts. 1.052 e seguintes e 1.113 a 1.115 do Código Civil e dos arts. 220 a 222 da Lei nº 6.404, de 1976, independentemente de dissolução e liquidação, respondendo a sociedade transformada, para todos os fins e efeitos de direito, por todo o ativo e o passivo da sociedade anônima, que passa a ser regida pelo Código Civil e demais dispositivos aplicáveis; b) aprovada por unanimidade a conversão das "
       + h.numBR(d.numQuotas) + " (" + extInt(h, d.numQuotas) + ") ações nominativas representativas da totalidade do capital social, de " + h.reais(d.capital) + " (" + h.extensoReais(d.capital) + "), em " + h.numBR(d.numQuotas) + " (" + extInt(h, d.numQuotas) + ") quotas sociais, no valor nominal de "
       + h.reais(d.valorAcao) + " (" + h.extensoReais(d.valorAcao) + ") cada uma, atribuídas aos sócios na mesma proporção das ações que possuíam; c) aprovado por unanimidade o Contrato Social da sociedade, que faz parte integrante desta ata; d) aprovada por unanimidade a autorização para o sócio administrador praticar os atos necessários à formalização das deliberações tomadas.");
     item("6", "Encerramento", "Nada mais havendo a tratar, foi a presente ata lavrada em forma de sumário e, depois de lida, aprovada e assinada " + (plural ? "pelos acionistas presentes" : "pelo único acionista") + ", " + h.gsex(d.presMesa, "pelo Presidente", "pela Presidente") + " e " + h.gsex(d.secMesa, "pelo Secretário", "pela Secretária") + " da mesa.");

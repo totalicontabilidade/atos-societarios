@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.32" />
+<meta name="versao" content="1.33" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -460,7 +460,7 @@
 
     <div class="card saonly" id="cardSA" style="display:none">
       <h2>Sociedade anônima <span class="hint">— Lei nº 6.404/1976; o estatuto sai do modelo do portal, com as correções que a própria lei impõe (ações nominativas)</span></h2>
-      <div class="hint" style="margin-bottom:8px">Os <b>acionistas</b> são os cards de sócio: "Quotas" = ações (ou quotas, na volta para Ltda) e "É administrador" = <b>Diretor</b>. A Diretoria precisa de <b>2 ou mais</b> membros (art. 143).</div>
+      <div class="hint" style="margin-bottom:8px">Os acionistas vão no quadro <b>4</b>: informe as <b>ações</b> de cada um e marque quem será <b>diretor</b> — a Diretoria precisa de <b>2 ou mais</b> membros (art. 143 da Lei 6.404).</div>
       <div class="grid g4 row">
         <div><label for="saHora">Hora da assembleia</label><input type="text" id="saHora" placeholder="10:00"></div>
         <div style="grid-column:span 2"><label for="saLocal">Local <span class="hint">— em branco = a sede</span></label><input type="text" id="saLocal"></div>
@@ -471,6 +471,9 @@
         <div><label for="saSecMesa">Secretário da mesa</label><select id="saSecMesa"></select></div>
         <div class="saestatuto"><label for="saNDiretores">Nº de diretores <span class="hint">— mínimo 2</span></label><input type="number" id="saNDiretores" placeholder="2" min="2"></div>
         <div class="saestatuto"><label for="saMandato">Mandato dos diretores (anos) <span class="hint">— máximo 3</span></label><input type="number" id="saMandato" placeholder="3" max="3"></div>
+      </div>
+      <div class="grid g3 row saestatuto">
+        <div style="grid-column:span 2"><label for="saHonorarios">Honorários da Diretoria (R$ por ano, total) <span class="hint">— em branco: sem remuneração até a assembleia fixar (art. 152)</span></label><input type="number" id="saHonorarios" step="0.01" placeholder="0,00"></div>
       </div>
       <div class="grid g3 row saconst" style="display:none">
         <div style="grid-column:span 2"><label for="saBanco">Banco do depósito da entrada <span class="hint">— art. 80, III: Banco do Brasil ou outro autorizado pela CVM</span></label><input type="text" id="saBanco" placeholder="Banco do Brasil S.A."></div>
@@ -526,7 +529,7 @@
         <div class="disthide"><label for="fantasia">Nome fantasia <span class="hint">(opcional)</span></label><input type="text" id="fantasia" placeholder="Ex.: Loja Modelo"></div>
       </div>
       <div class="grid g3 row disthide">
-        <div><label for="enquadramento">Enquadramento</label>
+        <div><label for="enquadramento">Enquadramento <span class="hint" id="hintEnqSA" style="display:none">— S.A. nunca é ME/EPP (LC 123, art. 3º, § 4º, X)</span></label>
           <select id="enquadramento"><option value="ME">Microempresa (ME)</option><option value="EPP">Empresa de Pequeno Porte (EPP)</option><option value="DEMAIS">Demais</option></select></div>
         <div><label for="foro">Foro (comarca)</label><input type="text" id="foro" placeholder="Ex.: Aracaju"></div>
         <div></div>
@@ -593,10 +596,10 @@
       <div class="grid g3 row">
         <div><label for="capital"><span id="lblCapital2">Capital social</span> (R$)</label><input type="number" id="capital" step="0.01" placeholder="10000.00" oninput="TINA.recalc()"></div>
         <div class="altonly" style="display:none"><label for="capitalAnterior">Capital ANTERIOR (R$) <span class="hint">— só se o capital mudar; sai como "que era de…"</span></label><input type="number" id="capitalAnterior" step="0.01" placeholder="5000.00"></div>
-        <div class="ltdaonly"><label for="valorQuota">Valor da quota (R$)</label><input type="number" id="valorQuota" step="0.01" value="1.00" oninput="TINA.recalc()"></div>
-        <div class="ltdaonly"><label for="numQuotas">Nº de quotas <span class="hint">(auto)</span></label><input type="text" id="numQuotas" readonly></div>
+        <div class="ltdaonly"><label for="valorQuota" id="lblValorQuota">Valor da quota (R$)</label><input type="number" id="valorQuota" step="0.01" value="1.00" oninput="TINA.recalc()"></div>
+        <div class="ltdaonly"><label for="numQuotas" id="lblNumQuotas">Nº de quotas <span class="hint">(auto)</span></label><input type="text" id="numQuotas" readonly></div>
       </div>
-      <div class="row"><label for="integralizacao">Forma de integralização do capital</label><select id="integralizacao">
+      <div class="row" id="rowIntegralizacao"><label for="integralizacao">Forma de integralização do capital</label><select id="integralizacao">
         <option value="moeda">Em moeda corrente nacional</option>
         <option value="bens">Em bens móveis — exige laudo de avaliação</option>
         <option value="bens_imoveis">Em bens imóveis — exige laudo de avaliação</option>
@@ -609,7 +612,7 @@
       <h2><span class="n">4</span> <span id="lblQuadro">Quadro societário</span></h2>
       <div id="socios"></div>
       <div class="bar ltdaonly"><button class="btn o mini" id="btnAddSocio">+ Adicionar sócio</button>
-        <span class="hint">Marque quem administra. Todos os sócios já vêm como administradores por padrão.</span></div>
+        <span class="hint" id="hintAdm">Marque quem administra. Todos os sócios já vêm como administradores por padrão.</span></div>
       <div class="grid g2 row ltdaonly" id="modoAdmRow" style="margin-top:14px">
         <div><label for="modoAdm">Modo de administração <span class="hint">(quando 2+ administradores)</span></label>
           <select id="modoAdm">
@@ -618,7 +621,7 @@
             <option value="ISOLADAMENTE e/ou CONJUNTAMENTE" selected>Isoladamente e/ou conjuntamente</option>
           </select></div><div></div>
       </div>
-      <div class="row ltdaonly" style="margin-top:12px">
+      <div class="row ltdaonly sahide" style="margin-top:12px">
         <label class="checkline"><input type="checkbox" id="admNaoSocio"> Administrador <b>não sócio</b> designado no contrato</label>
         <div id="wrapAdmNaoSocio" style="display:none;margin-top:8px">
           <div class="grid g2 row">
@@ -627,7 +630,7 @@
           </div>
         </div>
       </div>
-      <div class="row ltdaonly" style="margin-top:10px">
+      <div class="row ltdaonly sahide" style="margin-top:10px">
         <div class="hint" style="font-weight:700;color:var(--navy);margin-bottom:6px">Cláusulas opcionais <span class="hint" style="font-weight:400">— redação padronizada dos modelos da Junta</span></div>
         <div class="grid g3">
           <label class="checkline"><input type="checkbox" id="cl_regencia"> Regência supletiva pela Lei das S.A. <span class="hint">(art. 1.053, § único)</span></label>
@@ -1143,12 +1146,12 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.32"></script>
-<script defer src="js/nuvem.js?v=1.32"></script>
-<script defer src="js/modelos-coop.js?v=1.32"></script>
-<script defer src="js/gerador-coop.js?v=1.32"></script>
-<script defer src="js/modelos-sa.js?v=1.32"></script>
-<script defer src="js/gerador-sa.js?v=1.32"></script>
+<script defer src="js/nuvem-config.js?v=1.33"></script>
+<script defer src="js/nuvem.js?v=1.33"></script>
+<script defer src="js/modelos-coop.js?v=1.33"></script>
+<script defer src="js/gerador-coop.js?v=1.33"></script>
+<script defer src="js/modelos-sa.js?v=1.33"></script>
+<script defer src="js/gerador-sa.js?v=1.33"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -1392,7 +1395,7 @@ window.TINA=(function(){
         <div><label>UF</label><select data-f="uf">${ufOpts(data.uf)}</select></div>
       </div>
       <div class="grid g3 row ltdaonly">
-        <div><label>Quotas</label><input type="number" data-f="quotas" value="${escHtml(data.quotas||'')}"></div>
+        <div><label class="lblQuotas">Quotas</label><input type="number" data-f="quotas" value="${escHtml(data.quotas||'')}"></div>
         <div class="cooponly" style="display:none"><label>Cargo na cooperativa</label><select data-f="cargo">
           <option value="">— só fundador —</option><option value="Presidente">Presidente</option><option value="Vice-Presidente">Vice-Presidente</option><option value="Secretário">Secretário</option><option value="Tesoureiro">Tesoureiro</option><option value="Conselheiro">Conselheiro</option><option value="Diretor">Diretor</option>
           <option value="Conselheiro Fiscal efetivo">Conselheiro Fiscal efetivo</option><option value="Conselheiro Fiscal suplente">Conselheiro Fiscal suplente</option></select></div>
@@ -1401,7 +1404,7 @@ window.TINA=(function(){
         <div><label>Percentual <span class="hint">(auto)</span></label><input type="text" data-f="percentual" readonly></div>
       </div>
       <div class="bar">
-        <label class="checkline ltdaonly"><input type="checkbox" data-f="administrador" ${(data.administrador===false||(data.tipoPessoa==='PJ'&&data.administrador===undefined))?'':'checked'}> É administrador <span class="hint pjonly" style="display:none">— administrador é sempre pessoa natural: marcar aqui designa o <b>representante</b> da sócia</span></label>
+        <label class="checkline ltdaonly"><input type="checkbox" data-f="administrador" ${(data.administrador===false||(data.tipoPessoa==='PJ'&&data.administrador===undefined))?'':'checked'}> <span class="lblAdm">É administrador</span> <span class="hint pjonly" style="display:none">— administrador é sempre pessoa natural: marcar aqui designa o <b>representante</b> da sócia</span></label>
         <label class="checkline alt-transfei" style="display:none"><input type="checkbox" data-f="retirante" ${data.retirante?'checked':''}> <span class="altonly"><b>Retira-se</b> nesta alteração <span class="hint">— continua qualificado no preâmbulo e assina o ato; sai do quadro e do consolidado</span></span><span class="transfeionly"><b>Titular retirante</b> <span class="hint">— transfere a empresa ao próximo sócio da lista (modelo da Junta com transferência de titularidade); é qualificado e assina a parte 1, mas não entra na sociedade</span></span></label>
         <label class="checkline pfonly"><input type="checkbox" data-f="temProc" ${data.temProc?'checked':''}> Representado por procurador</label>
         <button class="btn del mini" type="button" onclick="TINA.removeSocio(${idx})">Remover</button>
@@ -1430,7 +1433,7 @@ window.TINA=(function(){
       div.querySelectorAll(".pjonly").forEach(e=>e.style.display=on?"":"none");
       const ln=div.querySelector(".lblNome"); if(ln)ln.textContent=on?"Razão social da sócia":"Nome completo";
       const sl=div.querySelector(".sedelbl"); if(sl)sl.textContent="Endereço"+(on?" (sede da empresa sócia)":"");
-      const tg=div.querySelector(".tag"); if(tg && !(ehFormEI()))tg.textContent=on?"Sócia (PJ)":"Sócio";
+      rotularCardSA(div);
       if(on)tglOrg();};
     pj.addEventListener("change",tglPJ); tglPJ();
     // CNPJ da sócia PJ: consulta a Receita ao sair do campo e preenche razão, endereço e representante
@@ -1527,6 +1530,7 @@ window.TINA=(function(){
     // nasceria com o campo de CNPJ escondido até o usuário trocar de aba e voltar
     const alt=(typeof MODE!=="undefined"&&MODE&&MODE.endsWith("alt"));
     div.querySelectorAll(".altonly").forEach(el=>el.style.display=alt?"":"none");
+    rotularCardSA(div);
     return div;}
   function readFiliais(){return[...document.querySelectorAll(".filial")].map(c=>{const o={};
     c.querySelectorAll("[data-g]").forEach(inp=>{o[inp.dataset.g]=(inp.value||"").trim();});
@@ -1559,8 +1563,18 @@ window.TINA=(function(){
       +(semTema?(", inclusive <b>"+semTema+"</b> que o sistema não gera por conta própria"):"")
       +". Cláusula obrigatória que estiver faltando é acrescentada ao final.";
   }
+  /* Rótulos do card de sócio conforme o modo: Titular (EI), Acionista/Ações/É diretor (S.A.) ou Sócio/Quotas/É administrador. */
+  function rotularCardSA(div){
+    if(!div) return;
+    const saAcoes=(MODE||"").startsWith("sa_") && MODE!=="sa_transf_sa_ltda", ei=ehFormEI();
+    const tg=div.querySelector(".tag"), pj=div.querySelector("[data-f=tipoPJ]");
+    if(tg) tg.textContent=ei?"Titular":(pj&&pj.checked?(saAcoes?"Acionista (PJ)":"Sócia (PJ)"):(saAcoes?"Acionista":"Sócio"));
+    const lq=div.querySelector(".lblQuotas"); if(lq) lq.textContent=saAcoes?"Ações":"Quotas";
+    const la=div.querySelector(".lblAdm"); if(la) la.textContent=saAcoes?"É diretor":"É administrador";
+  }
   function vistoObrigatorio(){
-    const geraContratoSocial=(MODE==="const"||MODE==="transf_ei_ltda"||MODE==="transf_ei_slu");
+    if(MODE==="sa_transf_ltda"||MODE==="sa_const") return true;   // o estatuto da S.A. leva o visto sempre — Manual de Registro de S.A., item 1.2
+    const geraContratoSocial=(MODE==="const"||MODE==="transf_ei_ltda"||MODE==="transf_ei_slu"||MODE==="sa_transf_sa_ltda");
     const enq=($("enquadramento")||{}).value;
     return geraContratoSocial && enq==="DEMAIS";
   }
@@ -1574,7 +1588,8 @@ window.TINA=(function(){
     const inc=$("advIncluir");
     if(obrig && inc && !inc.checked && !inc.dataset.tocado){ inc.checked=true; if($("wrapAdvCampos"))$("wrapAdvCampos").style.display=""; }
     const m=$("advMotivo"); if(!m) return;
-    if(obrig) m.innerHTML="<b style='color:var(--warn)'>Exigido neste ato:</b> a sociedade não é ME nem EPP, e o contrato social precisa do visto (dispensado só para ME/EPP)."
+    if(obrig && MODE.startsWith("sa_") && MODE!=="sa_transf_sa_ltda") m.innerHTML="<b style='color:var(--warn)'>Exigido neste ato:</b> o estatuto social da sociedade anônima leva o visto de advogado (Manual de Registro de S.A., item 1.2).";
+    else if(obrig) m.innerHTML="<b style='color:var(--warn)'>Exigido neste ato:</b> a sociedade não é ME nem EPP, e o contrato social precisa do visto (dispensado só para ME/EPP)."
       +(pj?" O porte é DEMAIS porque há <b>sócia pessoa jurídica</b> — LC 123/2006, art. 3º, § 4º, I.":"");
     else if(pj && enq!=="DEMAIS") m.innerHTML="<b style='color:var(--err)'>Atenção:</b> com <b>sócia pessoa jurídica</b> a sociedade não pode ser ME nem EPP (LC 123/2006, art. 3º, § 4º, I). Corrija o enquadramento para <b>DEMAIS</b> — a declaração de porte sairia falsa.";
     else if(MODE==="alt") m.innerHTML="Nas <b>alterações contratuais</b> o visto <b>não é obrigatório</b> (nota do Manual de Registro de LTDA). Marque só se quiser incluí-lo.";
@@ -1614,7 +1629,7 @@ window.TINA=(function(){
       sede:{cep:v("s_cep"),log:v("s_log"),num:v("s_num"),comp:v("s_comp"),bairro:v("s_bairro"),mun:v("s_mun"),uf:v("s_uf").toUpperCase()},
       filiais:readFiliais(), sedeAnterior:v("sedeAnterior"),
       sa:{ hora:v("saHora"), local:v("saLocal"), presMesa:v("saPresMesa"), secMesa:v("saSecMesa"), nDiretores:Number($("saNDiretores")&&$("saNDiretores").value)||0, mandato:Number($("saMandato")&&$("saMandato").value)||0,
-        anoExercicio:v("saAnoExercicio"), banco:v("saBanco"), entradaPct:Number($("saEntradaPct")&&$("saEntradaPct").value)||0 },
+        anoExercicio:v("saAnoExercicio"), banco:v("saBanco"), entradaPct:Number($("saEntradaPct")&&$("saEntradaPct").value)||0, honorarios:Number($("saHonorarios")&&$("saHonorarios").value)||0 },
       coop:{ tipo:v("coopTipo")||"geral", objetoTrab:v("coopObjetoTrab")||"servicos", area:v("coopArea"), admissao:v("coopAdmissao")||"livre", admissaoQuem:v("coopAdmissaoQuem"),
         resp:v("coopResp")||"limitada", capMin:Number($("coopCapMin")&&$("coopCapMin").value)||0, valorQuota:Number($("coopValorQuota")&&$("coopValorQuota").value)||0, minQuotas:Number($("coopMinQuotas")&&$("coopMinQuotas").value)||0,
         prazo:v("coopPrazo")||"indeterminado", prazoFim:v("coopPrazoFim"), exercInicio:v("coopExercInicio"), exercFim:v("coopExercFim"),
@@ -2558,11 +2573,12 @@ window.TINA=(function(){
       sedeAnteriorLinha:((d.sedeAnterior||"").trim()||endLinha(d.sede)), capital:d.capital, numQuotas:d.numQuotas, valorAcao:d.valorQuota, acionistas, diretores,
       presMesa:achar(c.presMesa), secMesa:achar(c.secMesa), hora:c.hora, local:c.local, data:d.atoData, mandato:c.mandato, fimMandato:somarAnos(d.atoData,c.mandato),
       cidadeUF, cidade:d.sede.mun, uf:d.sede.uf, objeto:d.objeto, banco:c.banco, entradaPct:(c.entradaPct||10)/100, dataInicioOrig:d.dataInicioOrig,
-      enquadramento:d.enquadramento, enquadramentoNome:ENQ[d.enquadramento]||"", foro:d.foro };
+      enquadramento:d.enquadramento, enquadramentoNome:ENQ[d.enquadramento]||"", foro:d.foro, honorarios:c.honorarios };
     const quebra=(titulo)=>{ ch.push(new Paragraph({alignment:CEN,spacing:SP10_0,style:"QuebraPagina",pageBreakBefore:true,children:[T(titulo,{bold:true})]})); };
     const ch=[];
     if(paraLtda){
       G.ataTransfSaLtda(dd,h).forEach(p=>ch.push(p));
+      if(d.advIncluir) vistoAdvogado(ch,d,P,T,CEN,SP10_0,{after:220,line:240,lineRule:AUTO});   // o modelo 03 traz "Advogado:" na ata
       G.contratoTransfSaLtda(dd,h).forEach(p=>ch.push(p));   // o título do contrato já abre página nova (h.TIT)
       if(d.advIncluir) vistoAdvogado(ch,d,P,T,CEN,SP10_0,{after:220,line:240,lineRule:AUTO});
     } else {
@@ -2574,7 +2590,7 @@ window.TINA=(function(){
       const parcial=constituicao && (c.entradaPct||10)<100;   // constituição com entrada parcial: capital subscrito, não integralizado (art. 80, II)
       vals.subscricao=parcial?"totalmente subscrito":"totalmente subscrito e integralizado";
       const esc={ origem:constituicao?"constituicao":"transformacao", integralizacao:parcial?"parcial":"total" };
-      if(constituicao){ G.ataConstituicaoSa(dd,h).forEach(p=>ch.push(p)); vistoAdvogado(ch,d,P,T,CEN,SP10_0,{after:220,line:240,lineRule:AUTO}); }   // visto na ata (Manual, 2.2)
+      if(constituicao){ G.ataConstituicaoSa(dd,h).forEach(p=>ch.push(p)); }   // o visto vai no estatuto, que não está transcrito na ata (Manual de S.A., item 2.2)
       else { G.alteracaoTransfLtdaSa(dd,h).forEach(p=>ch.push(p)); G.ataTransfLtdaSa(dd,h).forEach(p=>ch.push(p)); }   // a ata abre página nova (h.TIT)
       quebra("ESTATUTO SOCIAL");
       ch.push(P([T(denominacaoUP,{bold:true})],CEN,SP10));
@@ -2706,22 +2722,37 @@ window.TINA=(function(){
     document.querySelectorAll(".ltdaonly").forEach(el=>el.style.display=formEI?"none":"");
     document.querySelectorAll(".eionly").forEach(el=>el.style.display=isEI?"":"none");
     document.querySelectorAll(".transfonly").forEach(el=>el.style.display=(isTransf||saTransf)?"":"none");
+    document.querySelectorAll(".transfsub").forEach(el=>el.style.display=isTransf?"":"none");   // o submenu EI→Ltda/EI→SLU/Ltda→EI é só da aba Transformação
     document.querySelectorAll(".transfeionly").forEach(el=>el.style.display=(isTransf&&!formEI)?"":"none");
     document.querySelectorAll(".transfltdaeionly").forEach(el=>el.style.display=(m==="transf_ltda_ei")?"":"none");
     document.querySelectorAll(".distonly").forEach(el=>el.style.display=isDist?"":"none");
     document.querySelectorAll(".disthide").forEach(el=>el.style.display=isDist?"none":"");
     if($("cardCapital"))$("cardCapital").style.display=(isDist||isCoop)?"none":"";
-    if($("cardRapido"))$("cardRapido").style.display=showReg?"":"none";
+    if($("cardRapido"))$("cardRapido").style.display=(showReg && m!=="sa_transf_sa_ltda")?"":"none";   // o leitor entende contrato de Ltda, não estatuto
     if($("cardRegistro"))$("cardRegistro").style.display=showReg?"":"none";
     if($("lblRegistro"))$("lblRegistro").textContent=(isTransf||saTransf)?"Origem da transformação (CNPJ mantido)":(isDist?"Registro na Junta":"Registro na Junta (alteração)");
     // campo "razão anterior": aparece em transformação (nome de origem) e em alteração (nome atual, quando muda a razão)
     if($("wrapRazaoAnt"))$("wrapRazaoAnt").style.display=(isTransf||isAlt||saTransf)?"":"none";
     if($("lblRazaoAnt"))$("lblRazaoAnt").innerHTML=isAlt?'Razão social ANTERIOR <span class="hint">— a atual, antes da mudança (preencha se alterar a razão)</span>':'Nome empresarial ANTERIOR <span class="hint">— o de origem</span>';
     if($("razaoAnterior"))$("razaoAnterior").placeholder=isAlt?"Ex.: COMERCIAL MODELO (nome atual)":(saTransf?"Ex.: COMERCIAL MODELO (sem LTDA / S.A.)":"Ex.: J. S. LIMA");
-    if(isSA){ if($("lblRazao"))$("lblRazao").textContent=(m==="sa_transf_sa_ltda")?"Razão social (nova, sem LTDA)":"Denominação (sem S.A.)"; if($("razao"))$("razao").placeholder="Ex.: COMERCIAL MODELO"; }
     if($("lblRazao"))$("lblRazao").textContent=formEI?(isTransf?"Nome empresarial (novo)":"Nome empresarial"):(isTransf?"Razão social (nova)":(isAlt?"Razão social (nova, se mudar)":"Razão social"));
     if($("razao"))$("razao").placeholder=formEI?"Ex.: J. S. LIMA (iniciais + sobrenome)":"Ex.: COMERCIAL MODELO";
-    if($("lblQuadro"))$("lblQuadro").textContent=formEI?"Titular":"Quadro societário";
+    if(isSA){ if($("lblRazao"))$("lblRazao").textContent=(m==="sa_transf_sa_ltda")?"Razão social (nova) — sem o \"LTDA\"":"Denominação — sem o \"S/A\" (o sistema acrescenta)"; if($("razao"))$("razao").placeholder="Ex.: COMERCIAL MODELO"; }
+    /* Documento que RESULTA em S.A.: o quadro fala em acionistas, ações e diretores; o que é só de Ltda some
+       (administrador não sócio, cláusulas opcionais, forma de integralização) e o porte trava em DEMAIS. */
+    const saAcoes = isSA && m!=="sa_transf_sa_ltda";
+    if($("lblQuadro"))$("lblQuadro").textContent=formEI?"Titular":(saAcoes?"Acionistas":"Quadro societário");
+    if($("btnAddSocio"))$("btnAddSocio").textContent=saAcoes?"+ Adicionar acionista":"+ Adicionar sócio";
+    if($("hintAdm"))$("hintAdm").textContent=saAcoes?"Marque quem será diretor — a Diretoria precisa de 2 ou mais membros (art. 143 da Lei 6.404).":"Marque quem administra. Todos os sócios já vêm como administradores por padrão.";
+    if($("lblValorQuota"))$("lblValorQuota").textContent=saAcoes?"Valor nominal da ação (R$)":"Valor da quota (R$)";
+    if($("lblNumQuotas"))$("lblNumQuotas").innerHTML=(saAcoes?"Nº de ações":"Nº de quotas")+' <span class="hint">(auto)</span>';
+    if($("rowIntegralizacao"))$("rowIntegralizacao").style.display=saAcoes?"none":"";
+    document.querySelectorAll(".sahide").forEach(el=>el.style.display=isSA?"none":"");
+    const enqSel=$("enquadramento"); if(enqSel){
+      if(saAcoes){ if(!enqSel.dataset.antes) enqSel.dataset.antes=enqSel.value||"ME"; enqSel.value="DEMAIS"; }
+      else if(enqSel.dataset.antes){ enqSel.value=enqSel.dataset.antes; delete enqSel.dataset.antes; }
+      enqSel.disabled=!!saAcoes; }
+    if($("hintEnqSA"))$("hintEnqSA").style.display=saAcoes?"":"none";
     if($("lblCapital"))$("lblCapital").textContent=formEI?"Capital":"Capital social";
     if($("lblCapital2"))$("lblCapital2").textContent=formEI?"Capital":"Capital social";
     /* Modos de UM componente (EI, SLU, →EI, extinção de EI) APAGAVAM os sócios excedentes.
@@ -2732,9 +2763,9 @@ window.TINA=(function(){
     if(single){ if(!cards.length){ socioCard(); }
       cards.slice(1).forEach(c=>{ c.classList.add("guardado"); c.style.display="none"; }); }
     else cards.forEach(c=>{ c.classList.remove("guardado"); c.style.display=""; });
-    document.querySelectorAll(".socio:not(.filial) .tag").forEach(t=>t.textContent=formEI?"Titular":"Sócio");
+    document.querySelectorAll(".socio:not(.filial)").forEach(rotularCardSA);
     if($("btnAddSocio")&&$("btnAddSocio").parentElement)$("btnAddSocio").parentElement.style.display=single?"none":(formEI?"none":"");
-    const msg={alt:"Modo Alteração (Ltda): dados ATUAIS + o que muda.",const:"Modo Constituição (Ltda).",ei_const:"Empresário Individual — Inscrição (abertura).",ei_alt:"Empresário Individual — Alteração: dados ATUAIS + o que muda.",transf_ei_ltda:"Transformação: Empresário Individual → Sociedade Limitada (entram sócios).",transf_ei_slu:"Transformação: Empresário Individual → SLU (sociedade limitada unipessoal).",transf_ltda_ei:"Transformação: Sociedade Limitada → Empresário Individual.",dist_ltda:"Distrato: encerramento de Sociedade Limitada / SLU.",dist_ei:"Extinção de Empresário Individual."};
+    const msg={alt:"Modo Alteração (Ltda): dados ATUAIS + o que muda.",const:"Modo Constituição (Ltda).",ei_const:"Empresário Individual — Inscrição (abertura).",ei_alt:"Empresário Individual — Alteração: dados ATUAIS + o que muda.",transf_ei_ltda:"Transformação: Empresário Individual → Sociedade Limitada (entram sócios).",transf_ei_slu:"Transformação: Empresário Individual → SLU (sociedade limitada unipessoal).",transf_ltda_ei:"Transformação: Sociedade Limitada → Empresário Individual.",dist_ltda:"Distrato: encerramento de Sociedade Limitada / SLU.",dist_ei:"Extinção de Empresário Individual.",sa_transf_ltda:"Transformação: Sociedade Limitada → Sociedade Anônima (instrumento + ata + estatuto + anexos).",sa_const:"Constituição de Sociedade Anônima por assembleia (ata + estatuto + anexos).",sa_transf_sa_ltda:"Transformação: Sociedade Anônima → Sociedade Limitada (ata da AGE + contrato social)."};
     $("status").className="status muted";$("status").textContent=msg[m]||""; recalc();}
   function fitPreview(){
     const cont=$("preview"); if(!cont) return;
@@ -2746,7 +2777,8 @@ window.TINA=(function(){
   }
   async function validar(blobOpt){
     const d=coletar(); const f=[]; const isTransf=MODE.startsWith("transf"); const isDist=MODE.startsWith("dist"); const isAlt=MODE.endsWith("alt"), isEI=ehFormEI(), isCoop=MODE.startsWith("coop");
-    if(!d.razao) f.push(isEI?"Nome empresarial":"Razão social");
+    const saAcoesV=MODE.startsWith("sa_") && MODE!=="sa_transf_sa_ltda";   // documento que resulta em S.A.: fala em denominação e acionistas
+    if(!d.razao) f.push(isEI?"Nome empresarial":(saAcoesV?"Denominação da companhia":"Razão social"));
     if(!isDist && !d.objeto) f.push("Objeto social");
     if(!isDist && !d.foro) f.push("Foro (comarca)");
     const s=d.sede||{}, sm=[]; ["cep","log","num","bairro","mun","uf"].forEach(k=>{if(!s[k])sm.push(k);});
@@ -2756,7 +2788,7 @@ window.TINA=(function(){
     if(!isEI && !isDist && !isCoop && !(d.valorQuota>0)) f.push("Valor da quota");
     if(!d.atoCidade) f.push("Cidade do ato");
     if(!d.atoData) f.push("Data do ato");
-    if(!d.socios.length) f.push(isEI?"Titular não cadastrado":"Nenhum sócio cadastrado");
+    if(!d.socios.length) f.push(isEI?"Titular não cadastrado":(saAcoesV?"Nenhum acionista cadastrado":"Nenhum sócio cadastrado"));
     d.socios.forEach((so,i)=>{ const rot=(isEI?"Titular":(so.tipoPessoa==="PJ"?"Sócia PJ ":"Sócio ")+(i+1))+(so.nome?" ("+so.nome+")":"")+": "; const m=[];
       if(!so.nome)m.push(so.tipoPessoa==="PJ"?"razão social":"nome");
       if(so.tipoPessoa==="PJ"){
@@ -2790,7 +2822,7 @@ window.TINA=(function(){
       if((d.socios||[]).some(so=>so.tipoPessoa==="PJ" && !so.retirante) && d.enquadramento!=="DEMAIS")
         f.push("Enquadramento: com sócia pessoa jurídica a sociedade não pode ser ME nem EPP — marque DEMAIS");
       if(d.advIncluir){ if(!(d.advNome||"").trim()) f.push("Visto de advogado: nome"); if(!(d.advOab||"").trim()) f.push("Visto de advogado: inscrição na OAB"); if(!(d.advOabUf||"").trim()) f.push("Visto de advogado: seccional (UF)"); }
-      else if(vistoObrigatorio()) f.push("Visto de advogado: exigido no contrato social de sociedade que não é ME/EPP");
+      else if(vistoObrigatorio()) f.push((MODE.startsWith("sa_")&&MODE!=="sa_transf_sa_ltda")?"Visto de advogado: obrigatório no estatuto da sociedade anônima (nome, OAB e UF)":"Visto de advogado: exigido no contrato social de sociedade que não é ME/EPP");
       const fica=(d.socios||[]).filter(so=>!so.retirante);
       if(!fica.length && (d.socios||[]).length) f.push("Todos os sócios foram marcados como retirantes — a sociedade ficaria sem sócio");
       if(fica.length && !fica.some(so=>so.administrador)) f.push("Nenhum administrador marcado");
@@ -2837,13 +2869,12 @@ window.TINA=(function(){
       if(!paraLtda){
         // art. 80, I: subscrição por pelo menos duas pessoas; art. 143: Diretoria com dois ou mais membros, mandato de até 3 anos
         if(acion.length<2) f.push("Sociedade anônima precisa de pelo menos 2 acionistas subscritores (art. 80, I, da Lei 6.404)");
-        if(dir.length<2) f.push("Diretoria precisa de pelo menos 2 diretores — marque “É administrador” em dois acionistas (art. 143 da Lei 6.404)");
+        if(dir.length<2) f.push("Diretoria precisa de pelo menos 2 diretores — marque “É diretor” em dois acionistas (art. 143 da Lei 6.404)");
         if(!(c.nDiretores>=2)) f.push("Número de diretores no estatuto (mínimo 2)"); else if(c.nDiretores!==dir.length) f.push("Estatuto prevê "+c.nDiretores+" diretores, mas "+dir.length+" acionistas estão marcados como diretores");
         if(!(c.mandato>0)) f.push("Mandato dos diretores"); else if(c.mandato>3) f.push("Mandato de diretor não pode passar de 3 anos (art. 143, III, da Lei 6.404)");
         if(!(c.anoExercicio||"").trim()) f.push("Ano do primeiro exercício social");
         if(d.enquadramento!=="DEMAIS") f.push("Sociedade por ações não pode ser ME/EPP (art. 3º, § 4º, X, da LC 123) — escolha DEMAIS");
-        // o estatuto leva visto de advogado, sem a dispensa de ME/EPP (Manual de S.A., 1.2)
-        if(!(d.advNome||"").trim()||!(d.advOab||"").trim()||!(d.advOabUf||"").trim()) f.push("Visto de advogado no estatuto (nome, OAB e UF) — obrigatório na sociedade anônima");
+        // o visto (obrigatório no estatuto) é cobrado pela validação geral, via vistoObrigatorio()
         if(constituicao){ if(!(c.banco||"").trim()) f.push("Banco do depósito da entrada (art. 80, III)"); if(!(c.entradaPct>=10)) f.push("Entrada em dinheiro de, no mínimo, 10% do preço de emissão (art. 80, II)"); }
         // a assinatura de acionista PJ (pelo representante legal) ainda não está montada nos atos de S.A.; melhor barrar do que sair errado
         (d.socios||[]).some(so=>so.tipoPessoa==="PJ") && f.push("Acionista pessoa jurídica ainda não é atendido nos atos de S.A. — os acionistas precisam ser pessoas físicas");
@@ -3066,16 +3097,21 @@ window.TINA=(function(){
     if(!txt || txt.length<400){ add(false,"Prévia do documento","Gere a prévia antes: sem ela não há o que conferir."); return itens; }
     const tem=(re)=>re.test(txt);
     const isEI=ehFormEI(), isDist=MODE.startsWith("dist"), isAlt=MODE.endsWith("alt");
+    const saAcoesP=MODE.startsWith("sa_") && MODE!=="sa_transf_sa_ltda";   // documento que resulta em S.A.: vale o Manual de S.A., não o de Ltda
 
-    // 1) cláusulas obrigatórias (item 4 do Manual de Registro de LTDA)
+    // 1) cláusulas obrigatórias (item 4 do Manual de Registro de LTDA) — ou o conteúdo mínimo do estatuto (Manual de S.A., item 15)
     if(!isDist){
-      const exig=[["nome empresarial",/nome empresarial/i],["sede",/sede/i],["objeto",/objeto/i],
-                  ["prazo de duração",/prazo de dura[çc][ãa]o|tempo indeterminado/i],
-                  ["capital",/capital social|capital d[ao]/i],
-                  ["administração",/administra[çc][ãa]o|administrador/i],
-                  ["lucros e perdas",/lucros|preju[íi]zos/i],["foro",/\bforo\b/i]];
+      const exig=saAcoesP
+        ? [["denominação",/denomina[çc][ãa]o/i],["prazo de duração",/tempo indeterminado|prazo de dura[çc][ãa]o/i],["sede",/sede/i],["objeto",/objeto/i],
+           ["capital",/capital social/i],["ações nominativas",/a[çc][õo]es ordin[áa]rias,? nominativas/i],
+           ["diretoria (número e prazo de gestão)",/Diretoria composta de[^.]{0,80}membros/i],["conselho fiscal",/Conselho Fiscal/i],["término do exercício social",/exerc[íi]cio social/i]]
+        : [["nome empresarial",/nome empresarial/i],["sede",/sede/i],["objeto",/objeto/i],
+           ["prazo de duração",/prazo de dura[çc][ãa]o|tempo indeterminado/i],
+           ["capital",/capital social|capital d[ao]/i],
+           ["administração",/administra[çc][ãa]o|administrador/i],
+           ["lucros e perdas",/lucros|preju[íi]zos/i],["foro",/\bforo\b/i]];
       const faltam=exig.filter(([,re])=>!tem(re)).map(([n])=>n);
-      add(!faltam.length,"Cláusulas obrigatórias", faltam.length?("faltam: "+faltam.join(", ")):"as oito do item 4 do manual estão presentes");
+      add(!faltam.length, saAcoesP?"Conteúdo obrigatório do estatuto (Manual de S.A., item 15)":"Cláusulas obrigatórias", faltam.length?("faltam: "+faltam.join(", ")):(saAcoesP?"denominação, prazo, sede, objeto, capital, ações, diretoria, conselho fiscal e exercício social presentes":"as oito do item 4 do manual estão presentes"));
     }
     // 2) nada de campo por preencher escapando para o documento
     const pend=(txt.match(/\[[A-ZÀ-Ú0-9º ,\/.-]{3,40}\]/g)||[]);
@@ -3084,12 +3120,12 @@ window.TINA=(function(){
     add(!/n[ãa]o especificad[oa]s? anteriormente/i.test(txt),"Objeto sem “não especificadas anteriormente”");
     add(!/\b\d{2}\.?\d{2}-?\d[\/-]\d{2}\b/.test(txt),"Objeto sem código CNAE");
     // 4) nome empresarial
-    if(!isEI && !isDist) add(/\bLTDA\b/i.test((d.razao||"")+" LTDA"),"Nome empresarial termina em LTDA");
+    if(!isEI && !isDist){ if(saAcoesP) add(/\bS\/A\b|\bS\.A\.?/.test(txt),"Denominação acompanhada de S/A (art. 3º da Lei 6.404; Manual de S.A., 15.1)"); else add(/\bLTDA\b/i.test((d.razao||"")+" LTDA"),"Nome empresarial termina em LTDA"); }
     // 5) assinaturas de todos que são parte no ato
     if(!isEI){ const linhas=(txt.match(/_{20,}/g)||[]).length, assin=(d.socios||[]).length+((d.advIncluir)?1:0);
       add(linhas>=assin,"Assinaturas", linhas+" linha(s) para "+assin+" signatário(s)"); }
     // 6) visto de advogado quando exigido
-    if(vistoObrigatorio()) add(!!d.advIncluir && !!(d.advNome||"").trim(),"Visto de advogado","exigido: contrato social de sociedade que não é ME/EPP");
+    if(vistoObrigatorio()) add(!!d.advIncluir && !!(d.advNome||"").trim(),"Visto de advogado",saAcoesP?"exigido no estatuto social (Manual de S.A., item 1.2)":"exigido: contrato social de sociedade que não é ME/EPP");
     // 7) porte x sócia PJ
     if((d.socios||[]).some(s=>s.tipoPessoa==="PJ" && !s.retirante))
       add(d.enquadramento==="DEMAIS","Porte com sócia pessoa jurídica","com PJ no capital não pode ser ME nem EPP (LC 123/2006, art. 3º, § 4º, I)");
@@ -3977,7 +4013,7 @@ window.TINA=(function(){
       if($("sedeAnterior")) $("sedeAnterior").value="";
       $("capital").value="100000"; $("valorQuota").value="1.00"; $("atoCidade").value="Aracaju"; $("atoData").value=hojeBR(); $("dataInicioOrig").value="10/05/2015";
       const v=(id,x)=>{ if($(id)) $(id).value=x; };
-      v("saHora","10:00"); v("saNDiretores","2"); v("saMandato","3"); v("saAnoExercicio",String(new Date().getFullYear())); v("saBanco","Banco do Brasil S.A."); v("saEntradaPct","10");
+      v("saHora","10:00"); v("saHonorarios",""); v("saNDiretores","2"); v("saMandato","3"); v("saAnoExercicio",String(new Date().getFullYear())); v("saBanco","Banco do Brasil S.A."); v("saEntradaPct","10");
       v("advNome","Fulano Advogado Exemplo"); v("advOab","12.345"); v("advOabUf","SE"); if($("advIncluir")) $("advIncluir").checked=true;
       socioCard({nome:"João da Silva Santos",cpf:"111.444.777-35",sexo:"M",nacionalidade:"brasileiro",estadoCivil:"solteiro",profissao:"empresário",nascimento:"10/05/1990",naturalCidade:"Aracaju",naturalUF:"SE",rg:"1234567",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"100",bairro:"Centro",mun:"Aracaju",uf:"SE",quotas:60000,administrador:true});
       socioCard({nome:"Maria de Souza Lima",cpf:"529.982.247-25",sexo:"F",nacionalidade:"brasileiro",estadoCivil:"casado",regime:"comunhão parcial de bens",profissao:"administradora",nascimento:"22/03/1988",naturalCidade:"Aracaju",naturalUF:"SE",rg:"7654321",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"100",comp:"ap. 2",bairro:"Centro",mun:"Aracaju",uf:"SE",quotas:40000,administrador:true});
@@ -4091,6 +4127,9 @@ window.TINA=(function(){
     _clausulasOrig=[]; mostrarPreservacao();   // as cláusulas lidas eram do contrato ANTERIOR
     ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","haveres","clausulasExtra","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","advNome","advOab","advOabUf"].forEach(id=>{if($(id))$(id).value="";});
     ["admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","alt_cessao","cedRetira","advIncluir"].forEach(id=>{if($(id))$(id).checked=false;});
+    // cards da cooperativa e da S.A.: nada do cliente anterior pode sobrar no formulário — limpa o que é DADO (texto, número, mesa);
+    // escolhas de estrutura (tipo de cooperativa, órgão, prazo, caixas com padrão marcado) ficam como estão
+    ["cardCoop","cardSA"].forEach(id=>{ const c=$(id); if(!c) return; c.querySelectorAll("input:not([type=checkbox]):not([type=radio])").forEach(i=>{ i.value=""; }); c.querySelectorAll("select[id$=PresMesa],select[id$=SecMesa]").forEach(s=>{ s.selectedIndex=0; }); });
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach(id=>{if($(id))$(id).style.display="none";});
     if($("filiais"))$("filiais").innerHTML=""; if($("conselhoMembros"))$("conselhoMembros").value="3";
     // e-mail e portão também: o contato do cliente ANTERIOR ficava aqui e ia para o e-mail do próximo,
@@ -4101,7 +4140,7 @@ window.TINA=(function(){
     document.querySelectorAll(".revisar").forEach(e=>e.classList.remove("revisar"));
     ["nome","fantasia","sede","objeto","capital","quadro","enquadramento"].forEach(k=>{if($("alt_"+k))$("alt_"+k).checked=false;});
     if($("altRetifica"))$("altRetifica").checked=false; if($("retificaRef"))$("retificaRef").value=""; if($("wrapRetifica"))$("wrapRetifica").style.display="none";
-    $("valorQuota").value="1.00";$("enquadramento").value="ME";$("modoAdm").value="ISOLADAMENTE e/ou CONJUNTAMENTE";if($("integralizacao"))$("integralizacao").value="moeda";if($("socioRetiraSexo"))$("socioRetiraSexo").value="M";
+    $("valorQuota").value="1.00";$("enquadramento").value=(MODE.startsWith("sa_")&&MODE!=="sa_transf_sa_ltda")?"DEMAIS":"ME";$("modoAdm").value="ISOLADAMENTE e/ou CONJUNTAMENTE";if($("integralizacao"))$("integralizacao").value="moeda";if($("socioRetiraSexo"))$("socioRetiraSexo").value="M";
     $("socios").innerHTML="";$("numQuotas").value="";if($("s_cep_stat"))$("s_cep_stat").textContent="";const b=$("valCapital");if(b)b.style.display="none";
     if(umComponenteSo())socioCard();}  // modos de titular único: recria o card
   function limpar(){ limparCampos();
