@@ -125,5 +125,44 @@
     return out;
   }
 
-  window.GeradorCoop = { estatuto: estatuto, ata: ata, assinaturas: assinaturas, preencher: preencher };
+
+  /* Ata da Assembleia Geral Extraordinária de REFORMA DO ESTATUTO — Manual de Registro de Cooperativa, Cap. II,
+     Seção II: item 4 (elementos da ata: denominação e CNPJ; local, hora e data; mesa; quórum e convocação;
+     ordem do dia; deliberações; fecho), item 5 (deliberações transcritas, expressando as modificações),
+     item 7.2/7.3 (reforma é competência exclusiva da AGE, aprovada por 2/3 dos presentes — art. 46 da
+     Lei 5.764/71). Quórum de instalação: art. 40 da Lei 5.764 (geral) ou art. 11 da Lei 12.690 (trabalho).
+     d = { denominacaoUP, cnpj, nire, sedeLinha, local, cidadeUF, data, hora, trab, convocForma, convocN ("1"|"2"|"3"),
+           total, presentes, presNome, secNome, secSexo, votos:{modo:"unanimidade"|"contagem",favor,contra,abst},
+           temas:[rótulos], artigosNovos:[{paras}], presentesCards:[sócios] } */
+  function ataReforma(d, h) {
+    var out = [];
+    var ext = function (n) { return h.extensoInt(Number(n) || 0); };
+    out.push(h.P([h.T("ATA DA ASSEMBLEIA GERAL EXTRAORDINÁRIA DE REFORMA DO ESTATUTO SOCIAL DA " + d.denominacaoUP + ", REALIZADA EM " + h.dataExtenso(d.data).toUpperCase(), { bold: true })], h.CEN, h.SP10_0, true));
+    out.push(h.P([h.T("CNPJ nº " + (d.cnpj || "[CNPJ]") + (d.nire ? " — NIRE " + d.nire : ""), { bold: true })], h.CEN, h.SP10));
+    var item = function (n, tit, txt) { out.push(h.P([h.T(n + ". " + tit + ": ", { bold: true })].concat(h.R(txt)), h.JUST, h.SP15)); };
+    item("1", "Data, hora e local", "Em " + h.dataExtenso(d.data) + ", às " + (d.hora || "[HORA]") + " horas, " + (d.local ? "em " + d.local : "na sede social, na " + d.sedeLinha) + ".");
+    var n = String(d.convocN || "1"), ord = { "1": "primeira", "2": "segunda", "3": "terceira" }[n], inc = { "1": "I", "2": "II", "3": "III" }[n];
+    var base = d.trab ? "§ 1º do art. 11 da Lei nº 12.690, de 19 de julho de 2012" : "art. 40, " + inc + ", da Lei nº 5.764, de 16 de dezembro de 1971";
+    item("2", "Convocação e quórum", "Assembleia convocada " + (d.convocForma || "[FORMA DE CONVOCAÇÃO — edital: data e locais de afixação, jornal e página; ou circular: data e número]") + ", com a antecedência mínima de 10 (dez) dias exigida pelo § 1º do art. 38 da Lei nº 5.764, de 1971. Presentes " + h.numBR(d.presentes) + " (" + ext(d.presentes) + ") " + (d.trab ? "sócios" : "associados") + ", de um total de " + h.numBR(d.total) + " (" + ext(d.total) + ") em condições de votar, conforme assinaturas lançadas no Livro de Presença, instalando-se a Assembleia em " + ord + " convocação (" + base + ").");
+    item("3", "Mesa", "Presidente: " + (d.presNome || "[PRESIDENTE]").toUpperCase() + ". " + (d.secSexo === "F" ? "Secretária" : "Secretário") + ": " + (d.secNome || "[SECRETÁRIO]").toUpperCase() + ".");
+    item("4", "Ordem do dia", "a) reforma do Estatuto Social (" + (d.temas || []).join("; ") + "); b) consolidação do Estatuto Social.");
+    var V = d.votos || {}, aprov = V.modo === "contagem"
+      ? "por " + h.numBR(V.favor) + " (" + ext(V.favor) + ") votos favoráveis, " + h.numBR(V.contra) + " (" + ext(V.contra) + ") contrários e " + h.numBR(V.abst) + " (" + ext(V.abst) + ") abstenções"
+      : "por unanimidade dos presentes";
+    out.push(h.P([h.T("5. Deliberações: ", { bold: true })].concat(h.R("Lida e colocada em discussão a proposta de reforma do Estatuto Social, foi ela aprovada " + aprov + ", atingido o quórum de 2/3 (dois terços) dos " + (d.trab ? "sócios" : "associados") + " presentes exigido pelo parágrafo único do art. 46 da Lei nº 5.764, de 1971, passando os dispositivos abaixo a vigorar com a seguinte redação:")), h.JUST, h.SP15));
+    (d.artigosNovos || []).forEach(function (a) { a.paras.forEach(function (p) { out.push(p); }); });
+    out.push(h.P(h.R("Em consequência, aprovado o Estatuto Social consolidado, com a redação constante do anexo a esta ata, que dela passa a fazer parte integrante, assinado pela mesa."), h.JUST, h.SP15));
+    out.push(h.P([h.T("6. Encerramento: ", { bold: true })].concat(h.R("Nada mais havendo a tratar, o Presidente encerrou os trabalhos, lavrando-se a presente ata que, lida e aprovada, vai assinada pelo Presidente e pel" + (d.secSexo === "F" ? "a Secretária" : "o Secretário") + " da mesa e pelos " + (d.trab ? "sócios" : "associados") + " presentes, quantos bastem para a validade das deliberações.")), h.JUST, h.SP15));
+    out.push(h.P([h.T(d.cidadeUF + ", " + h.dataExtenso(d.data))], h.CEN, h.SP15));
+    var assina = function (nome, papel) {
+      out.push(h.P([h.T("_".repeat(46))], h.CEN, h.SPLINE15_0, true));
+      out.push(h.P([h.T((nome || "[NOME]").toUpperCase(), { bold: true })], h.CEN, h.SP10_0, true));
+      out.push(h.P([h.T(papel)], h.CEN, { after: 220, line: 240, lineRule: h.AUTO }));
+    };
+    assina(d.presNome, "Presidente da Mesa"); assina(d.secNome, d.secSexo === "F" ? "Secretária da Mesa" : "Secretário da Mesa");
+    (d.presentesCards || []).forEach(function (s) { assina(s.nome, h.gsex(s, d.trab ? "Sócio presente" : "Associado presente", d.trab ? "Sócia presente" : "Associada presente")); });
+    return out;
+  }
+
+  window.GeradorCoop = { estatuto: estatuto, ata: ata, assinaturas: assinaturas, preencher: preencher, ataReforma: ataReforma };
 })();

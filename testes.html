@@ -130,7 +130,7 @@
 
     // ---------- 2. Documentos ----------
     grupo("Documentos");
-    var MODOS=["const","alt","ei_const","ei_alt","transf_ei_ltda","transf_ei_slu","transf_ltda_ei","dist_ltda","dist_ei","coop_const","sa_transf_ltda","sa_const","sa_transf_sa_ltda"];
+    var MODOS=["const","alt","ei_const","ei_alt","transf_ei_ltda","transf_ei_slu","transf_ltda_ei","dist_ltda","dist_ei","coop_const","sa_transf_ltda","sa_const","sa_transf_sa_ltda","sa_age","sa_ago","coop_reforma"];
     for(var i=0;i<MODOS.length;i++){
       var m=MODOS[i];
       modo(m); await espera(140);
@@ -1074,6 +1074,70 @@
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de finalizar solicitação",false,String(e&&e.message||e).slice(0,130)); }
 
+    /* ---------- 6b4b. Solicitações: recado do cadastro, autoria, permissões do comercial e CNPJ repetido ---------- */
+    grupo("Solicitações — recado e permissões");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+      var nu2={};
+      W.Nuvem.podeGravar=function(){ return true; };
+      W.Nuvem.listar=function(){ return Promise.resolve({ok:true,itens:Object.keys(nu2).map(function(k){return nu2[k];})}); };
+      W.Nuvem.salvar=function(c,id,d,o){ nu2[id]=(o&&o.substituir)?Object.assign({id:id},d):Object.assign({},nu2[id]||{},d,{id:id}); return Promise.resolve({ok:true,id:id}); };
+      W.Nuvem.trilha=function(){ return Promise.resolve({ok:true}); };
+      W.Nuvem.ouvirColecao=function(c,fn){ return function(){}; };
+      var estB=W.Nuvem.estado, quem="comercial@exemplo.com";
+      W.Nuvem.estado=function(){ return Object.assign({},estB(),{email:quem,uid:"U2",daEquipe:true}); };
+      // o app ainda termina de iniciar depois que o quadro responde; ligar o modo comercial antes disso
+      // deixa o próprio init desligá-lo (o papel lembrado não é comercial) — espera a tela de carregamento sumir
+      try{ await ate(function(){ var b=D.getElementById("bootLoad"); return !b || b.classList.contains("pronto"); },8000); }catch(e){}
+      try{ await ate(function(){ return !!estB().verificado; },8000); }catch(e){}   // e a verificação de acesso da nuvem terminar (é ela que liga/desliga o modo comercial)
+      await espera(500);
+
+      // o comercial abre uma solicitação: sem situação nem recado no formulário; fica "nova" e com autoria
+      W.TINA._ux.aplicarModoComercial(true); await espera(300);
+      $("btnSolicNova").click(); await espera(220);
+      reg("Comercial não vê Situação nem Recado no formulário", W.getComputedStyle($("wrapStatus")).display==="none" && W.getComputedStyle($("wrapPend")).display==="none");
+      val("sEmpresa","PADARIA EXEMPLO LTDA"); val("sCnpj","12.345.678/0001-95"); val("sObs","Abrir filial.");
+      $("sStatus").value="concluida";   // mesmo que alguém force pelo DOM, o comercial não muda a situação
+      $("btnSolicSalvar").click(); await espera(450);
+      var a1=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
+      reg("Solicitação do comercial nasce como Nova e registra quem abriu", a1.status==="nova" && a1.abertaPor==="comercial@exemplo.com", a1.status+" · "+a1.abertaPor);
+      reg("O cartão mostra 'aberta por'", /aberta por comercial@exemplo\.com/.test($("solicLista").innerText));
+      reg("Comercial pode excluir a própria solicitação ainda nova", /data-sol-excluir/.test($("solicLista").innerHTML));
+
+      // segunda solicitação com o MESMO CNPJ: aviso, sem bloqueio
+      $("btnSolicNova").click(); await espera(220);
+      val("sEmpresa","PADARIA EXEMPLO LTDA"); val("sCnpj","12.345.678/0001-95"); await espera(120);
+      reg("CNPJ repetido: aviso aparece ao digitar", W.getComputedStyle($("sDup")).display!=="none" && /em aberto para este CNPJ/.test($("sDup").textContent));
+      $("btnSolicSalvar").click(); await espera(450);
+      reg("…mas não bloqueia: a segunda é salva", JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").length===2);
+
+      // o cadastro trabalha a primeira: fica com ele, com data; e deixa um recado
+      W.TINA._ux.aplicarModoComercial(false); await espera(250);
+      quem="cadastro@exemplo.com";
+      var b1=D.querySelector('[data-sol-abrir="'+a1.id+'"]'); if(b1) b1.click(); await espera(350);
+      var a2=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").find(function(x){return x.id===a1.id;})||{};
+      reg("Trabalhar registra com quem está e desde quando", a2.status==="andamento" && a2.trabalhandoPor==="cadastro@exemplo.com" && !!a2.trabalhandoDesde, a2.trabalhandoPor);
+      reg("O cartão diz 'em andamento com … desde …'", /em andamento com cadastro@exemplo\.com desde \d{2}\/\d{2}\/\d{4}/.test($("solicLista").innerText));
+      var b2=D.querySelector('[data-sol-editar="'+a1.id+'"]'); if(b2) b2.click(); await espera(250);
+      reg("Cadastro vê o campo de recado (opcional, discreto)", W.getComputedStyle($("wrapPend")).display!=="none");
+      val("sPend","Falta o comprovante de endereço da filial."); $("btnSolicSalvar").click(); await espera(450);
+      reg("Recado vai para o cartão", /Recado: Falta o comprovante de endereço da filial\./.test($("solicLista").innerText));
+
+      // de volta ao comercial: vê o recado; não exclui a que está em andamento; ao editar, a situação não muda
+      quem="comercial@exemplo.com";
+      W.TINA._ux.aplicarModoComercial(true); await espera(300);
+      reg("Comercial vê o recado no cartão", /Recado: Falta o comprovante/.test($("solicLista").innerText));
+      reg("Comercial não tem Excluir na solicitação em andamento", !D.querySelector('[data-sol-excluir="'+a1.id+'"]'));
+      var b3=D.querySelector('[data-sol-editar="'+a1.id+'"]'); if(b3) b3.click(); await espera(250);
+      val("sObs","Abrir filial. Cliente confirmou o endereço."); $("btnSolicSalvar").click(); await espera(450);
+      var a3=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").find(function(x){return x.id===a1.id;})||{};
+      reg("Edição do comercial mantém a situação e o recado", a3.status==="andamento" && /comprovante/.test(a3.pendencia||""), a3.status);
+      W.TINA._ux.aplicarModoComercial(false); await espera(200);
+      W.Nuvem.estado=estB;
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+    }catch(e){ reg("Bateria de recado e permissões",false,String(e&&e.message||e).slice(0,130)); }
+
     // ---------- 6b5. Visto de advogado (regra do Manual de LTDA, item 7 e roteiro 8/8.1) ----------
     grupo("Visto de advogado");
     try{
@@ -1336,6 +1400,41 @@
       reg("Menos de 7 fundadores é barrado", (fv||[]).some(function(x){return /no mínimo 7 fundadores/.test(x);}));
     }catch(e){ reg("Bateria da cooperativa",false,String(e&&e.message||e).slice(0,130)); }
 
+    /* ---------- 6b2v. Cooperativa: reforma do estatuto em AGE (Lei 5.764, arts. 38, 40 e 46; Manual, Seção II) ---------- */
+    grupo("Cooperativa — reforma do estatuto");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("coop_reforma"); await espera(260);
+      reg("A reforma mostra o card próprio e o registro na Junta, e esconde a mesa de fundadores", $("cardCoopReforma").style.display!=="none" && W.getComputedStyle($("cardRegistro")).display!=="none" && W.getComputedStyle($("coopPresMesa").parentElement).display==="none");
+      $("btnExemplo").click(); await espera(700);
+      var fv=await W.TINA.validar();
+      reg("Exemplo da reforma passa na validação", !(fv||[]).length, (fv||[]).join(" | ").slice(0,160));
+      await W.TINA.gerarPreview(); await espera(3000); var ts=texto();
+      reg("Ata: título de reforma, denominação, data, CNPJ e NIRE (Manual, item 4, I)", /ATA DA ASSEMBLEIA GERAL EXTRAORDINÁRIA DE REFORMA DO ESTATUTO SOCIAL DA COOPERATIVA EXEMPLO DE TRANSPORTE, REALIZADA EM/.test(ts) && /CNPJ nº 12\.345\.678\/0001-95 — NIRE 28400000001/.test(ts));
+      reg("Ata: convocação com antecedência de 10 dias (art. 38, § 1º), 22 de 30 presentes e 1ª convocação (art. 40, I)", /por edital afixado na sede social em 25\/08\/2026[^\n]*antecedência mínima de 10 \(dez\) dias exigida pelo § 1º do art\. 38/.test(ts) && /Presentes 22 \(vinte e dois\) associados, de um total de 30 \(trinta\)[^\n]*primeira convocação \(art\. 40, I, da Lei nº 5\.764/.test(ts));
+      reg("Ata: mesa com secretária, ordem do dia com os temas e consolidação", /3\. Mesa: Presidente: FUNDADOR EXEMPLO 1\. Secretária: FUNDADORA EXEMPLO 2\./.test(ts) && /4\. Ordem do dia: a\) reforma do Estatuto Social \(art\. 2º — objeto social; capital social e quotas-partes\); b\) consolidação/.test(ts));
+      reg("Ata: aprovação por 2/3 dos presentes (art. 46, parágrafo único) e artigos novos transcritos (arts. 2º, 15 e 16)", /aprovada por unanimidade dos presentes, atingido o quórum de 2\/3 \(dois terços\)[^\n]*parágrafo único do art\. 46/.test(ts) && /a vigorar com a seguinte redação:[\s\S]*Art\. 2º A Cooperativa[\s\S]*Art\. 15\. O capital social[\s\S]*Art\. 16\./.test(ts));
+      reg("Ata: fecho com assinaturas da mesa e dos presentes (Manual, item 4, VIII)", /assinada pelo Presidente e pela Secretária da mesa e pelos associados presentes, quantos bastem/.test(ts) && /Associado presente/.test(ts) && /Associada presente/.test(ts));
+      reg("Estatuto consolidado em anexo com CNPJ, data de constituição original no art. 1º e assinatura da mesa", /ESTATUTO SOCIAL CONSOLIDADO\s*\n\s*COOPERATIVA EXEMPLO DE TRANSPORTE\s*\n\s*CNPJ nº 12\.345\.678\/0001-95/.test(ts) && /constituída em 10\/05\/2020/.test(ts) && /Estatuto Social consolidado conforme deliberação da Assembleia Geral Extraordinária/.test(ts));
+      reg("Nenhuma variável solta na reforma", !/\{\{/.test(ts) && !/\[[A-Z]{3,}[A-Z ]*\]/.test(ts));
+      // quóruns
+      val("coopPresentes","19"); fv=await W.TINA.validar();
+      reg("1ª convocação com menos de 2/3 (19 de 30) é barrada (art. 40, I)", (fv||[]).some(function(x){return /Quórum não atingido: 1ª convocação/.test(x);}));
+      val("coopConvocN","2"); fv=await W.TINA.validar();
+      reg("Em 2ª convocação, 19 de 30 (metade + 1 = 16) instala", !(fv||[]).some(function(x){return /Quórum/.test(x);}), (fv||[]).join(" | ").slice(0,120));
+      val("coopConvocN","3"); val("coopPresentes","9"); fv=await W.TINA.validar();
+      reg("3ª convocação com 9 presentes é barrada (mínimo de 10 — art. 40, III)", (fv||[]).some(function(x){return /mínimo 10 presentes/.test(x);}));
+      val("coopConvocN","1"); val("coopPresentes","22"); val("coopVotos","contagem"); $("coopVotos").dispatchEvent(new W.Event("change",{bubbles:true})); await espera(120);
+      val("coopFavor","14"); val("coopContra","8"); val("coopAbst","0"); fv=await W.TINA.validar();
+      reg("Contagem de votos abaixo de 2/3 dos presentes (14 de 22) é barrada (art. 46)", (fv||[]).some(function(x){return /2\/3 dos presentes a favor/.test(x);}));
+      val("coopFavor","15"); val("coopContra","7"); fv=await W.TINA.validar();
+      reg("15 de 22 (2/3) passa e a ata registra a contagem", !(fv||[]).some(function(x){return /2\/3|somar/.test(x);}));
+      await W.TINA.gerarPreview(); await espera(3000); ts=texto();
+      reg("Ata com contagem: 15 favoráveis, 7 contrários, 0 abstenções", /por 15 \(quinze\) votos favoráveis, 7 \(sete\) contrários e 0 \(zero\) abstenções/.test(ts));
+      ["coop_t_objeto","coop_t_capital"].forEach(function(id){ $(id).checked=false; }); fv=await W.TINA.validar();
+      reg("Reforma sem tema marcado é barrada", (fv||[]).some(function(x){return /Marque o que muda/.test(x);}));
+    }catch(e){ reg("Bateria da reforma de estatuto",false,String(e&&e.message||e).slice(0,130)); }
+
     /* ---------- 6b2u. Sociedade anônima: transformações e constituição (Lei 6.404) ---------- */
     grupo("Sociedade anônima");
     try{
@@ -1375,6 +1474,28 @@
       reg("Diretoria com um só membro é barrada (art. 143 da Lei 6.404)", (fv||[]).some(function(x){return /pelo menos 2|dois diretores|Diretoria/i.test(x);}), (fv||[]).join(" | ").slice(0,120));
       ad.checked=true; ad.dispatchEvent(new W.Event("change",{bubbles:true})); val("saMandato","4"); fv=await W.TINA.validar();
       reg("Mandato de diretor acima de 3 anos é barrado (art. 143)", (fv||[]).some(function(x){return /3 anos/.test(x);}));
+      // 1b) acionista pessoa jurídica: qualificada com CNPJ/sede/representante, assina pelo representante, não pode ser diretora
+      val("saMandato","3"); $("btnAddSocio").click(); await espera(220);
+      var cPJ=D.querySelectorAll("#socios .socio:not(.filial)")[2];
+      var qv=function(f,v){ var e=cPJ.querySelector('[data-f="'+f+'"]'); if(e){ e.value=v; e.dispatchEvent(new W.Event("input",{bubbles:true})); } };
+      var tp=cPJ.querySelector('[data-f="tipoPJ"]'); tp.checked=true; tp.dispatchEvent(new W.Event("change",{bubbles:true})); await espera(200);
+      qv("nome","PARTICIPACOES EXEMPLO LTDA"); qv("pjCnpj","45.723.174/0001-10"); qv("pjNire","28200999999"); qv("pjRep","Carlos Exemplo"); qv("pjCargo","administrador");
+      qv("log","Avenida Exemplo"); qv("num","500"); qv("bairro","Centro"); qv("mun","Aracaju"); qv("uf","SE"); qv("cep","49000-000");
+      qv("repNac","brasileiro"); qv("repEstadoCivil","solteiro"); qv("repProfissao","empresário"); qv("repNascimento","01/01/1980"); qv("repNaturalCidade","Aracaju"); qv("repNaturalUF","SE");
+      qv("repCpf","390.533.447-05"); qv("repRg","9998887"); qv("repOrgao","SSP"); qv("repOrgaoUF","SE"); qv("repLog","Rua do Representante"); qv("repNum","7"); qv("repBairro","Centro"); qv("repMun","Aracaju"); qv("repUF","SE"); qv("repCep","49000-000");
+      qv("quotas","20000"); var adPJ=cPJ.querySelector('[data-f="administrador"]'); adPJ.checked=false; adPJ.dispatchEvent(new W.Event("change",{bubbles:true}));
+      val("capital","120000"); await espera(200);
+      reg("A mesa lista o representante da acionista PJ, não a empresa", [].slice.call($("saPresMesa").options).some(function(o){return o.value==="Carlos Exemplo";}) && ![].slice.call($("saPresMesa").options).some(function(o){return /PARTICIPACOES/.test(o.value);}));
+      fv=await W.TINA.validar();
+      reg("Acionista PJ com representante qualificado passa na validação", !(fv||[]).length, (fv||[]).join(" | ").slice(0,160));
+      await W.TINA.gerarPreview(); await espera(2800); ts=texto();
+      reg("Acionista PJ qualificada com CNPJ, sede, NIRE e representante (Manual de S.A., item 16, I, b)",
+        /PARTICIPACOES EXEMPLO LTDA, sociedade empresária limitada, inscrita no CNPJ sob o nº 45\.723\.174\/0001-10, com sede na Avenida Exemplo[^.]*NIRE 28200999999, neste ato representada por seu administrador CARLOS EXEMPLO/.test(ts));
+      reg("Assinaturas da PJ pelo representante legal, em todas as peças", (ts.match(/Acionista — representada por CARLOS EXEMPLO \(administrador\)/g)||[]).length>=2 && /Subscritora — representada por CARLOS EXEMPLO/.test(ts));
+      reg("Lista de subscrição traz a PJ com as 20.000 ações", /PARTICIPACOES EXEMPLO LTDA[^\n]*subscrevendo o total de 20\.000 \(vinte mil\) ações/.test(ts));
+      reg("Tabela de ações soma 120.000 com a PJ", /120\.000/.test(ts) && /100,00%/.test(ts));
+      adPJ.checked=true; adPJ.dispatchEvent(new W.Event("change",{bubbles:true})); fv=await W.TINA.validar();
+      reg("PJ marcada como diretora é barrada (art. 146: diretor é pessoa natural)", (fv||[]).some(function(x){return /pessoa natural/.test(x);}));
       // 2) constituição
       modo("sa_const"); await espera(260); $("btnExemplo").click(); await espera(600);
       fv=await W.TINA.validar();
@@ -1412,7 +1533,48 @@
       reg("Limpar zera o card da S.A. (nada do cliente anterior sobra)", (function(){ var c=W.confirm; W.confirm=function(){return true;}; $("btnLimpar").click(); W.confirm=c; return $("saHora").value==="" && $("saBanco").value==="" && $("saPresMesa").value===""; })());
       reg("Nenhuma variável solta nos três atos", !/\{\{/.test(ts) && !/\[[A-Z]{3,}[A-Z ]*\]/.test(ts));
       // PDF dos três atos (tabelas + quebras de página por estilo)
-      for(var mSA of ["sa_transf_ltda","sa_const","sa_transf_sa_ltda"]){ modo(mSA); await espera(260); $("btnExemplo").click(); await espera(600); await W.TINA.gerarPreview(); await espera(2600); var pbSA=await W.TINA.gerarPdfBlob(); reg("PDF gerado — "+mSA, pbSA && pbSA.size>20000, (pbSA?pbSA.size:0)+" bytes"); }
+      // 4) AGE: reforma (sede, objeto) + eleição + aumento de capital de 100 mil para 150 mil
+      modo("sa_age"); await espera(260); $("btnExemplo").click(); await espera(600);
+      fv=await W.TINA.validar();
+      reg("Exemplo da AGE passa na validação", !(fv||[]).length, (fv||[]).join(" | ").slice(0,160));
+      await W.TINA.gerarPreview(); await espera(3000); ts=texto();
+      reg("AGE: título com denominação e data, CNPJ e NIRE (Manual de S.A., Seção III, 5, I)", /ATA DA ASSEMBLEIA GERAL EXTRAORDINÁRIA DA COMERCIAL MODELO S\/A, REALIZADA EM/.test(ts) && /CNPJ nº 12\.345\.678\/0001-95 — NIRE 28300000001/.test(ts));
+      reg("AGE: local na sede, todos presentes dispensam o edital (art. 124, § 4º) e mesa", /1\. Data, hora e local: Em [^\n]*na sede social/.test(ts) && /dispensa a publicação do edital de convocação, nos termos do § 4º do art\. 124/.test(ts) && /3\. Mesa: Presidente: JOÃO DA SILVA SANTOS\. Secretária: MARIA DE SOUZA LIMA/.test(ts));
+      reg("AGE: ordem do dia com aumento, reforma (sede, objeto, capital) e eleição", /4\. Ordem do dia: a\) aumento do capital social[^\n]*b\) reforma do Estatuto Social \(sede, objeto social, capital social e ações\) e consolidação[^\n]*c\) eleição da Diretoria/.test(ts));
+      reg("AGE: aumento de R$ 100 mil para R$ 150 mil com 50.000 novas ações, preferência dispensada (art. 171) e 3/4 realizados (art. 170)", /aumento do capital social de R\$ 100\.000,00 \(cem mil reais\) para R\$ 150\.000,00 \(cento e cinquenta mil reais\)[^\n]*50\.000 \(cinquenta mil\) novas ações ordinárias nominativas/.test(ts) && /fica dispensado o prazo de 30 \(trinta\) dias[^\n]*art\. 171/.test(ts) && /três quartos do capital social \(art\. 170/.test(ts));
+      reg("AGE: redação nova dos arts. 2º, 3º e 6º transcrita na ata (Manual: deliberações transcritas)", /a vigorar com a seguinte redação:[\s\S]*Art\. 2º A sociedade terá sua sede[\s\S]*Art\. 3º Constitui objeto[\s\S]*Art\. 6º O capital social é de R\$ 150\.000,00/.test(ts));
+      reg("AGE: Diretoria eleita com qualificação completa, mandato, desimpedimento e remuneração (Manual 5.1; arts. 146, 147, 152)", /Eleitos, por unanimidade dos presentes, para a Diretoria, com mandato de 3 \(três\) anos[^\n]*JOÃO DA SILVA SANTOS, brasileiro, solteiro[^\n]*Diretor sem designação específica[^\n]*§ 1º do art\. 147[^\n]*art\. 152/.test(ts));
+      reg("AGE: Anexo I (posse) e Anexo II (lista do aumento: 30.000 + 20.000) presentes", /ANEXO I DA ATA DA ASSEMBLEIA GERAL EXTRAORDINÁRIA/.test(ts) && (ts.match(/tomou posse/g)||[]).length===2 && /LISTA DE SUBSCRIÇÃO DAS AÇÕES DO AUMENTO DE CAPITAL/.test(ts) && /30\.000 \(trinta mil\) novas ações/.test(ts) && /20\.000 \(vinte mil\) novas ações/.test(ts));
+      reg("AGE: estatuto consolidado com CNPJ, assinado pela mesa (Manual, Seção III, 2.1)", /ESTATUTO SOCIAL CONSOLIDADO\s*\n\s*COMERCIAL MODELO S\/A\s*\n\s*CNPJ nº 12\.345\.678\/0001-95/.test(ts) && /Estatuto Social consolidado conforme deliberação da Assembleia Geral Extraordinária/.test(ts));
+      reg("AGE: fecho em sumário (art. 130, § 1º), Conselho Fiscal não instalado, sem variável solta", /lavrada a presente ata em forma de sumário/.test(ts) && /Não houve pedido de instalação do Conselho Fiscal/.test(ts) && !/\[[A-Z]{3,}[A-Z ]*\]/.test(ts));
+      // validações da AGE
+      ["age_estatuto","age_diretoria","age_capital"].forEach(function(id){ $(id).checked=false; }); fv=await W.TINA.validar();
+      reg("AGE sem deliberação é barrada", (fv||[]).some(function(x){return /pelo menos uma deliberação/.test(x);}));
+      $("age_estatuto").checked=true; $("age_t_sede").checked=true; val("saConvocacao","primeira"); val("saEditalInfo","por edital publicado no Diário Oficial de SE em 01/02/2026, p. 12"); val("saQuorumPct","50"); fv=await W.TINA.validar();
+      reg("Reforma em 1ª convocação com 50% do capital é barrada (art. 135: 2/3)", (fv||[]).some(function(x){return /2\/3 do capital votante/.test(x);}));
+      val("saConvocacao","segunda"); fv=await W.TINA.validar();
+      reg("Em 2ª convocação instala com qualquer número", !(fv||[]).some(function(x){return /2\/3|1\/4/.test(x);}), (fv||[]).join(" | ").slice(0,120));
+      await W.TINA.gerarPreview(); await espera(3000); ts=texto();
+      reg("Ata registra a convocação por edital, o percentual presente e a 2ª convocação", /Assembleia convocada por edital publicado no Diário Oficial de SE em 01\/02\/2026, p\. 12\. Presentes acionistas representando 50,00% do capital social[^\n]*em segunda convocação/.test(ts));
+      // 5) AGO: contas de 31/12, lucro de 80 mil → 4 mil de reserva legal, 60 mil de dividendos, 16 mil retidos
+      modo("sa_ago"); await espera(260); $("btnExemplo").click(); await espera(600);
+      fv=await W.TINA.validar();
+      reg("Exemplo da AGO passa na validação", !(fv||[]).length, (fv||[]).join(" | ").slice(0,160));
+      await W.TINA.gerarPreview(); await espera(3000); ts=texto();
+      var anoEx=String(new Date().getFullYear()-1);
+      reg("AGO: título, CNPJ, sede, todos presentes e dispensa de publicações do art. 294", /ATA DA ASSEMBLEIA GERAL ORDINÁRIA DA COMERCIAL MODELO S\/A/.test(ts) && /art\. 294, II/.test(ts) && /§ 4º do art\. 124/.test(ts));
+      reg("AGO: ordem do dia do art. 132 (contas, demonstrações, destinação do lucro, remuneração)", new RegExp("tomar as contas dos administradores e examinar, discutir e votar as demonstrações financeiras do exercício social encerrado em 31 de dezembro de "+anoEx).test(ts) && /destinação do resultado do exercício e a distribuição de dividendos/.test(ts) && /fixar a remuneração dos administradores/.test(ts));
+      reg("AGO: contas aprovadas — diretores são os únicos acionistas, logo sem o impedimento do § 1º (art. 134, § 6º)", /por serem os diretores os únicos acionistas da companhia \(§ 6º do art\. 134/.test(ts));
+      var adM=D.querySelectorAll("#socios .socio:not(.filial)")[1].querySelector('[data-f="administrador"]'); adM.checked=false; adM.dispatchEvent(new W.Event("change",{bubbles:true})); await W.TINA.gerarPreview(); await espera(3000); ts=texto();
+      reg("AGO: com acionista que não é diretor, os diretores se abstêm nas contas (art. 134, § 1º)", /abstendo-se de votar os acionistas que exercem cargo na Diretoria \(§ 1º do art\. 134/.test(ts));
+      adM.checked=true; adM.dispatchEvent(new W.Event("change",{bubbles:true})); await W.TINA.gerarPreview(); await espera(3000); ts=texto();
+      reg("AGO: reserva legal de 5% (R$ 4.000,00), dividendos de R$ 60.000,00 em 60 dias e saldo de R$ 16.000,00 retido (arts. 193, 196, 205)", /R\$ 4\.000,00 \(quatro mil reais\), correspondentes a 5%[^\n]*reserva legal[^\n]*art\. 193/.test(ts) && /R\$ 60\.000,00 \(sessenta mil reais\) distribuídos como dividendos[^\n]*60 \(sessenta\) dias/.test(ts) && /saldo de R\$ 16\.000,00 \(dezesseis mil reais\) retido, na forma do art\. 196/.test(ts));
+      reg("AGO: remuneração deliberada (art. 152) e sem Anexo I quando não há eleição", /sem remuneração até que a Assembleia Geral venha a fixá-la/.test(ts) && !/ANEXO I/.test(ts) && !/\[[A-Z]{3,}[A-Z ]*\]/.test(ts));
+      val("saResultado","prejuizo"); val("saLucroValor","12000"); $("saEleicao").checked=true; val("saMandato","2"); await W.TINA.gerarPreview(); await espera(3000); ts=texto();
+      reg("AGO com prejuízo: sem dividendos, absorção pelo art. 189; eleição na AGO traz Anexo I", /Apurado prejuízo de R\$ 12\.000,00[^\n]*parágrafo único do art\. 189/.test(ts) && /Eleitos, por unanimidade dos presentes, para a Diretoria, com mandato de 2 \(dois\) anos/.test(ts) && /ANEXO I DA ATA DA ASSEMBLEIA GERAL ORDINÁRIA/.test(ts));
+      val("saLucroValor","80000"); val("saResultado","lucro"); val("saDividendos","79000"); fv=await W.TINA.validar();
+      reg("Dividendos acima do lucro menos a reserva legal são barrados", (fv||[]).some(function(x){return /reserva legal/.test(x);}));
+      for(var mSA of ["sa_transf_ltda","sa_const","sa_transf_sa_ltda","sa_age","sa_ago"]){ modo(mSA); await espera(260); $("btnExemplo").click(); await espera(600); await W.TINA.gerarPreview(); await espera(2600); var pbSA=await W.TINA.gerarPdfBlob(); reg("PDF gerado — "+mSA, pbSA && pbSA.size>20000, (pbSA?pbSA.size:0)+" bytes"); }
     }catch(e){ reg("Bateria da sociedade anônima",false,String(e&&e.message||e).slice(0,130)); }
 
     /* ---------- 6b3a. Tempo verbal do consolidado — REGRA DA JUNTA ----------

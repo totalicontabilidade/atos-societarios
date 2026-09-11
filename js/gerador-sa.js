@@ -55,10 +55,13 @@
     return "Deliberou-se, por unanimidade, que os Diretores exercerão seus cargos sem remuneração até que a Assembleia Geral venha a fixá-la, nos termos do art. 152 da Lei nº 6.404, de 1976.";
   }
 
-  function assinatura(out, h, nome, papel) {
+  /* Bloco de assinatura. Acionista pessoa jurídica assina pelo representante legal (mesma regra dos
+     atos de Ltda): razão social em cima e "— representada por NOME (cargo)" no papel. */
+  function assinatura(out, h, nome, papel, s) {
+    var pj = s && s.tipoPessoa === "PJ";
     out.push(h.P([h.T("_".repeat(46))], h.CEN, h.SPLINE15_0, true));
     out.push(h.P([h.T((nome || "[NOME]").toUpperCase(), { bold: true })], h.CEN, h.SP10_0, true));
-    out.push(h.P([h.T(papel)], h.CEN, { after: 220, line: 240, lineRule: h.AUTO }));
+    out.push(h.P([h.T(pj ? papel + " — representada por " + (s.pjRep || "[REPRESENTANTE]").toUpperCase() + " (" + (s.pjCargo || "administrador") + ")" : papel)], h.CEN, { after: 220, line: 240, lineRule: h.AUTO }));
   }
 
   /* ---------- 1a. Alteração de transformação de Ltda em S.A. (instrumento curto) ---------- */
@@ -75,7 +78,7 @@
     out.push(h.P([h.T("Cláusula Segunda – ", { bold: true })].concat(h.R("O acervo desta Sociedade Empresária Limitada, no valor de " + h.reais(d.capital) + " (" + h.extensoReais(d.capital) + "), passa a constituir o capital da Sociedade Anônima mencionada na cláusula anterior.")), h.JUST, h.SP15));
     out.push(h.P(h.R("Para tanto, " + (plural ? "firmam" : "firma") + " nesta mesma data, em documento separado, a Ata da Assembleia de Constituição por Transformação e o Estatuto Social da sociedade anônima."), h.JUST, h.SP15));
     out.push(h.P([h.T(d.cidadeUF + ", " + h.dataExtenso(d.data))], h.CEN, h.SP15));
-    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, s.administrador ? h.gsex(s, "Sócio Administrador", "Sócia Administradora") : h.gsex(s, "Sócio", "Sócia")); });
+    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, s.administrador ? h.gsex(s, "Sócio Administrador", "Sócia Administradora") : h.gsex(s, "Sócio", "Sócia"), s); });
     return out;
   }
 
@@ -101,7 +104,7 @@
     out.push(h.P([h.T(d.cidadeUF + ", " + h.dataExtenso(d.data))], h.CEN, h.SP15));
     assinatura(out, h, d.presMesa.nome, "Presidente da Mesa");
     assinatura(out, h, d.secMesa.nome, h.gsex(d.secMesa, "Secretário da Mesa", "Secretária da Mesa"));
-    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, (s.administrador ? h.gsex(s, "Diretor", "Diretora") + " e " : "") + h.gsex(s, "Acionista", "Acionista")); });
+    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, (s.administrador ? h.gsex(s, "Diretor", "Diretora") + " e " : "") + "Acionista", s); });
     return out;
   }
 
@@ -130,7 +133,7 @@
     out.push(h.P([h.T(d.cidadeUF + ", " + h.dataExtenso(d.data))], h.CEN, h.SP15));
     assinatura(out, h, d.presMesa.nome, "Presidente da Mesa");
     assinatura(out, h, d.secMesa.nome, h.gsex(d.secMesa, "Secretário da Mesa", "Secretária da Mesa"));
-    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, h.gsex(s, "Subscritor", "Subscritora") + (s.administrador ? " e " + h.gsex(s, "Diretor eleito", "Diretora eleita") : "")); });
+    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, h.gsex(s, "Subscritor", "Subscritora") + (s.administrador ? " e " + h.gsex(s, "Diretor eleito", "Diretora eleita") : ""), s); });
     return out;
   }
 
@@ -139,13 +142,13 @@
     var out = [];
     var titulo = origem === "transformacao"
       ? "ANEXO I DA ATA DE ASSEMBLEIA DE CONSTITUIÇÃO POR TRANSFORMAÇÃO DE SOCIEDADE EMPRESÁRIA LIMITADA EM SOCIEDADE ANÔNIMA, DA " + d.razaoAnteriorUP + " LTDA, REALIZADA EM " + h.dataExtenso(d.data).toUpperCase()
-      : "ANEXO I DA ATA DA ASSEMBLEIA GERAL DE CONSTITUIÇÃO DA " + d.denominacaoUP + ", REALIZADA EM " + h.dataExtenso(d.data).toUpperCase();
+      : "ANEXO I DA ATA DA " + nomeAssembleia(origem).toUpperCase() + " DA " + d.denominacaoUP + ", REALIZADA EM " + h.dataExtenso(d.data).toUpperCase();
     out.push(titPagina(h, titulo));
     out.push(h.P([h.T(d.denominacaoUP + (d.cnpj ? " — CNPJ " + d.cnpj : ""), { bold: true })], h.CEN, h.SP10));
     out.push(h.P([h.T("Declaração de Desimpedimento e Termo de Posse da Diretoria eleita", { bold: true })], h.CEN, h.SP15));
     d.diretores.forEach(function (s) {
       var Dir = h.gsex(s, "O Diretor", "A Diretora"), dir = h.gsex(s, "Diretor", "Diretora");
-      out.push(h.P(h.R("Em Assembleia " + (origem === "transformacao" ? "de Constituição por Transformação" : "Geral de Constituição") + " da " + d.denominacaoUP + ", realizada em " + h.dataExtenso(d.data) + ", às " + (d.hora || "[HORA]")
+      out.push(h.P(h.R("Em " + (origem === "transformacao" ? "Assembleia de Constituição por Transformação" : nomeAssembleia(origem)) + " da " + d.denominacaoUP + ", realizada em " + h.dataExtenso(d.data) + ", às " + (d.hora || "[HORA]")
         + " horas, na sede da sociedade, localizada na " + d.sedeLinha + ", tomou posse " + h.gsex(s, "o senhor ", "a senhora ") + qual(h, s) + ", para o cargo de " + dir + "."), h.JUST, h.SP15));
       out.push(h.P(h.R("O prazo do mandato será de " + h.numBR(d.mandato) + " (" + extInt(h, d.mandato) + ") anos, iniciando-se em " + h.dataExtenso(d.data) + " e encerrando-se em " + h.dataExtenso(d.fimMandato) + ", permanecendo no cargo até a posse de " + h.gsex(s, "seu substituto", "sua substituta") + "."), h.JUST, h.SP15));
       out.push(h.P(h.R(Dir + " é " + h.gsex(s, "investido", "investida") + " em seu cargo a partir da assinatura do presente termo."), h.JUST, h.SP15));
@@ -164,19 +167,22 @@
     var out = [];
     var titulo = origem === "transformacao"
       ? "ANEXO II DA ATA DE ASSEMBLEIA DE CONSTITUIÇÃO POR TRANSFORMAÇÃO DE SOCIEDADE EMPRESÁRIA LIMITADA EM SOCIEDADE ANÔNIMA, DA " + d.razaoAnteriorUP + " LTDA, REALIZADA EM " + h.dataExtenso(d.data).toUpperCase()
-      : "ANEXO II DA ATA DA ASSEMBLEIA GERAL DE CONSTITUIÇÃO DA " + d.denominacaoUP + ", REALIZADA EM " + h.dataExtenso(d.data).toUpperCase();
+      : "ANEXO II DA ATA DA " + nomeAssembleia(origem).toUpperCase() + " DA " + d.denominacaoUP + ", REALIZADA EM " + h.dataExtenso(d.data).toUpperCase();
     out.push(titPagina(h, titulo));
     out.push(h.P([h.T(d.denominacaoUP + (d.cnpj ? " — CNPJ " + d.cnpj : ""), { bold: true })], h.CEN, h.SP10));
-    out.push(h.P([h.T("LISTA DE SUBSCRIÇÃO DE AÇÕES", { bold: true })], h.CEN, h.SP15));
+    out.push(h.P([h.T(origem === "aumento" ? "LISTA DE SUBSCRIÇÃO DAS AÇÕES DO AUMENTO DE CAPITAL" : "LISTA DE SUBSCRIÇÃO DE AÇÕES", { bold: true })], h.CEN, h.SP15));
     d.acionistas.forEach(function (s, i) {
       var a = Number(s.quotas) || 0, v = a * d.valorAcao, e = v * d.entradaPct;
-      out.push(h.P(h.R(qual(h, s) + ", subscrevendo o total de " + h.numBR(a) + " (" + extInt(h, a) + ") ações ordinárias nominativas, com valor nominal de " + h.reais(d.valorAcao) + " (" + h.extensoReais(d.valorAcao) + ") cada ação, no valor total de "
-        + h.reais(v) + " (" + h.extensoReais(v) + ")" + (origem === "transformacao" ? ", integralizadas com o acervo da sociedade transformada" : ", com entrada de " + h.reais(e) + " (" + h.extensoReais(e) + ") em dinheiro") + (i < d.acionistas.length - 1 ? ";" : ".")), h.JUST, h.SP15));
+      var fim = origem === "transformacao" ? ", integralizadas com o acervo da sociedade transformada"
+        : origem === "aumento" ? (d.formaAumento === "bens" ? ", integralizadas mediante conferência de bens, conforme laudo de avaliação aprovado pela assembleia" : ", integralizadas em moeda corrente nacional, à vista, neste ato")
+        : ", com entrada de " + h.reais(e) + " (" + h.extensoReais(e) + ") em dinheiro";
+      out.push(h.P(h.R(qual(h, s) + ", subscrevendo o total de " + h.numBR(a) + " (" + extInt(h, a) + ") " + (origem === "aumento" ? "novas " : "") + "ações ordinárias nominativas, com valor nominal de " + h.reais(d.valorAcao) + " (" + h.extensoReais(d.valorAcao) + ") cada ação, no valor total de "
+        + h.reais(v) + " (" + h.extensoReais(v) + ")" + fim + (i < d.acionistas.length - 1 ? ";" : ".")), h.JUST, h.SP15));
     });
     out.push(h.P([h.T(d.cidadeUF + ", " + h.dataExtenso(d.data))], h.CEN, h.SP15));
-    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, h.gsex(s, "Subscritor", "Subscritora")); });
+    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, h.gsex(s, "Subscritor", "Subscritora"), s); });
     if (origem !== "transformacao") {   // art. 95, II: a relação de subscritores vai autenticada pelo presidente da assembleia
-      out.push(h.P(h.R("Relação de subscritores autenticada " + h.gsex(d.presMesa, "pelo Presidente", "pela Presidente") + " da Assembleia Geral de Constituição, nos termos do inciso II do art. 95 da Lei nº 6.404, de 1976."), h.JUST, h.SP15));
+      out.push(h.P(h.R("Relação de subscritores autenticada " + h.gsex(d.presMesa, "pelo Presidente", "pela Presidente") + " da " + nomeAssembleia(origem) + ", nos termos do inciso II do art. 95 da Lei nº 6.404, de 1976."), h.JUST, h.SP15));
       assinatura(out, h, d.presMesa.nome, "Presidente da Assembleia");
     }
     return out;
@@ -202,7 +208,7 @@
     out.push(h.P([h.T(d.cidadeUF + ", " + h.dataExtenso(d.data))], h.CEN, h.SP15));
     assinatura(out, h, d.presMesa.nome, "Presidente da Mesa");
     assinatura(out, h, d.secMesa.nome, h.gsex(d.secMesa, "Secretário da Mesa", "Secretária da Mesa"));
-    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, "Acionista"); });
+    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, "Acionista", s); });
     return out;
   }
 
@@ -240,7 +246,7 @@
     cl("Fica eleito o foro de " + (d.foro || d.cidade) + "/" + d.uf + " para o exercício e o cumprimento dos direitos e obrigações resultantes deste contrato, renunciando a qualquer outro, por mais privilegiado que seja.");
     out.push(h.P(h.R("E, por " + (plural ? "estarem assim justos e contratados, assinam" : "estar assim justo e contratado, assina") + " o presente instrumento particular em via única."), h.JUST, h.SP15));
     out.push(h.P([h.T(d.cidadeUF + ", " + h.dataExtenso(d.data))], h.CEN, h.SP15));
-    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, s.administrador ? h.gsex(s, "Sócio/Administrador", "Sócia/Administradora") : h.gsex(s, "Sócio", "Sócia")); });
+    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, s.administrador ? h.gsex(s, "Sócio/Administrador", "Sócia/Administradora") : h.gsex(s, "Sócio", "Sócia"), s); });
     return out;
   }
   function tabelaAcoesComoQuotas(d, h) {
@@ -254,5 +260,116 @@
     return new TB({ width: { size: 100, type: WT.PERCENTAGE }, rows: linhas });
   }
 
-  window.GeradorSA = { alteracaoTransfLtdaSa: alteracaoTransfLtdaSa, ataTransfLtdaSa: ataTransfLtdaSa, ataConstituicaoSa: ataConstituicaoSa, anexoI: anexoI, anexoII: anexoII, ataTransfSaLtda: ataTransfSaLtda, contratoTransfSaLtda: contratoTransfSaLtda };
+
+  /* ---------- 4. Assembleias da companhia já constituída (Manual de S.A., Cap. II, Seções II e III) ----------
+     AGE: reforma do estatuto (com consolidação), eleição da Diretoria, aumento de capital.
+     AGO: contas e demonstrações do exercício, destinação do lucro e dividendos, eleição e remuneração.
+     Elementos obrigatórios da ata (itens 5 das Seções II e III): denominação e CNPJ; local, hora e data;
+     mesa; quórum de instalação; convocação; ordem do dia; deliberações; fecho com assinaturas. */
+  function nomeAssembleia(origem) {
+    return origem === "age" ? "Assembleia Geral Extraordinária" : origem === "ago" ? "Assembleia Geral Ordinária" : origem === "aumento" ? "Assembleia Geral Extraordinária" : "Assembleia Geral de Constituição";
+  }
+  function cabecalhoAG(out, h, d, tipo) {
+    out.push(h.P([h.T("ATA DA " + (tipo === "ago" ? "ASSEMBLEIA GERAL ORDINÁRIA" : "ASSEMBLEIA GERAL EXTRAORDINÁRIA") + " DA " + d.denominacaoUP + ", REALIZADA EM " + h.dataExtenso(d.data).toUpperCase(), { bold: true })], h.CEN, h.SP10_0, true));
+    out.push(h.P([h.T("CNPJ nº " + (d.cnpj || "[CNPJ]") + (d.nire ? " — NIRE " + d.nire : ""), { bold: true })], h.CEN, h.SP10));
+  }
+  function item(out, h, n, tit, txt) { out.push(h.P([h.T(n + ". " + tit + ": ", { bold: true })].concat(h.R(txt)), h.JUST, h.SP15)); }
+  // quórum e convocação — art. 124, § 4º (todos presentes), art. 125 (1/4) e art. 135 (2/3 para reforma)
+  function presencaAG(d, h, reforma) {
+    if (d.convocacao === "todos")
+      return "Presentes acionistas representando a totalidade do capital social com direito a voto, conforme assinaturas lançadas no Livro de Presença de Acionistas, o que dispensa a publicação do edital de convocação, nos termos do § 4º do art. 124 da Lei nº 6.404, de 15 de dezembro de 1976.";
+    var seg = d.convocacao === "segunda";
+    return "Assembleia convocada " + (d.editalInfo || "[CONVOCAÇÃO — jornais, datas e folhas, ou anúncio entregue contra recibo]") + ". Presentes acionistas representando " + h.pct(d.quorumPct) + " do capital social com direito a voto, conforme Livro de Presença de Acionistas, instalando-se a assembleia em " + (seg ? "segunda" : "primeira") + " convocação"
+      + (seg ? " (arts. 125 e 135 da Lei nº 6.404, de 1976)" : (reforma ? " (art. 135 da Lei nº 6.404, de 1976: mínimo de 2/3 do capital votante)" : " (art. 125 da Lei nº 6.404, de 1976)")) + ".";
+  }
+  function mesaAG(d, h) { return "Presidente: " + nomeUP(d.presMesa) + ". " + h.gsex(d.secMesa, "Secretário", "Secretária") + ": " + nomeUP(d.secMesa) + "."; }
+  function letra(i) { return "abcdefghij".charAt(i) + ") "; }
+  function eleicaoDiretoria(d, h) {
+    return "Eleitos, por unanimidade dos presentes, para a Diretoria, com mandato de " + h.numBR(d.mandato) + " (" + extInt(h, d.mandato) + ") anos, de " + h.dataExtenso(d.data) + " a " + h.dataExtenso(d.fimMandato) + ", permanecendo nos cargos até a posse dos sucessores: "
+      + d.diretores.map(function (s) { return qual(h, s) + ", para o cargo de " + h.gsex(s, "Diretor", "Diretora") + " sem designação específica"; }).join("; ")
+      + ". Os eleitos declararam não estar impedidos por lei especial nem condenados a pena que vede o acesso a cargos públicos (§ 1º do art. 147 da Lei nº 6.404, de 1976) e tomam posse mediante termo lavrado em livro próprio, na forma do Anexo I desta ata. " + honorarios(d, h);
+  }
+  function fechoAG(out, h, d, tipo) {
+    out.push(h.P([h.T("Encerramento: ", { bold: true })].concat(h.R("Nada mais havendo a tratar, foram encerrados os trabalhos e lavrada a presente ata em forma de sumário (§ 1º do art. 130 da Lei nº 6.404, de 1976), que, lida e achada conforme, foi aprovada e assinada pelos membros da mesa e pelos acionistas presentes.")), h.JUST, h.SP15));
+    out.push(h.P([h.T(d.cidadeUF + ", " + h.dataExtenso(d.data))], h.CEN, h.SP15));
+    assinatura(out, h, d.presMesa.nome, "Presidente da Mesa");
+    assinatura(out, h, d.secMesa.nome, h.gsex(d.secMesa, "Secretário da Mesa", "Secretária da Mesa"));
+    d.acionistas.forEach(function (s) { assinatura(out, h, s.nome, "Acionista", s); });
+  }
+
+  /* ---- 4a. AGE ---- d.delib = { estatuto, temas:[{art,rotulo}], consolidar, diretoria, capital, formaAumento }
+     d.artigosNovos = [{ art, paras:[Paragraph…] }] — redação nova dos artigos reformados, já montada pelo app */
+  function ataAGE(d, h) {
+    var out = [], L = d.delib || {};
+    cabecalhoAG(out, h, d, "age");
+    item(out, h, "1", "Data, hora e local", "Em " + h.dataExtenso(d.data) + ", às " + (d.hora || "[HORA]") + " horas, na sede social, na " + d.sedeLinha + ".");
+    item(out, h, "2", "Convocação e presença", presencaAG(d, h, !!L.estatuto));
+    item(out, h, "3", "Mesa", mesaAG(d, h));
+    var ordem = [], i = 0;
+    var temas = (L.temas || []).map(function (t) { return t.rotulo; });
+    if (L.capital) ordem.push(letra(i++) + "aumento do capital social, de " + h.reais(d.capitalAnterior) + " para " + h.reais(d.capital) + ", com a consequente alteração do art. 6º do Estatuto Social");
+    if (L.estatuto) ordem.push(letra(i++) + "reforma do Estatuto Social (" + temas.join(", ") + ")" + (L.consolidar ? " e consolidação do Estatuto Social" : ""));
+    if (L.diretoria) ordem.push(letra(i++) + "eleição da Diretoria e fixação da remuneração dos administradores (art. 152 da Lei nº 6.404, de 1976)");
+    item(out, h, "4", "Ordem do dia", ordem.join("; ") + ".");
+    out.push(h.P([h.T("5. Deliberações: ", { bold: true })].concat(h.R("Instalada a assembleia e lida a ordem do dia, os acionistas presentes deliberaram, sem dissidências ou protestos:")), h.JUST, h.SP15));
+    i = 0;
+    if (L.capital) {
+      var delta = d.capital - d.capitalAnterior, novas = d.numQuotas - Math.round(d.capitalAnterior / d.valorAcao);
+      var base = letra(i++) + "Aprovado, por unanimidade dos presentes, o aumento do capital social de " + h.reais(d.capitalAnterior) + " (" + h.extensoReais(d.capitalAnterior) + ") para " + h.reais(d.capital) + " (" + h.extensoReais(d.capital) + "), ou seja, em " + h.reais(delta) + " (" + h.extensoReais(delta) + "), mediante a emissão de " + h.numBR(novas) + " (" + extInt(h, novas) + ") novas ações ordinárias nominativas, com valor nominal de " + h.reais(d.valorAcao) + " (" + h.extensoReais(d.valorAcao) + ") cada uma";
+      var forma = "";
+      if (L.formaAumento === "reservas") forma = ", mediante capitalização de reservas, na forma do art. 169 da Lei nº 6.404, de 1976, distribuídas as novas ações aos acionistas na proporção das que já possuem";
+      else if (L.formaAumento === "bens") forma = ", ao preço de emissão igual ao valor nominal, subscritas neste ato pelos acionistas, conforme a lista de subscrição (Anexo II), e integralizadas mediante conferência de bens, avaliados por três peritos nomeados nesta assembleia, cujo laudo, lido e aprovado por unanimidade, instrui a presente ata (art. 8º e § 3º do art. 170 da Lei nº 6.404, de 1976)";
+      else forma = ", ao preço de emissão igual ao valor nominal, subscritas neste ato pelos acionistas, conforme a lista de subscrição (Anexo II), e integralizadas em moeda corrente nacional, à vista";
+      var pref = L.formaAumento === "reservas" ? "" : (d.convocacao === "todos"
+        ? " Presentes acionistas representando a totalidade do capital social, e tendo todos subscrito as novas ações na proporção de suas participações ou renunciado expressamente à sobra, fica dispensado o prazo de 30 (trinta) dias para o exercício do direito de preferência (art. 171 da Lei nº 6.404, de 1976)."
+        : " Fica assegurado aos acionistas ausentes o direito de preferência para subscrever as novas ações na proporção de suas participações, no prazo de 30 (trinta) dias contados da publicação desta ata (art. 171 da Lei nº 6.404, de 1976).");
+      out.push(h.P(h.R(base + forma + "." + pref + " A Diretoria declarou que se encontram realizados mais de três quartos do capital social (art. 170 da Lei nº 6.404, de 1976). Em consequência, o art. 6º do Estatuto Social passa a vigorar com a redação constante da deliberação seguinte."), h.JUST, h.SP15));
+    }
+    if (L.estatuto) {
+      out.push(h.P(h.R(letra(i++) + "Aprovada, por unanimidade dos presentes, a reforma do Estatuto Social, passando os dispositivos abaixo a vigorar com a seguinte redação:"), h.JUST, h.SP15));
+      (d.artigosNovos || []).forEach(function (a) { a.paras.forEach(function (p) { out.push(p); }); });
+      if (L.consolidar) out.push(h.P(h.R("Em consequência, aprovada a consolidação do Estatuto Social, que passa a vigorar com a redação do anexo a esta ata, assinado pela mesa (Estatuto Social consolidado)."), h.JUST, h.SP15));
+    }
+    if (L.diretoria) out.push(h.P(h.R(letra(i++) + eleicaoDiretoria(d, h)), h.JUST, h.SP15));
+    out.push(h.P(h.R("Não houve pedido de instalação do Conselho Fiscal (§ 2º do art. 161 da Lei nº 6.404, de 1976)."), h.JUST, h.SP15));
+    fechoAG(out, h, d, "age");
+    return out;
+  }
+
+  /* ---- 4b. AGO ---- d.ago = { exercicio, resultado:"lucro"|"prejuizo", valor, dividendos, divPrazo, eleicao, art294, publicacoes } */
+  function ataAGO(d, h) {
+    var out = [], A = d.ago || {};
+    cabecalhoAG(out, h, d, "ago");
+    item(out, h, "1", "Data, hora e local", "Em " + h.dataExtenso(d.data) + ", às " + (d.hora || "[HORA]") + " horas, na sede social, na " + d.sedeLinha + ".");
+    var pub = A.art294
+      ? " Tratando-se de companhia fechada com menos de 20 (vinte) acionistas e patrimônio líquido inferior a R$ 10.000.000,00 (dez milhões de reais), a companhia deixou de publicar os documentos de que trata o art. 133 da Lei nº 6.404, de 1976, entregues aos acionistas contra recibo, cujas cópias autenticadas ficam arquivadas com esta ata (art. 294, II, da mesma lei)."
+      : " O aviso e os documentos de que trata o art. 133 da Lei nº 6.404, de 1976, foram publicados " + (A.publicacoes || "[JORNAIS, DATAS E FOLHAS]") + ".";
+    item(out, h, "2", "Convocação, presença e publicações", presencaAG(d, h, false) + pub);
+    item(out, h, "3", "Mesa", mesaAG(d, h));
+    var ex = A.exercicio || "[ANO]";
+    var ordem = ["a) tomar as contas dos administradores e examinar, discutir e votar as demonstrações financeiras do exercício social encerrado em 31 de dezembro de " + ex,
+      "b) deliberar sobre a destinação do resultado do exercício e a distribuição de dividendos",
+      (A.eleicao ? "c) eleger a Diretoria e fixar a remuneração dos administradores" : "c) fixar a remuneração dos administradores") + " (arts. 132 e 152 da Lei nº 6.404, de 1976)"];
+    item(out, h, "4", "Ordem do dia", ordem.join("; ") + ".");
+    out.push(h.P([h.T("5. Deliberações: ", { bold: true })].concat(h.R("Instalada a assembleia e lida a ordem do dia, os acionistas presentes deliberaram, sem dissidências ou protestos:")), h.JUST, h.SP15));
+    // art. 134, § 1º: administradores não votam as próprias contas — salvo quando são os únicos acionistas (§ 6º)
+    var todosDir = d.acionistas.length > 0 && d.acionistas.every(function (s) { return s.administrador; });
+    out.push(h.P(h.R("a) Aprovadas, por unanimidade dos presentes e sem reservas, as contas dos administradores e as demonstrações financeiras relativas ao exercício social encerrado em 31 de dezembro de " + ex
+      + (todosDir ? ", não se aplicando o impedimento de voto do § 1º do art. 134 da Lei nº 6.404, de 1976, por serem os diretores os únicos acionistas da companhia (§ 6º do art. 134 da mesma lei)." : ", abstendo-se de votar os acionistas que exercem cargo na Diretoria (§ 1º do art. 134 da Lei nº 6.404, de 1976).")), h.JUST, h.SP15));
+    var v = Number(A.valor) || 0, txt;
+    if (A.resultado === "prejuizo") {
+      txt = "b) Apurado prejuízo de " + h.reais(v) + " (" + h.extensoReais(v) + ") no exercício, não há lucro a destinar nem dividendos a distribuir; o prejuízo será absorvido pelos lucros acumulados e pelas reservas de lucros, nesta ordem, e o saldo, se houver, mantido em prejuízos acumulados (parágrafo único do art. 189 da Lei nº 6.404, de 1976).";
+    } else {
+      var rl = Math.round(v * 5) / 100, div = Number(A.dividendos) || 0, saldo = Math.round((v - rl - div) * 100) / 100;
+      txt = "b) Aprovada, por unanimidade dos presentes, a seguinte destinação do lucro líquido do exercício, de " + h.reais(v) + " (" + h.extensoReais(v) + "): (i) " + h.reais(rl) + " (" + h.extensoReais(rl) + "), correspondentes a 5% (cinco por cento), à reserva legal, observado o limite de 20% (vinte por cento) do capital social (art. 193 da Lei nº 6.404, de 1976); (ii) " + h.reais(div) + " (" + h.extensoReais(div) + ") distribuídos como dividendos aos acionistas, na proporção das ações que possuem, a serem pagos " + (A.divPrazo ? "até " + A.divPrazo : "no prazo de 60 (sessenta) dias") + " (§ 3º do art. 205 da Lei nº 6.404, de 1976)"
+        + (saldo > 0 ? "; (iii) o saldo de " + h.reais(saldo) + " (" + h.extensoReais(saldo) + ") retido, na forma do art. 196 da Lei nº 6.404, de 1976, com base em orçamento de capital aprovado nesta assembleia." : ".");
+    }
+    out.push(h.P(h.R(txt), h.JUST, h.SP15));
+    out.push(h.P(h.R("c) " + (A.eleicao ? eleicaoDiretoria(d, h) : honorarios(d, h))), h.JUST, h.SP15));
+    out.push(h.P(h.R("Não houve pedido de instalação do Conselho Fiscal (§ 2º do art. 161 da Lei nº 6.404, de 1976)."), h.JUST, h.SP15));
+    fechoAG(out, h, d, "ago");
+    return out;
+  }
+
+  window.GeradorSA = { alteracaoTransfLtdaSa: alteracaoTransfLtdaSa, ataTransfLtdaSa: ataTransfLtdaSa, ataConstituicaoSa: ataConstituicaoSa, anexoI: anexoI, anexoII: anexoII, ataTransfSaLtda: ataTransfSaLtda, contratoTransfSaLtda: contratoTransfSaLtda, ataAGE: ataAGE, ataAGO: ataAGO };
 })();
