@@ -20,6 +20,12 @@
 *.local
 *.bak
 
+# Pastas de trabalho que moram AO LADO do site, dentro desta mesma pasta:
+# modelos-jucese (os modelos oficiais da Junta) e .claude (as permissões locais
+# da máquina). Nenhuma das duas pode ir para o repositório, que é público.
+/modelos-jucese/
+/.claude/
+
 # Sistema operacional / editor
 Thumbs.db
 Desktop.ini
