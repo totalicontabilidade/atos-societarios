@@ -130,7 +130,7 @@
 
     // ---------- 2. Documentos ----------
     grupo("Documentos");
-    var MODOS=["const","alt","ei_const","ei_alt","transf_ei_ltda","transf_ei_slu","transf_ltda_ei","dist_ltda","dist_ei","coop_const"];
+    var MODOS=["const","alt","ei_const","ei_alt","transf_ei_ltda","transf_ei_slu","transf_ltda_ei","dist_ltda","dist_ei","coop_const","sa_transf_ltda","sa_const","sa_transf_sa_ltda"];
     for(var i=0;i<MODOS.length;i++){
       var m=MODOS[i];
       modo(m); await espera(140);
@@ -1335,6 +1335,70 @@
       D.querySelectorAll("#socios .socio:not(.filial)")[6].remove(); fv=await W.TINA.validar();
       reg("Menos de 7 fundadores é barrado", (fv||[]).some(function(x){return /no mínimo 7 fundadores/.test(x);}));
     }catch(e){ reg("Bateria da cooperativa",false,String(e&&e.message||e).slice(0,130)); }
+
+    /* ---------- 6b2u. Sociedade anônima: transformações e constituição (Lei 6.404) ---------- */
+    grupo("Sociedade anônima");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      reg("O estatuto da S.A. carregou e não tem ações ao portador (Lei 8.021/1990)",
+        !!W.MODELOS_SA && W.MODELOS_SA.estatuto.blocos.filter(function(b){return b.art;}).length>=25 && !/ao portador/i.test(JSON.stringify(W.MODELOS_SA)));
+      // 1) Ltda -> S.A.
+      modo("sa_transf_ltda"); await espera(260);
+      reg("A aba S.A. mostra o card próprio", $("cardSA").style.display!=="none");
+      $("btnExemplo").click(); await espera(600);
+      var fv=await W.TINA.validar();
+      reg("Exemplo Ltda→S.A. passa na validação", !(fv||[]).length, (fv||[]).join(" | ").slice(0,160));
+      await W.TINA.gerarPreview(); await espera(2600); var ts=texto();
+      reg("Instrumento de transformação: título, nome anterior e cláusulas do modelo",
+        /ALTERAÇÃO DE TRANSFORMAÇÃO DE SOCIEDADE LIMITADA EM SOCIEDADE ANÔNIMA\s*\n\s*COMERCIAL MODELO LTDA/.test(ts) && /Cláusula Primeira – Fica transformada esta Sociedade Empresária Limitada em Sociedade Anônima, sob o nome empresarial de: COMERCIAL MODELO S\/A/.test(ts) && /Cláusula Segunda – O acervo desta Sociedade Empresária Limitada, no valor de R\$ 100\.000,00/.test(ts));
+      reg("Ata de constituição por transformação: quotas viram ações ordinárias NOMINATIVAS na mesma proporção",
+        /ATA DE ASSEMBLEIA DE CONSTITUIÇÃO POR TRANSFORMAÇÃO/.test(ts) && /100\.000 \(cem mil\) ações ordinárias nominativas, com valor nominal de R\$ 1,00/.test(ts) && /na mesma proporção das quotas/.test(ts));
+      reg("Ata: mesa, eleição da Diretoria com posse e leitura dos anexos", /Para presidir a reunião foi eleito, por aclamação, o Sr\. JOÃO DA SILVA SANTOS/.test(ts) && /para o cargo de Diretor sem designação específica; e MARIA DE SOUZA LIMA[^.]*Diretora sem designação específica/.test(ts) && /\(Anexo I\)[^\n]*\(Anexo II\)[^\n]*aprovados por unanimidade/.test(ts));
+      reg("Estatuto: capítulos, nominativas e Diretoria de 2 (dois) membros com mandato de 3 (três) anos",
+        /ESTATUTO SOCIAL\s*\n\s*COMERCIAL MODELO S\/A/.test(ts) && /Art\. 6º O capital social é de R\$ 100\.000,00[^\n]*totalmente subscrito e integralizado[^\n]*ações ordinárias, nominativas/.test(ts) && /Diretoria composta de 2 \(dois\) membros/.test(ts) && /mandato de 3 \(três\) anos/.test(ts));
+      reg("Estatuto: sem exigência de depósito de ações para votar (art. 109/126 da Lei 6.404)", !/depositadas quer na sede/.test(ts) && !/recibo de depósito de suas ações/.test(ts));
+      reg("Estatuto: Conselho Fiscal não permanente, de 3 a 5 membros (art. 161)", /não tem Conselho Fiscal em funcionamento permanente[^.]*3 \(três\) a 5 \(cinco\) membros/.test(ts));
+      reg("Estatuto: primeiro exercício retroage à constituição da Ltda e cita a Junta certa", /retroagindo à data de constituição da sociedade que ora se transforma/.test(ts) && /Junta Comercial do Estado de Sergipe/.test(ts) && !/Paraná/.test(ts));
+      reg("Anexo I: termo de posse e desimpedimento de CADA diretor, com o art. 149 § 2º", (ts.match(/tomou posse/g)||[]).length===2 && /§ 2º do art\. 149 da Lei nº 6\.404/.test(ts) && /§ 1º do art\. 147/.test(ts));
+      reg("Anexo II: lista de subscrição com ações, valor e total por acionista", /LISTA DE SUBSCRIÇÃO DE AÇÕES/.test(ts) && /subscrevendo o total de 60\.000 \(sessenta mil\) ações ordinárias nominativas/.test(ts) && /subscrevendo o total de 40\.000 \(quarenta mil\)/.test(ts));
+      reg("Visto de advogado no estatuto (Manual de S.A., 1.2)", /Visto: FULANO ADVOGADO EXEMPLO/.test(ts));
+      reg("Nenhuma variável solta", !/\{\{/.test(ts) && !/\[[A-Z]{3,}[A-Z ]*\]/.test(ts));
+      // validação: menos de dois diretores / mandato acima de 3
+      var cs=D.querySelectorAll("#socios .socio:not(.filial)"); var ad=cs[1].querySelector('[data-f="administrador"]'); ad.checked=false; ad.dispatchEvent(new W.Event("change",{bubbles:true}));
+      fv=await W.TINA.validar();
+      reg("Diretoria com um só membro é barrada (art. 143 da Lei 6.404)", (fv||[]).some(function(x){return /pelo menos 2|dois diretores|Diretoria/i.test(x);}), (fv||[]).join(" | ").slice(0,120));
+      ad.checked=true; ad.dispatchEvent(new W.Event("change",{bubbles:true})); val("saMandato","4"); fv=await W.TINA.validar();
+      reg("Mandato de diretor acima de 3 anos é barrado (art. 143)", (fv||[]).some(function(x){return /3 anos/.test(x);}));
+      // 2) constituição
+      modo("sa_const"); await espera(260); $("btnExemplo").click(); await espera(600);
+      fv=await W.TINA.validar();
+      reg("Exemplo de constituição passa na validação", !(fv||[]).length, (fv||[]).join(" | ").slice(0,160));
+      await W.TINA.gerarPreview(); await espera(2600); ts=texto();
+      reg("Ata de constituição: subscrição total, entrada de 10% depositada e requisitos do art. 80",
+        /ATA DA ASSEMBLEIA GERAL DE CONSTITUIÇÃO DA COMERCIAL MODELO S\/A/.test(ts) && /requisitos preliminares do art\. 80 da Lei nº 6\.404/.test(ts) && /10,00% do preço de emissão[^.]*R\$ 10\.000,00 \(dez mil reais\), depositado no Banco do Brasil S\.A\./.test(ts));
+      reg("Ata de constituição: estatuto aprovado, companhia declarada constituída e SÓ DEPOIS a Diretoria eleita (art. 87, § 2º)", /aprovado por unanimidade o projeto de Estatuto Social/.test(ts) && /declarou constituída a companhia COMERCIAL MODELO S\/A/.test(ts) && ts.indexOf("declarou constituída")<ts.indexOf("eleição da Diretoria") && /lido o respectivo recibo de depósito/.test(ts));
+      reg("Estatuto da constituição com entrada de 10%: capital só subscrito e § 5º do art. 6º (arts. 80, II, e 106)", /Art\. 6º O capital social é de R\$ 100\.000,00 \(cem mil reais\), totalmente subscrito, dividido/.test(ts) && /§ 5º Do preço de emissão das ações subscritas, 10,00% foram realizados em dinheiro/.test(ts));
+      reg("Anexo II da constituição: relação autenticada pelo presidente da assembleia (art. 95, II)", /Relação de subscritores autenticada pelo Presidente da Assembleia Geral de Constituição/.test(ts) && /Presidente da Assembleia/.test(ts));
+      val("enquadramento","ME"); fv=await W.TINA.validar();
+      reg("S.A. como ME/EPP é barrada (art. 3º, § 4º, X, da LC 123)", (fv||[]).some(function(x){return /LC 123|sociedade por ações|ME\/EPP/i.test(x);}), (fv||[]).join(" | ").slice(0,120));
+      val("enquadramento","DEMAIS");
+      reg("Estatuto da constituição: primeiro exercício sem retroação", /começará na data do arquivamento deste Estatuto na Junta[^.]*e terminará em 31/.test(ts) && !/retroagindo/.test(ts));
+      reg("Anexo II da constituição traz a entrada em dinheiro de cada subscritor", /com entrada de R\$ 6\.000,00 \(seis mil reais\) em dinheiro/.test(ts));
+      val("saEntradaPct","5"); fv=await W.TINA.validar();
+      reg("Entrada abaixo de 10% é barrada (art. 80, II)", (fv||[]).some(function(x){return /10%/.test(x);}));
+      // 3) S.A. -> Ltda
+      modo("sa_transf_sa_ltda"); await espera(260); $("btnExemplo").click(); await espera(600);
+      fv=await W.TINA.validar();
+      reg("Exemplo S.A.→Ltda passa na validação", !(fv||[]).length, (fv||[]).join(" | ").slice(0,160));
+      await W.TINA.gerarPreview(); await espera(2600); ts=texto();
+      reg("Ata da AGE nos seis itens do modelo (data, presença, mesa, ordem do dia, deliberações, encerramento)",
+        /1\. Data, hora e local:/.test(ts) && /2\. Presença:/.test(ts) && /3\. Mesa:/.test(ts) && /4\. Ordem do dia:/.test(ts) && /5\. Deliberações:/.test(ts) && /6\. Encerramento:/.test(ts));
+      reg("Deliberações: transformação pelos arts. 220 a 222 da Lei 6.404 e 1.113 a 1.115 do CC, ações convertidas em quotas", /arts\. 220 a 222 da Lei nº 6\.404/.test(ts) && /1\.113 a 1\.115 do Código Civil/.test(ts) && /em 100\.000 \(cem mil\) quotas sociais/.test(ts));
+      reg("Contrato social por transformação com preâmbulo de ACIONISTAS (não o de EIRELI do modelo)", /únicos acionistas da sociedade anônima de capital fechado COMERCIAL MODELO S\/A/.test(ts) && !/empresa individual de responsabilidade limitada/.test(ts) && !/art\. 968/.test(ts));
+      reg("Contrato: 15 cláusulas, capital convertido (no futuro, como toda constituição), administração e foro", /Cláusula 15ª – Fica eleito o foro de Aracaju\/SE/.test(ts) && /O capital social será de R\$ 100\.000,00/.test(ts) && /resultantes da conversão das ações da sociedade transformada/.test(ts) && /A administração da sociedade será exercida pelos sócios JOÃO DA SILVA SANTOS e MARIA DE SOUZA LIMA/.test(ts));
+      reg("Ata da AGE e contrato: secretária da mesa no feminino", /Secretária: MARIA DE SOUZA LIMA/.test(ts) && /pela Secretária da mesa/.test(ts));
+      reg("Nenhuma variável solta nos três atos", !/\{\{/.test(ts) && !/\[[A-Z]{3,}[A-Z ]*\]/.test(ts));
+    }catch(e){ reg("Bateria da sociedade anônima",false,String(e&&e.message||e).slice(0,130)); }
 
     /* ---------- 6b3a. Tempo verbal do consolidado — REGRA DA JUNTA ----------
        No consolidado, a cláusula ALTERADA neste ato vai no FUTURO e as demais no presente.
