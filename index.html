@@ -1123,6 +1123,7 @@
         </div>
         <div class="row">
           <button type="button" class="btn" id="btnIntegraTestar">Testar agora</button>
+          <button type="button" class="btn ghost" id="btnIntegraAbrir">Abrir o endereço</button>
           <span class="fldstat" id="cfgIntegraStat"></span>
         </div>
         <div class="hint" style="margin-top:8px">
@@ -1255,7 +1256,7 @@ window.__pdfjsFallback=function(){
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
 <script defer src="js/nuvem-config.js?v=1.35"></script>
 <script defer src="js/nuvem.js?v=1.35"></script>
-<script defer src="js/integracao.js?v=1.36"></script>
+<script defer src="js/integracao.js?v=1.37"></script>
 <script defer src="js/modelos-coop.js?v=1.35"></script>
 <script defer src="js/gerador-coop.js?v=1.35"></script>
 <script defer src="js/modelos-sa.js?v=1.35"></script>
@@ -6139,6 +6140,13 @@ window.TINA=(function(){
     if($("btnConfigClose")) $("btnConfigClose").addEventListener("click",()=>$("configModal").classList.remove("open"));
     if($("configModal")) $("configModal").addEventListener("click",e=>{if(e.target.id==="configModal")$("configModal").classList.remove("open");});
     if($("btnConfigSalvar")) $("btnConfigSalvar").addEventListener("click",salvarConfigForm);
+    /* Abrir numa aba prova a implantação sem depender de o
+       navegador deixar ler a resposta: aparecendo ok:true, o
+       endereço está no ar e publicado para "Qualquer pessoa". */
+    if($("btnIntegraAbrir")) $("btnIntegraAbrir").addEventListener("click",function(){
+      const u=($("cfgIntegraUrl").value||"").trim();
+      if(u) window.open(u,"_blank","noopener");
+    });
     if($("btnIntegraTestar")) $("btnIntegraTestar").addEventListener("click",function(){
       const st=$("cfgIntegraStat"); if(!window.Integracao) return;
       /* Salva antes de testar: testar o que está na tela e não o que
@@ -6148,9 +6156,17 @@ window.TINA=(function(){
                                segredo:($("cfgIntegraSegredo").value||"").trim()});
       st.className="fldstat"; st.textContent="Testando\u2026";
       Integracao.testar().then(function(r){
-        if(r.ok){ st.className="fldstat ok"; st.textContent="\u2713 O outro sistema respondeu."; }
-        else { st.className="fldstat bad";
-               st.textContent="N\u00e3o deu certo: "+(r.erro||((r.resposta&&r.resposta.erro)||("HTTP "+r.codigo))); }
+        /* TRES RESPOSTAS DIFERENTES, e antes havia duas.
+           "Chegou e nao pude ler" nao e "nao chegou": o Apps
+           Script responde por redirecionamento, e o navegador
+           costuma barrar a leitura mesmo tendo entregado. Quem
+           le "falhou" nesse caso vai procurar defeito onde nao
+           ha. */
+        if(r.ok&&r.semConfirmacao){ st.className="fldstat"; st.style.color="var(--navy)";
+          st.textContent="Enviado, mas o navegador nao deixou ler a resposta. Confira em Execucoes, no Apps Script: se o aviso aparecer la, esta funcionando."; }
+        else if(r.ok){ st.className="fldstat ok"; st.style.color=""; st.textContent="\u2713 O outro sistema respondeu."; }
+        else { st.className="fldstat bad"; st.style.color="";
+               st.textContent="Nao chegou: "+(r.erro||((r.resposta&&r.resposta.erro)||("HTTP "+r.codigo)))+". Confira se o endereco termina em /exec e se a implantacao esta como Qualquer pessoa."; }
       });
     });
     if($("btnConfigReset")) $("btnConfigReset").addEventListener("click",()=>{if(confirm("Restaurar as configurações ao padrão? Isso remove logo, cor e dados salvos."))resetConfig();});

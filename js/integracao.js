@@ -122,11 +122,30 @@ window.Integracao = (function () {
         });
       })
       .catch(function (e) {
-        /* Pode ser rede fora, endereço errado, ou o destino não
-           deixar este site ler a resposta. Nos três casos o aviso
-           talvez tenha chegado e não dá para saber: vai para a
-           fila, e quem se defende de repetido é o destino. */
-        return { ok: false, erro: (e && e.message) || "falha de rede" };
+        /* CHEGOU E EU NÃO PUDE LER, OU NÃO CHEGOU? São coisas
+           diferentes e o primeiro erro não distingue.
+
+           Endereço de Apps Script responde por redirecionamento, e
+           o navegador costuma barrar a LEITURA da resposta mesmo
+           tendo entregado a mensagem. Quem só olha o primeiro erro
+           conclui "não saiu" e manda de novo — ou pior, desiste.
+
+           Então, falhando a leitura, tenta outra vez em modo cego
+           (no-cors): se esse também falhar, foi rede ou endereço de
+           verdade; se passar, o aviso saiu e o que faltou foi só a
+           confirmação. */
+        return fetch(c.url, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: corpo,
+        })
+          .then(function () {
+            return { ok: true, semConfirmacao: true, erro: (e && e.message) || "" };
+          })
+          .catch(function (e2) {
+            return { ok: false, erro: (e2 && e2.message) || (e && e.message) || "falha de rede" };
+          });
       });
   }
 
