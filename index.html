@@ -1073,6 +1073,7 @@
         <button type="button" class="cfg-aba" data-cfg="padroes" role="tab">Padrões</button>
         <button type="button" class="cfg-aba" data-cfg="avisos" role="tab">Avisos</button>
         <button type="button" class="cfg-aba" data-cfg="nuvem" role="tab">Nuvem</button>
+        <button type="button" class="cfg-aba" data-cfg="integracao" role="tab">Integração</button>
         <button type="button" class="cfg-aba" data-cfg="equipe" role="tab" id="cfgAbaEquipe" style="display:none">Equipe</button>
       </div>
 
@@ -1103,6 +1104,30 @@
         <div class="grid g2 row">
           <div><label for="cfgAvisoWhats">WhatsApp para avisos</label><input type="text" id="cfgAvisoWhats" placeholder="(79) 90000-0000"></div>
           <div><label for="cfgAvisoEmail">E-mail para avisos</label><input type="text" id="cfgAvisoEmail" placeholder="equipe@seuescritorio.com.br"></div>
+        </div>
+      </section>
+      <section class="cfg-painel" data-cfg="integracao" hidden>
+        <div class="hint" style="margin-bottom:10px">
+          Avisa outro sistema quando uma solicitação é <b>criada</b> ou <b>finalizada</b>.
+          O Atos manda um aviso em JSON para o endereço abaixo; o que o outro sistema faz
+          com ele é problema dele — abrir uma tarefa, mandar um e-mail, o que for.
+          Em branco, nada é enviado e o Atos funciona igual.
+        </div>
+        <div class="row">
+          <label for="cfgIntegraUrl">Endereço que recebe o aviso</label>
+          <input type="text" id="cfgIntegraUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+        <div class="row">
+          <label for="cfgIntegraSegredo">Segredo <span class="hint">— combinado com o outro sistema; é o que impede estranho de mandar aviso falso</span></label>
+          <input type="text" id="cfgIntegraSegredo" placeholder="uma senha só para isto">
+        </div>
+        <div class="row">
+          <button type="button" class="btn" id="btnIntegraTestar">Testar agora</button>
+          <span class="fldstat" id="cfgIntegraStat"></span>
+        </div>
+        <div class="hint" style="margin-top:8px">
+          Aviso que não sai — rede fora, endereço errado — fica guardado e é tentado de novo
+          quando o sistema abrir. <span id="cfgIntegraFila"></span>
         </div>
       </section>
       <section class="cfg-painel" data-cfg="nuvem" hidden>
@@ -1230,6 +1255,7 @@ window.__pdfjsFallback=function(){
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
 <script defer src="js/nuvem-config.js?v=1.35"></script>
 <script defer src="js/nuvem.js?v=1.35"></script>
+<script defer src="js/integracao.js?v=1.36"></script>
 <script defer src="js/modelos-coop.js?v=1.35"></script>
 <script defer src="js/gerador-coop.js?v=1.35"></script>
 <script defer src="js/modelos-sa.js?v=1.35"></script>
@@ -3510,6 +3536,12 @@ window.TINA=(function(){
     if(pz && !dataValida(pz)){ st.className="fldstat bad"; st.textContent="Prazo inválido (DD/MM/AAAA)."; return; }
     if(_anexos.some(a=>a.enviando!=null)){ st.className="fldstat bad"; st.textContent="Espere o anexo terminar de subir."; return; }
     const lista=lerSolic();
+    /* ANTES DE MEXER NO REGISTRO: ao editar, "reg" é o próprio
+       registro guardado, e as linhas abaixo sobrescrevem o status.
+       Lido depois, "o status de antes" já seria o de agora — e o
+       aviso de finalização nunca sairia. */
+    const _eraNova=!_solicEditando;
+    const _statusAntes=(_solicEditando&&_solicEditando.status)||"";
     // o id do registro é o mesmo que já nomeou a pasta dos anexos no Storage
     const reg=_solicEditando||{id:_idSolicAtual(),criadoEm:new Date().toISOString()};
     reg.empresa=emp; reg.cnpj=($("sCnpj").value||"").trim(); reg.tipo=$("sTipo").value;
@@ -3529,6 +3561,17 @@ window.TINA=(function(){
     if(i>=0) lista[i]=reg; else lista.unshift(reg);
     if(!salvarSolic(lista)){ st.className="fldstat bad"; st.textContent="Armazenamento cheio — exporte um backup."; return; }
     st.className="fldstat ok"; st.textContent="Salvo.";
+
+    /* AVISO PARA FORA. Sai depois de o registro estar guardado
+       aqui: avisar primeiro e falhar na gravação deixaria o outro
+       sistema sabendo de algo que não existe. */
+    if(window.Integracao&&Integracao.ligada()){
+      const _evento=_eraNova ? "solicitacao.criada"
+                   : (reg.status==="concluida"&&_statusAntes!=="concluida" ? "solicitacao.finalizada" : "");
+      if(_evento) Integracao.avisar(_evento,reg).then(function(r){
+        if(!r.ok&&st) st.textContent="Salvo aqui. O aviso para o outro sistema n\u00e3o saiu e ficou guardado para tentar de novo.";
+      });
+    }
     if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",reg.id,reg).then(r=>{
       if(st) st.textContent = r.ok ? "Salvo aqui e na nuvem." : "Salvo aqui (nuvem: "+(r.msg||"indisponível")+").";
     });
@@ -5493,10 +5536,23 @@ window.TINA=(function(){
   function abrirConfig(){$("cfgUF").innerHTML=ufOpts(CFG.defUF);$("cfgOrgaoUF").innerHTML=ufOpts(CFG.defOrgaoUF);$("cfgOrgao").innerHTML=orgaoOpts(CFG.defOrgao||"");
     $("cfgEscritorio").value=CFG.escritorio||"";$("cfgCor").value=CFG.cor||"#14293f";$("cfgParalegal").value=CFG.paralegal||"";$("cfgRemetente").value=CFG.remetente||"";$("cfgAvisoWhats").value=CFG.avisoWhats||"";$("cfgAvisoEmail").value=CFG.avisoEmail||"";$("cfgMun").value=CFG.defMun||"";$("cfgForo").value=CFG.foro||"";if($("cfgJunta"))$("cfgJunta").value=CFG.junta||"";
     _cfgLogoTmp=CFG.logo||"";const prev=$("cfgLogoPrev");if(_cfgLogoTmp){prev.src=_cfgLogoTmp;prev.style.display="";}else prev.style.display="none";
-    if($("cfgLogoFile"))$("cfgLogoFile").value="";$("cfgStat").textContent="";$("configModal").classList.add("open");}
+    if($("cfgLogoFile"))$("cfgLogoFile").value="";$("cfgStat").textContent="";
+    if(window.Integracao&&$("cfgIntegraUrl")){const ci=Integracao.config();
+      $("cfgIntegraUrl").value=ci.url||"";$("cfgIntegraSegredo").value=ci.segredo||"";
+      if($("cfgIntegraStat"))$("cfgIntegraStat").textContent="";
+      if($("cfgIntegraFila")){const n=Integracao.fila().length;
+        $("cfgIntegraFila").textContent=n?("H\u00e1 "+n+" aviso(s) esperando para sair."):"";}}
+    $("configModal").classList.add("open");}
   function salvarConfigForm(){const cor=($("cfgCor").value||"").toLowerCase();
     CFG={escritorio:$("cfgEscritorio").value.trim(),logo:_cfgLogoTmp||"",cor:(cor==="#14293f"||!cor)?"":cor,paralegal:$("cfgParalegal").value.trim(),remetente:$("cfgRemetente").value.trim(),avisoWhats:$("cfgAvisoWhats").value.trim(),avisoEmail:$("cfgAvisoEmail").value.trim(),defMun:$("cfgMun").value.trim(),defUF:$("cfgUF").value,defOrgao:$("cfgOrgao").value,defOrgaoUF:$("cfgOrgaoUF").value,foro:$("cfgForo").value.trim(),junta:(($("cfgJunta")&&$("cfgJunta").value)||"").trim()};
-    salvarCfg(CFG);aplicarCfg();$("cfgStat").style.color="var(--ok)";$("cfgStat").textContent="✓ Salvo.";toast("Configurações salvas.","ok");}
+    salvarCfg(CFG);aplicarCfg();
+    /* A integração fica fora do CFG por um motivo: CFG é a marca e os
+       padrões do escritório, e tem cópia em vários lugares. O segredo
+       de uma integração não deve andar junto com o logotipo. */
+    if(window.Integracao&&$("cfgIntegraUrl")){
+      Integracao.salvarConfig({url:($("cfgIntegraUrl").value||"").trim(),
+                               segredo:($("cfgIntegraSegredo").value||"").trim()});}
+    $("cfgStat").style.color="var(--ok)";$("cfgStat").textContent="✓ Salvo.";toast("Configurações salvas.","ok");}
   function resetConfig(){CFG=cfgDefault();salvarCfg(CFG);aplicarCfg();abrirConfig();toast("Configurações restauradas ao padrão.","info");}
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
@@ -6083,6 +6139,20 @@ window.TINA=(function(){
     if($("btnConfigClose")) $("btnConfigClose").addEventListener("click",()=>$("configModal").classList.remove("open"));
     if($("configModal")) $("configModal").addEventListener("click",e=>{if(e.target.id==="configModal")$("configModal").classList.remove("open");});
     if($("btnConfigSalvar")) $("btnConfigSalvar").addEventListener("click",salvarConfigForm);
+    if($("btnIntegraTestar")) $("btnIntegraTestar").addEventListener("click",function(){
+      const st=$("cfgIntegraStat"); if(!window.Integracao) return;
+      /* Salva antes de testar: testar o que está na tela e não o que
+         está guardado é o jeito de a pessoa consertar o endereço e
+         continuar vendo o erro antigo. */
+      Integracao.salvarConfig({url:($("cfgIntegraUrl").value||"").trim(),
+                               segredo:($("cfgIntegraSegredo").value||"").trim()});
+      st.className="fldstat"; st.textContent="Testando\u2026";
+      Integracao.testar().then(function(r){
+        if(r.ok){ st.className="fldstat ok"; st.textContent="\u2713 O outro sistema respondeu."; }
+        else { st.className="fldstat bad";
+               st.textContent="N\u00e3o deu certo: "+(r.erro||((r.resposta&&r.resposta.erro)||("HTTP "+r.codigo))); }
+      });
+    });
     if($("btnConfigReset")) $("btnConfigReset").addEventListener("click",()=>{if(confirm("Restaurar as configurações ao padrão? Isso remove logo, cor e dados salvos."))resetConfig();});
     if($("cfgLogoFile")) $("cfgLogoFile").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(!f)return;if(f.size>500*1024){toast("Logo muito grande (máx. 500 KB).","err");e.target.value="";return;}const rd=new FileReader();rd.onload=()=>{_cfgLogoTmp=rd.result;const p=$("cfgLogoPrev");p.src=_cfgLogoTmp;p.style.display="";};rd.readAsDataURL(f);});
     if($("btnCfgLogoLimpar")) $("btnCfgLogoLimpar").addEventListener("click",()=>{_cfgLogoTmp="";const p=$("cfgLogoPrev");p.style.display="none";if($("cfgLogoFile"))$("cfgLogoFile").value="";});
