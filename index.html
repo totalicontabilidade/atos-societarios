@@ -6,7 +6,7 @@
      'wasm-unsafe-eval' (e NÃO 'unsafe-eval') basta para o wasm do pdf.js/Tesseract — 'unsafe-eval' era o que
      permitia a CVE-2024-4367 do pdf.js, então não reintroduzir. connect-src é restrito ao ViaCEP: aberto em
      "https:" ele seria o canal de exfiltração. object/base/form fechados. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="versao" content="1.35" />
@@ -1256,7 +1256,7 @@ window.__pdfjsFallback=function(){
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
 <script defer src="js/nuvem-config.js?v=1.35"></script>
 <script defer src="js/nuvem.js?v=1.35"></script>
-<script defer src="js/integracao.js?v=1.37"></script>
+<script defer src="js/integracao.js?v=1.38"></script>
 <script defer src="js/modelos-coop.js?v=1.35"></script>
 <script defer src="js/gerador-coop.js?v=1.35"></script>
 <script defer src="js/modelos-sa.js?v=1.35"></script>

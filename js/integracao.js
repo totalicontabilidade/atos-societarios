@@ -50,6 +50,43 @@ window.Integracao = (function () {
     try { localStorage.setItem(CHAVE_CFG, JSON.stringify(c || {})); } catch (e) {}
   }
 
+  /* ---------- a política de segurança da página ----------
+
+     Esta página declara, no próprio HTML, a lista de endereços
+     para os quais pode falar (connect-src). Endereço de fora da
+     lista é barrado pelo NAVEGADOR, antes de sair — e o erro que
+     chega aqui é o mesmo "failed to fetch" de rede fora.
+
+     Foi exatamente o que aconteceu ao ligar a primeira integração:
+     o endereço abria numa aba (navegação não passa por essa lista)
+     e o aviso não saía, sem ninguém entender por quê.
+
+     Então a lista é lida aqui e conferida ANTES de tentar, para o
+     recado ser o certo. Quem instalar o Atos e quiser mandar para
+     um endereço próprio vai precisar acrescentá-lo à lista — e
+     agora a tela diz isso, em vez de mostrar um erro de rede. */
+  function origemDe(url) {
+    try { return new URL(String(url)).origin; } catch (e) { return ""; }
+  }
+
+  function liberado(url) {
+    var meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    if (!meta) return { ok: true };                 /* sem política, sem barreira */
+    var regra = "";
+    String(meta.getAttribute("content") || "").split(";").forEach(function (parte) {
+      var p = parte.trim();
+      if (p.indexOf("connect-src") === 0) regra = p;
+    });
+    if (!regra) return { ok: true };                /* sem connect-src, vale o default-src e não dá para afirmar */
+
+    var origem = origemDe(url);
+    if (!origem) return { ok: false, motivo: "endereço inválido" };
+    if (regra.indexOf(origem) !== -1) return { ok: true };
+    /* "https:" sozinho libera qualquer endereço seguro. */
+    if (regra.indexOf(" https:") !== -1 || regra.indexOf(" *") !== -1) return { ok: true };
+    return { ok: false, origem: origem };
+  }
+
   function ligada() {
     var c = config();
     return !!(c.url && String(c.url).indexOf("http") === 0);
@@ -102,6 +139,15 @@ window.Integracao = (function () {
 
   function mandar(pacote) {
     var c = config();
+
+    var permissao = liberado(c.url);
+    if (!permissao.ok) {
+      return Promise.resolve({ ok: false, bloqueado: true, origem: permissao.origem,
+        erro: permissao.origem
+          ? ("o endereço " + permissao.origem + " não está liberado na política de segurança desta página")
+          : (permissao.motivo || "endereço inválido") });
+    }
+
     var corpo = JSON.stringify(Object.assign({ segredo: c.segredo || "" }, pacote));
 
     return fetch(c.url, {
