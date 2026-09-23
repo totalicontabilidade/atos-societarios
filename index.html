@@ -6166,7 +6166,18 @@ window.TINA=(function(){
           st.textContent="Enviado, mas o navegador nao deixou ler a resposta. Confira em Execucoes, no Apps Script: se o aviso aparecer la, esta funcionando."; }
         else if(r.ok){ st.className="fldstat ok"; st.style.color=""; st.textContent="\u2713 O outro sistema respondeu."; }
         else { st.className="fldstat bad"; st.style.color="";
-               st.textContent="Nao chegou: "+(r.erro||((r.resposta&&r.resposta.erro)||("HTTP "+r.codigo)))+". Confira se o endereco termina em /exec e se a implantacao esta como Qualquer pessoa."; }
+               /* O CONSELHO TEM DE CASAR COM A CAUSA.
+                  Antes, toda falha vinha com "confira o /exec e a
+                  implantacao" grudado atras - inclusive quando o
+                  destino TINHA respondido, recusando o segredo. Quem le
+                  isso vai mexer na implantacao, que estava certa. */
+               const _respondeu=!!(r.resposta&&r.resposta.erro);
+               const _motivo=r.erro||(r.resposta&&r.resposta.erro)||("HTTP "+r.codigo);
+               st.textContent = r.bloqueado
+                 ? ("Nao saiu: "+_motivo+". O endereco precisa estar na politica de seguranca da pagina.")
+                 : _respondeu
+                   ? ("O destino recebeu e recusou: "+_motivo+". Recusado costuma ser o segredo diferente do que esta guardado la.")
+                   : ("Nao chegou: "+_motivo+". Confira se o endereco termina em /exec e se a implantacao esta como Qualquer pessoa."); }
       });
     });
     if($("btnConfigReset")) $("btnConfigReset").addEventListener("click",()=>{if(confirm("Restaurar as configurações ao padrão? Isso remove logo, cor e dados salvos."))resetConfig();});
