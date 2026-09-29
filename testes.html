@@ -1105,7 +1105,7 @@
       $("btnSolicSalvar").click(); await espera(450);
       var a1=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
       reg("Solicitação do comercial nasce como Nova e registra quem abriu", a1.status==="nova" && a1.abertaPor==="comercial@exemplo.com", a1.status+" · "+a1.abertaPor);
-      reg("O cartão mostra 'aberta por'", /aberta por comercial@exemplo\.com/.test($("solicLista").innerText));
+      reg("O cartão mostra 'aberta por' (só o nome, sem o @ do e-mail)", /aberta por comercial em \d{2}\/\d{2}\/\d{4}/.test($("solicLista").innerText));
       reg("Comercial pode excluir a própria solicitação ainda nova", /data-sol-excluir/.test($("solicLista").innerHTML));
 
       // segunda solicitação com o MESMO CNPJ: aviso, sem bloqueio
@@ -1121,7 +1121,7 @@
       var b1=D.querySelector('[data-sol-abrir="'+a1.id+'"]'); if(b1) b1.click(); await espera(350);
       var a2=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").find(function(x){return x.id===a1.id;})||{};
       reg("Trabalhar registra com quem está e desde quando", a2.status==="andamento" && a2.trabalhandoPor==="cadastro@exemplo.com" && !!a2.trabalhandoDesde, a2.trabalhandoPor);
-      reg("O cartão diz 'em andamento com … desde …'", /em andamento com cadastro@exemplo\.com desde \d{2}\/\d{2}\/\d{4}/.test($("solicLista").innerText));
+      reg("O cartão diz 'em andamento com … desde …'", /em andamento com cadastro desde \d{2}\/\d{2}\/\d{4}/.test($("solicLista").innerText));
       var b2=D.querySelector('[data-sol-editar="'+a1.id+'"]'); if(b2) b2.click(); await espera(250);
       reg("Cadastro vê o campo de recado (opcional, discreto)", W.getComputedStyle($("wrapPend")).display!=="none");
       val("sPend","Falta o comprovante de endereço da filial."); $("btnSolicSalvar").click(); await espera(450);
@@ -1140,6 +1140,51 @@
       W.Nuvem.estado=estB;
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de recado e permissões",false,String(e&&e.message||e).slice(0,130)); }
+
+    /* ---------- 6b4d. Solicitações no celular: formulário em tela cheia, filtros, contato ---------- */
+    grupo("Solicitações — tela do celular");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+      $("btnSolic").click(); await espera(300);
+      reg("Lista vazia convida a lançar, em vez de só 'nada por aqui'", /Nova solicita/.test(($("solicLista")||{}).innerText||""));
+      $("btnSolicNova").click(); await espera(250);
+      reg("Formulário toma a tela: lista e filtros somem enquanto ele está aberto",
+        $("solicModal").classList.contains("editando") && W.getComputedStyle($("solicLista")).display==="none"
+        && W.getComputedStyle($("solicTopo")).display==="none" && /Nova solicita/.test($("solicFormTit").textContent));
+      reg("CNPJ vem antes da empresa (a Receita preenche o nome)",
+        !!($("sCnpj").compareDocumentPosition($("sEmpresa")) & W.Node.DOCUMENT_POSITION_FOLLOWING));
+      reg("CNPJ e prazo abrem o teclado numérico", $("sCnpj").getAttribute("inputmode")==="numeric" && $("sPrazo").getAttribute("inputmode")==="numeric");
+      reg("Tem botão de câmera para foto de documento", !!$("btnSolicFoto") && $("sFoto").getAttribute("capture")==="environment");
+      D.querySelector('#sPrazoAtalhos [data-prazo="7"]').click(); await espera(60);
+      var d7=new W.Date(); d7.setDate(d7.getDate()+7);
+      var e7=String(d7.getDate()).padStart(2,"0")+"/"+String(d7.getMonth()+1).padStart(2,"0")+"/"+d7.getFullYear();
+      reg("Atalho '+7 dias' preenche o prazo", $("sPrazo").value===e7, $("sPrazo").value+" · esperado "+e7);
+      val("sEmpresa","PADARIA EXEMPLO LTDA"); val("sObs","Abrir a filial do bairro Centro.");
+      val("sContato","João"); val("sFone","(79) 99999-0000");
+      $("btnSolicSalvar").click(); await espera(450);
+      reg("Ao salvar, a lista volta", !$("solicModal").classList.contains("editando") && W.getComputedStyle($("solicLista")).display!=="none");
+      var card=D.querySelector("#solicLista .sol");
+      reg("Cartão leva a cor da situação", !!card && card.classList.contains("st-nova"));
+      reg("Telefone do cliente vira WhatsApp e Ligar no cartão",
+        !!D.querySelector('#solicLista a[href="https://wa.me/5579999990000"]') && !!D.querySelector('#solicLista a[href="tel:+5579999990000"]'));
+      var chips=($("solicChips")||{}).innerText||"";
+      reg("Filtros em botões, com contagem", /Em aberto\s*1/.test(chips) && /Novas\s*1/.test(chips), chips.replace(/\s+/g," "));
+      D.querySelector('#solicChips [data-f="todas"]').click(); await espera(80);
+      reg("Tocar no botão troca o filtro", $("solicFiltro").value==="todas" && /ativa/.test(D.querySelector('#solicChips [data-f="todas"]').className));
+      val("solicBusca","filial"); $("solicBusca").dispatchEvent(new W.Event("input",{bubbles:true})); await espera(80);
+      reg("Busca acha pelo texto do pedido", /PADARIA EXEMPLO/.test($("solicLista").innerText));
+      val("solicBusca","xyz-nao-existe"); $("solicBusca").dispatchEvent(new W.Event("input",{bubbles:true})); await espera(80);
+      reg("Busca sem resultado diz o que procurou", /Nada encontrado para/.test($("solicLista").innerText));
+      val("solicBusca",""); $("solicBusca").dispatchEvent(new W.Event("input",{bubbles:true}));
+      $("solicFiltro").value="abertas"; W.TINA._ux.renderSolic();
+      // o "voltar" do celular fecha o formulário, sem sair da tela
+      $("btnSolicNova").click(); await espera(250);
+      W.history.back(); await espera(400);
+      reg("'Voltar' do celular fecha o formulário e fica na lista",
+        !$("solicModal").classList.contains("editando") && $("solicForm").style.display==="none" && $("solicModal").classList.contains("open"));
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+    }catch(e){ reg("Bateria da tela do celular",false,String(e&&e.message||e).slice(0,130)); }
 
     // ---------- 6b5. Visto de advogado (regra do Manual de LTDA, item 7 e roteiro 8/8.1) ----------
     grupo("Visto de advogado");

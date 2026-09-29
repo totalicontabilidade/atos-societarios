@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.35" />
+<meta name="versao" content="1.39" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -56,7 +56,7 @@
     background:linear-gradient(135deg,var(--navy),var(--navy2));box-shadow:0 3px 8px rgba(20,41,63,.3)}
   label{display:block;font-size:11.5px;font-weight:600;color:var(--ink2);margin:0 0 5px}
   .hint{font-size:10.5px;color:var(--muted2);font-weight:500}
-  input[type=text],input[type=number],input[type=date],select,textarea{
+  input[type=text],input[type=search],input[type=number],input[type=date],select,textarea{
     width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;color:var(--ink);transition:.13s}
   input:hover,select:hover,textarea:hover{border-color:#ccd4e0}
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy2);box-shadow:0 0 0 3.5px rgba(34,69,108,.15)}
@@ -99,6 +99,68 @@
   .anexo img.thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
   .anexo .barra{height:3px;background:var(--line);border-radius:2px;overflow:hidden;width:70px}
   .anexo .barra i{display:block;height:100%;background:var(--navy2);width:0}
+  /* Solicitações — é a tela principal do comercial, quase sempre no celular. Por isso: cartão
+     com a situação em cor (dá para ler a fila de relance), filtro em botões com contagem (um
+     toque, em vez de abrir uma lista), alvos de toque maiores e o formulário tomando a tela. */
+  .sol-topo{display:flex;gap:8px;align-items:center}
+  .sol-topo input{flex:1;min-width:0}
+  .sol-chips{display:flex;gap:6px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
+  .sol-chips::-webkit-scrollbar{display:none}
+  .sol-chip{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--ink2);border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .sol-chip b{font-weight:800;margin-left:3px;color:var(--muted)}
+  .sol-chip.ativa{background:var(--navy);border-color:var(--navy);color:#fff}
+  .sol-chip.ativa b{color:var(--gold2)}
+  .sol-chip:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  #solicNuvem{display:block;margin-top:6px}
+  #solicNuvem:empty{display:none}
+  .sol{--c:var(--navy2);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;background:#fff;padding:12px 13px;margin-bottom:10px;box-shadow:0 1px 2px rgba(20,41,63,.04)}
+  .sol.st-nova{--c:#1d5fa8}.sol.st-andamento{--c:#b8860b}.sol.st-cliente{--c:#c2570c}.sol.st-protocolada{--c:#6b3fa0}.sol.st-concluida{--c:var(--ok)}
+  .sol.acabou{animation:valflash 1.15s ease-out}
+  .sol-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .sol-emp{font-size:14.5px;font-weight:750;color:var(--ink);line-height:1.3;word-break:break-word}
+  .sol-st{flex:0 0 auto;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:#e8f0fb;color:#1d5fa8;white-space:nowrap}
+  .sol.st-andamento .sol-st{background:#fdf6e6;color:#8a5f00}
+  .sol.st-cliente .sol-st{background:#fff0e5;color:#b04a06}
+  .sol.st-protocolada .sol-st{background:#f3edfb;color:#5d3591}
+  .sol.st-concluida .sol-st{background:var(--okbg);color:var(--ok)}
+  .sol-meta{font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center}
+  .sol-prazo{font-weight:650;color:var(--ink2)}
+  .sol-prazo.vence{color:var(--warn)}
+  .sol-prazo.vencido{color:var(--err)}
+  .sol-desc{font-size:13px;color:var(--ink2);margin-top:7px;white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+  .sol-desc.aberta{display:block;-webkit-line-clamp:unset}
+  .sol-recado{margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--warnbg);border:1px solid var(--warnln);color:#7c5406;font-size:12.5px}
+  .sol-contato{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:var(--ink2)}
+  .sol-contato>span{flex-basis:100%}
+  .sol-rodape{font-size:11.5px;color:var(--muted2);margin-top:6px}
+  .sol-anexos{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .sol-anexos a{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sol-acoes{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line2)}
+  .sol-acoes .btn,.sol-contato .btn,.sol-anexos .btn{min-height:36px;text-decoration:none}
+  .sol-acoes .sol-x{margin-left:auto}
+  .sol-vazio{text-align:center;color:var(--muted);padding:34px 10px;font-size:13px}
+  /* formulário: quando aberto, ocupa a tela no lugar da lista */
+  #solicModal.editando #solicTopo,#solicModal.editando #solicLista{display:none}
+  .sol-form-tit{font-size:15px;font-weight:750;color:var(--navy);margin:2px 0 12px}
+  .sol-grupo{font-size:11px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;padding-top:12px;border-top:1px solid var(--line2)}
+  .sol-atalhos{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .sol-anexar{display:flex;gap:8px;flex-wrap:wrap}
+  .sol-anexar .btn{flex:1 1 140px;justify-content:center;min-height:42px}
+  .sol-salvar{position:sticky;bottom:0;background:#fff;margin:14px -18px -14px;padding:10px 18px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap;z-index:2}
+  .sol-salvar .btn{min-height:44px}
+  .sol-salvar #btnSolicSalvar{flex:1;justify-content:center}
+  .sol-salvar .fldstat{flex-basis:100%;min-height:0;margin:0}
+  .sol-salvar .fldstat:empty{display:none}
+  /* texto de computador (arrastar, Ctrl+V) só onde há mouse */
+  @media(hover:none){ .so-mouse{display:none} }
+  @media(max-width:760px){
+    /* no celular a janela vira tela inteira, e o "+ Nova" flutua sempre à mão */
+    #solicModal{padding:0;align-items:stretch}
+    #solicModal>.modal{max-width:none;max-height:none;height:100%;border-radius:0}
+    #btnSolicNova{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:65;border-radius:999px;padding:14px 20px;font-size:14.5px;box-shadow:0 8px 24px rgba(20,41,63,.38)}
+    #solicLista{padding-bottom:84px}
+    .sol-topo input{font-size:16px}
+  }
   /* Tela cheia do comercial: quem só lança solicitação não vê o gerador de atos. */
   body.so-solic>header .head-nav,body.so-solic>header .head-item,body.so-solic .wrap{display:none!important}
   /* O cabeçalho fica ACIMA da tela cheia e ela começa abaixo dele. Antes a tela cobria o cabeçalho
@@ -196,7 +258,7 @@
     .actions .btn{width:100%;justify-content:center;padding:12px 16px}
     .actions .status{text-align:center;order:3}
     #preview{max-height:none}
-    input[type=text],input[type=number],input[type=date],select,textarea{font-size:16px}
+    input[type=text],input[type=search],input[type=number],input[type=date],select,textarea{font-size:16px}
     .toast-wrap{top:10px;left:10px;right:10px;transform:none}
     .toast{max-width:none}
     #draftBanner{left:10px;right:10px;top:64px;flex-direction:column;align-items:stretch;gap:8px}
@@ -1006,60 +1068,78 @@
   <div class="modal">
     <div class="mh"><span>🗂 Solicitações</span><button class="x" id="btnSolicClose">Fechar</button></div>
     <div class="mb">
-      <div class="bar">
-        <button class="btn p mini" id="btnSolicNova">+ Nova</button>
-        <span class="hint" id="solicConta"></span>
-        <span style="flex:1"></span>
+      <div id="solicTopo">
+        <div class="sol-topo">
+          <input type="search" id="solicBusca" placeholder="🔎 Buscar empresa, CNPJ, pedido…" autocomplete="off" enterkeyhint="search">
+          <button class="btn p" id="btnSolicNova" type="button">+ Nova solicitação</button>
+        </div>
+        <!-- Filtro em botões, com a contagem de cada situação. O <select> escondido continua sendo
+             quem guarda o filtro escolhido; os botões só o trocam. -->
+        <div class="sol-chips" id="solicChips"></div>
+        <select id="solicFiltro" hidden>
+          <option value="abertas">Em aberto</option><option value="nova">Novas</option>
+          <option value="andamento">Em andamento</option><option value="cliente">Aguardando cliente</option>
+          <option value="protocolada">Protocoladas</option><option value="concluida">Finalizadas</option>
+          <option value="todas">Todas</option></select>
         <span class="hint" id="solicNuvem"></span>
       </div>
-      <div id="solicForm" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:8px">
+      <div id="solicForm" style="display:none">
+        <div class="sol-form-tit" id="solicFormTit">Nova solicitação</div>
+        <!-- CNPJ antes do nome: ao sair do campo, a Receita preenche a empresa sozinha -->
         <div class="grid g3 row">
-          <div style="grid-column:span 2"><label for="sEmpresa">Empresa</label><input type="text" id="sEmpresa"></div>
-          <div><label for="sCnpj">CNPJ</label><input type="text" id="sCnpj" placeholder="00.000.000/0001-00" maxlength="18"><div class="fldstat warn" id="sDup" style="display:none"></div></div>
+          <div><label for="sCnpj">CNPJ <span class="hint">— se tiver; o nome vem sozinho</span></label><input type="text" id="sCnpj" placeholder="00.000.000/0001-00" maxlength="18" inputmode="numeric" autocomplete="off"><div class="fldstat warn" id="sDup" style="display:none"></div></div>
+          <div style="grid-column:span 2"><label for="sEmpresa">Empresa</label><input type="text" id="sEmpresa" autocomplete="off" autocapitalize="characters"></div>
         </div>
-        <div class="grid g3 row">
-          <div><label for="sTipo">Ato</label><select id="sTipo"></select></div>
-          <div><label for="sPrazo">Prazo</label><input type="text" id="sPrazo" placeholder="DD/MM/AAAA" maxlength="10"></div>
-          <div><label for="sResp">Responsável</label><input type="text" id="sResp"></div>
-        </div>
-        <div class="grid g3 row">
-          <div><label for="sContato">Contato do cliente</label><input type="text" id="sContato" placeholder="Nome"></div>
-          <div><label for="sFone">Telefone / e-mail</label><input type="text" id="sFone"></div>
-          <div id="wrapStatus"><label for="sStatus">Situação</label><select id="sStatus">
-            <option value="nova">Nova</option><option value="andamento">Em andamento</option>
-            <option value="cliente">Aguardando cliente</option><option value="protocolada">Protocolada</option>
-            <option value="concluida">Finalizada</option></select></div>
-        </div>
+        <div class="row"><label for="sTipo">Ato</label><select id="sTipo"></select></div>
         <div class="row"><label for="sObs">Descrição <span class="hint">— o que o cliente pediu, com as suas palavras</span></label>
           <textarea id="sObs" rows="4" placeholder="Ex.: trocar o endereço da sede e incluir a filha como sócia com 20%. O cliente mandou o comprovante de endereço no anexo."></textarea></div>
-        <!-- recado de quem cadastra para quem abriu: opcional e discreto; o comercial só lê, no cartão -->
-        <div class="row" id="wrapPend"><label for="sPend"><span class="hint">Recado / pendência para o comercial (opcional)</span></label>
-          <input type="text" id="sPend" placeholder="Ex.: falta o comprovante de endereço"></div>
         <!-- Anexo: o comercial recebe print, áudio e foto de documento pelo WhatsApp o dia inteiro.
-             Sem isto, esse material era redigitado (ou perdido) no caminho até o cadastro. -->
+             Sem isto, esse material era redigitado (ou perdido) no caminho até o cadastro.
+             No celular, "Tirar foto" abre direto a câmera: foto de documento é o anexo mais comum. -->
         <div class="row">
           <label>Anexos <span class="hint">— áudio, foto, vídeo ou documento, até 25 MB cada</span></label>
           <div id="sSolta" class="solta" tabindex="0">
             <input type="file" id="sArquivo" multiple style="display:none">
-            <span>Arraste aqui, <b>cole</b> (Ctrl+V) ou <button type="button" class="btn s mini" id="btnSolicAnexar">escolher arquivo</button></span>
+            <input type="file" id="sFoto" accept="image/*" capture="environment" style="display:none">
+            <div class="sol-anexar">
+              <button type="button" class="btn o" id="btnSolicFoto">📷 Tirar foto</button>
+              <button type="button" class="btn o" id="btnSolicAnexar">📎 Escolher arquivo</button>
+            </div>
+            <div class="hint so-mouse" style="margin-top:8px">ou arraste aqui, ou <b>cole</b> um print (Ctrl+V)</div>
           </div>
           <div id="sAnexos" class="anexos"></div>
         </div>
-        <div class="bar" style="margin-top:8px">
-          <button class="btn p mini" id="btnSolicSalvar">Salvar</button>
-          <button class="btn s mini" id="btnSolicCancelar">Cancelar</button>
+        <div class="sol-grupo">Cliente</div>
+        <div class="grid g2 row">
+          <div><label for="sContato">Contato do cliente</label><input type="text" id="sContato" placeholder="Nome" autocomplete="off"></div>
+          <div><label for="sFone">Telefone / e-mail</label><input type="text" id="sFone" placeholder="(79) 99999-0000" autocomplete="off"></div>
+        </div>
+        <div class="sol-grupo">Prazo e acompanhamento</div>
+        <div class="grid g2 row">
+          <div><label for="sPrazo">Prazo</label><input type="text" id="sPrazo" placeholder="DD/MM/AAAA" maxlength="10">
+            <div class="sol-atalhos" id="sPrazoAtalhos">
+              <button type="button" class="btn s mini" data-prazo="0">Hoje</button>
+              <button type="button" class="btn s mini" data-prazo="1">Amanhã</button>
+              <button type="button" class="btn s mini" data-prazo="3">+3 dias</button>
+              <button type="button" class="btn s mini" data-prazo="7">+7 dias</button>
+            </div></div>
+          <div><label for="sResp">Responsável</label><input type="text" id="sResp" autocomplete="off"></div>
+        </div>
+        <div class="row" id="wrapStatus"><label for="sStatus">Situação</label><select id="sStatus">
+          <option value="nova">Nova</option><option value="andamento">Em andamento</option>
+          <option value="cliente">Aguardando cliente</option><option value="protocolada">Protocolada</option>
+          <option value="concluida">Finalizada</option></select></div>
+        <!-- recado de quem cadastra para quem abriu: opcional e discreto; o comercial só lê, no cartão -->
+        <div class="row" id="wrapPend"><label for="sPend"><span class="hint">Recado / pendência para o comercial (opcional)</span></label>
+          <input type="text" id="sPend" placeholder="Ex.: falta o comprovante de endereço"></div>
+        <!-- fica presa ao pé da tela: o formulário é longo no celular e o Salvar não pode sumir -->
+        <div class="sol-salvar">
+          <button class="btn s" id="btnSolicCancelar" type="button">Cancelar</button>
+          <button class="btn p" id="btnSolicSalvar" type="button">Salvar solicitação</button>
           <span class="fldstat" id="solicStat"></span>
         </div>
       </div>
-      <div class="grid g2 row" style="margin-top:10px">
-        <div><input type="text" id="solicBusca" placeholder="🔎 Empresa, CNPJ ou responsável…"></div>
-        <div><select id="solicFiltro">
-          <option value="abertas">Em aberto e recém-finalizadas</option><option value="todas">Todas</option>
-          <option value="nova">Novas</option><option value="andamento">Em andamento</option>
-          <option value="cliente">Aguardando cliente</option><option value="protocolada">Protocoladas</option>
-          <option value="concluida">Finalizadas</option></select></div>
-      </div>
-      <div id="solicLista" style="margin-top:12px"></div>
+      <div id="solicLista" style="margin-top:10px"></div>
     </div>
   </div>
 </div>
@@ -1254,13 +1334,13 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.35"></script>
-<script defer src="js/nuvem.js?v=1.35"></script>
-<script defer src="js/integracao.js?v=1.38"></script>
-<script defer src="js/modelos-coop.js?v=1.35"></script>
-<script defer src="js/gerador-coop.js?v=1.35"></script>
-<script defer src="js/modelos-sa.js?v=1.35"></script>
-<script defer src="js/gerador-sa.js?v=1.35"></script>
+<script defer src="js/nuvem-config.js?v=1.39"></script>
+<script defer src="js/nuvem.js?v=1.39"></script>
+<script defer src="js/integracao.js?v=1.39"></script>
+<script defer src="js/modelos-coop.js?v=1.39"></script>
+<script defer src="js/gerador-coop.js?v=1.39"></script>
+<script defer src="js/modelos-sa.js?v=1.39"></script>
+<script defer src="js/gerador-sa.js?v=1.39"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -3495,18 +3575,47 @@ window.TINA=(function(){
   }
   function abrirSolic(){
     montarTiposAto();
-    if($("solicForm"))$("solicForm").style.display="none";
+    if(_formSolicAberto()) cancelarFormSolic();
     marcarNovas(0);
     renderSolic(); $("solicModal").classList.add("open");
   }
+  /* O formulário toma a tela no lugar da lista (no celular não cabem os dois). E o "voltar" do
+     celular, que antes saía da tela e levava junto o que estava sendo digitado, agora só fecha o
+     formulário: abrir deixa uma entrada no histórico, e o voltar a consome. */
+  let _solicHist=false, _solicVoltando=false;
+  function _formSolicAberto(){ const f=$("solicForm"); return !!f && f.style.display!=="none"; }
+  function mostrarFormSolic(titulo){
+    const m=$("solicModal"), f=$("solicForm"); if(!f) return;
+    if($("solicFormTit")) $("solicFormTit").textContent=titulo;
+    f.style.display="";
+    if(m){ m.classList.add("editando"); const j=m.querySelector(".modal"); if(j) j.scrollTop=0; }
+    if(!_solicHist){ try{ history.pushState({solForm:1},""); _solicHist=true; }catch(e){} }
+  }
+  function esconderFormSolic(){
+    const m=$("solicModal"), f=$("solicForm");
+    if(f) f.style.display="none";
+    if(m) m.classList.remove("editando");
+    // fechou pelo botão: devolve a entrada do histórico, e o popstate que vem disso é ignorado
+    if(_solicHist){ _solicHist=false; _solicVoltando=true; try{ history.back(); }catch(e){ _solicVoltando=false; } }
+  }
+  function cancelarFormSolic(){
+    descartarAnexosSoltos();
+    _solicEditando=null; _solicNovoId=null; _anexos=[]; _anexosDoBanco=[]; renderAnexos();
+    esconderFormSolic();
+  }
+  window.addEventListener("popstate",()=>{
+    if(_solicVoltando){ _solicVoltando=false; return; }
+    if(_solicHist){ _solicHist=false; cancelarFormSolic(); }
+  });
+  // a linha de conexão só aparece quando há algo a avisar: "na nuvem" é o normal e não precisa ocupar a tela
   function statusNuvem(){
     const el=$("solicNuvem"); if(!el||!window.Nuvem) return;
     const e=window.Nuvem.estado();
-    el.textContent = !e.configurado ? "só neste navegador"
-      : e.daEquipe ? ("na nuvem · "+e.email)
-      : e.logado ? "conta sem acesso — fale com o administrador"
-      : "sem login — só neste navegador";
-    el.style.color = e.daEquipe ? "var(--ok)" : "var(--muted)";
+    el.textContent = e.daEquipe ? ""
+      : !e.configurado ? "Salvando só neste navegador."
+      : e.logado ? "⚠ Conta sem acesso — fale com o administrador."
+      : "⚠ Sem login — as solicitações ficam só neste navegador.";
+    el.style.color = "var(--warn)";
   }
   function _meuEmail(){ try{ return (window.Nuvem && window.Nuvem.estado().email) || ""; }catch(e){ return ""; } }
   // outra solicitação EM ABERTO com o mesmo CNPJ (só aviso — nunca barra)
@@ -3522,8 +3631,9 @@ window.TINA=(function(){
     if($("sStatus"))$("sStatus").value="nova";
     if($("sTipo"))$("sTipo").value="alt";
     if($("solicStat"))$("solicStat").textContent="";
-    if($("solicForm"))$("solicForm").style.display="";
-    if($("sEmpresa"))$("sEmpresa").focus();
+    mostrarFormSolic("Nova solicitação");
+    // no celular o foco abriria o teclado por cima do formulário antes de a pessoa ver os campos
+    if($("sCnpj") && !window.matchMedia("(hover:none)").matches) $("sCnpj").focus();
   }
   // cancelar/trocar de registro: o que subiu e não vai ficar preso a nada é apagado do Storage
   function descartarAnexosSoltos(){
@@ -3562,6 +3672,9 @@ window.TINA=(function(){
     if(i>=0) lista[i]=reg; else lista.unshift(reg);
     if(!salvarSolic(lista)){ st.className="fldstat bad"; st.textContent="Armazenamento cheio — exporte um backup."; return; }
     st.className="fldstat ok"; st.textContent="Salvo.";
+    /* O "Salvo." ficava dentro do formulário, que fecha na mesma hora — quem salvava não via
+       confirmação nenhuma. Agora o aviso vem por toast, e a nuvem só fala se falhar. */
+    toast("✓ Solicitação salva: "+emp.slice(0,40),"ok");
 
     /* AVISO PARA FORA. Sai depois de o registro estar guardado
        aqui: avisar primeiro e falhar na gravação deixaria o outro
@@ -3569,15 +3682,23 @@ window.TINA=(function(){
     if(window.Integracao&&Integracao.ligada()){
       const _evento=_eraNova ? "solicitacao.criada"
                    : (reg.status==="concluida"&&_statusAntes!=="concluida" ? "solicitacao.finalizada" : "");
+      // o formulário fecha ao salvar: recado escrito nele ninguém lê, por isso vai por toast
       if(_evento) Integracao.avisar(_evento,reg).then(function(r){
-        if(!r.ok&&st) st.textContent="Salvo aqui. O aviso para o outro sistema n\u00e3o saiu e ficou guardado para tentar de novo.";
+        if(!r.ok) toast("Salvo aqui. O aviso para o outro sistema n\u00e3o saiu e ficou guardado para tentar de novo.","warn",6000);
       });
     }
     if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",reg.id,reg).then(r=>{
       if(st) st.textContent = r.ok ? "Salvo aqui e na nuvem." : "Salvo aqui (nuvem: "+(r.msg||"indisponível")+").";
+      if(!r.ok) toast("Salvo só neste aparelho — a nuvem não respondeu ("+(r.msg||"indisponível")+"). Tenta de novo sozinho.","warn",6000);
     });
     _solicEditando=null; _solicNovoId=null; _anexos=[]; _anexosDoBanco=[]; renderAnexos();
-    $("solicForm").style.display="none"; renderSolic();
+    esconderFormSolic(); renderSolic(); destacarSolic(reg.id);
+  }
+  // leva a lista até o cartão recém-salvo e o faz piscar: é assim que se acha o que acabou de lançar
+  function destacarSolic(id){
+    const el=document.querySelector('#solicLista [data-sol-id="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]'); if(!el) return;
+    try{ el.scrollIntoView({block:"nearest"}); }catch(e){}
+    el.classList.remove("acabou"); void el.offsetWidth; el.classList.add("acabou");
   }
   function editarSolic(id){
     const r=lerSolic().find(x=>x.id===id); if(!r)return;
@@ -3589,7 +3710,7 @@ window.TINA=(function(){
     avisarDuplicada();
     _anexos=Array.isArray(r.anexos)?r.anexos.slice():[]; renderAnexos();
     if($("solicStat"))$("solicStat").textContent="";
-    $("solicForm").style.display=""; $("sEmpresa").focus();
+    mostrarFormSolic("Editar solicitação");
   }
 
   /* ===== Anexos da solicitação =====
@@ -3665,6 +3786,10 @@ window.TINA=(function(){
     const zona=$("sSolta"), inp=$("sArquivo"); if(!zona||!inp) return;
     const abrir=()=>inp.click();
     const btn=$("btnSolicAnexar"); if(btn) btn.addEventListener("click",e=>{e.stopPropagation();abrir();});
+    // foto de documento é o anexo mais comum no celular: abre a câmera direto, sem passar pela galeria
+    const foto=$("sFoto"), btnF=$("btnSolicFoto");
+    if(foto&&btnF){ btnF.addEventListener("click",e=>{e.stopPropagation();foto.click();});
+      foto.addEventListener("change",()=>{ anexarArquivos(foto.files); foto.value=""; }); }
     zona.addEventListener("click",abrir);
     zona.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); abrir(); } });
     inp.addEventListener("change",()=>{ anexarArquivos(inp.files); inp.value=""; });
@@ -3751,50 +3876,96 @@ window.TINA=(function(){
     renderSolic();
     toast(fim?("✓ Finalizada: "+(r.empresa||"solicitação")):("↺ Reaberta: "+(r.empresa||"solicitação")),"ok");
   }
+  /* Filtro em botões com a contagem de cada situação. A situação sem nenhuma solicitação não
+     ganha botão (é ruído numa faixa que já não cabe inteira no celular), a não ser a escolhida. */
+  const SOLIC_FILTROS=[["abertas","Em aberto"],["nova","Novas"],["andamento","Em andamento"],["cliente","Aguardando cliente"],
+    ["protocolada","Protocoladas"],["concluida","Finalizadas"],["todas","Todas"]];
+  function renderChipsSolic(tot,f){
+    const box=$("solicChips"); if(!box) return;
+    const n={abertas:tot.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0).length};
+    Object.keys(SOLIC_STATUS).forEach(k=>n[k]=tot.filter(x=>x.status===k).length);
+    box.innerHTML=SOLIC_FILTROS.filter(([k])=>k===f||k==="abertas"||k==="todas"||n[k]).map(([k,t])=>
+      '<button type="button" class="sol-chip'+(k===f?" ativa":"")+'" data-f="'+k+'" aria-pressed="'+(k===f)+'">'
+      +t+(k==="todas"?"":"<b>"+n[k]+"</b>")+"</button>").join("");
+  }
+  function _quem(e){ return String(e||"").split("@")[0]; }
+  // prazo como aviso: vencido em vermelho, hoje/amanhã em amarelo; o ano só aparece se não for o corrente
+  function _prazoSolic(r,hoje){
+    if(!r.prazo) return null;
+    const d=_parseBR(r.prazo); if(!d) return {cls:"",txt:"prazo "+r.prazo};
+    const curto=r.prazo.slice(0,5)+(d.getFullYear()!==hoje.getFullYear()?"/"+d.getFullYear():"");
+    if(SOLIC_ABERTAS.indexOf(r.status)<0) return {cls:"",txt:"prazo "+curto};
+    const dias=Math.round((d-hoje)/86400000);
+    if(dias<0) return {cls:"vencido",txt:"⏰ prazo "+curto+" · vencido"};
+    if(dias===0) return {cls:"vence",txt:"⏰ vence hoje"};
+    if(dias===1) return {cls:"vence",txt:"⏰ vence amanhã"};
+    return {cls:"",txt:"prazo "+curto};
+  }
+  /* O telefone do cliente estava guardado mas não aparecia em lugar nenhum: para ligar, o
+     comercial tinha de abrir a edição e copiar. Agora é um toque, no próprio cartão. */
+  function _contatoSolic(r){
+    const fone=(r.fone||"").trim(), nome=(r.contato||"").trim(); if(!fone&&!nome) return "";
+    let links="";
+    if(/@/.test(fone)) links='<a class="btn o mini" href="mailto:'+escHtml(fone)+'">✉ E-mail</a>';
+    else if(fone.replace(/\D/g,"").length>=10){ const t=escHtml(telInternacional(fone));
+      links='<a class="btn o mini" href="https://wa.me/'+t+'" target="_blank" rel="noopener noreferrer">💬 WhatsApp</a>'
+        +'<a class="btn o mini" href="tel:+'+t+'">📞 Ligar</a>'; }
+    return '<div class="sol-contato"><span>👤 '+escHtml(nome||"Cliente")+(fone?" · "+escHtml(fone):"")+"</span>"+links+"</div>";
+  }
   function renderSolic(){
     statusNuvem();
     const box=$("solicLista"); if(!box)return;
-    let l=lerSolic();
+    const tot=lerSolic(); let l=tot;
     const f=($("solicFiltro")||{}).value||"abertas";
+    renderChipsSolic(tot,f);
     // "Em aberto" inclui as finalizadas há pouco: sem isso o comercial nunca via o desfecho,
     // porque o padrão da tela esconde tudo o que já foi concluído
     if(f==="abertas") l=l.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0 || _recemFinalizada(x));
     else if(f!=="todas") l=l.filter(x=>x.status===f);
+    const T=tiposAto();
+    // a busca olha também o pedido, o contato e o recado: o comercial lembra do "caso da filial", não do CNPJ
     const q=(($("solicBusca")||{}).value||"").toLowerCase().trim();
-    if(q) l=l.filter(x=>((x.empresa||"")+" "+(x.cnpj||"")+" "+(x.responsavel||"")).toLowerCase().includes(q));
-    const tot=lerSolic(), abertas=tot.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0).length;
-    if($("solicConta"))$("solicConta").textContent=abertas?(abertas+" em aberto de "+tot.length):(tot.length?"nenhuma em aberto":"");
-    if(!l.length){ box.innerHTML='<div class="hint">Nada por aqui.</div>'; return; }
-    const T=tiposAto(); const hoje=new Date(); hoje.setHours(0,0,0,0);
+    if(q) l=l.filter(x=>[x.empresa,x.cnpj,x.responsavel,x.obs,x.contato,x.fone,x.pendencia,T[x.tipo]]
+      .map(v=>String(v||"")).join(" ").toLowerCase().includes(q));
+    if(!l.length){
+      box.innerHTML='<div class="sol-vazio">'+(q?"Nada encontrado para “"+escHtml(q)+"”."
+        :f==="abertas"?"Nenhuma solicitação em aberto.<br>Para lançar, use “+ Nova solicitação”."
+        :"Nenhuma solicitação nesta situação.")+"</div>";
+      return;
+    }
+    const hoje=new Date(); hoje.setHours(0,0,0,0);
     box.innerHTML=l.map(r=>{
-      const d=_parseBR(r.prazo); const atras=d&&d<hoje&&SOLIC_ABERTAS.indexOf(r.status)>=0;
-      return '<div class="caso"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
-        +'<b>'+escHtml(r.empresa||"(sem empresa)")+'</b>'
-        +'<span class="hint">'+escHtml(SOLIC_STATUS[r.status]||r.status||"")+'</span></div>'
-        +'<div class="hint">'+escHtml(T[r.tipo]||r.tipo||"")+(r.cnpj?" · "+escHtml(r.cnpj):"")
-        +(r.responsavel?" · "+escHtml(r.responsavel):"")
-        +(r.prazo?' · <span'+(atras?' style="color:var(--err);font-weight:700"':'')+'>prazo '+escHtml(r.prazo)+(atras?" (vencido)":"")+'</span>':"")+'</div>'
-        +(r.status==="concluida"?'<div class="selo-fim">✓ Finalizada'+(r.finalizadoEm?" em "+escHtml(_dataBR(r.finalizadoEm)):"")+(r.finalizadoPor?" por "+escHtml(r.finalizadoPor):"")+'</div>':"")
-        +(r.obs?'<div class="hint" style="margin-top:4px;white-space:pre-wrap">'+escHtml(r.obs)+'</div>':"")
-        +(r.pendencia?'<div class="hint" style="margin-top:4px"><b>Recado:</b> '+escHtml(r.pendencia)+'</div>':"")
-        +((r.abertaPor||r.trabalhandoPor)?'<div class="hint" style="margin-top:2px;font-size:11px">'
-            +(r.abertaPor?'aberta por '+escHtml(r.abertaPor)+(r.criadoEm?' em '+escHtml(_dataBR(r.criadoEm)):''):'')
-            +(r.trabalhandoPor?(r.abertaPor?' · ':'')+'em andamento com '+escHtml(r.trabalhandoPor)+(r.trabalhandoDesde?' desde '+escHtml(_dataBR(r.trabalhandoDesde)):''):'')+'</div>':"")
+      const pz=_prazoSolic(r,hoje), st=SOLIC_STATUS[r.status]?r.status:"nova";
+      return '<div class="sol st-'+st+'" data-sol-id="'+escHtml(r.id)+'">'
+        +'<div class="sol-cab"><div class="sol-emp">'+escHtml(r.empresa||"(sem empresa)")+"</div>"
+        +'<span class="sol-st">'+escHtml(SOLIC_STATUS[r.status]||r.status||"")+"</span></div>"
+        +'<div class="sol-meta"><span>'+escHtml(T[r.tipo]||r.tipo||"")+"</span>"
+          +(r.cnpj?"<span>"+escHtml(r.cnpj)+"</span>":"")
+          +(r.responsavel?"<span>resp. "+escHtml(r.responsavel)+"</span>":"")
+          +(pz?'<span class="sol-prazo '+pz.cls+'">'+escHtml(pz.txt)+"</span>":"")+"</div>"
+        +(r.status==="concluida"?'<div class="selo-fim">✓ Finalizada'+(r.finalizadoEm?" em "+escHtml(_dataBR(r.finalizadoEm)):"")+(r.finalizadoPor?" por "+escHtml(r.finalizadoPor):"")+"</div>":"")
+        // o recado é o que o comercial tem de resolver: vem antes da descrição, em destaque
+        +(r.pendencia?'<div class="sol-recado"><b>Recado:</b> '+escHtml(r.pendencia)+"</div>":"")
+        +(r.obs?'<div class="sol-desc" title="Toque para ver tudo">'+escHtml(r.obs)+"</div>":"")
         // o anexo aparece na própria lista: quem vai cadastrar abre o áudio ou a foto sem entrar em modo de edição
-        +((r.anexos||[]).length?'<div class="bar" style="margin-top:6px;gap:6px">'+r.anexos.map(a=>
-            '<a class="btn s mini" href="'+escHtml(a.url||"#")+'" target="_blank" rel="noopener noreferrer" title="'+escHtml(a.nome||"")+' · '+_tam(a.tamanho)+'">'
-            +_ICONE(a.tipo||"")+' '+escHtml((a.nome||"arquivo").slice(0,26))+'</a>').join("")+'</div>':"")
-        +'<div class="bar" style="margin-top:6px">'
+        +((r.anexos||[]).length?'<div class="sol-anexos">'+r.anexos.map(a=>
+            '<a class="btn s mini" href="'+escHtml(a.url||"#")+'" target="_blank" rel="noopener noreferrer" title="'+escHtml(a.nome||"")+" · "+_tam(a.tamanho)+'">'
+            +_ICONE(a.tipo||"")+" "+escHtml((a.nome||"arquivo").slice(0,26))+"</a>").join("")+"</div>":"")
+        +_contatoSolic(r)
+        +((r.abertaPor||r.trabalhandoPor)?'<div class="sol-rodape">'
+            +(r.abertaPor?"aberta por "+escHtml(_quem(r.abertaPor))+(r.criadoEm?" em "+escHtml(_dataBR(r.criadoEm)):""):"")
+            +(r.trabalhandoPor?(r.abertaPor?" · ":"")+"em andamento com "+escHtml(_quem(r.trabalhandoPor))+(r.trabalhandoDesde?" desde "+escHtml(_dataBR(r.trabalhandoDesde)):""):"")+"</div>":"")
+        +'<div class="sol-acoes">'
         // "Trabalhar" abre o gerador de atos — para quem só lança solicitação, é botão que não leva a lugar nenhum
-        +(_modoComercial?'':'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'" title="Marca o processo como em andamento para o comercial acompanhar. Não preenche o formulário: os dados do ato vêm do cartão CNPJ ou do contrato.">Trabalhar</button>')
+        +(_modoComercial?"":'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'" title="Marca o processo como em andamento para o comercial acompanhar. Não preenche o formulário: os dados do ato vêm do cartão CNPJ ou do contrato.">Trabalhar</button>')
         // finalizar é ato de quem faz o cadastro; o comercial acompanha, não encerra
         +((!_modoComercial && r.status!=="concluida")?'<button class="btn ok mini" data-sol-fim="'+escHtml(r.id)+'" title="Marcar o processo como finalizado — quem abriu a solicitação passa a ver">✓ Finalizar</button>':"")
         +((!_modoComercial && r.status==="concluida")?'<button class="btn o mini" data-sol-reabrir="'+escHtml(r.id)+'" title="Voltar para “Em andamento”">↺ Reabrir</button>':"")
-        +'<button class="btn o mini" data-sol-editar="'+escHtml(r.id)+'">Editar</button>'
-        +'<button class="btn o mini" data-sol-avisar="'+escHtml(r.id)+'" title="Manda a solicitação pronta por WhatsApp ou e-mail">Avisar</button>'
+        +'<button class="btn o mini" data-sol-editar="'+escHtml(r.id)+'">✎ Editar</button>'
+        +'<button class="btn o mini" data-sol-avisar="'+escHtml(r.id)+'" title="Manda a solicitação pronta por WhatsApp ou e-mail">'+(_modoComercial?"📣 Avisar cadastro":"📣 Avisar")+"</button>"
         // o comercial só exclui o que ele mesmo abriu e ainda está "nova"; em andamento é trabalho de outro
-        +((_modoComercial && !(r.status==="nova" && (!r.abertaPor || r.abertaPor===_meuEmail())))?'':'<button class="btn del mini" data-sol-excluir="'+escHtml(r.id)+'">Excluir</button>')
-        +'</div></div>';
+        +((_modoComercial && !(r.status==="nova" && (!r.abertaPor || r.abertaPor===_meuEmail())))?"":'<button class="btn del mini sol-x" data-sol-excluir="'+escHtml(r.id)+'">Excluir</button>')
+        +"</div></div>";
     }).join("");
     box.querySelectorAll("[data-sol-abrir]").forEach(b=>b.addEventListener("click",()=>trabalharSolic(b.dataset.solAbrir)));
     box.querySelectorAll("[data-sol-editar]").forEach(b=>b.addEventListener("click",()=>editarSolic(b.dataset.solEditar)));
@@ -3802,6 +3973,8 @@ window.TINA=(function(){
     box.querySelectorAll("[data-sol-excluir]").forEach(b=>b.addEventListener("click",()=>excluirSolic(b.dataset.solExcluir)));
     box.querySelectorAll("[data-sol-fim]").forEach(b=>b.addEventListener("click",()=>finalizarSolic(b.dataset.solFim,true)));
     box.querySelectorAll("[data-sol-reabrir]").forEach(b=>b.addEventListener("click",()=>finalizarSolic(b.dataset.solReabrir,false)));
+    // descrição longa vem cortada em 4 linhas; um toque abre inteira
+    box.querySelectorAll(".sol-desc").forEach(d=>d.addEventListener("click",()=>d.classList.toggle("aberta")));
   }
   /* Traz da nuvem o que não existe aqui (outro computador, ou navegador limpo).
      Não sobrescreve o que é mais novo localmente — em conflito, o mais recente vence. */
@@ -5906,17 +6079,25 @@ window.TINA=(function(){
     if($("btnPainelM")) $("btnPainelM").addEventListener("click",()=>$("btnPainel").click());
     if($("btnEmailM")) $("btnEmailM").addEventListener("click",()=>$("btnEmail").click());
     if($("btnSolic")) $("btnSolic").addEventListener("click",()=>{ abrirSolic(); sincronizarSolic(); });
-    if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>$("solicModal").classList.remove("open"));
+    // fechar a janela com o formulário aberto descarta o que estava sendo lançado, como o Cancelar
+    if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>{ if(_formSolicAberto()) cancelarFormSolic(); $("solicModal").classList.remove("open"); });
     if($("btnSolicNova")) $("btnSolicNova").addEventListener("click",novaSolic);
     if($("btnSolicSalvar")) $("btnSolicSalvar").addEventListener("click",gravarSolic);
-    if($("btnSolicCancelar")) $("btnSolicCancelar").addEventListener("click",()=>{
-      descartarAnexosSoltos();
-      _solicEditando=null;_solicNovoId=null;_anexos=[];_anexosDoBanco=[];renderAnexos();
-      $("solicForm").style.display="none";});
+    if($("btnSolicCancelar")) $("btnSolicCancelar").addEventListener("click",cancelarFormSolic);
     ligarAnexos();
     ligarCnpjSolic();
     if($("solicBusca")) $("solicBusca").addEventListener("input",renderSolic);
     if($("solicFiltro")) $("solicFiltro").addEventListener("change",renderSolic);
+    if($("solicChips")) $("solicChips").addEventListener("click",e=>{
+      const b=e.target.closest("[data-f]"); if(!b) return;
+      $("solicFiltro").value=b.dataset.f; renderSolic();
+      const j=$("solicModal").querySelector(".modal"); if(j) j.scrollTop=0; });
+    // digitar data no celular é o pior campo do formulário: os prazos comuns ficam a um toque
+    if($("sPrazoAtalhos")) $("sPrazoAtalhos").addEventListener("click",e=>{
+      const b=e.target.closest("[data-prazo]"); if(!b) return;
+      const d=new Date(); d.setDate(d.getDate()+Number(b.dataset.prazo));
+      const el=$("sPrazo"); el.value=String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear();
+      el.classList.remove("bad"); el.classList.add("good"); });
     if($("sCnpj")) $("sCnpj").addEventListener("input",function(){this.value=fmtCnpj(this.value);});
     if($("sPrazo")) attachData($("sPrazo"));
     /* Portão: cobre o sistema até alguém da equipe entrar.
