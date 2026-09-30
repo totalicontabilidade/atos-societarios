@@ -143,6 +143,27 @@
       });
   }
 
+  /* Troca de senha pelo próprio usuário: o Firebase manda um link para o e-mail e a senha nova é
+     digitada na página dele — nunca passa por aqui. A resposta é a MESMA exista a conta ou não:
+     dizer "este e-mail não está cadastrado" entregaria, a qualquer um, a lista de quem é da equipe. */
+  function redefinirSenha(email) {
+    if (!pronto) return Promise.resolve({ ok: false, msg: motivo || "nuvem não configurada" });
+    var em = String(email || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return Promise.resolve({ ok: false, msg: "informe o seu e-mail no campo acima" });
+    try { auth.languageCode = "pt-BR"; } catch (e) {}
+    return auth.sendPasswordResetEmail(em)
+      .then(function () { return { ok: true }; })
+      .catch(function (e) {
+        var c = (e && e.code) || "";
+        if (/user-not-found/.test(c)) return { ok: true };
+        var m = /invalid-email/.test(c) ? "e-mail inválido"
+              : /too-many-requests/.test(c) ? "muitas tentativas — aguarde alguns minutos"
+              : /network/.test(c) ? "sem conexão"
+              : (e && e.message) || "não foi possível enviar o e-mail";
+        return { ok: false, msg: m };
+      });
+  }
+
   function sair() { limparAcesso(); return pronto ? auth.signOut().catch(function () {}) : Promise.resolve(); }
 
   // devolve BOOLEANO de verdade: sem o !! isto entregava null quando ninguém estava logado,
@@ -359,6 +380,7 @@
     estado: estado,
     aoMudar: function (fn) { if (typeof fn === "function") { _ouvintes.push(fn); try { fn(estado()); } catch (e) {} } },
     entrar: entrar,
+    redefinirSenha: redefinirSenha,
     sair: sair,
     podeGravar: podeGravar,
     salvar: salvar,

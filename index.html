@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.39" />
+<meta name="versao" content="1.40" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -289,6 +289,9 @@
   .pt-box label{display:block;font-size:12px;color:var(--muted);margin:10px 0 3px}
   .pt-box input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
   .pt-box .btn{width:100%;margin-top:16px;justify-content:center}
+  .pt-link{display:block;width:100%;margin-top:12px;padding:4px;background:none;border:0;font:inherit;font-size:12.5px;color:var(--navy);text-decoration:underline;cursor:pointer;text-align:center}
+  .pt-link:disabled{opacity:.55;cursor:default}
+  .pt-link:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:6px}
   .pt-stat{font-size:12.5px;margin-top:10px;min-height:16px;text-align:center}
   /* Espera: anel girando em volta do ícone do sistema */
   #ptEspera{text-align:center;padding:34px 24px}
@@ -358,6 +361,8 @@
     <label for="ptSenha">Senha</label>
     <input type="password" id="ptSenha" autocomplete="current-password" required>
     <button class="btn p" type="submit" id="btnPtEntrar">Entrar</button>
+    <!-- type="button": dentro do form, sem isto o clique enviaria o login. -->
+    <button type="button" class="pt-link" id="btnPtSenha">Esqueci ou quero alterar a senha</button>
     <div class="pt-stat" id="ptStat"></div>
   </form>
 </div>
@@ -1334,13 +1339,13 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.39"></script>
-<script defer src="js/nuvem.js?v=1.39"></script>
-<script defer src="js/integracao.js?v=1.39"></script>
-<script defer src="js/modelos-coop.js?v=1.39"></script>
-<script defer src="js/gerador-coop.js?v=1.39"></script>
-<script defer src="js/modelos-sa.js?v=1.39"></script>
-<script defer src="js/gerador-sa.js?v=1.39"></script>
+<script defer src="js/nuvem-config.js?v=1.40"></script>
+<script defer src="js/nuvem.js?v=1.40"></script>
+<script defer src="js/integracao.js?v=1.40"></script>
+<script defer src="js/modelos-coop.js?v=1.40"></script>
+<script defer src="js/gerador-coop.js?v=1.40"></script>
+<script defer src="js/modelos-sa.js?v=1.40"></script>
+<script defer src="js/gerador-sa.js?v=1.40"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -6141,6 +6146,19 @@ window.TINA=(function(){
       const r=await window.Nuvem.entrar(email,senha);
       if($("ptSenha")) $("ptSenha").value="";
       if(!r.ok){ mostrarPortao(true,"login"); st.style.color="var(--err)"; st.textContent=r.msg; }
+    });
+    /* Alterar a senha por e-mail. Usa o e-mail já digitado no campo de cima; a senha nova é
+       escolhida na página do link, não aqui. O botão fica travado enquanto envia para o clique
+       repetido não disparar vários e-mails (e o bloqueio por excesso de tentativas). */
+    if($("btnPtSenha")) $("btnPtSenha").addEventListener("click",async()=>{
+      const b=$("btnPtSenha"), st=$("ptStat"), c=$("ptEmail");
+      const email=((c||{}).value||"").trim();
+      if(!email){ st.style.color="var(--err)"; st.textContent="Informe o seu e-mail no campo acima e clique de novo."; if(c) c.focus(); return; }
+      b.disabled=true; st.style.color="var(--muted)"; st.textContent="Enviando…";
+      const r=await window.Nuvem.redefinirSenha(email);
+      b.disabled=false;
+      if(r.ok){ st.style.color="var(--ok)"; st.textContent="Se este e-mail for de uma conta da equipe, o link para criar a nova senha foi enviado. Confira também o spam."; }
+      else{ st.style.color="var(--err)"; st.textContent=r.msg; if(c) c.focus(); }
     });
     if(window.Nuvem){
       window.Nuvem.iniciar();
