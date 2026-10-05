@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.43" />
+<meta name="versao" content="1.45" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -678,7 +678,7 @@
         <div><label for="enquadramento">Enquadramento <span class="hint" id="hintEnqSA" style="display:none">— S.A. nunca é ME/EPP (LC 123, art. 3º, § 4º, X)</span></label>
           <select id="enquadramento"><option value="ME">Microempresa (ME)</option><option value="EPP">Empresa de Pequeno Porte (EPP)</option><option value="DEMAIS">Demais</option></select></div>
         <div><label for="foro">Foro (comarca)</label><input type="text" id="foro" placeholder="Ex.: Aracaju"></div>
-        <div></div>
+        <div><label for="foroUF">UF do foro</label><select id="foroUF"></select></div>
       </div>
       <div class="row disthide"><label for="objeto" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Objeto social <span class="hint">— atividades separadas por ";"</span><button type="button" class="btn s mini" id="btnObjetos" title="Inserir ou salvar modelos de objeto social" style="margin-left:auto">📋 Modelos</button></label>
         <textarea id="objeto" placeholder="Ex.: Comércio varejista de artigos diversos; Prestação de serviços de consultoria"></textarea>
@@ -846,8 +846,9 @@
 
     <div class="card">
       <h2><span class="n">5</span> Local e data do ato</h2>
-      <div class="grid g2 row">
+      <div class="grid g3 row">
         <div><label for="atoCidade">Cidade do ato <span class="hint" id="atoCidadeDica">— segue a sede; digite para fixar outra</span></label><input type="text" id="atoCidade" placeholder="Aracaju"></div>
+        <div><label for="atoUF">UF do ato</label><select id="atoUF"></select></div>
         <div><label for="atoData">Data do ato / início das atividades <span class="hint">— na constituição, coincidem</span></label><input type="text" id="atoData" placeholder="DD/MM/AAAA"></div>
       </div>
     </div>
@@ -1341,13 +1342,13 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.43"></script>
-<script defer src="js/nuvem.js?v=1.43"></script>
-<script defer src="js/integracao.js?v=1.43"></script>
-<script defer src="js/modelos-coop.js?v=1.43"></script>
-<script defer src="js/gerador-coop.js?v=1.43"></script>
-<script defer src="js/modelos-sa.js?v=1.43"></script>
-<script defer src="js/gerador-sa.js?v=1.43"></script>
+<script defer src="js/nuvem-config.js?v=1.45"></script>
+<script defer src="js/nuvem.js?v=1.45"></script>
+<script defer src="js/integracao.js?v=1.45"></script>
+<script defer src="js/modelos-coop.js?v=1.45"></script>
+<script defer src="js/gerador-coop.js?v=1.45"></script>
+<script defer src="js/modelos-sa.js?v=1.45"></script>
+<script defer src="js/gerador-sa.js?v=1.45"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -1854,6 +1855,8 @@ window.TINA=(function(){
       capital:cap,valorQuota:vq,numQuotas:vq>0?Math.round(cap/vq):0,modoAdm:$("modoAdm").value,integralizacao:v("integralizacao"),
       socios:socios.map(s=>{const q=Number(s.quotas)||0;return{...s,quotas:q,valorQuotas:q*vq,percentual:cap>0?(q*vq/cap*100):0};}),
       atoCidade:v("atoCidade"),atoData:v("atoData"),
+      // UF própria do foro e do local do ato: antes os dois saíam sempre com a UF da SEDE, sem perguntar
+      foroUF:v("foroUF").toUpperCase(), atoUF:v("atoUF").toUpperCase(),
       capitalAnterior:Number($("capitalAnterior")&&$("capitalAnterior").value)||0,
       admNaoSocio:!!($("admNaoSocio")&&$("admNaoSocio").checked), admnsNome:v("admnsNome"), admnsQualif:v("admnsQualif"),
       clRegencia:!!($("cl_regencia")&&$("cl_regencia").checked), clConselho:!!($("cl_conselho")&&$("cl_conselho").checked),
@@ -2050,7 +2053,7 @@ window.TINA=(function(){
       }
       if(CH.has("quadro")){delib("Do quadro societário",resolvem+" "+(isRetifica?"retificar":"alterar")+" a composição do quadro societário e a distribuição das quotas, que passa a ficar assim constituído:");ch.push(tabelaQuotas(dFica,X));ch.push(gap());}
       // foro: sem cláusula própria, a troca só aparecia (quando aparecia) no consolidado — alteração sem deliberação
-      if(CH.has("foro")) delib(tmud+" do foro",resolvem+" "+av+" o foro da sociedade, "+pass+" o da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" - "+(d.sede.uf||"")+".");
+      if(CH.has("foro")) delib(tmud+" do foro",resolvem+" "+av+" o foro da sociedade, "+pass+" o da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" - "+(d.foroUF||d.sede.uf||"")+".");
       if(CH.has("enquadramento")) delib("Do reenquadramento","A sociedade passa a se enquadrar como "+(d.enquadramento==="DEMAIS"?"sociedade não enquadrada como ME ou EPP":ENQ[d.enquadramento])+", nos termos da Lei Complementar nº 123/2006.");
       if((d.clausulasExtra||"").trim()) delib("Outras deliberações",d.clausulasExtra.trim());
       // Consolida OU ratifica ("permanecem inalteradas"), nunca os dois (contraditório). Como consolidamos, NÃO incluímos a ratificação.
@@ -2247,7 +2250,7 @@ window.TINA=(function(){
     }
     // XV - FORO
     abre("DO FORO");
-    pushC(corpo("Fica eleito o Foro da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" - "+(d.sede.uf||"")+", para qualquer ação fundada neste contrato, renunciando-se a qualquer outro, por mais privilegiado que seja."));
+    pushC(corpo("Fica eleito o Foro da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" - "+(d.foroUF||d.sede.uf||"")+", para qualquer ação fundada neste contrato, renunciando-se a qualquer outro, por mais privilegiado que seja."));
 
     _alvo=null;   // daqui para a frente volta a escrever direto no documento
     emitirCorpo();
@@ -2259,7 +2262,7 @@ window.TINA=(function(){
       : isTransf
       ? "E por estarem assim justos e acordados com a transformação ora deliberada, "+(plural?"assinam":"assina")+" o presente instrumento em uma única via, que será destinada ao registro e arquivamento na "+_junta()+"."
       : (pluralSig?"E por estarem em perfeito acordo":"E por estar em perfeito acordo")+", em tudo que neste instrumento particular foi lavrado, "+(pluralSig?"obrigam-se":"obriga-se")+" a cumprir o presente ato constitutivo, e "+(pluralSig?"assinam":"assina")+" o presente instrumento em uma única via que será destinada ao registro e arquivamento na "+_junta()+"."));
-    ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+" - "+(d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
+    ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+" - "+(d.atoUF||d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
     // Assinaturas — linha (1,5) para não colar no nome; nome (1,0) negrito; papel (1,0)
     d.socios.forEach(s=>{
@@ -2370,7 +2373,7 @@ window.TINA=(function(){
       if(CH.has("capital")) delib(tmud+" do capital", d.capitalAnterior>0
         ? ("O capital destacado, que era de "+reais(d.capitalAnterior)+" ("+extensoReais(d.capitalAnterior)+"), "+(isRetifica?"por erro material passa a constar":"passa a ser")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado "+formaIntegr(d,"em moeda corrente do País")+".")
         : (resolve+" "+av+" o capital destacado, "+pass+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado "+formaIntegr(d,"em moeda corrente do País")+"."));
-      if(CH.has("foro")) delib(tmud+" do foro",resolve+" "+av+" o foro, "+pass+" o da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" – "+(d.sede.uf||"")+".");
+      if(CH.has("foro")) delib(tmud+" do foro",resolve+" "+av+" o foro, "+pass+" o da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" – "+(d.foroUF||d.sede.uf||"")+".");
       if(CH.has("enquadramento")) delib("Do reenquadramento","A atividade passa a se enquadrar como "+(d.enquadramento==="DEMAIS"?"não enquadrada como ME ou EPP":ENQ[d.enquadramento])+", nos termos da Lei Complementar nº 123/2006.");
       if((d.clausulasExtra||"").trim()) delib("Outras deliberações",d.clausulasExtra.trim());
       // A JUCESE exige CONSOLIDAR *ou* ratificar ("permanecem inalteradas"), nunca os dois (contraditório). Como consolidamos, NÃO incluímos a ratificação. (IN DREI 81/2020, Manual de EI, item 3, Seção II, Cap. II)
@@ -2426,12 +2429,12 @@ window.TINA=(function(){
     }
     // FORO
     ch.push(heading(nx(),"DO FORO"));
-    ch.push(corpo("Fica eleito o foro da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" – "+(d.sede.uf||"")+" para dirimir quaisquer questões oriundas do exercício da presente atividade empresarial, com renúncia a qualquer outro, por mais privilegiado que seja."));
+    ch.push(corpo("Fica eleito o foro da Comarca de "+(d.foro||d.sede.mun||"[FORO]")+" – "+(d.foroUF||d.sede.uf||"")+" para dirimir quaisquer questões oriundas do exercício da presente atividade empresarial, com renúncia a qualquer outro, por mais privilegiado que seja."));
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(corpo(isTransf
       ? "E, por estar assim "+g("justo","justa")+" e acordado com a transformação ora deliberada, "+g("o titular assina","a titular assina")+" o presente instrumento, em via única, que será destinado ao registro e arquivamento na "+_junta()+"."
       : "E, por estar assim "+g("justo","justa")+" e "+g("firmado","firmada")+", "+g("o titular assina","a titular assina")+" o presente instrumento, em via única."));
-    ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+" – "+(d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
+    ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+" – "+(d.atoUF||d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
     ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));
     ch.push(P([T((tit.nome||"[TITULAR]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
@@ -2482,7 +2485,7 @@ window.TINA=(function(){
     const nS=socios.length, plural=nS>1;
     const admins=socios.filter(s=>s.administrador); const nA=admins.length||1, plA=admins.length>1;
     const acervo=d.acervo>0?d.acervo:d.capital, newCap=d.capital, aumentou=(newCap-acervo)>0.005;
-    const cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"");
+    const cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.atoUF||d.sede.uf||"");
     const mudou=(k)=>!!(d.changed&&d.changed.has(k));
     /* O preâmbulo qualifica a empresa como ela está HOJE na Junta — inclusive quando o endereço é
        uma das coisas que este ato muda. Colocar ali o endereço novo descreve uma empresa que ainda
@@ -2594,7 +2597,7 @@ window.TINA=(function(){
     cl2((plural?"Os sócios declaram":gT("O sócio declara","A sócia declara"))+(d.enquadramento==="DEMAIS"
       ? " que a sociedade não se enquadra como Microempresa (ME) nem como Empresa de Pequeno Porte (EPP), nos termos da Lei Complementar nº 123, de 14 de dezembro de 2006."
       : " que a sociedade se enquadra como "+ENQ[d.enquadramento]+", nos termos da Lei Complementar nº 123, de 14 de dezembro de 2006, e que não se enquadra em qualquer das hipóteses de exclusão relacionadas no § 4º do art. 3º da mencionada lei."));
-    cl2("As divergências sociais e os casos omissos no presente contrato são regulados pelas disposições legais vigentes, eleito o foro da cidade de "+(d.foro||d.sede.mun||"[FORO]")+"/"+(d.sede.uf||"")+" para o exercício e o cumprimento dos direitos e obrigações resultantes deste contrato, renunciando a todo e qualquer outro foro de seu eventual domicílio.");
+    cl2("As divergências sociais e os casos omissos no presente contrato são regulados pelas disposições legais vigentes, eleito o foro da cidade de "+(d.foro||d.sede.mun||"[FORO]")+"/"+(d.foroUF||d.sede.uf||"")+" para o exercício e o cumprimento dos direitos e obrigações resultantes deste contrato, renunciando a todo e qualquer outro foro de seu eventual domicílio.");
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(corpo("E, por estarem justos e contratados, "+(plural?"assinam":"assina")+" o presente instrumento particular em via única."));
     ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
@@ -2630,7 +2633,7 @@ window.TINA=(function(){
     const corpo=(t)=>P(R(t),JUST,SP15);
     const g=(m,f)=>gsex(tit,m,f);
     const space=()=>new Paragraph({spacing:{after:120,line:240,lineRule:AUTO}});
-    const cap=d.capital, cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"");
+    const cap=d.capital, cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.atoUF||d.sede.uf||"");
     // preâmbulo com o endereço REGISTRADO HOJE (o novo só na cláusula e no instrumento consolidado)
     const sedeCabEI=(d.changed&&d.changed.has("sede")&&(d.sedeAnterior||"").trim())?d.sedeAnterior.trim():endLinha(d.sede);
     const sign=(nome,papel)=>{ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true));ch.push(P([T((nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0,true));ch.push(P([T(papel)],CEN,{after:220,line:240,lineRule:AUTO}));};
@@ -2742,7 +2745,8 @@ window.TINA=(function(){
     const esc={ prazo:c.prazo, admissao:trab?"restrita":c.admissao, responsabilidade:c.resp, orgao:conselho?"conselho":"diretoria", rateio:c.rateio,
       livros:c.livros?"sim":"nao", enquadramento:(c.consumo&&d.enquadramento!=="DEMAIS")?d.enquadramento:"", objetoTrab:c.objetoTrab, fiscal:trab?c.fiscal:"completo" };
     const achar=(nome)=>d.socios.find(s=>(s.nome||"").trim()===(nome||"").trim())||{nome:nome||"",sexo:"M"};
-    const dAta={ denominacao:denomUP, data:d.atoData, hora:c.hora, local:c.local, sedeLinha:endLinha(d.sede), cidade:d.sede.mun, uf:d.sede.uf, tipo:c.tipo,
+    // cidade/uf aqui só servem para o fecho ("Cidade/UF, data") — é o LOCAL DO ATO, não a sede
+    const dAta={ denominacao:denomUP, data:d.atoData, hora:c.hora, local:c.local, sedeLinha:endLinha(d.sede), cidade:(d.atoCidade||d.sede.mun), uf:(d.atoUF||d.sede.uf), tipo:c.tipo,
       fundadores:d.socios, valorQuota:c.valorQuota, integrPadrao:c.integrPadrao, presidenteMesa:achar(c.presMesa), secretarioMesa:achar(c.secMesa), mesaOutros:"",
       orgao:c.orgao, mandatoAte:c.mandatoAte, objeto:d.objeto };
     const ch=[];
@@ -2757,7 +2761,7 @@ window.TINA=(function(){
       const bate=(b,t)=>{ if(!b.art) return false; const txt=JSON.stringify(b); return (t.ph||[]).some(p=>txt.indexOf(p)>=0) || (t.re && t.re.test(b.txt||"")); };
       const temas=(c.temas||[]).filter(k=>TEMAS[k]);
       const artigosNovos=temas.map(k=>({ paras:G.estatuto({blocos:modelo.blocos.filter(b=>bate(b,TEMAS[k]))},vals,esc,h) })).filter(a=>a.paras.length);
-      const cidadeUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"");
+      const cidadeUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.atoUF||d.sede.uf||"");
       const dR={ denominacaoUP:denomUP, cnpj:d.cnpj, nire:d.nire, sedeLinha:endLinha(d.sede), local:c.local, cidadeUF, data:d.atoData, hora:c.hora, trab, convocForma:c.convocForma, convocN:c.convocN, total:c.totalAssoc, presentes:c.presentes,
         presNome:c.presNome, secNome:c.secNome, secSexo:c.secSexo, votos:{modo:c.votos,favor:c.favor,contra:c.contra,abst:c.abst}, temas:temas.map(k=>TEMAS[k].rot), artigosNovos, presentesCards:d.socios };
       G.ataReforma(dR,h).forEach(p=>ch.push(p));
@@ -2782,7 +2786,7 @@ window.TINA=(function(){
     ch.push(P([T(denomUP,{bold:true})],CEN,SP10));
     G.estatuto(modelo,vals,esc,h).forEach(p=>ch.push(p));
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
-    ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
+    ch.push(P([T((d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.atoUF||d.sede.uf||"")+", "+dataExtenso(d.atoData))],CEN,SP15));
     ch.push(new Paragraph({spacing:{after:240,line:240,lineRule:AUTO}}));
     // o estatuto, quando não transcrito na ata, leva a assinatura de todos os fundadores (Manual, 9.6)
     d.socios.forEach(s=>{ ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true)); ch.push(P([T((s.nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0,true));
@@ -2841,12 +2845,12 @@ window.TINA=(function(){
     const achar=(nome)=>{ const n=(nome||"").trim(); const s=acionistas.find(x=>((x.tipoPessoa==="PJ"?x.pjRep:x.nome)||"").trim()===n);
       if(!s) return {nome:n,sexo:"M"}; return s.tipoPessoa==="PJ"?{nome:s.pjRep,sexo:s.repSexo||"M"}:s; };
     BOLDS.push(...acionistas.filter(s=>s.tipoPessoa==="PJ").map(s=>(s.pjRep||"").toUpperCase()));
-    const cidadeUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.sede.uf||"");
+    const cidadeUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+"/"+(d.atoUF||d.sede.uf||"");
     const dd={ denominacaoUP, razaoAnteriorUP:razAntUP, cnpj:d.cnpj, nire:d.nire, junta:_junta(), sedeLinha:endLinha(d.sede),
       sedeAnteriorLinha:((d.sedeAnterior||"").trim()||endLinha(d.sede)), capital:d.capital, numQuotas:d.numQuotas, valorAcao:d.valorQuota, acionistas, diretores,
       presMesa:achar(c.presMesa), secMesa:achar(c.secMesa), hora:c.hora, local:c.local, data:d.atoData, mandato:c.mandato, fimMandato:somarAnos(d.atoData,c.mandato),
       cidadeUF, cidade:d.sede.mun, uf:d.sede.uf, objeto:d.objeto, banco:c.banco, entradaPct:(c.entradaPct||10)/100, dataInicioOrig:d.dataInicioOrig,
-      enquadramento:d.enquadramento, enquadramentoNome:ENQ[d.enquadramento]||"", foro:d.foro, honorarios:c.honorarios };
+      enquadramento:d.enquadramento, enquadramentoNome:ENQ[d.enquadramento]||"", foro:d.foro, foroUF:(d.foroUF||d.sede.uf), honorarios:c.honorarios };
     const quebra=(titulo)=>{ ch.push(new Paragraph({alignment:CEN,spacing:SP10_0,style:"QuebraPagina",pageBreakBefore:true,children:[T(titulo,{bold:true})]})); };
     const ch=[];
     const assinaPF=(nome,papel)=>{ ch.push(P([T("_".repeat(46))],CEN,SPLINE15_0,true)); ch.push(P([T((nome||"[NOME]").toUpperCase(),{bold:true})],CEN,SP10_0,true)); ch.push(P([T(papel)],CEN,{after:220,line:240,lineRule:AUTO})); };
@@ -2937,7 +2941,7 @@ window.TINA=(function(){
     const g=(m,f)=>gsex(tit,m,f);
     const nS=socios.length, plural=nS>1;
     const inicio=d.dataInicioOrig||"[INÍCIO]", encer=d.dataEncerramento||d.atoData||"[ENCERRAMENTO]";
-    const cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+" - "+(d.sede.uf||"");
+    const cidUF=(d.atoCidade||d.sede.mun||"[CIDADE]")+" - "+(d.atoUF||d.sede.uf||"");
     const ord=["Primeira","Segunda","Terceira","Quarta","Quinta","Sexta"]; let oi=0;
     const cl=(txt)=>ch.push(P([T("Cláusula "+ord[oi++]+". ",{bold:true}),...R(txt)],JUST,SP15));
     const sedeStr=endLinha(d.sede);
@@ -3094,6 +3098,8 @@ window.TINA=(function(){
     if(!d.razao) f.push(isEI?"Nome empresarial":(saAcoesV?"Denominação da companhia":"Razão social"));
     if(!isDist && !d.objeto) f.push("Objeto social");
     if(!isDist && !d.foro) f.push("Foro (comarca)");
+    if(!isDist && !d.foroUF) f.push("UF do foro");
+    if(!d.atoUF) f.push("UF do local do ato");
     const s=d.sede||{}, sm=[]; ["cep","log","num","bairro","mun","uf"].forEach(k=>{if(!s[k])sm.push(k);});
     if(sm.length) f.push("Endereço da sede: "+sm.join(", "));
     // a cooperativa tem capital mínimo e quota-parte próprios (card da cooperativa), não o capital da Ltda
@@ -4101,6 +4107,9 @@ window.TINA=(function(){
       let cs=lerCasos(); const tr=lerTrabalhos();
       const remoto={}; r.itens.forEach(x=>remoto[x.id]=x);
       let mudou=false, mudouTr=false;
+      // números excluídos não voltam a ser usados; lápide com dado pessoal por cima volta a ser só lápide
+      marcarIdsExcluidos(r.itens.filter(x=>x&&x.excluido).map(x=>x.id));
+      r.itens.filter(lapideSuja).slice(0,80).forEach(x=>window.Nuvem.excluir("atos",x.id));
       // 1) desce: novos, mais recentes e exclusões
       r.itens.forEach(rem=>{
         if(rem.excluido){                                     // apagado noutro computador
@@ -4132,7 +4141,9 @@ window.TINA=(function(){
         const t=tr[c.id]; const dados=Object.assign({},c,{alteradoEm:c.alteradoEm||new Date(c.criadoEm||Date.now()).toISOString()});
         if(t&&t.snap&&!_atoConcluido(c)) dados.trabalho=t.snap;
         return window.Nuvem.salvar("atos",c.id,dados);
-      })).then(()=>{ if(subir.length) salvarCasos(cs); return faxina; });
+      })).then(()=>faxina);
+      /* Aqui havia um salvarCasos(cs) com a lista lida ANTES do envio. Nada nela muda na subida —
+         e, se um caso fosse criado enquanto o envio corria, a lista velha o apagava daqui. */
     });
   }
   /* Espelho ao vivo do painel de casos. Antes o painel só mudava quando alguém o abria de novo:
@@ -4144,6 +4155,8 @@ window.TINA=(function(){
     if(_pararEspelhoAtos||!(window.Nuvem&&window.Nuvem.ouvirColecao&&window.Nuvem.podeGravar())) return;
     _pararEspelhoAtos=window.Nuvem.ouvirColecao("atos",(mudancas)=>{
       let cs=lerCasos(); const tr=lerTrabalhos(); let mudou=false, mudouTr=false;
+      marcarIdsExcluidos(mudancas.filter(m=>m.saiu).map(m=>m.item&&m.item.id));
+      mudancas.filter(m=>lapideSuja(m.item)).slice(0,80).forEach(m=>window.Nuvem.excluir("atos",m.item.id));
       mudancas.forEach(({saiu,item})=>{
         if(saiu){
           if(cs.some(c=>c.id===item.id)){ cs=cs.filter(c=>c.id!==item.id); mudou=true; }
@@ -4335,10 +4348,28 @@ window.TINA=(function(){
         try{localStorage.setItem("tinaCasos",JSON.stringify(a));return true;}catch(_){}
       }
       console.warn("localStorage indisponível/cheio:",e);return false;}}
+  /* Números de caso que já foram EXCLUÍDOS. O caso excluído sai da lista daqui, mas na nuvem fica
+     a lápide com o mesmo número — e o número não pode ser usado de novo: o caso novo era gravado
+     por cima da lápide, herdava o "excluído", e o espelho da nuvem o apagava daqui na mesma hora.
+     Resultado: "O caso deste ato não foi encontrado" em todo download, para sempre, porque o
+     número seguinte era sempre o mesmo. Guarda só os números (nada de dado pessoal). */
+  const IDS_EXCL_MAX=3000;
+  function lerIdsExcluidos(){ try{ const a=JSON.parse(localStorage.getItem("tinaIdsExcluidos")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+  function marcarIdsExcluidos(ids){
+    ids=(ids||[]).filter(x=>typeof x==="string"&&x); if(!ids.length) return;
+    const s=new Set(lerIdsExcluidos()); let novo=false;
+    ids.forEach(i=>{ if(!s.has(i)){ s.add(i); novo=true; } });
+    if(novo){ try{ localStorage.setItem("tinaIdsExcluidos",JSON.stringify([...s].slice(-IDS_EXCL_MAX))); }catch(e){} }
+  }
+  /* Lápide é só o número e a data da exclusão. Se trouxer mais que isso, alguém gravou por cima
+     dela (era o defeito acima) e há dado pessoal guardado num caso que devia estar apagado. */
+  const CAMPOS_LAPIDE=new Set(["id","excluido","excluidoEm","autorUid","autorEmail","atualizadoEm"]);
+  function lapideSuja(x){ return !!(x && x.excluido && Object.keys(x).some(k=>!CAMPOS_LAPIDE.has(k))); }
   function novoIdCaso(dataStr){const dp=(dataStr||hojeBR()).split("/"); const ymd=dp.length===3?(dp[2]+String(dp[1]).padStart(2,"0")+String(dp[0]).padStart(2,"0")):"00000000";
     // usa o MAIOR sequencial do dia, não a contagem: apagar um caso deixaria buracos e geraria ID repetido
-    // (com ID repetido, a confirmação do cliente acabaria gravada no caso errado).
-    let max=0; lerCasos().forEach(c=>{ if(c&&typeof c.id==="string"&&c.id.indexOf(ymd)===0){ const n=parseInt(c.id.slice(9),10); if(n>max)max=n; } });
+    // (com ID repetido, a confirmação do cliente acabaria gravada no caso errado). Os excluídos contam.
+    let max=0; const ve=id=>{ if(typeof id==="string"&&id.indexOf(ymd)===0){ const n=parseInt(id.slice(9),10); if(n>max)max=n; } };
+    lerCasos().forEach(c=>ve(c&&c.id)); lerIdsExcluidos().forEach(ve);
     return ymd+"-"+String(max+1).padStart(4,"0");}
   function registrarCaso(){const d=coletar(); const data=d.atoData||hojeBR(); const cs=lerCasos();
     /* O MESMO carimbo vai para o registro daqui e para o da nuvem. Antes o carimbo só existia na
@@ -4346,15 +4377,17 @@ window.TINA=(function(){
        recente", então a sincronização seguinte escrevia a cópia da nuvem por cima do que acabara
        de ser alterado aqui. */
     const agora=new Date().toISOString();
-    let c=casoAtualId?cs.find(x=>x.id===casoAtualId):null;
+    let c=casoAtualId?cs.find(x=>x.id===casoAtualId):null, criou=false;
     if(c){ c.empresa=(d.razao||"").toUpperCase(); c.cnpj=d.cnpj||""; c.tipo=tipoAto(d); c.data=data; c.modo=MODE; c.alteradoEm=agora; }
-    else { c={id:novoIdCaso(data),empresa:(d.razao||"").toUpperCase(),cnpj:d.cnpj||"",tipo:tipoAto(d),data:data,modo:MODE,criadoEm:Date.now(),alteradoEm:agora}; cs.push(c); casoAtualId=c.id; }
+    else { c={id:novoIdCaso(data),empresa:(d.razao||"").toUpperCase(),cnpj:d.cnpj||"",tipo:tipoAto(d),data:data,modo:MODE,criadoEm:Date.now(),alteradoEm:agora}; cs.push(c); casoAtualId=c.id; criou=true; }
     salvarCasos(cs);
     /* Nuvem: o cadastro do ato vai junto com o TRABALHO INTEIRO (decisão do escritório) para
        permitir retomar de outro computador. É dado pessoal — por isso só a equipe logada lê,
        e a exclusão apaga de verdade (ver firestore.rules). */
     if(window.Nuvem&&window.Nuvem.podeGravar()){
-      window.Nuvem.salvar("atos",c.id,Object.assign({},c,{trabalho:snapshotForm()}));
+      // caso NOVO substitui o documento: nunca herda nada do que houver na nuvem com esse número
+      // (uma lápide que este navegador ainda não conhecia, por exemplo)
+      window.Nuvem.salvar("atos",c.id,Object.assign({},c,{trabalho:snapshotForm()}),criou?{substituir:true}:undefined);
       window.Nuvem.trilha("ato.salvar",c.id,c.tipo||"");
     }
     return c;}
@@ -4366,7 +4399,7 @@ window.TINA=(function(){
     const soc=(d.socios||[]).map(s=>[(s.nome||"").trim().toUpperCase(),s.cpf||"",s.tipoPessoa||"PF",s.quotas||0,s.administrador?1:0,s.pjRep||"",s.pjCnpj||""].join("|")).join("~");
     const chg=d.changed?[...d.changed].sort().join(","):"";
     return _hashStr([MODE,d.razao,d.fantasia,d.cnpj,d.nire,d.numAlteracao,d.capital,d.capitalAnterior,d.numQuotas,d.valorQuota,d.objeto,
-      JSON.stringify(d.sede),d.enquadramento,d.modoAdm,d.integralizacao,d.atoData,d.atoCidade,d.foro,
+      JSON.stringify(d.sede),d.enquadramento,d.modoAdm,d.integralizacao,d.atoData,d.atoCidade,d.foro,d.foroUF,d.atoUF,
       d.dataInicioOrig,d.retifica?1:0,d.retificaRef,d.clausulasExtra,d.acervo,d.dataEncerramento,d.guardiaoLivros,d.haveres,
       // tudo o que entra no documento precisa entrar aqui: senão dá para acrescentar uma cessão de quotas,
       // um administrador ou uma filial DEPOIS de o cliente confirmar, e o portão libera sem reconfirmar.
@@ -4411,7 +4444,11 @@ window.TINA=(function(){
      ("armazenamento cheio"), inclusive quando o caso simplesmente não tinha sido encontrado — e
      aí a mensagem mandava exportar backup e apagar casos, que não resolvia nada. */
   function _gravarConfirmacao(via,nota){
-    const cs=lerCasos(); const c=cs.find(x=>x.id===casoAtualId);
+    let cs=lerCasos(), c=cs.find(x=>x.id===casoAtualId);
+    /* O caso sumiu entre abrir a janela e confirmar (excluído por outra pessoa, navegador sem
+       espaço, sincronização no meio do caminho). Registrar de novo resolve aqui mesmo — mandar
+       fechar e baixar outra vez não resolvia nada quando a causa persistia. */
+    if(!c){ registrarCaso(); cs=lerCasos(); c=cs.find(x=>x.id===casoAtualId); }
     if(!c) return {ok:false,motivo:"caso"};
     c.confirmado=true; c.confirmHash=_gateHash;
     c.confirmadoEm=($("gateData")&&$("gateData").value.trim())||hojeBR();
@@ -4510,7 +4547,7 @@ window.TINA=(function(){
       const del=tr.querySelector("[data-del]"); if(del)del.addEventListener("click",()=>{
         const tem=temTrabalho(id);
         if(confirm("Remover este caso do painel?"+(tem?" O ato guardado (com os dados preenchidos) também será apagado.":" (não afeta documentos já baixados)"))){
-          salvarCasos(lerCasos().filter(x=>x.id!==id)); excluirTrabalho(id); if(casoAtualId===id)casoAtualId=null;
+          salvarCasos(lerCasos().filter(x=>x.id!==id)); excluirTrabalho(id); marcarIdsExcluidos([id]); if(casoAtualId===id)casoAtualId=null;
           // exclusão de verdade também na nuvem; só a trilha (sem dado pessoal) sobrevive
           if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.excluir("atos",id); window.Nuvem.trilha("ato.excluir",id,""); }
           renderPainel();}});
@@ -4627,7 +4664,7 @@ window.TINA=(function(){
     $("cnpj").value="12.345.678/0001-95";$("nire").value="28200123456";$("numAlteracao").value="3";$("dataInicioOrig").value="10/05/2015";
     ["nome","fantasia","capital","quadro","enquadramento","foro"].forEach(k=>{if($("alt_"+k))$("alt_"+k).checked=false;});
     if($("alt_sede"))$("alt_sede").checked=true; if($("alt_objeto"))$("alt_objeto").checked=true;
-    recalc();}
+    completarUFs(); recalc();}
   /* ===== Cidade do ato =====
      Por padrão ela ACOMPANHA o município da sede: quando o ato muda o endereço, o documento
      saía assinado na cidade antiga com a sede nova — duas cidades no mesmo ato. Continua sendo
@@ -4635,8 +4672,30 @@ window.TINA=(function(){
      na sede da matriz), e a partir daí o campo não é mais mexido sozinho. Apagar o campo devolve
      o acompanhamento automático. */
   let _cidadeAtoManual=false;
+  /* UF do foro e do local do ato. Antes não havia campo: os dois saíam sempre com a UF da sede,
+     sem perguntar — foro ou assinatura em outro estado ficavam errados no documento. Agora são
+     campos próprios. Começam com a UF da sede (o caso comum) e, como a cidade do ato, a UF do ato
+     acompanha a sede até a pessoa escolher outra. A do foro só é preenchida quando está vazia:
+     foro é escolha do contrato. */
+  let _ufAtoManual=false;
+  function completarUFs(){
+    const su=(($("s_uf")||{}).value||"").trim(); if(!su) return;
+    const fu=$("foroUF"), au=$("atoUF");
+    const cid=x=>String(x||"").normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"").replace(/\s+/g," ").trim().toLowerCase();
+    if(fu && (!fu.value || (cid(($("foro")||{}).value) && cid(($("foro")||{}).value)===cid(($("s_mun")||{}).value)))) fu.value=su;   // foro na cidade da sede = mesma UF
+    if(au && (!au.value || (!_ufAtoManual && !_cidadeAtoManual && au.value!==su))) au.value=su;
+  }
+  /* "Aracaju - SE" / "Aracaju/SE" digitado no campo da cidade: a UF vai para o campo dela, para
+     não sair dobrada no documento ("Aracaju - SE - SE"). */
+  function separarUF(idCidade,idUF){
+    const c=$(idCidade), u=$(idUF); if(!c||!u) return false;
+    const m=String(c.value||"").match(/^(.*?\S)\s*[-–\/,]\s*([A-Za-z]{2})\s*$/);
+    if(!m || UFS.indexOf(m[2].toUpperCase())<0) return false;
+    c.value=m[1].trim(); u.value=m[2].toUpperCase(); return true;
+  }
   function sincronizarCidadeAto(){
     const c=$("atoCidade"), m=$("s_mun"); if(!c||!m) return;
+    completarUFs();
     if(_cidadeAtoManual) return;
     const mun=(m.value||"").trim();
     if(mun && c.value!==mun){ c.value=mun; c.classList.add("revisar"); }
@@ -4651,6 +4710,10 @@ window.TINA=(function(){
       if(dica) dica.textContent=_cidadeAtoManual?"— fixada por você; apague para voltar a seguir a sede":"— segue a sede; digite para fixar outra";
       if(!_cidadeAtoManual) sincronizarCidadeAto();
     });
+    c.addEventListener("change",()=>{ if(separarUF("atoCidade","atoUF")) _ufAtoManual=true; });
+    const au=$("atoUF"); if(au) au.addEventListener("change",()=>{ _ufAtoManual=!!au.value; if(!au.value) completarUFs(); });
+    const f=$("foro"); if(f) f.addEventListener("change",()=>{ separarUF("foro","foroUF"); completarUFs(); });
+    const su=$("s_uf"); if(su) su.addEventListener("change",completarUFs);
     ["input","change"].forEach(ev=>m.addEventListener(ev,sincronizarCidadeAto));
     // foro: guarda o município ao entrar no campo e confere ao sair (não a cada tecla)
     let munFoco="";
@@ -4673,15 +4736,17 @@ window.TINA=(function(){
     if(!novo || !cid(munAntes) || cid(munAntes)===cid(novo)) return false;
     if(cid(f.value)!==cid(munAntes)) return false;
     f.value=novo; f.classList.add("revisar");
+    // o foro seguiu a sede: a UF dele também (a sede pode ter ido para outro estado)
+    const fu=$("foroUF"), su=(($("s_uf")||{}).value||"").trim(); if(fu && su){ fu.value=su; fu.classList.add("revisar"); }
     const c=$("alt_foro"); if(c) c.checked=true;
     return true;
   }
   function limparCampos(){  // zera os DADOS do formulário (não mexe no PDF anexado nem no texto de "o que muda")
-    _cidadeAtoManual=false;   // formulário novo volta a acompanhar a sede
+    _cidadeAtoManual=false; _ufAtoManual=false;   // formulário novo volta a acompanhar a sede
     casoAtualId=null;       // formulário novo/zerado = caso novo (o próximo "salvar" cria outro registro)
     valoresAntes=null;      // some com o estado "antes" ao limpar o formulário
     _clausulasOrig=[]; mostrarPreservacao();   // as cláusulas lidas eram do contrato ANTERIOR
-    ["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","haveres","clausulasExtra","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","advNome","advOab","advOabUf"].forEach(id=>{if($(id))$(id).value="";});
+    ["razao","fantasia","foro","foroUF","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","atoCidade","atoUF","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","acervo","dataEncerramento","guardiaoLivros","haveres","clausulasExtra","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","advNome","advOab","advOabUf"].forEach(id=>{if($(id))$(id).value="";});
     ["admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","alt_cessao","cedRetira","advIncluir"].forEach(id=>{if($(id))$(id).checked=false;});
     // cards da cooperativa e da S.A.: nada do cliente anterior pode sobrar no formulário — limpa o que é DADO (texto, número, mesa);
     // escolhas de estrutura (tipo de cooperativa, órgão, prazo, caixas com padrão marcado) ficam como estão
@@ -5489,6 +5554,9 @@ window.TINA=(function(){
     }
     if(filiaisDoc.length){ d.filiais=filiaisDoc; inc.add("filiais"); }
     d.foro=m1(t,/foro da comarca de\s+([A-Za-zÀ-ú .']+?)\s*[-–\/]/i)||m1(t,/foro d[eo]\s+([A-Za-zÀ-ú .']+?)\s*[-–\/]/i);
+    // UF do foro, quando o contrato a escreve logo depois da comarca ("…Comarca de Lagarto/SE")
+    { const fm=t.match(/foro\s+d(?:a\s+comarca|[eo])\s+(?:d[ae]\s+)?[A-Za-zÀ-ú .']+?\s*[-–\/]\s*([A-Z]{2})\b/i);
+      if(d.foro && fm && UFS.indexOf(fm[1].toUpperCase())>=0) d.foroUF=fm[1].toUpperCase(); }
     d.dataInicioOrig=m1(t,/(?:produz(?:ir[áa])?\s+efeitos\s+a\s+partir\s+de|efeitos a partir de|in[íi]cio das atividades[^.\d]{0,20}|atividad[^.\d]{0,40}?)\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
     let nAlt=0; const naD=t.match(/(\d+)\s*[ªaº°]?\s*ALTERA[ÇC][ÃA]O/i);
     if(naD){ nAlt=parseInt(naD[1],10); }
@@ -5651,6 +5719,10 @@ window.TINA=(function(){
     setf("foro",d.foro,true);
     if(d.sede){const s=d.sede; setf("s_cep",s.cep,true);setf("s_log",s.log,true);setf("s_num",s.num,true);setf("s_comp",s.comp,true);setf("s_bairro",s.bairro,true);setf("s_mun",s.mun,true); if(s.uf&&$("s_uf")){$("s_uf").value=s.uf;$("s_uf").classList.add("revisar");}}
     setf("atoCidade",(d.foro||(d.sede&&d.sede.mun)||""),true);
+    // UF do foro lida do contrato; sem ela, a da sede (o caso comum). A do ato acompanha a cidade escolhida acima.
+    { const su=(d.sede&&d.sede.uf)||(($("s_uf")||{}).value||""), fu=d.foroUF||su;
+      if($("foroUF")&&fu){ $("foroUF").value=fu; $("foroUF").classList.add("revisar"); }
+      if($("atoUF")){ const au=d.foro?fu:su; if(au){ $("atoUF").value=au; $("atoUF").classList.add("revisar"); } } }
     setf("atoData",hojeBR(),false);
     _clausulasOrig=Array.isArray(d.clausulasOrig)?d.clausulasOrig:[];
     mostrarPreservacao();
@@ -5758,7 +5830,11 @@ window.TINA=(function(){
         continue;}
       if(m=s.match(/objeto(?:\s+social)?\s+(?:para|:)\s*:?\s*(.+)/i)){$("objeto").value=normalizarAtividades(m[1],manterCnaeAtivo());chk("alt_objeto");applied.push("objeto (novo)");continue;}
       if(m=s.match(/^\s*foro\s+(?:para|:)\s*:?\s*(.+)/i)){ const fv=m[1].trim().replace(/[.;\s]+$/,"");
-        if(fv&&$("foro")){ $("foro").value=fv; $("foro").classList.add("revisar"); chk("alt_foro"); applied.push("foro → "+fv); } continue; }
+        if(fv&&$("foro")){ $("foro").value=fv; $("foro").classList.add("revisar");
+          // "foro para Lagarto/SE": a UF vai para o campo dela; sem UF, fica a da sede
+          if(!separarUF("foro","foroUF") && $("foroUF")) $("foroUF").value=(($("s_uf")||{}).value||"");
+          if($("foroUF")) $("foroUF").classList.add("revisar");
+          chk("alt_foro"); applied.push("foro → "+$("foro").value+($("foroUF")&&$("foroUF").value?"/"+$("foroUF").value:"")); } continue; }
       // "para:" junto é a escrita natural ("endereço para: Rua X") — sem os dois-pontos no grupo,
       // eles sobravam colados no logradouro e o documento saía com ": Avenida Central"
       if(m=s.match(/(?:endereç\w+|sede)\s+(?:para|:)\s*:?\s*(.+)/i)){
@@ -5912,7 +5988,7 @@ window.TINA=(function(){
   const JUNTA_PADRAO="Junta Comercial do Estado de Sergipe";
   function _junta(){ const j=((CFG&&CFG.junta)||"").trim(); return j||JUNTA_PADRAO; }
   function cfgSocioDefaults(){const o={};if(CFG.defMun)o.mun=CFG.defMun;if(CFG.defUF){o.uf=CFG.defUF;o.naturalUF=CFG.defUF;}if(CFG.defOrgao)o.orgao=CFG.defOrgao;if(CFG.defOrgaoUF)o.orgaoUF=CFG.defOrgaoUF;return o;}
-  function aplicarPadroesForm(){if(CFG.defMun&&$("s_mun")&&!$("s_mun").value)$("s_mun").value=CFG.defMun;if(CFG.defUF&&$("s_uf")&&!$("s_uf").value)$("s_uf").value=CFG.defUF;if(CFG.foro&&$("foro")&&!$("foro").value)$("foro").value=CFG.foro;}
+  function aplicarPadroesForm(){if(CFG.defMun&&$("s_mun")&&!$("s_mun").value)$("s_mun").value=CFG.defMun;if(CFG.defUF&&$("s_uf")&&!$("s_uf").value)$("s_uf").value=CFG.defUF;if(CFG.foro&&$("foro")&&!$("foro").value){$("foro").value=CFG.foro;separarUF("foro","foroUF");}completarUFs();}   // "Aracaju - SE" do padrão vira cidade + UF
   function shade(hex,pct){hex=String(hex||"").replace("#","");if(hex.length===3)hex=hex.split("").map(c=>c+c).join("");const n=parseInt(hex,16);if(isNaN(n)||hex.length!==6)return "#"+hex;let r=(n>>16)&255,g=(n>>8)&255,b=n&255;const f=pct/100,ad=v=>Math.max(0,Math.min(255,Math.round(v+(pct>=0?(255-v):v)*f)));return "#"+[ad(r),ad(g),ad(b)].map(v=>v.toString(16).padStart(2,"0")).join("");}
   function aplicarCfg(){const nome=CFG.escritorio||"Totali Soluções Contábeis";
     const logoEl=document.querySelector("header .logo"),lf=$("lf");
@@ -5950,7 +6026,7 @@ window.TINA=(function(){
   function resetConfig(){CFG=cfgDefault();salvarCfg(CFG);aplicarCfg();abrirConfig();toast("Configurações restauradas ao padrão.","info");}
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
-  const DRAFT_FIELDS=["razao","fantasia","foro","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","haveres","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros","advNome","advOab","advOabUf"];
+  const DRAFT_FIELDS=["razao","fantasia","foro","foroUF","atoUF","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","haveres","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros","advNome","advOab","advOabUf"];
   const DRAFT_CHECKS=["alt_foro","alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae","advIncluir","preservarClausulas"];
   function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
@@ -6090,6 +6166,8 @@ window.TINA=(function(){
     if($("filiais")){$("filiais").innerHTML=""; (o.filiais||[]).forEach(f=>filialCard(f));}
     _clausulasOrig=Array.isArray(o.clausulas)?o.clausulas:[]; mostrarPreservacao();
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach((w,i)=>{const ck=["admNaoSocio","cl_conselho","alt_cessao"][i]; if($(w)&&$(ck))$(w).style.display=$(ck).checked?"":"none";});
+    // trabalho guardado antes de existir a UF do foro/do ato: começa com a da sede, à vista para conferir
+    _ufAtoManual=!!(o.fields&&o.fields.atoUF); completarUFs();
     if(typeof recalc==="function")recalc();
   }finally{_suppressDraft=false;}salvarRascunho();}
 
@@ -6221,12 +6299,13 @@ window.TINA=(function(){
     if($("admNaoSocio")) $("admNaoSocio").addEventListener("change",function(){const w=$("wrapAdmNaoSocio"); if(w)w.style.display=this.checked?"":"none";});
     if($("cl_conselho")) $("cl_conselho").addEventListener("change",function(){const w=$("wrapConselho"); if(w)w.style.display=this.checked?"":"none";});
     if($("alt_cessao")) $("alt_cessao").addEventListener("change",function(){const w=$("wrapCessao"); if(w)w.style.display=this.checked?"":"none";});
-    $("btnExemplo").addEventListener("click",exemplo);
+    // o exemplo tem um ramo por tipo de ato (vários terminam cedo): a UF do foro e do ato é completada aqui, depois de qualquer um deles
+    $("btnExemplo").addEventListener("click",()=>{ exemplo(); completarUFs(); });
     $("btnLimpar").addEventListener("click",limparComConfirmacao);
     $("btnGerar").addEventListener("click",()=>{ gerarPreview().then(()=>{ const pc=$("previewCard"); if(pc){ pc.scrollIntoView({behavior:"smooth",block:"start"}); pc.classList.remove("val-flash"); void pc.offsetWidth; pc.classList.add("val-flash"); } }); });
     $("btnBaixar").addEventListener("click",baixarDocx);
     $("btnPDF").addEventListener("click",baixarPDF);
-    $("s_uf").innerHTML=ufOpts();
+    $("s_uf").innerHTML=ufOpts(); if($("foroUF"))$("foroUF").innerHTML=ufOpts(); if($("atoUF"))$("atoUF").innerHTML=ufOpts();
     if($("advOabUf")) $("advOabUf").innerHTML=ufOpts();
     /* Abas das configurações: tudo estava numa coluna só, e achar um campo virava rolagem.
        O conteúdo é o mesmo — só passou a ficar separado por assunto. */

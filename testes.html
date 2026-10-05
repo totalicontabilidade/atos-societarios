@@ -102,7 +102,7 @@
 
     // começa do zero: sobra de uma execução interrompida (licença vencida, casos, rascunho)
     // faria testes falharem por motivo que não é do app
-    try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
+    try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic","tinaIdsExcluidos"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
     try{
     // ---------- 1. Carregamento ----------
     grupo("Carregamento");
@@ -618,6 +618,67 @@
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de sincronização",false,String(e&&e.message||e).slice(0,130)); }
 
+    /* ---------- 6b2i-1b. Número de caso excluído não volta a ser usado ----------
+       O caso excluído sai da lista, mas na nuvem fica a lápide com o número. O caso novo do mesmo
+       dia ganhava esse número, era gravado POR CIMA da lápide (herdando o "excluído") e o espelho
+       o apagava daqui: todo download parava em "O caso deste ato não foi encontrado". */
+    grupo("Caso com número de excluído");
+    try{
+      // começa sem casos de outros grupos: o teste conta quantos casos existem
+      ["tinaCasos","tinaIdsExcluidos","tinaTrabalhos","tinaDraft"].forEach(function(k){ try{ W.localStorage.removeItem(k); }catch(e){} });
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      var nx={}, ouvX=null;
+      var avisaX=function(id){ var it=JSON.parse(JSON.stringify(nx[id])); setTimeout(function(){ if(ouvX) ouvX([{saiu:!!it.excluido,item:it}]); },40); };
+      W.Nuvem.podeGravar=function(){ return true; };
+      W.Nuvem.listar=function(){ return Promise.resolve({ok:true,itens:Object.keys(nx).map(function(k){ return JSON.parse(JSON.stringify(nx[k])); })}); };
+      W.Nuvem.salvar=function(col,id,dados,opc){ var dd=JSON.parse(JSON.stringify(dados));
+        nx[id]=(opc&&opc.substituir)?Object.assign({id:id},dd):Object.assign({},nx[id]||{},dd,{id:id}); avisaX(id); return Promise.resolve({ok:true,id:id}); };
+      W.Nuvem.excluir=function(col,id){ nx[id]={id:id,excluido:true,excluidoEm:new Date().toISOString()}; avisaX(id); return Promise.resolve({ok:true}); };
+      W.Nuvem.trilha=function(){ return Promise.resolve({ok:true}); };
+      W.Nuvem.ouvirColecao=function(col,fn){ ouvX=fn; return function(){ ouvX=null; }; };
+      W.TINA._ux.ligarEspelhoAtos();
+      modo("alt"); await espera(200); $("btnExemplo").click(); await espera(400);
+      // 1º ato do dia, excluído do painel
+      var cx1=W.TINA._ux.registrarCaso(); await espera(120);
+      W.confirm=function(){ return true; };
+      W.TINA._ux.renderPainel(); var bDel=D.querySelector('#painelLista tr[data-id="'+cx1.id+'"] [data-del]');
+      if(bDel) bDel.click(); else { W.localStorage.setItem("tinaCasos","[]"); W.Nuvem.excluir("atos",cx1.id); }
+      await espera(200);
+      reg("Excluir deixa a lápide na nuvem", !!(nx[cx1.id]&&nx[cx1.id].excluido));
+      // 2º ato no mesmo dia: baixar o PDF e liberar
+      $("btnLimpar").click(); await espera(300); $("btnExemplo").click(); await espera(400);
+      await W.TINA.gerarPreview(); await espera(1200);
+      // o PDF é montado de verdade, mas o arquivo não é baixado (o teste não deixa arquivo na máquina)
+      var clickOrig=W.HTMLAnchorElement.prototype.click, baixou=0;
+      W.HTMLAnchorElement.prototype.click=function(){ if(this.download){ baixou++; return; } return clickOrig.apply(this,arguments); };
+      $("btnPDF").click(); await espera(350);
+      val("gateEmerg","cliente confirmou por telefone no teste"); $("btnGateEmergencia").click(); await espera(600);
+      try{ await ate(function(){ return baixou>0; },8000); }catch(e){}
+      W.HTMLAnchorElement.prototype.click=clickOrig;
+      reg("O PDF chega a ser entregue para download", baixou>0, baixou+" arquivo(s)");
+      var csX=JSON.parse(W.localStorage.getItem("tinaCasos")||"[]");
+      reg("O ato novo NÃO recebe o número do excluído", csX.length===1 && csX[0].id!==cx1.id, csX.map(function(c){return c.id;}).join(",")+" (excluído: "+cx1.id+")");
+      reg("O download é liberado — sem “caso não encontrado”", !$("gateModal").classList.contains("open") && !/não foi encontrado/.test($("gateStat").innerText||""), ($("gateStat").innerText||"").slice(0,80));
+      reg("E a confirmação fica gravada no caso, aqui e na nuvem", csX.length===1 && csX[0].confirmado && nx[csX[0].id] && nx[csX[0].id].confirmado && !nx[csX[0].id].excluido);
+      reg("A lápide continua só lápide (o caso novo não foi gravado em cima dela)", Object.keys(nx[cx1.id]).sort().join(",")==="excluido,excluidoEm,id", Object.keys(nx[cx1.id]).join(","));
+
+      // 3) quem já ficou com lápide "suja" (dado pessoal gravado por cima) tem ela limpa na sincronização
+      nx["20200101-0001"]={id:"20200101-0001",excluido:true,excluidoEm:"2026-10-05T10:00:00.000Z",empresa:"EXEMPLO COMERCIO",cnpj:"11.222.333/0001-81",trabalho:{socios:[{nome:"JOAO EXEMPLO SOUZA",cpf:"529.982.247-25"}]}};
+      await W.TINA._ux.sincronizarAtos(); await espera(300);
+      reg("Lápide com dado por cima volta a ser só lápide (sem nome, CNPJ nem trabalho)", Object.keys(nx["20200101-0001"]).sort().join(",")==="excluido,excluidoEm,id", Object.keys(nx["20200101-0001"]).join(","));
+      reg("E o número dela passa a ser evitado", (JSON.parse(W.localStorage.getItem("tinaIdsExcluidos")||"[]")).indexOf("20200101-0001")>=0);
+
+      // 4) mesmo que este navegador não conheça a lápide, o caso novo não herda o "excluído"
+      W.localStorage.removeItem("tinaIdsExcluidos"); W.localStorage.setItem("tinaCasos","[]");
+      $("btnLimpar").click(); await espera(300); $("btnExemplo").click(); await espera(400);
+      val("atoData","02/01/2021");
+      nx["20210102-0001"]={id:"20210102-0001",excluido:true,excluidoEm:"2026-10-05T10:00:00.000Z"};
+      var cx3=W.TINA._ux.registrarCaso(); await espera(200);
+      reg("Sem saber da lápide, o caso novo substitui o documento em vez de mesclar", cx3.id==="20210102-0001" && nx[cx3.id] && !nx[cx3.id].excluido, JSON.stringify(Object.keys(nx[cx3.id]||{})).slice(0,80));
+      reg("E continua no painel daqui", JSON.parse(W.localStorage.getItem("tinaCasos")||"[]").some(function(c){return c.id===cx3.id;}));
+      ["tinaCasos","tinaIdsExcluidos","tinaTrabalhos","tinaDraft"].forEach(function(k){ try{ W.localStorage.removeItem(k); }catch(e){} });
+    }catch(e){ reg("Bateria do número de caso excluído",false,String(e&&e.message||e).slice(0,130)); }
+
     /* ---------- 6b2i-2. Painel de casos: a nuvem manda e o painel acompanha ao vivo ---------- */
     grupo("Painel na nuvem");
     try{
@@ -1047,6 +1108,54 @@
       var foroC=$("foro").value; mudaMun("Lagarto"); await espera(150);
       reg("Na constituição, mexer no município não troca o foro sozinho", $("foro").value===foroC, $("foro").value);
     }catch(e){ reg("Bateria do foro",false,String(e&&e.message||e).slice(0,120)); }
+
+    /* ---------- 6b2f4b. UF do foro e do local do ato ----------
+       Não havia campo de UF para os dois: o documento escrevia sempre a UF da SEDE. Foro ou
+       assinatura em outro estado saíam errados, sem o sistema perguntar. */
+    grupo("UF do foro e do ato");
+    try{
+      var pUF=function(id,v){ var e=$(id); e.value=v; e.dispatchEvent(new W.Event("input",{bubbles:true})); e.dispatchEvent(new W.Event("change",{bubbles:true})); };
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200); $("btnExemplo").click(); await espera(400);
+      reg("Há campo de UF para o foro e para o local do ato", !!$("foroUF") && !!$("atoUF") && $("foroUF").tagName==="SELECT" && $("atoUF").tagName==="SELECT");
+      reg("Os dois começam com a UF da sede", $("foroUF").value==="SE" && $("atoUF").value==="SE", $("foroUF").value+" / "+$("atoUF").value);
+      pUF("foro","Salvador"); pUF("foroUF","BA"); pUF("atoCidade","Feira de Santana"); pUF("atoUF","BA"); mark("alt_foro",true);
+      await W.TINA.gerarPreview(); await espera(1300);
+      var tU=texto();
+      reg("O foro sai com a UF escolhida, não com a da sede", /Comarca de Salvador - BA/.test(tU) && !/Comarca de Salvador - SE/.test(tU), (tU.match(/Comarca de Salvador[^,.]{0,8}/)||["(não achou)"])[0]);
+      reg("O local do ato sai com a UF escolhida", /Feira de Santana - BA, \d/.test(tU), (tU.match(/Feira de Santana[^\n]{0,30}/)||["(não achou)"])[0]);
+      // (escolher "vazio" na UF do ato devolve o acompanhamento da sede — por isso aqui o campo é zerado direto)
+      $("foroUF").value=""; $("atoUF").value="";
+      var fUF=await W.TINA.validar();
+      reg("Sem a UF, a validação cobra o foro e o local do ato", (fUF||[]).indexOf("UF do foro")>=0 && (fUF||[]).indexOf("UF do local do ato")>=0, (fUF||[]).filter(function(x){return /^UF/.test(x);}).join(" | "));
+      pUF("foro","Lagarto - SE");
+      reg("“Lagarto - SE” digitado no foro vira cidade + UF (sem UF dobrada no documento)", $("foro").value==="Lagarto" && $("foroUF").value==="SE", $("foro").value+" | "+$("foroUF").value);
+      pUF("atoCidade","Recife/PE");
+      reg("Idem no local do ato", $("atoCidade").value==="Recife" && $("atoUF").value==="PE", $("atoCidade").value+" | "+$("atoUF").value);
+
+      // contrato que elege foro em outro estado: a UF lida vai para o campo
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      var tUF=tV.replace("Fica eleito o Foro da Comarca de Aracaju/SE","Fica eleito o Foro da Comarca de Salvador/BA");
+      W.TINA._pdf.aplicarDadosContrato(W.TINA._pdf.parseContratoTexto(tUF,"","","")); await espera(600);
+      reg("Foro de outro estado lido do contrato traz a UF dele", $("foro").value==="Salvador" && $("foroUF").value==="BA", $("foro").value+"/"+$("foroUF").value);
+      // sede muda para outro estado com o foro na cidade da sede: foro e UF acompanham
+      W.TINA._pdf.aplicarDadosContrato(W.TINA._pdf.parseContratoTexto(tV,"","","")); await espera(600);
+      W.TINA._cmd.parseComandos("endereço para Rua Nova, nº 100, Centro, Salvador/BA"); await espera(300);
+      reg("Sede vai para outro estado: o foro acompanha com a UF nova", $("foro").value==="Salvador" && $("foroUF").value==="BA", $("foro").value+"/"+$("foroUF").value);
+      reg("E o local do ato também", $("atoCidade").value==="Salvador" && $("atoUF").value==="BA", $("atoCidade").value+"/"+$("atoUF").value);
+      W.TINA._cmd.parseComandos("foro para Lagarto/SE"); await espera(200);
+      reg("Comando “foro para Lagarto/SE” separa a cidade da UF", $("foro").value==="Lagarto" && $("foroUF").value==="SE", $("foro").value+"/"+$("foroUF").value);
+
+      // S.A. → Ltda (contrato social) e ata de cooperativa: os outros geradores também usam os campos
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("sa_transf_sa_ltda"); await espera(260); $("btnExemplo").click(); await espera(600);
+      pUF("foroUF","BA"); await W.TINA.gerarPreview(); await espera(2600);
+      reg("S.A. → Ltda: o foro do contrato social usa a UF do foro", /foro de [A-Za-zÀ-ú ]+\/BA para o exerc/.test(texto()), (texto().match(/Fica eleito o foro de[^\n]{0,30}/)||["(não achou)"])[0]);
+      modo("coop_const"); await espera(260); $("btnExemplo").click(); await espera(600);
+      pUF("atoCidade","Lagarto"); pUF("atoUF","SE"); await W.TINA.gerarPreview(); await espera(2600);
+      reg("Ata da cooperativa: o fecho usa o local do ato (antes usava sempre a sede)", /Lagarto\/SE, \d/.test(texto()), (texto().match(/Lagarto[^\n]{0,24}/)||["(não achou)"])[0]);
+    }catch(e){ reg("Bateria da UF do foro e do ato",false,String(e&&e.message||e).slice(0,120)); }
 
     /* ---------- 6b2f5. Leitura: RG × NIRE, complemento "Condomínio", nome partido pela tabela ----------
        Três erros do mesmo contrato: (1) "RG" casava o "rg" de "Sergipe" e o NIRE virava RG do sócio;
@@ -2231,7 +2340,7 @@
       grupo("Execução"); reg("A bateria terminou sem erro inesperado",false,String(e&&e.message||e).slice(0,140));
       try{ console.error("erro na suite:",e); }catch(_){}
     } finally {
-      try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
+      try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic","tinaIdsExcluidos"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
       fim();
     }
   }
