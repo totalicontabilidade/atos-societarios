@@ -344,6 +344,35 @@
       reg("Validação cobra CPF, estado civil, profissão e endereço do representante",
         (fR2||[]).some(function(x){ return /CPF do representante/i.test(x); }),
         (fR2||[]).filter(function(x){return /representante/i.test(x);}).join(" | ").slice(0,110));
+      /* RG do representante: opcional, mas informado tem de vir com órgão e UF. Um RG digitado sem
+         a UF passava pela validação e o documento saía "RG nº X SSP". */
+      if(pj2){
+        var pq=function(k,v){ var e=pj2.querySelector('[data-f="'+k+'"]'); e.value=v; e.dispatchEvent(new W.Event("input",{bubbles:true})); e.dispatchEvent(new W.Event("change",{bubbles:true})); };
+        var doRep=function(l){ return (l||[]).filter(function(x){return /RG do representante/i.test(x);}).join(" | "); };
+        pq("repRg","1234567"); pq("repOrgao","SSP"); pq("repOrgaoUF",""); await espera(200);
+        var fR3=await W.TINA.validar();
+        reg("RG do representante sem a UF do órgão é barrado", /UF do órgão do RG do representante/.test(doRep(fR3)), doRep(fR3).slice(0,120)||"(nada)");
+        reg("E o resumo do representante avisa, sem precisar abrir", /UF do RG/.test((pj2.querySelector('[data-f="repResumo"]')||{}).textContent||""), (pj2.querySelector('[data-f="repResumo"]')||{}).textContent||"");
+        pq("repOrgaoUF","SE"); await espera(200);
+        reg("Com a UF, a pendência some", doRep(await W.TINA.validar())==="");
+        pq("repOrgao",""); await espera(200);
+        reg("RG do representante sem órgão expedidor também é barrado", /órgão expedidor do RG do representante/.test(doRep(await W.TINA.validar())));
+        pq("repOrgao","OUTRO"); await espera(200);
+        reg("“Outro” abre o campo para digitar o órgão — e cobra o preenchimento",
+          (pj2.querySelector(".repOrgOutro")||{style:{}}).style.display!=="none" && /órgão expedidor do RG do representante/.test(doRep(await W.TINA.validar())));
+        pq("repOrgaoCustom","CRC"); await espera(200);
+        reg("Órgão digitado em “Outro” satisfaz a validação", doRep(await W.TINA.validar())==="");
+        pq("repRg",""); pq("repOrgao",""); pq("repOrgaoCustom",""); pq("repOrgaoUF",""); await espera(200);
+        reg("Sem RG, nada é cobrado (o RG do representante é opcional)", doRep(await W.TINA.validar())==="");
+      }
+      // e o sócio pessoa física continua cobrado — a regra dele já existia e não pode se perder
+      var pf2=[].slice.call(D.querySelectorAll("#socios .socio:not(.filial):not(.guardado)")).filter(function(c){
+        var e=c.querySelector('[data-f="tipoPJ"]'); return !(e&&e.checked); })[0];
+      if(pf2){ var eu=pf2.querySelector('[data-f="orgaoUF"]'); var ufAntes=eu.value; eu.value=""; eu.dispatchEvent(new W.Event("change",{bubbles:true}));
+        var fPF=await W.TINA.validar();
+        reg("Sócio pessoa física sem a UF do órgão do RG é barrado", (fPF||[]).some(function(x){ return /^Sócio \d/.test(x) && /UF do órgão/.test(x); }),
+          ((fPF||[]).filter(function(x){return /^Sócio \d/.test(x);})[0]||"(nada)").slice(0,110));
+        eu.value=ufAntes; eu.dispatchEvent(new W.Event("change",{bubbles:true})); }
     }catch(e){ reg("Bateria do representante da sócia PJ",false,String(e&&e.message||e).slice(0,120)); }
 
     // ---------- 6b2b. Sócio que se retira: assina o ato, sai do consolidado ----------
@@ -942,6 +971,82 @@
       reg("E guarda o texto como estava para conferência", cmpV.filter(function(x){return x.tempo;}).every(function(x){ return x.antes && x.depois && x.antes!==x.depois; }));
       reg("A tabela de quotas continua tabela", D.querySelectorAll("section.docxprev table").length===1);
     }catch(e){ reg("Bateria do tempo verbal da cláusula mantida",false,String(e&&e.message||e).slice(0,120)); }
+
+    /* ---------- 6b2f4. Foro acompanha a sede ----------
+       A sede ia para outro município e o foro ficava na comarca antiga: o campo não mudava, não
+       havia cláusula alterando o foro e a do consolidado era mantida com a cidade velha. */
+    grupo("Foro");
+    try{
+      // os comandos entram direto pelo interpretador: o botão zera o formulário antes, e aqui o
+      // contrato já foi aplicado (no uso real o botão lê o PDF e só depois aplica os comandos)
+      var ultAplic=[];
+      var rapido=async function(cmd){ ultAplic=W.TINA._cmd.parseComandos(cmd)||[]; await espera(300); };
+      var mudaMun=function(v){ var m=$("s_mun"); m.dispatchEvent(new W.Event("focus")); m.value=v; m.dispatchEvent(new W.Event("input",{bubbles:true})); m.dispatchEvent(new W.Event("change",{bubbles:true})); };
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      W.TINA._pdf.aplicarDadosContrato(W.TINA._pdf.parseContratoTexto(tV,"","","")); await espera(700);
+      reg("Lê o foro do contrato enviado", /^Aracaju/i.test($("foro").value), $("foro").value);
+      await rapido("endereço para Rua Nova, nº 100, Centro, Itabaiana/SE");
+      reg("Sede vai para outro município: o campo do foro acompanha", $("foro").value==="Itabaiana", $("foro").value);
+      reg("E a caixa “Foro” de “O que muda” é marcada", !!($("alt_foro")&&$("alt_foro").checked));
+      reg("O retorno do preenchimento rápido avisa que o foro mudou", /foro → Itabaiana/.test(ultAplic.join(" · ")), ultAplic.join(" · ").slice(0,140));
+      await W.TINA.gerarPreview(); await espera(1300);
+      var tf=texto(), iC=tf.search(/CONTRATO SOCIAL CONSOLIDADO/i), altF=tf.slice(0,iC), consF=tf.slice(iC);
+      reg("O ato ganha a cláusula de alteração do foro", /Da altera[çc][ãa]o do foro\.[^\n]{0,80}alterar o foro da sociedade, que passa a ser o da Comarca de Itabaiana - SE/.test(altF), (altF.match(/Da altera[çc][ãa]o do foro[^\n]{0,110}/)||["(não achou)"])[0]);
+      reg("No consolidado o foro é o novo — e o antigo não sobra", /Foro da Comarca de Itabaiana - SE/.test(consF) && !/Comarca de Aracaju/.test(consF));
+      var cF=(W.TINA._pdf.comparacao()||[]).filter(function(x){return x.tema==="foro";})[0]||{};
+      reg("A cláusula do foro aparece como reescrita por este ato", cF.situacao==="reescrita", cF.situacao||"não achada");
+      // trocar o foro só no campo, sem a marcação, não pode passar calado
+      $("alt_foro").checked=false;
+      var fF=await W.TINA.validar();
+      reg("Foro diferente do contrato sem a marcação é barrado na validação", (fF||[]).some(function(x){return /^Foro: o campo diz/.test(x);}), ((fF||[]).filter(function(x){return /^Foro/.test(x);})[0]||"(nada)").slice(0,110));
+      $("alt_foro").checked=true;
+      reg("Com a marcação, a pendência some", !((await W.TINA.validar())||[]).some(function(x){return /^Foro: o campo diz/.test(x);}));
+
+      // foro eleito em OUTRA comarca é escolha do contrato: não segue a sede
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      W.TINA._pdf.aplicarDadosContrato(W.TINA._pdf.parseContratoTexto(tV,"","","")); await espera(700);
+      val("foro","Salvador");
+      await rapido("endereço para Rua Nova, nº 100, Centro, Itabaiana/SE");
+      reg("Foro eleito em outra comarca não é tocado quando a sede muda", $("foro").value==="Salvador" && !$("alt_foro").checked, $("foro").value);
+      await rapido("foro para Estância");
+      reg("Comando “foro para X” troca o foro e marca a caixa", $("foro").value==="Estância" && $("alt_foro").checked, $("foro").value);
+
+      // digitando o município à mão
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200); $("btnExemplo").click(); await espera(400);
+      var foroEx=$("foro").value, munEx=$("s_mun").value;
+      mudaMun("Lagarto"); await espera(150);
+      reg("Município da sede trocado à mão: o foro acompanha e a caixa é marcada", foroEx===munEx && $("foro").value==="Lagarto" && $("alt_foro").checked, foroEx+" → "+$("foro").value);
+      // UF do órgão do RG em branco fica à vista no documento
+      var c1=D.querySelector("#socios .socio:not(.filial):not(.guardado)");
+      var s1=function(k,v){ var e=c1.querySelector('[data-f="'+k+'"]'); e.value=v; e.dispatchEvent(new W.Event("input",{bubbles:true})); e.dispatchEvent(new W.Event("change",{bubbles:true})); };
+      s1("rg","1234567"); s1("orgao","SSP"); s1("orgaoUF","");
+      await W.TINA.gerarPreview(); await espera(1200);
+      reg("RG sem a UF do órgão sai com marcador no documento, não calado", /RG nº 1234567 SSP\/\[UF\]/.test(texto()));
+
+      // Empresário Individual: mesma regra
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("ei_alt"); await espera(250); $("btnExemplo").click(); await espera(450);
+      var foroEI=$("foro").value;
+      mudaMun("Lagarto"); await espera(150);
+      $("alt_sede").checked=true;
+      reg("Empresário Individual: o foro também acompanha a sede", $("foro").value==="Lagarto" && $("alt_foro").checked, foroEI+" → "+$("foro").value);
+      await W.TINA.gerarPreview(); await espera(1300);
+      var tEI=texto();
+      reg("Empresário Individual: cláusula de alteração do foro e foro novo no consolidado",
+        /Da altera[çc][ãa]o do foro\.[^\n]{0,60}passa a ser o da Comarca de Lagarto/.test(tEI) && /foro da Comarca de Lagarto/.test(tEI.slice(tEI.search(/INSTRUMENTO DE INSCRI[ÇC][ÃA]O CONSOLIDADO/i))),
+        (tEI.match(/Da altera[çc][ãa]o do foro[^\n]{0,90}/)||["(não achou)"])[0]);
+      reg("Empresário Individual: sede alterada no futuro, nome não alterado no presente",
+        /Individual ter[áa] sua sede/.test(tEI) && /Individual adota como nome empresarial/.test(tEI));
+
+      // fora da alteração não existe "foro alterado": o campo fica como está
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("const"); await espera(200); $("btnExemplo").click(); await espera(400);
+      var foroC=$("foro").value; mudaMun("Lagarto"); await espera(150);
+      reg("Na constituição, mexer no município não troca o foro sozinho", $("foro").value===foroC, $("foro").value);
+    }catch(e){ reg("Bateria do foro",false,String(e&&e.message||e).slice(0,120)); }
 
     /* ---------- 6b2g. Procedência da leitura e atribuição manual ---------- */
     grupo("Conferência da leitura");
