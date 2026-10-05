@@ -826,6 +826,123 @@
         (W.TINA._pdf.comparacao()||[]).length===0 && ($("btnComparar")||{}).style.display==="none");
     }catch(e){ reg("Bateria do comparador",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2f2. Tabela de quotas na cláusula de capital MANTIDA ----------
+       O PDF devolve a tabela "achatada" no fim do parágrafo. Numa alteração que não mexe no
+       capital, a cláusula era reproduzida só como texto e a tabela sumia do consolidado.
+       De quebra: cláusula com TÍTULO ("DISTRIBUIÇÃO DE LUCROS. …balanços…") era classificada
+       pelo corpo, virava "balanço", e o sistema acrescentava uma segunda cláusula de lucros. */
+    grupo("Tabela de quotas preservada");
+    try{
+      var sep=W.TINA._pdf.separarTabelaQuotas;
+      var s1=sep("DO CAPITAL (arts. 997, III e IV, CC). O capital social é de R$ 10.000,00, dividido em 10.000 quotas. Parágrafo único. O capital encontra-se assim distribuído entre os sócios: Nome do Sócio Qtd Quotas Valor em R$ % JOAO EXEMPLO SOUZA 6.000 6.000,00 60,00 MARIA EXEMPLO LIMA 4.000 4.000,00 40,00 TOTAL 10.000 10.000,00 100,00");
+      reg("Acha a tabela achatada pelo cabeçalho", !!s1 && s1.socios===2 && /entre os s[óo]cios:$/.test(s1.antes) && s1.depois==="", s1?(s1.socios+" sócios · antes termina em “"+s1.antes.slice(-22)+"”"):"não achou");
+      var s2=sep("O capital social é de R$ 10.000,00, subscrito da seguinte forma: JOAO EXEMPLO SOUZA 6.000 R$ 6.000,00 60% MARIA EXEMPLO LIMA 4.000 R$ 4.000,00 40% TOTAL 10.000 R$ 10.000,00 100%. Parágrafo único. As quotas são indivisíveis.");
+      reg("Sem cabeçalho, acha pela linha do TOTAL e guarda o texto que vem depois", !!s2 && s2.socios===2 && /forma:$/.test(s2.antes) && /^Par[áa]grafo [úu]nico\. As quotas/.test(s2.depois), s2?("depois: “"+s2.depois.slice(0,30)+"”"):"não achou");
+      reg("Cláusula de capital sem tabela fica como está", sep("O capital social é de R$ 10.000,00, dividido em 10.000 quotas no valor nominal de R$ 1,00 cada uma.")===null);
+
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      var tT="ALTERAÇÃO DO CONTRATO SOCIAL DA SOCIEDADE LIMITADA EXEMPLO COMERCIO LTDA "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, nascido em 10/01/1980, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Centro, Aracaju/SE, CEP: 49000-400; e "
+        +"MARIA EXEMPLO LIMA, brasileira, solteira, empresária, nascida em 12/02/1985, portadora do CPF sob o n.º 111.444.777-35, residente e domiciliada na Rua Dois, nº 20, Centro, Aracaju/SE, CEP: 49000-500; "
+        +"únicos sócios da sociedade EXEMPLO COMERCIO LTDA, com sede na Rua da Empresa, nº 55, Centro, Aracaju/SE, CEP: 49000-000, inscrita no CNPJ sob o n.º 11.222.333/0001-81; resolvem: "
+        +"CONTRATO SOCIAL CONSOLIDADO DA SOCIEDADE EMPRESÁRIA LIMITADA EXEMPLO COMERCIO LTDA "
+        +"CLÁUSULA I – DO NOME EMPRESARIAL (art. 997, II, CC). A sociedade gira sob o nome empresarial EXEMPLO COMERCIO LTDA. "
+        +"CLÁUSULA II – DA SEDE (art. 997, II, CC). A sociedade tem sua sede no seguinte endereço: Rua da Empresa, nº 55, Centro, Aracaju/SE, CEP 49000-000. "
+        +"CLÁUSULA III – DO OBJETO SOCIAL (art. 997, II, CC). A sociedade tem por objeto o exercício das seguintes atividades econômicas: Comércio varejista de peças. "
+        +"CLÁUSULA IV – DO INÍCIO DAS ATIVIDADES E PRAZO DE DURAÇÃO (art. 53, III, F, Decreto nº 1.800/96). A sociedade iniciou suas atividades em 02/01/2020 e seu prazo de duração é por tempo indeterminado. "
+        +"CLÁUSULA V – DO CAPITAL (arts. 997, III e IV; 1.052 e 1.055, CC). O capital social é de R$ 10.000,00 (dez mil reais), dividido em 10.000 (dez mil) quotas no valor nominal de R$ 1,00 (um real) cada uma, totalmente subscrito e integralizado em moeda corrente do País. Parágrafo único. O capital social encontra - se assim distribuído entre os sócios: "
+        +"Nome do Sócio Qtd Quotas Valor em R$ % JOAO EXEMPLO SOUZA 6.000 6.000,00 60,00 MARIA EXEMPLO LIMA 4.000 4.000,00 40,00 TOTAL 10.000 10.000,00 100,00 "
+        +"CLÁUSULA VI – DA ADMINISTRAÇÃO (arts. 997, VI; 1.013, 1.015; 1.064, CC). A administração da sociedade é exercida pelo sócio JOAO EXEMPLO SOUZA, que representa legalmente a sociedade. "
+        +"CLÁUSULA VII – DECLARAÇÃO DE DESIMPEDIMENTO DO ADMINISTRADOR (art. 1.011, §1º, CC; art. 37, II, da Lei nº 8.934/1994). O Administrador declara, sob as penas da lei, de que não está impedido de exercer a administração da empresa. "
+        +"CLÁUSULA VIII – DISTRIBUIÇÃO DE LUCROS. A sociedade poderá levantar balanços intermediários ou intercalares e distribuir os lucros evidenciados nos mesmos. "
+        +"CLÁUSULA IX – DO FORO. Fica eleito o Foro da Comarca de Aracaju/SE para qualquer ação fundada neste contrato. "
+        +"E por estarem em perfeito acordo, assinam o presente instrumento.";
+      var pT=W.TINA._pdf.parseContratoTexto(tT,"","","");
+      var temas=((pT.d&&pT.d.clausulasOrig)||[]).map(function(c){return c.tema||"-";});
+      reg("Título “DISTRIBUIÇÃO DE LUCROS” vale mais que “balanços” no corpo", temas[7]==="lucros", "tema lido: "+temas[7]);
+      reg("Título da declaração de desimpedimento não vira “administração”", temas[6]==="desimpedimento", "tema lido: "+temas[6]);
+      W.TINA._pdf.aplicarDadosContrato(pT);
+      await espera(700);
+      // muda só a sede: a cláusula do capital é MANTIDA — e a tabela tem de continuar tabela
+      val("s_log","Rua NOVA da Sede"); mark("alt_sede",true);
+      val("sedeAnterior","Rua da Empresa, nº 55, Centro, Aracaju - SE, CEP: 49000-000");
+      await W.TINA.gerarPreview(); await espera(1300);
+      var cmpT=W.TINA._pdf.comparacao()||[];
+      var capT=cmpT.filter(function(x){return x.tema==="capital";})[0]||{};
+      reg("A cláusula do capital segue mantida (não é reescrita)", capT.situacao==="mantida", capT.situacao||"não achada");
+      var tabsT=[].slice.call(D.querySelectorAll("section.docxprev table"));
+      var linT=tabsT.length?[].slice.call(tabsT[tabsT.length-1].rows).map(function(r){ return [].slice.call(r.cells).map(function(c){ return (c.innerText||"").trim(); }).join(" | "); }):[];
+      reg("A tabela de quotas volta a ser tabela no consolidado", tabsT.length===1 && linT.length===4, tabsT.length+" tabela(s), "+linT.length+" linha(s)");
+      reg("Com os sócios e as quotas do contrato", /JOAO EXEMPLO SOUZA \| 6\.000/i.test(linT[1]||"") && /MARIA EXEMPLO LIMA \| 4\.000/i.test(linT[2]||"") && /^TOTAL \| 10\.000/.test(linT[3]||""), (linT[1]||"")+" / "+(linT[3]||""));
+      var txT=texto(); txT=txT.slice(txT.search(/CONTRATO SOCIAL CONSOLIDADO/i));
+      reg("O texto achatado da tabela não sobra no parágrafo", !/Nome do S[óo]cio Qtd Quotas/i.test(txT) && !/6\.000 6\.000,00 60,00/.test(txT));
+      reg("O texto da cláusula antes da tabela é preservado", /O capital social encontra - se assim distribu[íi]do entre os s[óo]cios:/.test(txT));
+      reg("Não acrescenta segunda cláusula de lucros", cmpT.filter(function(x){return x.situacao==="acrescentada";}).length===0 && cmpT.length===9,
+        cmpT.length+" cláusulas, "+cmpT.filter(function(x){return x.situacao==="acrescentada";}).length+" acrescentada(s)");
+    }catch(e){ reg("Bateria da tabela de quotas preservada",false,String(e&&e.message||e).slice(0,120)); }
+
+    /* ---------- 6b2f3. Tempo verbal da cláusula MANTIDA — REGRA DA JUNTA ----------
+       O contrato enviado costuma ser a alteração anterior, e nela a cláusula que mudou ficou no
+       futuro. Mantida como veio, continuaria no futuro num ato que não a altera — e no consolidado
+       só a cláusula alterada NESTE ato pode estar no futuro. O verbo volta ao presente; futuro
+       normativo ("poderão fixar", "será liquidada") e o resto do texto do cliente não mudam. */
+    grupo("Tempo verbal da cláusula mantida");
+    try{
+      var pres=W.TINA._pdf.aoPresente;
+      var a1=pres("administracao","A administração da sociedade será exercida pelo sócio JOAO EXEMPLO SOUZA, que representará legalmente a sociedade e poderá praticar todo e qualquer ato de gestão. Parágrafo único. Na falta do administrador, a administração será exercida por procurador, que responderá pelos atos.");
+      reg("Administração: “será exercida… representará… poderá praticar” vai ao presente",
+        a1.mudou && /sociedade é exercida pelo s[óo]cio JOAO EXEMPLO SOUZA, que representa legalmente a sociedade e pode praticar/.test(a1.texto), a1.texto.slice(0,110));
+      reg("Mas o parágrafo (regra para o futuro) fica como o cliente escreveu",
+        /Na falta do administrador, a administração será exercida por procurador, que responderá/.test(a1.texto));
+      var a2=pres("capital","O capital social será de R$ 10.000,00, dividido em 10.000 quotas, que será integralizado até 31/12/2030.");
+      reg("Capital: “será de R$” vira “é de R$”, e “será integralizado até” (obrigação futura) não muda",
+        /capital social é de R\$ 10\.000,00/.test(a2.texto) && /que será integralizado até/.test(a2.texto), a2.texto.slice(0,80));
+      var a3=pres("prazo","A sociedade iniciará suas atividades em 02/01/2020 e seu prazo de duração será por tempo indeterminado.");
+      reg("Prazo: “iniciará… será” vira “iniciou… é”", a3.texto==="A sociedade iniciou suas atividades em 02/01/2020 e seu prazo de duração é por tempo indeterminado.", a3.texto);
+      var a4=pres("falecimento","Falecendo qualquer sócio, a sociedade continuará suas atividades com os herdeiros; não sendo possível, esta será liquidada.");
+      reg("Futuro normativo de cláusula sem tempo de estado não é tocado", !a4.mudou);
+      var a5=pres("objeto","A sociedade tem por objeto o comércio varejista de peças.");
+      reg("Cláusula já no presente sai idêntica", !a5.mudou && a5.texto==="A sociedade tem por objeto o comércio varejista de peças.");
+
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      // o contrato enviado é uma alteração anterior: nome, sede, objeto e administração no futuro
+      var tV="ALTERAÇÃO DO CONTRATO SOCIAL DA SOCIEDADE LIMITADA EXEMPLO COMERCIO LTDA "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, nascido em 10/01/1980, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Centro, Aracaju/SE, CEP: 49000-400; e "
+        +"MARIA EXEMPLO LIMA, brasileira, solteira, empresária, nascida em 12/02/1985, portadora do CPF sob o n.º 111.444.777-35, residente e domiciliada na Rua Dois, nº 20, Centro, Aracaju/SE, CEP: 49000-500; "
+        +"únicos sócios da sociedade EXEMPLO COMERCIO LTDA, com sede na Rua da Empresa, nº 55, Centro, Aracaju/SE, CEP: 49000-000, inscrita no CNPJ sob o n.º 11.222.333/0001-81; resolvem: "
+        +"CONTRATO SOCIAL CONSOLIDADO DA SOCIEDADE EMPRESÁRIA LIMITADA EXEMPLO COMERCIO LTDA "
+        +"CLÁUSULA I – DO NOME EMPRESARIAL. A sociedade adotará como nome empresarial EXEMPLO COMERCIO LTDA. "
+        +"CLÁUSULA II – DA SEDE. A sociedade terá sua sede no seguinte endereço: Rua da Empresa, nº 55, Centro, Aracaju/SE, CEP 49000-000. "
+        +"CLÁUSULA III – DO OBJETO SOCIAL. A sociedade terá por objeto o exercício das seguintes atividades econômicas: Comércio varejista de peças. Parágrafo único. Em estabelecimento eleito como sede (matriz) serão exercidas as atividades correspondentes ao objeto. "
+        +"CLÁUSULA IV – DO INÍCIO DAS ATIVIDADES E PRAZO DE DURAÇÃO. A sociedade iniciou suas atividades em 02/01/2020 e seu prazo de duração é por tempo indeterminado. "
+        +"CLÁUSULA V – DO CAPITAL. O capital social é de R$ 10.000,00 (dez mil reais), dividido em 10.000 (dez mil) quotas no valor nominal de R$ 1,00 (um real) cada uma, totalmente integralizado em moeda corrente do País. Parágrafo único. O capital social encontra-se assim distribuído entre os sócios: "
+        +"Sócio Quotas Valor (R$) Percentual JOAO EXEMPLO SOUZA 6.000 6.000,00 60,00% MARIA EXEMPLO LIMA 4.000 4.000,00 40,00% TOTAL 10.000 10.000,00 100,00% "
+        +"CLÁUSULA VI – DA ADMINISTRAÇÃO. A administração da sociedade será exercida pelo sócio JOAO EXEMPLO SOUZA, que representará legalmente a sociedade e poderá praticar todo e qualquer ato de gestão pertinente ao objeto social. "
+        +"CLÁUSULA VII – DO PRÓ-LABORE. Os sócios poderão, de comum acordo, fixar uma retirada mensal, a título de pró-labore. "
+        +"CLÁUSULA VIII – DISTRIBUIÇÃO DE LUCROS. A sociedade poderá levantar balanços intermediários e distribuir os lucros evidenciados nos mesmos. "
+        +"CLÁUSULA IX – DO FORO. Fica eleito o Foro da Comarca de Aracaju/SE para qualquer ação fundada neste contrato. "
+        +"E por estarem em perfeito acordo, assinam o presente instrumento.";
+      W.TINA._pdf.aplicarDadosContrato(W.TINA._pdf.parseContratoTexto(tV,"","",""));
+      await espera(700);
+      // este ato muda SÓ a sede
+      val("s_log","Rua NOVA da Sede"); mark("alt_sede",true);
+      val("sedeAnterior","Rua da Empresa, nº 55, Centro, Aracaju - SE, CEP: 49000-000");
+      await W.TINA.gerarPreview(); await espera(1300);
+      var cv=texto(); cv=cv.slice(cv.search(/CONTRATO SOCIAL CONSOLIDADO/i));
+      reg("A cláusula alterada neste ato (sede) fica no futuro", /A sociedade ter[áa] sua sede no seguinte endere[çc]o: Rua NOVA da Sede/i.test(cv), (cv.match(/A sociedade [^.]{0,40}sede[^.]{0,50}/i)||[""])[0]);
+      reg("Nome mantido volta ao presente", /A sociedade adota como nome empresarial/.test(cv) && !/adotar[áa] como nome/.test(cv));
+      reg("Objeto mantido volta ao presente, inclusive o parágrafo das atividades", /A sociedade tem por objeto o exerc[íi]cio/.test(cv) && /são exercidas as atividades/.test(cv) && !/ter[áa] por objeto/.test(cv));
+      reg("Administração mantida volta ao presente", /é exercida pelo s[óo]cio JOAO EXEMPLO SOUZA, que representa legalmente a sociedade e pode praticar/.test(cv));
+      reg("Futuro normativo continua (“poderão… fixar”, “poderá levantar balanços”)", /Os s[óo]cios poderão, de comum acordo, fixar/.test(cv) && /A sociedade poderá levantar balan[çc]os/.test(cv));
+      var cmpV=W.TINA._pdf.comparacao()||[];
+      var comTempo=cmpV.filter(function(x){return x.tempo;}).map(function(x){return x.tema;});
+      reg("O comparador aponta as cláusulas em que o verbo mudou, e só elas", comTempo.join(",")==="nome,objeto,administracao", comTempo.join(","));
+      reg("E guarda o texto como estava para conferência", cmpV.filter(function(x){return x.tempo;}).every(function(x){ return x.antes && x.depois && x.antes!==x.depois; }));
+      reg("A tabela de quotas continua tabela", D.querySelectorAll("section.docxprev table").length===1);
+    }catch(e){ reg("Bateria do tempo verbal da cláusula mantida",false,String(e&&e.message||e).slice(0,120)); }
+
     /* ---------- 6b2g. Procedência da leitura e atribuição manual ---------- */
     grupo("Conferência da leitura");
     try{

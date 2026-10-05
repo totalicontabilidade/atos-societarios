@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.40" />
+<meta name="versao" content="1.41" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -1339,13 +1339,13 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.40"></script>
-<script defer src="js/nuvem.js?v=1.40"></script>
-<script defer src="js/integracao.js?v=1.40"></script>
-<script defer src="js/modelos-coop.js?v=1.40"></script>
-<script defer src="js/gerador-coop.js?v=1.40"></script>
-<script defer src="js/modelos-sa.js?v=1.40"></script>
-<script defer src="js/gerador-sa.js?v=1.40"></script>
+<script defer src="js/nuvem-config.js?v=1.41"></script>
+<script defer src="js/nuvem.js?v=1.41"></script>
+<script defer src="js/integracao.js?v=1.41"></script>
+<script defer src="js/modelos-coop.js?v=1.41"></script>
+<script defer src="js/gerador-coop.js?v=1.41"></script>
+<script defer src="js/modelos-sa.js?v=1.41"></script>
+<script defer src="js/gerador-sa.js?v=1.41"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -2093,8 +2093,21 @@ window.TINA=(function(){
         } else {                                        // não mexe → sai como está no contrato do cliente
           if(b) usados.add(cl.tema);
           const rot=rotulo();
-          ch.push(P([T(rot,{bold:true}),...R(cl.texto)],JUST,SP15));
-          _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:"",situacao:"mantida",tema:cl.tema,antes:cl.texto});
+          /* A tabela de quotas chega do PDF "achatada" no fim do parágrafo. Reproduzir a cláusula
+             só como texto fazia a tabela sumir do consolidado — então o texto sai até onde a
+             tabela começa e ela volta a ser tabela, com o quadro do formulário (que é o do
+             contrato: se o quadro mudasse, esta cláusula seria reescrita, e não mantida). */
+          /* Regra da Junta: cláusula que este ato NÃO altera fica no presente. Se o contrato
+             enviado a trazia no futuro (foi alterada no ato anterior), só o verbo volta ao
+             presente — o resto do texto do cliente não é tocado. */
+          const tp=aoPresente(cl.tema,cl.texto);
+          const tq=cl.tema==="capital"?separarTabelaQuotas(tp.texto):null;
+          if(tq){
+            ch.push(P([T(rot,{bold:true}),...R(tq.antes)],JUST,SP15));
+            ch.push(tabelaQuotas(dFica,X)); ch.push(gap());
+            if(tq.depois) ch.push(P(R(tq.depois),JUST,SP15));
+          } else ch.push(P([T(rot,{bold:true}),...R(tp.texto)],JUST,SP15));
+          _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:"",situacao:"mantida",tema:cl.tema,antes:cl.texto,tempo:tp.mudou,depois:tp.mudou?tp.texto:""});
         }
       });
       // cláusula obrigatória ausente no contrato enviado entra ao final (só acrescenta, nunca troca)
@@ -3486,15 +3499,18 @@ window.TINA=(function(){
     const c=n=>_comparacao.filter(x=>x.situacao===n).length;
     res.className="val ok";
     res.innerHTML="<b>"+_comparacao.length+" cláusulas</b> no documento gerado: "
-      +c("mantida")+" com o texto do contrato enviado, "+c("reescrita")+" reescrita(s) por este ato"
+      +c("mantida")+" com o texto do contrato enviado"
+      +(_comparacao.some(x=>x.tempo)?" (em "+_comparacao.filter(x=>x.tempo).length+" delas o verbo voltou ao presente, porque este ato não as altera)":"")
+      +", "+c("reescrita")+" reescrita(s) por este ato"
       +(c("acrescentada")?(", "+c("acrescentada")+" acrescentada(s) por serem obrigatórias"):"")+".";
     box.innerHTML=_comparacao.map(x=>{
       const [rot,cor]=SIT[x.situacao]||["",""];
       return '<div class="caso" style="padding:7px 9px">'
         +'<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
         +"<b>Cláusula "+x.n+"ª"+(x.titulo?" — "+escHtml(x.titulo.replace(/^D[AEOU]S?\s+/,"").replace(/^DECLARAÇÃO DE\s+/,"")):"")+"</b>"
-        +'<span class="hint" style="color:'+cor+'">'+rot+(x.rotuloOrig?" · era a "+escHtml(x.rotuloOrig):"")+"</span></div>"
-        +(x.antes?'<div class="hint" style="margin-top:4px">'+(x.situacao==="reescrita"?"<b>Texto anterior:</b> ":"")+escHtml(x.antes.slice(0,240))+(x.antes.length>240?"…":"")+"</div>":"")
+        +'<span class="hint" style="color:'+cor+'">'+rot+(x.tempo?" · verbo no presente":"")+(x.rotuloOrig?" · era a "+escHtml(x.rotuloOrig):"")+"</span></div>"
+        +(x.tempo?'<div class="hint" style="margin-top:4px"><b>Como saiu:</b> '+escHtml(x.depois.slice(0,240))+(x.depois.length>240?"…":"")+'</div><div class="hint" style="margin-top:2px"><b>Como estava:</b> '+escHtml(x.antes.slice(0,240))+(x.antes.length>240?"…":"")+"</div>":"")
+        +(x.antes&&!x.tempo?'<div class="hint" style="margin-top:4px">'+(x.situacao==="reescrita"?"<b>Texto anterior:</b> ":"")+escHtml(x.antes.slice(0,240))+(x.antes.length>240?"…":"")+"</div>":"")
         +"</div>";
     }).join("");
     $("compModal").classList.add("open");
@@ -5048,7 +5064,24 @@ window.TINA=(function(){
      trocou a cláusula errada — a de "mudar a forma jurídica" virava "capital" porque diz "maioria
      simples do capital social", e a do capital virava "filiais" porque a tabela traz "FILIAL".
      Errar aqui é grave: significaria reescrever cláusula que o cliente não mandou mudar. */
+  /* Cláusula que abre com um TÍTULO conhecido, em maiúsculas ("DO CAPITAL (arts. 997…). O capital
+     social é…"): o título decide o tema. Sem isto, o título e a citação dos artigos gastavam a
+     janela de 150 caracteres e a abertura de verdade ficava de fora — "DISTRIBUIÇÃO DE LUCROS. A
+     sociedade poderá levantar balanços…" virava "balanço", e o sistema acrescentava no fim uma
+     segunda cláusula de lucros, achando que faltava. */
+  const semAcento=(x)=>String(x||"").normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"");
+  const TITULOS_TEMA=Object.keys(TEMA_DO_TITULO)
+    .map(k=>[semAcento(k).replace(/^D[AEO]S?\s+/,"").replace(/\s+DE ADMINISTRADOR$/,""),TEMA_DO_TITULO[k]])
+    .sort((a,b)=>b[0].length-a[0].length);                 // o título mais longo ganha
+  function temaPeloTitulo(txt){
+    const s=semAcento(String(txt||"").slice(0,120)).replace(/\s*-\s*/g,"-").replace(/\s+/g," ").replace(/^D[AEO]S?\s+/,"");
+    for(const [tit,tema] of TITULOS_TEMA){
+      if(s.startsWith(tit) && !/[A-Z0-9]/.test(s.charAt(tit.length))) return tema;
+    }
+    return "";
+  }
   function classificarClausula(txt){
+    const pt=temaPeloTitulo(txt); if(pt) return pt;
     const bruto=(txt||"").normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"").toLowerCase();
     const s=bruto.slice(0,150);
     if(/mudar\s+.{0,40}forma\s+juridica/.test(s)) return "formajuridica";
@@ -5096,6 +5129,79 @@ window.TINA=(function(){
       out.push({rotulo:marcas[i][1].replace(/\s+/g,""), texto:txt, tema:classificarClausula(txt)});
     }
     return out;
+  }
+  /* Tabela de quotas dentro de uma cláusula lida do PDF. O pdf.js devolve a tabela "achatada":
+     cabeçalho, linhas e total viram uma frase só, colada no fim do parágrafo
+     ("…entre os sócios: Sócio Quotas Valor (R$) Percentual FULANO 8.000 8.000,00 40,00% TOTAL …").
+     Aqui se acha onde ela começa e termina, para o gerador pôr uma tabela de verdade no lugar.
+     Devolve null quando não reconhece tabela — a cláusula então sai como texto, como antes.
+     Melhor não mexer do que cortar um pedaço de redação por engano. */
+  function separarTabelaQuotas(txt){
+    const s=String(txt||"");
+    const NUM="(?:R\\$\\s*)?\\d+(?:\\.\\d{3})*(?:,\\d+)?\\s*%?";
+    const todas=[...s.matchAll(new RegExp(NUM+"(?:\\s+"+NUM+"){2,3}","g"))];   // 3 ou 4 números seguidos = uma linha da tabela
+    if(!todas.length) return null;
+    const cab=s.match(/(?:Nome\s+(?:d[oa]s?\s+)?)?(?:S[óo]ci[oa]s?|[QC]u?otistas?)(?:\(as?\))?\s+(?:(?:Qtde?|Quant|Quantidade|N[ºo°]|N[úu]mero)\.?\s+)?(?:d[ea]s?\s+)?(?:Quotas|Cotas)\b/i);
+    const temTotal=/\bTOTAL\s*$/i.test(s.slice(0,todas[todas.length-1].index));
+    let ini=-1;
+    if(cab && cab.index<todas[0].index) ini=cab.index;
+    else if(temTotal){ const dp=s.lastIndexOf(":",todas[0].index); if(dp>=0) ini=dp+1; }   // sem cabeçalho: a tabela começa depois do "…da seguinte forma:"
+    if(ini<0) return null;
+    const linhas=todas.filter(m=>m.index>ini);
+    if(linhas.length<(temTotal?2:1)) return null;           // tem de haver ao menos um sócio
+    const ult=linhas[linhas.length-1], fim=ult.index+ult[0].length;
+    const antes=s.slice(0,ini).trim(), depois=s.slice(fim).replace(/^[\s.;]+/,"").trim();
+    if(antes.length<15) return null;                         // a cláusula não pode ser só a tabela
+    return {antes, depois, socios:linhas.length-(temTotal?1:0)};
+  }
+  /* Tempo verbal da cláusula MANTIDA — regra da Junta. No consolidado só a cláusula alterada
+     NESTE ato fica no futuro. O contrato enviado costuma ser uma alteração anterior (ou a própria
+     constituição), e ali a cláusula que mudou ficou no futuro: "terá por objeto", "será exercida".
+     Reproduzida como veio, ela continuaria no futuro num ato que não a altera.
+     A troca é o inverso exato do que o gerador escreve quando põe a cláusula no futuro, e só
+     alcança o verbo que diz o estado da sociedade. Futuro NORMATIVO fica como está ("os sócios
+     poderão fixar retirada", "esta será liquidada", "a sociedade continuará suas atividades"):
+     por isso cada regra exige o complemento ao lado do verbo e, salvo as marcadas com `todo`,
+     vale só no caput — antes do primeiro "Parágrafo".
+     Sem a flag `i` e sem \b depois de letra acentuada: em JS "á" não é caractere de palavra. */
+  const TEMPO_PRESENTE=(function(){
+    const F="(?=[\\s,])";   // fim do verbo
+    const r=(fonte,por,todo)=>({re:new RegExp(fonte,"g"),por:por,todo:!!todo});
+    const ATIV=r("\\bserão\\s+exercidas(?=\\s+as\\s+atividades)","são exercidas",true);
+    return {
+      nome:[r("\\badotará"+F,"adota"),r("\\bgirará"+F,"gira"),r("\\busará"+F,"usa"),r("\\butilizará"+F,"utiliza"),
+        r("\\bterá(?=\\s+(?:como|por)\\s+(?:nome|t[íi]tulo|denomina))","tem")],
+      sede:[r("\\bterá(?=\\s+(?:a\\s+)?(?:sua\\s+)?(?:sede|matriz))","tem"),
+        r("\\b(sede(?:\\s+(?:social|da\\s+sociedade|da\\s+empresa))*)\\s+será"+F,"$1 é"),
+        r("\\bficará(?=\\s+(?:situada|localizada|estabelecida|sediada))","fica"),
+        r("\\bserá(?=\\s+(?:situada|localizada|estabelecida|sediada))","é"),ATIV],
+      filiais:[r("\\batuará"+F,"atua",true),ATIV],
+      objeto:[r("\\bterá(?=\\s+(?:por|como)\\s+objeto)","tem"),
+        r("\\b(objeto(?:\\s+social)?(?:\\s+da\\s+sociedade)?)\\s+será"+F,"$1 é"),ATIV],
+      prazo:[r("\\biniciará(?=\\s+(?:as\\s+)?(?:suas\\s+)?atividades)","iniciou"),
+        r("\\b(prazo(?:\\s+de\\s+dura[çc][ãa]o)?(?:\\s+da\\s+sociedade)?)\\s+será"+F,"$1 é"),
+        r("\\bterá(?=\\s+(?:prazo|dura[çc][ãa]o))","tem")],
+      // "será integralizado até…" é obrigação futura de verdade: só troca o "será de R$…"
+      capital:[r("\\b(capital(?:\\s+social)?(?:\\s+da\\s+sociedade)?)\\s+será(?=\\s+(?:de|no\\s+valor)\\s)","$1 é")],
+      administracao:[r("\\bserá(?=\\s+(?:exercida|administrada|gerida)\\s)","é"),
+        r("\\bcaberá(?=\\s+(?:a|ao|à|aos|às)\\s)","cabe"),r("\\bficará(?=\\s+a\\s+cargo\\s)","fica"),
+        r("\\bterá(?=\\s+como\\s+administrador)","tem"),
+        r("\\brepresentará"+F,"representa"),r("\\brepresentarão"+F,"representam"),
+        r("\\bexercerá"+F,"exerce"),r("\\bexercerão"+F,"exercem"),
+        r("\\bpoderá(?=\\s+praticar\\s)","pode"),r("\\bpoderão(?=\\s+praticar\\s)","podem"),
+        r("\\bserá\\s+exercida(?=\\s+também\\s+por\\s)","é exercida",true),r("\\btomará(?=\\s+posse)","toma",true)],
+      balanco:[r("\\bprestará(?=\\s+contas)","presta"),r("\\bprestarão(?=\\s+contas)","prestam")],
+      enquadramento:[r("\\bse\\s+enquadrará"+F,"se enquadra")]
+    };
+  })();
+  function aoPresente(tema,txt){
+    const s=String(txt||""), regras=TEMPO_PRESENTE[tema];
+    if(!regras) return {texto:s,mudou:false};
+    const corte=s.search(/(?:Par[áa]grafo|PAR[ÁA]GRAFO)\s+(?:[úuÚU]nico|[ÚU]NICO|primeiro|PRIMEIRO|1|I\b)/);
+    let caput=corte>0?s.slice(0,corte):s, resto=corte>0?s.slice(corte):"";
+    regras.forEach(g=>{ caput=caput.replace(g.re,g.por); if(g.todo) resto=resto.replace(g.re,g.por); });
+    const texto=caput+resto;
+    return {texto:texto,mudou:texto!==s};
   }
   /* ===== Procedência da leitura =====
      Para cada campo, guarda o TRECHO do documento de onde o valor saiu. Em vez de instrumentar
@@ -6441,7 +6547,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,separarTabelaQuotas,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
