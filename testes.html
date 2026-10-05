@@ -1048,6 +1048,57 @@
       reg("Na constituição, mexer no município não troca o foro sozinho", $("foro").value===foroC, $("foro").value);
     }catch(e){ reg("Bateria do foro",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2f5. Leitura: RG × NIRE, complemento "Condomínio", nome partido pela tabela ----------
+       Três erros do mesmo contrato: (1) "RG" casava o "rg" de "Sergipe" e o NIRE virava RG do sócio;
+       (2) "Condomínio …" não era reconhecido como complemento e sumia do endereço; (3) nome comprido
+       quebra em duas linhas na tabela e o robô da Junta, que lê por posição, devolvia
+       "NOME (1ª parte) 6.000 R$ 6.000,00 60,00% NOME (2ª parte)". */
+    grupo("Leitura — RG, complemento e tabela");
+    try{
+      var NPJ="MODELO CENTRO DE PARTICIPACOES E TECNOLOGIA DE EXEMPLO LTDA";
+      var tR="ALTERAÇÃO DO CONTRATO SOCIAL DA SOCIEDADE LIMITADA EXEMPLO COMERCIO LTDA "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, nascido em 10/01/1980, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Condomínio Jardim Exemplo, Bairro Centro, Aracaju/SE, CEP: 49000-400; único sócio da sociedade empresária limitada unipessoal EXEMPLO COMERCIO LTDA, com sede na Rua da Empresa, nº 55, Centro, Aracaju/SE, CEP: 49000-000, inscrita no CNPJ sob o n.º 11.222.333/0001-81 e NIRE 28.200.111.222, com seus atos constitutivos arquivados na Junta Comercial do Estado de Sergipe; resolve promover a presente alteração, mediante as cláusulas seguintes: "
+        +"Cláusula Primeira – Da admissão de sócia. O sócio JOAO EXEMPLO SOUZA vende 6.000 quotas à sociedade "+NPJ+", sociedade empresária limitada inscrita no CNPJ sob o n.º 11.444.777/0001-61, com sede na Rua Dois, nº 20, Sala 3, Centro, Aracaju/SE, CEP: 49000-500, com seus atos constitutivos registrados na Junta Comercial do Estado de Sergipe sob NIRE 28.200.333.444, neste ato representada por seu administrador CARLOS MODELO LIMA, brasileiro, solteiro, nascido em 03/03/1975, contador, portador do CPF sob o n.º 111.444.777-35, RG n.º 7654321 expedido pela SSP/SE, residente e domiciliado na Rua Cinco, nº 50, Condomínio Residencial Modelo, Bairro Jardins, Aracaju/SE, CEP: 49000-600; a qual é admitida na sociedade. "
+        +"Cláusula Segunda – Da nova distribuição do capital social. O capital social permanece de R$ 10.000,00, dividido em 10.000 quotas no valor nominal de R$ 1,00 cada uma, assim distribuído: Sócio Quotas Valor (R$) Percentual JOAO EXEMPLO SOUZA 4.000 R$ 4.000,00 40,00% MODELO CENTRO DE PARTICIPACOES E 6.000 R$ 6.000,00 60,00% TECNOLOGIA DE EXEMPLO LTDA TOTAL 10.000 R$ 10.000,00 100,00% "
+        +"E por estarem em perfeito acordo, assinam o presente instrumento.";
+      var pL=W.TINA._pdf.parseContratoTexto(tR,"","","");
+      var sL=(pL.d&&pL.d.socios)||[], pfL=sL.filter(function(x){return x.tipoPessoa!=="PJ";})[0]||{}, pjL=sL.filter(function(x){return x.tipoPessoa==="PJ";})[0]||{};
+      reg("“Sergipe … NIRE” não vira RG do sócio (o contrato não traz o RG dele)", !pfL.rg, "rg lido: "+(pfL.rg||"(vazio)"));
+      reg("Nem o RG do representante da sócia PJ vai para o sócio", pfL.rg!=="7654321" && pjL.repRg==="7654321" && pjL.repOrgaoUF==="SE", "rep: "+(pjL.repRg||"")+" "+(pjL.repOrgao||"")+"/"+(pjL.repOrgaoUF||""));
+      reg("O NIRE da sócia PJ continua lido no lugar certo", pjL.pjNire==="28200333444", pjL.pjNire||"(vazio)");
+      reg("“Condomínio …” é lido como complemento do endereço do sócio", /^Condom[íi]nio Jardim Exemplo$/.test(pfL.comp||"") && pfL.bairro==="Centro", (pfL.comp||"(vazio)")+" · bairro "+(pfL.bairro||""));
+      reg("E do endereço do representante da sócia PJ", /^Condom[íi]nio Residencial Modelo$/.test(pjL.repComp||"") && pjL.repBairro==="Jardins", (pjL.repComp||"(vazio)")+" · bairro "+(pjL.repBairro||""));
+      var rj=W.TINA._pdf.rejuntarNomeTabela("JOAO EXEMPLO SOUZA 4.000 R$ 4.000,00 40,00% MODELO CENTRO DE PARTICIPACOES E 6.000 R$ 6.000,00 60,00% TECNOLOGIA DE EXEMPLO LTDA TOTAL 10.000 R$ 10.000,00 100,00%",["JOAO EXEMPLO SOUZA",NPJ]);
+      reg("Nome partido pela tabela volta inteiro, com os números depois", rj.indexOf(NPJ+" 6.000 R$ 6.000,00 60,00% TOTAL")>0 && rj.indexOf("JOAO EXEMPLO SOUZA 4.000")===0, rj.slice(40,130));
+      reg("Texto sem nome partido não é mexido", W.TINA._pdf.rejuntarNomeTabela("JOAO EXEMPLO SOUZA 4.000 R$ 4.000,00 40,00% TOTAL",["JOAO EXEMPLO SOUZA",NPJ])==="JOAO EXEMPLO SOUZA 4.000 R$ 4.000,00 40,00% TOTAL");
+      reg("A sócia PJ lida de tabela com o nome partido fica com a razão inteira e as quotas certas", pjL.nome===NPJ && Number(pjL.quotas)===6000 && Number(pfL.quotas)===4000, (pjL.nome||"")+" · "+pjL.quotas);
+
+      // o documento gerado: números na ÚLTIMA linha do nome, para ler "nome inteiro, depois os números"
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      W.TINA._pdf.aplicarDadosContrato(pL); await espera(700);
+      await W.TINA.gerarPreview(); await espera(1500);
+      var tgR=texto();
+      reg("O complemento “Condomínio” chega ao documento (sócio e representante)", /n[º°] 10, Condom[íi]nio Jardim Exemplo/.test(tgR) && /n[º°] 50, Condom[íi]nio Residencial Modelo/.test(tgR), (tgR.match(/Rua Cinco[^;]{0,80}/)||[""])[0]);
+      var tbR=D.querySelector("section.docxprev table"), lnR=tbR?[].slice.call(tbR.rows).filter(function(r){ return /MODELO CENTRO/.test(r.innerText); })[0]:null;
+      if(lnR){
+        var rgN=D.createRange(); rgN.selectNodeContents(lnR.cells[0].querySelector("p")||lnR.cells[0]);
+        var topsN=[]; [].slice.call(rgN.getClientRects()).forEach(function(x){ var y=Math.round(x.top); if(x.width>0&&topsN.indexOf(y)<0) topsN.push(y); }); topsN.sort(function(a,b){return a-b;});
+        var topNum=Math.round((lnR.cells[1].querySelector("span")||lnR.cells[1]).getBoundingClientRect().top);
+        reg("Nome comprido ocupa mais de uma linha na tabela (é o caso em teste)", topsN.length>1, topsN.length+" linha(s)");
+        reg("Os números ficam na última linha do nome, não na primeira", Math.abs(topNum-topsN[topsN.length-1])<=2, "nome "+topsN.join("/")+" · números "+topNum);
+        // e no PDF exportado, lido POR POSIÇÃO como faz o robô da Junta
+        var pbR=await W.TINA.gerarPdfBlob();
+        var pdfR=await W.pdfjsLib.getDocument({data:await pbR.arrayBuffer(),isEvalSupported:false}).promise, linR=[];
+        for(var pgi=1;pgi<=pdfR.numPages;pgi++){ var pgR=await pdfR.getPage(pgi), tcR=await pgR.getTextContent(), porY={};
+          tcR.items.forEach(function(it){ if(!(it.str||"").trim()) return; var y=Math.round(it.transform[5]); (porY[y]=porY[y]||[]).push({s:it.str,x:it.transform[4]}); });
+          Object.keys(porY).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){ linR.push(porY[y].sort(function(a,b){return a.x-b.x;}).map(function(i){return i.s;}).join(" ")); }); }
+        var lidoPos=linR.join(" ").replace(/\s+/g," ");
+        reg("PDF lido por posição: a razão vem inteira e os números depois dela", lidoPos.indexOf(NPJ+" 6.000 R$ 6.000,00 60,00%")>=0,
+          (lidoPos.match(/MODELO CENTRO[^%]{0,90}%[^T]{0,40}/)||["(não achou)"])[0]);
+      } else reg("Linha da sócia PJ na tabela de quotas",false,"não achada");
+    }catch(e){ reg("Bateria de leitura (RG, complemento, tabela)",false,String(e&&e.message||e).slice(0,120)); }
+
     /* ---------- 6b2g. Procedência da leitura e atribuição manual ---------- */
     grupo("Conferência da leitura");
     try{

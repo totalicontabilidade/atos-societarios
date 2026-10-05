@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.42" />
+<meta name="versao" content="1.43" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -1341,13 +1341,13 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.42"></script>
-<script defer src="js/nuvem.js?v=1.42"></script>
-<script defer src="js/integracao.js?v=1.42"></script>
-<script defer src="js/modelos-coop.js?v=1.42"></script>
-<script defer src="js/gerador-coop.js?v=1.42"></script>
-<script defer src="js/modelos-sa.js?v=1.42"></script>
-<script defer src="js/gerador-sa.js?v=1.42"></script>
+<script defer src="js/nuvem-config.js?v=1.43"></script>
+<script defer src="js/nuvem.js?v=1.43"></script>
+<script defer src="js/integracao.js?v=1.43"></script>
+<script defer src="js/modelos-coop.js?v=1.43"></script>
+<script defer src="js/gerador-coop.js?v=1.43"></script>
+<script defer src="js/modelos-sa.js?v=1.43"></script>
+<script defer src="js/gerador-sa.js?v=1.43"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -2113,7 +2113,7 @@ window.TINA=(function(){
              enviado a trazia no futuro (foi alterada no ato anterior), só o verbo volta ao
              presente — o resto do texto do cliente não é tocado. */
           const tp=aoPresente(cl.tema,cl.texto);
-          const tq=cl.tema==="capital"?separarTabelaQuotas(tp.texto):null;
+          const tq=cl.tema==="capital"?separarTabelaQuotas(rejuntarNomeTabela(tp.texto,(d.socios||[]).map(s=>s.nome))):null;
           if(tq){
             ch.push(P([T(rot,{bold:true}),...R(tq.antes)],JUST,SP15));
             ch.push(tabelaQuotas(dFica,X)); ch.push(gap());
@@ -2303,7 +2303,12 @@ window.TINA=(function(){
     const {Table,TableRow,TableCell,Paragraph,TextRun,WidthType,BorderStyle,AlignmentType,TableLayoutType}=X;
     const bd={style:BorderStyle.SINGLE,size:4,color:"000000"},borders={top:bd,bottom:bd,left:bd,right:bd,insideHorizontal:bd,insideVertical:bd};
     const cols=[4700,1250,1972,1150]; // Sócio largo p/ nome caber em 1 linha
+    /* Os números ficam na base da célula. Nome comprido quebra em duas linhas, e com os números no
+       alto a linha se lia "NOME (1ª parte) 12.000 R$ 12.000,00 60,00% NOME (2ª parte)" — para quem
+       lê e para qualquer leitor de PDF. Na base, o nome vem inteiro e os números depois dele. */
+    const BASE=X.VerticalAlign?X.VerticalAlign.BOTTOM:undefined;
     const cell=(txt,bold,al,w)=>new TableCell({borders,width:{size:w,type:WidthType.DXA},margins:{top:40,bottom:40,left:90,right:90},
+      verticalAlign:(al===AlignmentType.CENTER?BASE:undefined),
       children:[new Paragraph({alignment:al||AlignmentType.LEFT,spacing:{after:0,line:240},children:[new TextRun({text:txt,bold:!!bold})]})]});
     const C=AlignmentType.CENTER;
     const rows=[new TableRow({tableHeader:true,children:[cell("Sócio",true,AlignmentType.LEFT,cols[0]),cell("Quotas",true,C,cols[1]),cell("Valor (R$)",true,C,cols[2]),cell("Percentual",true,C,cols[3])]})];
@@ -3388,9 +3393,22 @@ window.TINA=(function(){
         }
         if(node.tagName==="P"){ const o=_paraPdf(node,brk); content.push(o);
         } else if(node.tagName==="TABLE"){ const rows=[...node.querySelectorAll("tr")]; if(!rows.length)return;
-          const widths=[...rows[0].children].map((c,i)=> i===0?"*":(_pt(c.style.width)||60));
-          const body=rows.map(tr=>[...tr.children].map(td=>{ const pp=td.querySelector("p"); const rr=pp?_runs(pp):[{text:td.textContent,bold:false}]; const al=((pp&&pp.style.textAlign)||"left").replace("start","left");
-            return { text:_frag(rr), alignment:al, bold: rr.some(r=>r.bold) }; }));
+          /* Larguras iguais às da prévia (largura útil = célula menos as margens). Antes só as colunas
+             de número vinham da prévia e a do nome ficava com a sobra — mais estreita que no .docx —,
+             então o mesmo nome quebrava em mais linhas no PDF do que na prévia. */
+          const c0=[...rows[0].children], PAD=9, UTIL=453.54-PAD*c0.length-0.5*(c0.length+1);   // A4 menos as margens da página
+          const wPrev=c0.map(c=>c.offsetWidth*0.75-PAD), somaW=wPrev.reduce((a,b)=>a+b,0);
+          const widths=(wPrev.every(x=>x>5)&&somaW>0) ? wPrev.map(x=>x*Math.min(1,UTIL/somaW))
+            : c0.map((c,i)=> i===0?"*":(_pt(c.style.width)||60));
+          /* O pdfmake não alinha célula pela base. Quando a 1ª coluna (nome) ocupa mais de uma linha,
+             as células alinhadas pela base na prévia ganham linhas em branco antes do texto — assim
+             os números descem para a última linha do nome, como no .docx. */
+          const linhasDe=(el)=>{ try{ const r=document.createRange(); r.selectNodeContents(el);
+            return new Set([...r.getClientRects()].filter(x=>x.width>0&&x.height>0).map(x=>Math.round(x.top))).size||1; }catch(e){ return 1; } };
+          const body=rows.map(tr=>{ const tds=[...tr.children]; const nL=tds.length?linhasDe(tds[0].querySelector("p")||tds[0]):1;
+            return tds.map((td,ci)=>{ const pp=td.querySelector("p"); const rr=pp?_runs(pp):[{text:td.textContent,bold:false}]; const al=((pp&&pp.style.textAlign)||"left").replace("start","left");
+              const naBase=ci>0 && nL>1 && getComputedStyle(td).verticalAlign==="bottom";
+              return { text:(naBase?[{text:"\n".repeat(nL-1)}]:[]).concat(_frag(rr)), alignment:al, bold: rr.some(r=>r.bold) }; }); });
           const o={ table:{ headerRows:1, widths, body }, layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>"#000", vLineColor:()=>"#000", paddingLeft:()=>4.5, paddingRight:()=>4.5, paddingTop:()=>2, paddingBottom:()=>2 }, margin:[0,0,0,8] };
           if(brk)o.pageBreak="before"; content.push(o);
         } }); });
@@ -4778,7 +4796,8 @@ window.TINA=(function(){
     if(m=str.match(/bairro\s+([A-Za-zÀ-ú .']+?)\s*(?:,|\.|no munic|munic|estado|CEP|$)/i))e.bairro=m[1].trim();
     if(m=str.match(/n[º°o.]{1,3}\s*(\d+[A-Za-z]?)\b/i))e.num=m[1];
     if(!e.num){ if(m=str.match(/,\s*(\d{1,6}[A-Za-z]?)\s*[,;]/))e.num=m[1]; else if(/\bs\/?n[º°.]?\b/i.test(str))e.num="s/n"; }  // número solto entre vírgulas ou "s/n"
-    if(!e.comp){const CKW="(?:sala|bloco|apto?|apartamento|andar|loja|quadra|lote|conjunto|conj|galp[ãa]o|sobreloja|casa|km|sl|edif[íi]cio|pavimento|torre|box|sobrado)";
+    // "Condomínio …" faltava aqui: o complemento era lido como nada e sumia do endereço no documento
+    if(!e.comp){const CKW="(?:sala|bloco|apto?|apartamento|andar|loja|quadra|lote|conjunto|conj|galp[ãa]o|sobreloja|casa|km|sl|edif[íi]cio|pavimento|torre|box|sobrado|condom[íi]nio|cond|fundos|t[ée]rreo|anexo)";
       const cm=str.match(new RegExp(",\\s*("+CKW+"\\b\\.?[^,;]*(?:,\\s*"+CKW+"\\b\\.?[^,;]*)*)\\s*(?:,|;|$)","i")); if(cm)e.comp=cm[1].replace(/\s+/g," ").replace(/[,;\s]+$/,"").trim();}  // complemento — pode ter VÁRIAS partes: "Quadra 20, Lote 16"; "Sala 2, Bloco B"
     if(m=str.match(/^(.+?)(?:,|\s+n[º°o.]{1,3}\s*\d)/))e.log=m[1].replace(/^[,\s]+|[,\s]+$/g,"").trim();
     if(!e.uf||!e.mun||!e.bairro||!e.log){
@@ -4790,7 +4809,7 @@ window.TINA=(function(){
       if(!e.mun&&ufi>0)e.mun=clean[ufi-1].replace(/\s*-\s*SEDE\s*$/i,"").trim();
       if(!e.log&&clean[0]&&!/^\d/.test(clean[0])&&!/^n[º°o.]/i.test(clean[0]))e.log=clean[0].trim();
       if(!e.bairro){const numIdx=clean.findIndex(p=>/^n[º°o.]/i.test(p)||/^\d+[A-Za-z]?$/.test(p));const munIdx=e.mun?clean.findIndex(p=>p.toUpperCase().includes(e.mun.toUpperCase())):-1;const stop=munIdx>=0?munIdx:(ufi>=0?ufi:clean.length);
-        for(let i=(numIdx>=0?numIdx+1:1);i<stop;i++){const p=clean[i];if(/^[A-Z]{2}$/.test(p)||/^\d/.test(p))continue;if(/^(?:sala|bloco|apto?|apartamento|andar|loja|quadra|lote|conjunto|conj|galp|sobreloja|casa|km|sl)\b/i.test(p))continue;const pc=p.replace(/\s*-\s*SEDE\s*$/i,"").replace(/^bairro\s+/i,"").trim();if(pc&&pc.toUpperCase()!==(e.log||"").toUpperCase()){e.bairro=pc;break;}}}
+        for(let i=(numIdx>=0?numIdx+1:1);i<stop;i++){const p=clean[i];if(/^[A-Z]{2}$/.test(p)||/^\d/.test(p))continue;if(/^(?:sala|bloco|apto?|apartamento|andar|loja|quadra|lote|conjunto|conj|galp|sobreloja|casa|km|sl|condom[íi]nio|cond|edif[íi]cio|fundos|t[ée]rreo|anexo)(?![A-Za-zÀ-ú])/i.test(p))continue;const pc=p.replace(/\s*-\s*SEDE\s*$/i,"").replace(/^bairro\s+/i,"").trim();if(pc&&pc.toUpperCase()!==(e.log||"").toUpperCase()){e.bairro=pc;break;}}}
     }
     return e;
   }
@@ -4828,7 +4847,10 @@ window.TINA=(function(){
     // CPF: aceita hífen com espaços ("###.###.### - ##"); prioriza o nº rotulado "CPF" (não confunde com CIN/RG). Normaliza p/ ###.###.###-##
     let cpf=seg.match(/CPF[^0-9]{0,14}(\d{3}[.\s]?\d{3}[.\s]?\d{3}\s*-?\s*\d{2})/i)||seg.match(/(\d{3}\.\d{3}\.\d{3}\s*-\s*\d{2})/)||seg.match(/(\d{3}\.\d{3}\.\d{3}-\d{2})/);
     if(cpf){const g=cpf[1].replace(/\D/g,""); if(g.length===11)s.cpf=g.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4");}
-    const rg=seg.match(/(?:RG|CIN|C\.\s?I\.?|R\.\s?G\.?|carteira de identidade|identidade)[^\d]{0,25}([\d][\d.\-]{3,})/i); if(rg)s.rg=rg[1].replace(/[.\-]/g,"");
+    /* A sigla tem de estar SOLTA, não dentro de outra palavra: com a flag `i`, "RG" casava o "rg" de
+       "Sergipe" — e em "…Junta Comercial do Estado de Sergipe sob NIRE 28.200…" o NIRE da empresa
+       virava o RG do sócio. \b não serve aqui (letra acentuada não conta como letra em JS). */
+    const rg=seg.match(/(?<![A-Za-zÀ-ú])(?:RG|CIN|C\.\s?I\.?|R\.\s?G\.?|carteira de identidade|identidade)(?![A-Za-zÀ-ú])[^\d]{0,25}([\d][\d.\-]{3,})/i); if(rg)s.rg=rg[1].replace(/[.\-]/g,"");
     if(!s.rg){const est=seg.match(/\b(?:RNM|RNE|CIE|RG estrangeiro|c[ée]dula de identidade de estrangeiro|passaporte)\b[^A-Za-z0-9]{0,15}(?:n[º°o.]?\s*)?([A-Z]?-?\d[\dA-Za-z.\-\/]{3,})/i); if(est)s.rg=est[1].replace(/\./g,"").trim();}  // documento de estrangeiro (RNM/RNE/passaporte) é alfanumérico
     let org=seg.match(/expedid[oa]\s+p[eo]la\s+([A-ZÀ-Ú]{2,6})\s*[\/\-]?\s*([A-Z]{2})?/i)||seg.match(/\b(SSP|SDS|DGPC|DPT|IFP|IIRGD|DETRAN|POLITEC|ITEP|IGP|SESP|SPTC|PTC|PC|SESDEC|SEJUSP)\s*[\/\- ]\s*(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/i); if(org){s.orgao=(org[1]||"").toUpperCase(); if(org[2])s.orgaoUF=org[2].toUpperCase();}
     const prof=seg.match(/\b(empres[áa]ri[oa]|comerciante|administrador[a]?|advogad[oa]|contador[a]?|contabilista|m[ée]dic[oa]|engenheir[oa]|arquitet[oa]|professor[a]?|estudante|aut[ôo]nom[oa]|do lar|aposentad[oa]|vendedor[a]?|t[ée]cnic[oa]|funcion[áa]ri[oa](?: p[úu]blic[oa])?|servidor[a]?(?: p[úu]blic[oa])?)\b/i); if(prof)s.profissao=prof[1];
@@ -5207,6 +5229,25 @@ window.TINA=(function(){
     if(antes.length<15) return null;                         // a cláusula não pode ser só a tabela
     return {antes, depois, socios:linhas.length-(temTotal?1:0)};
   }
+  /* Nome partido pela tabela. Quando o nome do sócio ocupa duas linhas na célula, quem extrai o
+     texto do PDF por posição devolve "NOME (1ª parte) 12.000 R$ 12.000,00 60,00% NOME (2ª parte)".
+     Conhecendo os nomes (da qualificação ou do formulário), dá para devolver o nome inteiro à
+     frente dos números. Só mexe quando o começo do nome, os números e o resto do nome aparecem
+     exatamente nessa ordem. */
+  function rejuntarNomeTabela(txt,nomes){
+    let s=String(txt||"");
+    const esc=x=>x.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    const NUM="(?:R\\$\\s*)?\\d+(?:\\.\\d{3})*(?:,\\d+)?\\s*%?";
+    (nomes||[]).forEach(nome=>{
+      const w=String(nome||"").trim().split(/\s+/).filter(Boolean);
+      if(w.length<3) return;
+      for(let k=w.length-1;k>=1;k--){
+        const re=new RegExp("("+w.slice(0,k).map(esc).join("\\s+")+")\\s+("+NUM+"(?:\\s+"+NUM+"){2,3})\\s+("+w.slice(k).map(esc).join("\\s+")+")(?![A-Za-zÀ-ú])","gi");
+        if(re.test(s)){ re.lastIndex=0; s=s.replace(re,(m,a,n,b)=>a+" "+b+" "+n.trim()); break; }
+      }
+    });
+    return s;
+  }
   /* Tempo verbal da cláusula MANTIDA — regra da Junta. No consolidado só a cláusula alterada
      NESTE ato fica no futuro. O contrato enviado costuma ser uma alteração anterior (ou a própria
      constituição), e ali a cláusula que mudou ficou no futuro: "terá por objeto", "será exercida".
@@ -5465,7 +5506,12 @@ window.TINA=(function(){
     const socios=[]; const NW="(?:[A-ZÀ-Ú][A-Za-zÀ-ú'.\\-]*|d[eoa]s?|e)";
     const startRe=new RegExp("("+NW+"(?:\\s+"+NW+"){1,8})\\s*,?\\s*(?:nacionalidade\\s+)?(?:brasileir[oa]|estrangeir[oa]|naturalizad[oa])\\b","gi"); const found=[]; let mm;
     while((mm=startRe.exec(t))){const ns=mm.index+mm[0].indexOf(mm[1]); found.push({start:ns,nome:mm[1].replace(/\s+/g," ").trim()});}
-    for(let i=0;i<found.length;i++){const seg=t.slice(found[i].start,(found[i+1]?found[i+1].start:found[i].start+700)); const so=parseSocioQualif(seg); so.nome=limparNome(found[i].nome,d.razao); if(so.nome && !socios.some(x=>x.nome===so.nome)) socios.push(so);}
+    /* A qualificação de uma pessoa acaba antes de "único(s) sócio(s) da sociedade…" e antes do
+       rótulo da cláusula seguinte. Sem esse corte o trecho ia até o PRÓXIMO nome qualificado —
+       às vezes mais de mil caracteres adiante — e o sócio herdava dado alheio: NIRE e sede da
+       empresa, RG do representante da sócia PJ. */
+    const fimQualif=(seg)=>{ const c=seg.slice(40).search(/[úuÚ]nic[oa]s?\s+(?:s[óo]ci[oa]s?|componentes?)\s+d[ao]\s|\s(?:Cl[áa]usula|CL[ÁA]USULA)(?:\s+\S{1,12}){1,2}\s*[-–—.]/); return c>=0?seg.slice(0,c+40):seg; };
+    for(let i=0;i<found.length;i++){const seg=fimQualif(t.slice(found[i].start,(found[i+1]?found[i+1].start:found[i].start+700))); const so=parseSocioQualif(seg); so.nome=limparNome(found[i].nome,d.razao); if(so.nome && !socios.some(x=>x.nome===so.nome)) socios.push(so);}
     // consolida: quando o MESMO nome aparece "limpo" e também com lixo do título/cabeçalho no início (ex.: 5+ palavras), mantém só o mais limpo (menos palavras)
     { const _nk=s=>(s||"").toUpperCase().replace(/[.\-]/g,"").replace(/\s+/g," ").trim();
       for(let i=socios.length-1;i>=0;i--){ const ni=_nk(socios[i].nome), wi=ni.split(" ").length;
@@ -5505,7 +5551,7 @@ window.TINA=(function(){
           /* Lê do TEXTO INTEIRO, não do recorte de 500 caracteres: a qualificação do representante
              termina no endereço, que é longo, e o recorte cortava o logradouro no meio. */
           if(iRep>=0){ const ini=pjRe.lastIndex+iRep+rm[0].length-1;
-            qrep=parseSocioQualif(t.slice(ini, ini+900))||{}; } }
+            qrep=parseSocioQualif(fimQualif(t.slice(ini, ini+900)))||{}; } }
         let sede={}; const sm=mid.match(/sede\s+(?:na|à|no|em)\s+(.+?CEP[:\s]*[\d.\- ]{7,13})/i)||mid.match(/sede\s+(?:na|à|no|em)\s+(.+?)(?:,?\s*com\b|,\s*NIRE)/i); if(sm)sede=parseEndereco(sm[1]);
         const nireM=mid.match(/NIRE\s*([\d][\d. ]{8,16}\d)/i);
         // administrador:false — administrador de limitada tem de ser pessoa NATURAL (art. 997, VI, e art. 1.062
@@ -5531,7 +5577,9 @@ window.TINA=(function(){
       if(esc){ d.sede=esc; inc.add("sede"); }
     }
     // --- QUADRO RESULTANTE (tabela "Sócio Quotas Valor … Percentual … TOTAL") = quem FICA na sociedade ---
-    let finalQuadro=[]; { const tbl=t.match(/S[óo]cios?\s+Quotas?\s+Valor[^%]{0,30}?Percentual\s+([\s\S]+?)\s+TOTAL\b/i);
+    // nome de sócio partido em duas linhas pela tabela volta a ficar inteiro antes de ler as linhas
+    const tQ=rejuntarNomeTabela(t,[...pjList.map(p=>p.nome),...socios.map(s=>s.nome)]);
+    let finalQuadro=[]; { const tbl=tQ.match(/S[óo]cios?\s+Quotas?\s+Valor[^%]{0,30}?Percentual\s+([\s\S]+?)\s+TOTAL\b/i);
       if(tbl){ const rowRe=/([A-ZÀ-Ú][A-Za-zÀ-ú0-9 .,&'\/\-–]{3,80}?)\s+([\d.]{1,12})\s+(?:R\$\s*)?([\d.,]{2,18})\s+([\d.,]{1,7})\s*%/g; let rm;
         while((rm=rowRe.exec(tbl[1]))){ const nome=rm[1].replace(/\s+/g," ").replace(/[,\s]+$/,"").trim(); if(/total|percentual|^quota|s[óo]cio$/i.test(nome))continue; finalQuadro.push({nome,quotas:parseInt(rm[2].replace(/\./g,""),10)}); } } }
     const matchNome=(a,b)=>{a=(a||"").toUpperCase();b=(b||"").toUpperCase();if(!a||!b)return false;return a.includes(b)||b.includes(a)||a.split(/[ ,\-–]/)[0]===b.split(/[ ,\-–]/)[0];};
@@ -5546,7 +5594,7 @@ window.TINA=(function(){
       socios.sort((a,b)=>(a.nome||"").split(/\s+/).filter(Boolean).length-(b.nome||"").split(/\s+/).filter(Boolean).length); socios.length=1; }
     const acharSocio=nome=>{nome=nome.replace(/\s+/g," ").trim(); if(/total|s[óo]cio|nome|percentual|quota/i.test(nome)||nome.length<4)return null; return socios.find(x=>x.nome&&(x.nome.toUpperCase().includes(nome.toUpperCase())||nome.toUpperCase().includes(x.nome.toUpperCase())));};
     const qre=/([A-ZÀ-Ú][A-ZÀ-Ú .'\-]{4,60}?)\s+([\d.]{1,12})\s+(?:R\$\s*)?([\d.,]{2,15})\s+(?:R\$\s*)?([\d.,]{1,7})\s*%?/g; let qm;
-    while((qm=qre.exec(t))){const so=acharSocio(qm[1]); const q=parseInt(qm[2].replace(/\./g,""),10); if(so&&q)so.quotas=q;}
+    while((qm=qre.exec(tQ))){const so=acharSocio(qm[1]); const q=parseInt(qm[2].replace(/\./g,""),10); if(so&&q)so.quotas=q;}
     // formato inline: "NOME: 24.000 quotas" / "NOME - 24.000 cotas"
     const qre2=/([A-ZÀ-Ú][A-Za-zÀ-ú .'\-]{4,60}?)\s*[:\-–]\s*([\d.]{1,10})\s*(?:quotas|cotas)\b/gi; let qm2;
     while((qm2=qre2.exec(t))){const so=acharSocio(qm2[1]); const q=parseInt(qm2[2].replace(/\./g,""),10); if(so&&q)so.quotas=q;}
@@ -5633,7 +5681,7 @@ window.TINA=(function(){
     if(m)o.bairro=m[1].trim();
     // complemento — nunca no PRIMEIRO segmento: em "Quadra 104 Norte, Lote 5, Palmas/TO" a Quadra é o logradouro
     {
-      const reC=/\b((?:sala|bloco|apto?|apartamento|andar|conjunto|loja|galpão|galpao|quadra|lote|casa|box|sobrado|fundos)\b\.?\s*[^,]{0,30}?)\s*(?=,|$)/i;
+      const reC=/\b((?:sala|bloco|apto?|apartamento|andar|conjunto|loja|galpão|galpao|quadra|lote|casa|box|sobrado|fundos|condom[íi]nio|edif[íi]cio)(?![A-Za-zÀ-ú])\.?\s*[^,]{0,60}?)\s*(?=,|$)/i;
       const mc=t.match(reC), primeiro=(t.split(",")[0]||"");
       if(mc && primeiro.indexOf(mc[0].trim())<0){ o.comp=mc[1].trim(); t=t.replace(mc[0]," , "); }
     }
@@ -6608,7 +6656,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,separarTabelaQuotas,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
