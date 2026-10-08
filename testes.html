@@ -1641,8 +1641,9 @@
       var tS=texto(), pre=tS.slice(0,tS.search(/Cláusula Primeira/i));
       reg("Preâmbulo da transformação usa o endereço ATUAL, não o novo",
         /Rua Antiga/.test(pre) && !/Avenida Nova/.test(pre), pre.slice(-160).replace(/\s+/g," "));
-      reg("O endereço NOVO aparece na cláusula que o altera", /endereço e sede da empresa serão:[^.]*Avenida Nova/i.test(tS));
-      reg("E também no contrato consolidado", /A sociedade tem sede na[^.]*Avenida Nova/i.test(tS));
+      reg("O endereço NOVO aparece na cláusula que o altera", /Fica transferida a sede da empresa para o seguinte endereço:[^.]*Avenida Nova/i.test(tS));
+      // regra da Junta: a cláusula alterada vai no futuro também no contrato da transformação
+      reg("E também no contrato consolidado (no futuro)", /A sociedade ter[áa] sede na[^.]*Avenida Nova/i.test(tS));
       var p2=tS.split(/CONTRATO SOCIAL\s*POR TRANSFORMA/i)[1]||"";
       reg("O preâmbulo do consolidado também qualifica pelo endereço atual",
         /Rua Antiga/.test(p2.slice(0,900)), p2.slice(0,300).replace(/\s+/g," "));
@@ -2038,6 +2039,50 @@
         /A sociedade ter[áa] por objeto/i.test(c2), (c2.match(/A sociedade [^.]{0,30}por objeto/i)||[""])[0]);
       reg("E o nome, que não mudou, segue no presente", /A sociedade gira sob o nome empresarial/i.test(c2));
     }catch(e){ reg("Bateria do tempo verbal do consolidado",false,String(e&&e.message||e).slice(0,130)); }
+
+    /* ---------- 6b3a2. Transformação também marca "o que muda" ----------
+       Uma transformação EI→SLU com mudança de endereço saiu com a sede no presente e o e-mail sem
+       a mudança: o card "O que muda" só existia na alteração. Mesma regra do consolidado. */
+    grupo("Transformação — o que muda");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("transf_ei_slu"); await espera(220);
+      $("btnExemplo").click(); await espera(340);
+      reg("O card “O que muda” aparece na transformação", !!($("cardAlteracoes")&&$("cardAlteracoes").offsetParent));
+      reg("Sede e objeto podem ser marcados", !!($("alt_sede").offsetParent&&$("alt_objeto").offsetParent));
+      reg("Nome, quadro e cessão não aparecem (são da própria transformação)",
+        !$("alt_nome").offsetParent && !$("alt_quadro").offsetParent && !$("alt_cessao").offsetParent);
+      ["alt_fantasia","alt_objeto","alt_capital","alt_enquadramento","alt_foro"].forEach(function(id){ if($(id)) $(id).checked=false; });
+      mark("alt_sede");
+      val("sedeAnterior","Rua Antiga, nº 10, Centro, Aracaju - SE, CEP: 49000-111");
+      val("s_log","Avenida Nova"); val("s_num","250");
+      await W.TINA.gerarPreview(); await espera(1200);
+      var tt=texto(), p2t=tt.split(/CONTRATO SOCIAL\s*POR TRANSFORMA/i)[1]||"";
+      reg("Sede alterada vai ao futuro no contrato da transformação",
+        /A sociedade ter[áa] sede na[^.]*Avenida Nova/i.test(p2t), (p2t.match(/A sociedade [^.]{0,20}sede na[^.]{0,30}/i)||[""])[0]);
+      reg("Objeto não alterado fica no presente", /O objeto da sociedade é o exerc/i.test(p2t), (p2t.match(/O objeto da sociedade [^.]{0,20}/i)||[""])[0]);
+      reg("A parte 1 declara a transferência da sede", /Fica transferida a sede da empresa[^.]*Avenida Nova/i.test(tt.split(/CONTRATO SOCIAL\s*POR TRANSFORMA/i)[0]));
+      mark("alt_objeto");
+      await W.TINA.gerarPreview(); await espera(1200);
+      var tt2=(texto().split(/CONTRATO SOCIAL\s*POR TRANSFORMA/i)[1]||"");
+      reg("Objeto marcado vai ao futuro", /O objeto da sociedade ser[áa] o exerc/i.test(tt2));
+      mark("alt_sede",false); mark("alt_objeto",false);
+      await W.TINA.gerarPreview(); await espera(1200);
+      var tt3=(texto().split(/CONTRATO SOCIAL\s*POR TRANSFORMA/i)[1]||"");
+      reg("Sem marcar, a sede fica no presente", /A sociedade tem sede na/i.test(tt3));
+      var fc=await W.TINA.validar();
+      reg("Endereço anterior diferente sem a sede marcada: a validação avisa",
+        ((fc&&fc.consist)||[]).some(function(x){ return /n[ãa]o est[áa] marcado em/i.test(x); }), ((fc&&fc.consist)||[]).join(" | ").slice(0,90));
+      mark("alt_sede");
+      $("btnEmail").click(); await espera(420);
+      var em=($("emailCorpo")||{}).value||"";
+      reg("O e-mail da transformação traz a mudança de endereço",
+        /ALTERA[ÇC][ÕO]ES NO MESMO ATO/.test(em) && /ENDERE[ÇC]O DA SEDE[\s\S]{0,40}De:[^\n]*Rua Antiga[^\n]*\n\s*Para:[^\n]*Avenida Nova/.test(em),
+        (em.match(/ENDERE[ÇC]O DA SEDE[\s\S]{0,160}/)||[""])[0].replace(/\s+/g," "));
+      $("btnEmailClose").click(); await espera(180);
+      modo("alt"); await espera(220);
+      reg("De volta à alteração, nome e quadro reaparecem", !!($("alt_nome").offsetParent&&$("alt_quadro").offsetParent));
+    }catch(e){ reg("Bateria da transformação — o que muda",false,String(e&&e.message||e).slice(0,130)); }
 
     /* ---------- 6b3b. "para:" escrito junto nos comandos ---------- */
     grupo("Comandos com dois-pontos");

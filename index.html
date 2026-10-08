@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.45" />
+<meta name="versao" content="1.46" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -805,21 +805,21 @@
       <div id="valCapital"></div>
     </div>
 
-    <div class="card altonly" id="cardAlteracoes" style="display:none">
-      <h2><span class="n">Δ</span> O que muda nesta alteração</h2>
-      <div class="hint" style="margin-bottom:10px">Marque só o que está sendo alterado. Os valores novos são os que você preencheu acima. No contrato consolidado, só as cláusulas marcadas vão para o tempo futuro; as demais permanecem no presente.</div>
+    <div class="card alt-transf" id="cardAlteracoes" style="display:none">
+      <h2><span class="n">Δ</span> <span id="tituloAlteracoes">O que muda nesta alteração</span></h2>
+      <div class="hint" id="dicaAlteracoes" style="margin-bottom:10px">Marque só o que está sendo alterado. Os valores novos são os que você preencheu acima. No contrato consolidado, só as cláusulas marcadas vão para o tempo futuro; as demais permanecem no presente.</div>
       <div class="grid g3">
-        <label class="checkline"><input type="checkbox" id="alt_nome"> Nome empresarial</label>
+        <label class="checkline naotransf"><input type="checkbox" id="alt_nome"> Nome empresarial</label>
         <label class="checkline"><input type="checkbox" id="alt_fantasia"> Nome fantasia</label>
         <label class="checkline"><input type="checkbox" id="alt_sede"> Sede / endereço</label>
         <label class="checkline"><input type="checkbox" id="alt_objeto"> Objeto social</label>
         <label class="checkline"><input type="checkbox" id="alt_capital"> Capital social</label>
-        <label class="checkline ltdaonly"><input type="checkbox" id="alt_quadro"> Quadro societário</label>
+        <label class="checkline ltdaonly naotransf"><input type="checkbox" id="alt_quadro"> Quadro societário</label>
         <label class="checkline"><input type="checkbox" id="alt_enquadramento"> Enquadramento (porte)</label>
         <label class="checkline"><input type="checkbox" id="alt_foro"> Foro</label>
-        <label class="checkline ltdaonly"><input type="checkbox" id="alt_cessao"> Cessão de quotas</label>
+        <label class="checkline ltdaonly naotransf"><input type="checkbox" id="alt_cessao"> Cessão de quotas</label>
       </div>
-      <div id="wrapCessao" class="ltdaonly" style="display:none;margin-top:12px">
+      <div id="wrapCessao" class="ltdaonly naotransf" style="display:none;margin-top:12px">
         <div class="hint" style="margin-bottom:6px">Quem sai e quem entra. Ajuste o <b>quadro societário</b> acima com a composição final — esta cláusula descreve a transferência.</div>
         <div class="grid g4 row">
           <div><label for="cedNome">Cedente <span class="hint">(quem transfere)</span></label><input type="text" id="cedNome"></div>
@@ -829,7 +829,7 @@
         </div>
         <label class="checkline"><input type="checkbox" id="cedRetira"> O cedente <b>retira-se</b> da sociedade (cedeu todas as quotas)</label>
       </div>
-      <div class="row" style="margin-top:12px"><label for="clausulasExtra">Cláusulas / deliberações adicionais (texto livre) <span class="hint">(opcional — ex.: nomeação de procurador, outras deliberações)</span></label>
+      <div class="row naotransf" style="margin-top:12px"><label for="clausulasExtra">Cláusulas / deliberações adicionais (texto livre) <span class="hint">(opcional — ex.: nomeação de procurador, outras deliberações)</span></label>
         <textarea id="clausulasExtra" placeholder="Redação livre de deliberações adicionais desta alteração."></textarea></div>
     </div>
 
@@ -1342,13 +1342,13 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.45"></script>
-<script defer src="js/nuvem.js?v=1.45"></script>
-<script defer src="js/integracao.js?v=1.45"></script>
-<script defer src="js/modelos-coop.js?v=1.45"></script>
-<script defer src="js/gerador-coop.js?v=1.45"></script>
-<script defer src="js/modelos-sa.js?v=1.45"></script>
-<script defer src="js/gerador-sa.js?v=1.45"></script>
+<script defer src="js/nuvem-config.js?v=1.46"></script>
+<script defer src="js/nuvem.js?v=1.46"></script>
+<script defer src="js/integracao.js?v=1.46"></script>
+<script defer src="js/modelos-coop.js?v=1.46"></script>
+<script defer src="js/gerador-coop.js?v=1.46"></script>
+<script defer src="js/modelos-sa.js?v=1.46"></script>
+<script defer src="js/gerador-sa.js?v=1.46"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -2518,7 +2518,9 @@ window.TINA=(function(){
     cl1("Fica transformado este Empresário Individual em Sociedade Limitada"+(isSLU?" Unipessoal":"")+", sob o nome empresarial de: "+razaoUP+" LTDA, com sub-rogação de todos os direitos e obrigações pertinentes."+(d.fantasia?" E como nome de fantasia: "+fantUP+".":""));
     cl1("O acervo deste Empresário Individual, no valor de "+reais(acervo)+" ("+extensoReais(acervo)+") passa a constituir o capital da Sociedade Limitada"+(isSLU?" Unipessoal":"")+" mencionada na cláusula anterior.");
     if(aumentou) cl1("Fica o capital social aumentado de "+reais(acervo)+" ("+extensoReais(acervo)+") para "+reais(newCap)+" ("+extensoReais(newCap)+"), dividido em "+numBR(d.numQuotas)+" quotas no valor nominal de "+reais(d.valorQuota)+" cada uma, sendo o aumento de "+reais(newCap-acervo)+" ("+extensoReais(newCap-acervo)+") integralizado neste ato "+formaIntegr(d,"em moeda corrente do País")+".");
-    cl1("O endereço e sede da empresa serão: "+endLinha(d.sede)+".");
+    // como o objeto abaixo: a mudança de endereço tem de ficar declarada na parte 1, não só implícita
+    cl1(mudou("sede")?"Fica transferida a sede da empresa para o seguinte endereço: "+endLinha(d.sede)+"."
+                     :"O endereço e sede da empresa serão: "+endLinha(d.sede)+".");
     // o objeto tem de ser declarado AQUI: o contrato consolidado da parte 2 mostra a lista final, mas
     // é a parte 1 que registra o que está sendo alterado. Sem esta cláusula a mudança de atividades
     // ficava invisível no ato (só reaparecia consolidada, como se nada tivesse mudado).
@@ -2558,9 +2560,12 @@ window.TINA=(function(){
 
     let c2=0; const cl2=(txt)=>ch.push(P([T("Cláusula "+(++c2)+"ª – ",{bold:true}),...R(txt)],JUST,SP15));
     cl2("A sociedade girará sob a denominação social "+razaoUP+" LTDA.");
-    if(d.fantasia) cl2("A sociedade terá como título do estabelecimento "+fantUP+".");
-    cl2("A sociedade tem sede na "+endLinha(d.sede)+".");   // o foro tem cláusula própria: dizer aqui duplicava
-    cl2("O objeto da sociedade é o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
+    /* Tempo verbal — REGRA DA JUNTA (a mesma do consolidado da alteração): a cláusula que este ato
+       ALTERA vai no futuro, as demais no presente. O nome e o capital seguem o modelo da Junta para a
+       transformação ("girará", "será"), porque é a própria transformação que os muda. */
+    if(d.fantasia) cl2("A sociedade "+(mudou("fantasia")?"terá":"tem")+" como título do estabelecimento "+fantUP+".");
+    cl2("A sociedade "+(mudou("sede")?"terá":"tem")+" sede na "+endLinha(d.sede)+".");   // o foro tem cláusula própria: dizer aqui duplicava
+    cl2("O objeto da sociedade "+(mudou("objeto")?"será":"é")+" o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
     cl2("A sociedade pode a qualquer tempo, instalar, manter e extinguir filiais e quaisquer outros estabelecimentos necessários ao bom desempenho das atividades consubstanciadas no objeto social, em qualquer parte do território nacional ou no exterior, respeitadas as prescrições e exigências legais pertinentes, mediante alteração contratual assinada "+(plural?"pelos sócios":gT("pelo sócio","pela sócia"))+".");
     cl2("A sociedade pode mudar a qualquer tempo a forma jurídica ora adotada, "+(plural?"deliberada por maioria simples do capital social, entendendo-se que cada quota possuída dá direito a um voto nas deliberações":gT("por decisão do único sócio","por decisão da única sócia"))+".");
     cl2("O prazo de duração da sociedade é por tempo indeterminado e suas atividades tiveram início em "+(d.dataInicioOrig||d.atoData||"[DATA]")+".");
@@ -2645,13 +2650,14 @@ window.TINA=(function(){
     ch.push(P(R((tit.nome||"[TITULAR]").toUpperCase()+", "+qualificacao(tit).replace(/;?\s*$/,"")+", "+(retira?g("sócio remanescente","sócia remanescente"):g("único sócio","única sócia"))+" da sociedade empresária limitada "+razAntUP+" LTDA, com sede na "+sedeCabEI+", com contrato social arquivado na "+_junta()+", inscrit"+g("o","a")+" no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?" e NIRE "+d.nire:"")+", resolve:"),JUST,SP10));
     const retiraF=(d.socioRetiraSexo==="F");
     if(retira) ch.push(P([T("Item de alteração: ",{bold:true}),...R("Retira-se da sociedade "+(retiraF?"a sócia ":"o sócio ")+retira.toUpperCase()+", que cede e transfere a totalidade de suas quotas para "+g("o sócio remanescente","a sócia remanescente")+" "+(tit.nome||"[TITULAR]").toUpperCase()+", dando-se mutuamente plena, geral e irrevogável quitação.")],JUST,SP15));
-    const ord1=["Primeira","Segunda","Terceira"]; let o1=0;
+    const ord1=["Primeira","Segunda","Terceira","Quarta"]; let o1=0;
     const cl1=(txt)=>ch.push(P([T("Cláusula "+ord1[o1++]+" – ",{bold:true}),...R(txt)],JUST,SP15));
     cl1("Fica transformada esta Sociedade Limitada em Empresário Individual, sob o nome empresarial de: "+nomeUP+", com sub-rogação de todos os direitos e obrigações pertinentes.");
     cl1("O acervo desta sociedade, no valor de "+reais(cap)+" ("+extensoReais(cap)+"), passa a constituir o capital do Empresário mencionado na cláusula anterior.");
     // mesma razão da transformação EI → Ltda: sem isto a mudança de atividades não aparece no ato
     cl1((d.changed&&d.changed.has("objeto"))?"Fica alterado o objeto, que passa a ser o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+"."
                                             :"O Empresário Individual terá por objeto o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
+    if(d.changed&&d.changed.has("sede")) cl1("Fica transferida a sede para o seguinte endereço: "+endLinha(d.sede)+".");
     ch.push(corpo("Para tanto, firma nesta mesma data, em documento separado, a solicitação de sua inscrição como empresário, mediante Instrumento de Inscrição de Empresário Individual."));
     ch.push(new Paragraph({spacing:{after:120,line:360,lineRule:AUTO}}));
     ch.push(P([T(cidUF+", "+dataExtenso(d.atoData))],CEN,SP15));
@@ -3037,6 +3043,20 @@ window.TINA=(function(){
     document.querySelectorAll(".alt-transf").forEach(el=>el.style.display=(isAlt||isTransf)?"":"none");
     document.querySelectorAll(".alt-transfei").forEach(el=>el.style.display=(isAlt||m==="transf_ei_ltda"||m==="transf_ei_slu")?"":"none");
     document.querySelectorAll(".ltdaonly").forEach(el=>el.style.display=formEI?"none":"");
+    /* Transformação também marca "o que muda" (endereço, objeto…): a cláusula marcada vai ao futuro
+       no contrato da transformação e entra no e-mail. Nome, quadro e cessão não se marcam ali — o
+       nome e o tipo jurídico mudam com a própria transformação, e a troca de titular tem campo próprio. */
+    if(isTransf){
+      document.querySelectorAll(".naotransf").forEach(el=>el.style.display="none");
+      ["alt_nome","alt_quadro","alt_cessao"].forEach(id=>{ if($(id)) $(id).checked=false; });
+    } else {
+      // os que também são .ltdaonly já foram acertados acima; os demais voltam a aparecer
+      document.querySelectorAll(".naotransf:not(.ltdaonly)").forEach(el=>el.style.display="");
+    }
+    if($("tituloAlteracoes")) $("tituloAlteracoes").textContent=isTransf?"O que muda junto com a transformação":"O que muda nesta alteração";
+    if($("dicaAlteracoes")) $("dicaAlteracoes").textContent=isTransf
+      ? "Marque só o que muda além da própria transformação (o nome e o tipo jurídico já mudam com ela). No contrato da transformação, as cláusulas marcadas vão para o tempo futuro; as demais permanecem no presente."
+      : "Marque só o que está sendo alterado. Os valores novos são os que você preencheu acima. No contrato consolidado, só as cláusulas marcadas vão para o tempo futuro; as demais permanecem no presente.";
     document.querySelectorAll(".eionly").forEach(el=>el.style.display=isEI?"":"none");
     document.querySelectorAll(".transfonly").forEach(el=>el.style.display=(isTransf||saTransf)?"":"none");
     document.querySelectorAll(".transfsub").forEach(el=>el.style.display=isTransf?"":"none");   // o submenu EI→Ltda/EI→SLU/Ltda→EI é só da aba Transformação
@@ -3330,6 +3350,11 @@ window.TINA=(function(){
       if(dias>30) w.push("Assinado há "+dias+" dias: fora dos 30 dias do art. 36 da Lei nº 8.934/1994, o arquivamento não retroage à assinatura — vale a partir do despacho.");
       else if(dias>23) w.push("Faltam "+(30-dias)+" dia(s) para vencer o prazo de 30 dias em que o arquivamento retroage à data da assinatura (art. 36 da Lei nº 8.934/1994).");
     }
+    /* Endereço anterior digitado e diferente do novo, mas a sede não marcada em "O que muda": o
+       contrato sairia com o endereço novo no presente e o e-mail sem a mudança. */
+    const _so=x=>(x||"").normalize("NFD").replace(/[^a-z0-9]/gi,"").toLowerCase();
+    if((isAlt||isTransf) && (d.sedeAnterior||"").trim() && !(d.changed&&d.changed.has("sede")) && _so(d.sedeAnterior)!==_so(endLinha(d.sede)))
+      w.push("O endereço ANTERIOR está preenchido e é diferente do atual, mas \"Sede / endereço\" não está marcado em \"O que muda\" — marque para a mudança sair no contrato (no futuro) e no e-mail.");
     const ini=_parseBR(d.dataInicioOrig); if(ini&&ato&&ini>ato&&(isAlt||isTransf||isDist))w.push("Início das atividades ("+d.dataInicioOrig+") é posterior à data do ato ("+d.atoData+").");
     if(isDist){const enc=_parseBR(d.dataEncerramento); if(enc&&ini&&enc<ini)w.push("Encerramento das operações anterior ao início das atividades."); if(enc&&ato&&enc>ato)w.push("Encerramento das operações posterior à data do ato.");}
     return w;}
@@ -4237,18 +4262,29 @@ window.TINA=(function(){
   }
   function idSolicitacao(d){const dp=(d.atoData||hojeBR()).split("/"); const ymd=dp.length===3?(dp[2]+String(dp[1]).padStart(2,"0")+String(dp[0]).padStart(2,"0")):"00000000";
     let h=0; const seed=((d.razao||"")+(d.atoData||"")+(d.cnpj||"")); for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0; return ymd+"-"+String(1000+(h%9000));}
-  function blocosEmail(d,sufixo){const L=[]; const CH=d.changed||new Set(); const isAltMode=MODE.endsWith("alt");
+  /* Linhas De/Para de cada item marcado em "O que muda" — servem à alteração e à transformação
+     (que também pode mudar endereço, objeto etc. no mesmo ato). Sem o "De", sai "Passa a ser". */
+  function linhasAlteracoes(d,sufixo,CH){const L=[];
+    const va=valoresAntes;   // estado ATUAL (do PDF) antes das mudanças; null se não veio de preenchimento rápido
+    const dp=(label,antes,depois)=> (antes!=null&&String(antes).trim()!=="") ? ("▸ "+label+"\n    De:   "+antes+"\n    Para: "+depois) : ("▸ "+label+"\n    Passa a ser: "+depois);
+    const fmtQuadro=socs=>socs.map(s=>"      "+(s.nome||"").toUpperCase()+" — "+numBR(s.quotas||0)+" quotas ("+pct(s.percentual||0)+")").join("\n");
+    if(CH.has("nome")){const ant=((d.razaoAnterior||(va&&va.razao))||"").toUpperCase(); L.push(dp("NOME EMPRESARIAL", ant?ant+sufixo:"", (d.razao||"").toUpperCase()+sufixo));}
+    if(CH.has("fantasia")) L.push(dp("NOME FANTASIA", (va&&va.fantasia)||"", d.fantasia||"(supressão do nome fantasia)"));
+    // sem o endereço lido do PDF, vale o "Endereço ANTERIOR" digitado (o mesmo que vai no preâmbulo)
+    if(CH.has("sede")) L.push(dp("ENDEREÇO DA SEDE", (va&&va.sede&&(va.sede.log||va.sede.cep))?endLinha(va.sede):(d.sedeAnterior||"").trim(), endLinha(d.sede)));
+    if(CH.has("objeto")) L.push(dp("OBJETO SOCIAL (ATIVIDADES)", (va&&va.objeto)||"", d.objeto||""));
+    if(CH.has("capital")){
+      // na transformação, o "de" é o acervo do EI quando o capital da sociedade é maior que ele
+      const ca=(va&&va.capital>0)?va.capital:(d.capitalAnterior>0?d.capitalAnterior:((MODE.startsWith("transf")&&d.acervo>0&&Math.abs(d.acervo-d.capital)>0.005)?d.acervo:0));
+      L.push(dp("CAPITAL SOCIAL", ca>0?reais(ca)+" ("+extensoReais(ca)+")":"", reais(d.capital)+" ("+extensoReais(d.capital)+")"));
+    }
+    if(CH.has("quadro")){ if(va&&va.socios&&va.socios.length) L.push("▸ QUADRO SOCIETÁRIO\n    De:\n"+fmtQuadro(va.socios)+"\n    Para:\n"+fmtQuadro(d.socios)); else L.push("▸ QUADRO SOCIETÁRIO\n"+fmtQuadro(d.socios).replace(/^ {2}/gm,"")); }
+    if(CH.has("enquadramento")) L.push(dp("ENQUADRAMENTO (PORTE)", (va&&va.enquadramento)?(ENQ[va.enquadramento]||va.enquadramento):"", (ENQ[d.enquadramento]||d.enquadramento)));
+    if(CH.has("foro")) L.push(dp("FORO", "", "Comarca de "+(d.foro||(d.sede&&d.sede.mun)||"")+" - "+(d.foroUF||(d.sede&&d.sede.uf)||"")));
+    return L;}
+  function blocosEmail(d,sufixo){let L=[]; const CH=d.changed||new Set(); const isAltMode=MODE.endsWith("alt");
     if(isAltMode && CH.size){
-      const va=valoresAntes;   // estado ATUAL (do PDF) antes das mudanças; null se não veio de preenchimento rápido
-      const dp=(label,antes,depois)=> (antes!=null&&String(antes).trim()!=="") ? ("▸ "+label+"\n    De:   "+antes+"\n    Para: "+depois) : ("▸ "+label+"\n    Passa a ser: "+depois);
-      const fmtQuadro=socs=>socs.map(s=>"      "+(s.nome||"").toUpperCase()+" — "+numBR(s.quotas||0)+" quotas ("+pct(s.percentual||0)+")").join("\n");
-      if(CH.has("nome")){const ant=((d.razaoAnterior||(va&&va.razao))||"").toUpperCase(); L.push(dp("NOME EMPRESARIAL", ant?ant+sufixo:"", (d.razao||"").toUpperCase()+sufixo));}
-      if(CH.has("fantasia")) L.push(dp("NOME FANTASIA", (va&&va.fantasia)||"", d.fantasia||"(supressão do nome fantasia)"));
-      if(CH.has("sede")) L.push(dp("ENDEREÇO DA SEDE", (va&&va.sede&&(va.sede.log||va.sede.cep))?endLinha(va.sede):"", endLinha(d.sede)));
-      if(CH.has("objeto")) L.push(dp("OBJETO SOCIAL (ATIVIDADES)", (va&&va.objeto)||"", d.objeto||""));
-      if(CH.has("capital")) L.push(dp("CAPITAL SOCIAL", (va&&va.capital>0)?reais(va.capital)+" ("+extensoReais(va.capital)+")":"", reais(d.capital)+" ("+extensoReais(d.capital)+")"));
-      if(CH.has("quadro")){ if(va&&va.socios&&va.socios.length) L.push("▸ QUADRO SOCIETÁRIO\n    De:\n"+fmtQuadro(va.socios)+"\n    Para:\n"+fmtQuadro(d.socios)); else L.push("▸ QUADRO SOCIETÁRIO\n"+fmtQuadro(d.socios).replace(/^ {2}/gm,"")); }
-      if(CH.has("enquadramento")) L.push(dp("ENQUADRAMENTO (PORTE)", (va&&va.enquadramento)?(ENQ[va.enquadramento]||va.enquadramento):"", (ENQ[d.enquadramento]||d.enquadramento)));
+      L=linhasAlteracoes(d,sufixo,CH);
       if(!L.length) L.push("(Marque em \"O que muda\" os itens alterados para detalhá-los aqui.)");
     } else if(MODE==="const"||MODE==="ei_const"){
       L.push("    "+(MODE==="ei_const"?"Nome empresarial":"Razão social")+": "+(d.razao||"").toUpperCase()+sufixo);
@@ -4265,6 +4301,9 @@ window.TINA=(function(){
       L.push("    Para: "+(d.razao||"").toUpperCase()+(destEI?"":" LTDA")+(MODE==="transf_ei_slu"?" (SLU)":""));
       L.push("    CNPJ (mantido): "+(d.cnpj||"[CNPJ]"));
       if(!destEI){ L.push("    Sócios da nova sociedade:"); d.socios.forEach(s=>L.push("      • "+(s.nome||"").toUpperCase()+" — "+pct(s.percentual||0))); }
+      // o que muda junto com a transformação (endereço, objeto…) — antes não aparecia no e-mail
+      const alts=linhasAlteracoes(d,sufixo,CH);
+      if(alts.length){ L.push("ALTERAÇÕES NO MESMO ATO:"); alts.forEach(x=>L.push(x)); }
     } else if(MODE.startsWith("dist")){
       L.push("    Empresa: "+(d.razao||"").toUpperCase()+sufixo);
       L.push("    CNPJ: "+(d.cnpj||"[CNPJ]"));
@@ -4274,8 +4313,9 @@ window.TINA=(function(){
   function pontosEmail(d){const P=[]; const obj=(d.objeto||"").toLowerCase(); const CH=d.changed||new Set();
     if(/veterin|medicin|m[ée]dic|odontolog|dentist|contabil|advoca|engenh|arquitet|psicolog|farmac|nutri|fisioter|enfermag/.test(obj)) P.push("Atividade regulamentada: pode exigir responsável técnico (RT) e registro no respectivo conselho profissional.");
     if(/aliment|lanchonet|restaurant|padaria|sa[úu]de|est[ée]tica|cosm[ée]tic|farm|bebida|a[çc]ougue|hortifrut/.test(obj)) P.push("Atividade sujeita à vigilância sanitária: verificar licença sanitária municipal.");
-    if(MODE.endsWith("alt") && CH.has("sede")) P.push("Mudança de endereço: verificar alvará de funcionamento e consulta prévia de viabilidade na Prefeitura da nova sede.");
-    if(MODE.endsWith("alt") && (CH.has("nome")||CH.has("fantasia"))) P.push("Mudança de nome/marca: avaliar registro no INPI, se a marca tiver valor de mercado.");
+    const altOuTransf=MODE.endsWith("alt")||MODE.startsWith("transf");
+    if(altOuTransf && CH.has("sede")) P.push("Mudança de endereço: verificar alvará de funcionamento e consulta prévia de viabilidade na Prefeitura da nova sede.");
+    if(altOuTransf && (CH.has("nome")||CH.has("fantasia"))) P.push("Mudança de nome/marca: avaliar registro no INPI, se a marca tiver valor de mercado.");
     if(MODE.startsWith("dist")) P.push("A baixa do CNPJ exige certidões negativas (federal, estadual, municipal, FGTS e trabalhista): confirmar débitos pendentes, rescisão de empregados e destino de bens/estoque antes do protocolo.");
     if(MODE.startsWith("transf")) P.push("Na transformação o CNPJ é mantido, mas exige averbação na Receita Federal para atualizar a natureza jurídica.");
     P.push("Após o registro na Junta, atualizar cartão CNPJ, procurações, certificados digitais e cadastros junto a bancos e órgãos.");
