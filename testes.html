@@ -1242,6 +1242,110 @@
         /Selecione um trecho/i.test(($("atribStat")||{}).textContent||""), (($("atribStat")||{}).textContent||"").slice(0,50));
     }catch(e){ reg("Bateria de procedência",false,String(e&&e.message||e).slice(0,120)); }
 
+    /* ---------- 6b2h. EIRELI, PDF justificado e Conferência editável ----------
+       Nasceu de três contratos reais (constituição + 2 alterações) de uma EIRELI que o leitor errou
+       em quase tudo: razão virou "em atividades estranhas ao interesse social", o titular saiu como
+       sócia, o RG ficou com o órgão da CNH, a sede veio sem número, o nº da alteração sumiu e as
+       cláusulas levavam o título da seguinte e a data do fecho coladas no fim.
+       Os textos abaixo são FICTÍCIOS: só reproduzem a estrutura. */
+    grupo("Leitura de EIRELI e Conferência editável");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      var P=W.TINA._pdf;
+      // --- pedaços do pdf.js: mesma palavra em dois itens, colados pela posição ---
+      var it=function(s,x,y,w){ return {str:s,transform:[11,0,0,11,x,y],width:w,height:11,hasEOL:false}; };
+      var junto=P.juntarItensTexto([it("97, resident",137.3,664,60.0),it("e e domiciliado na Rua",197.3,664,100),it("Ba",300,664,13),it("irro Centro",313.2,664,50),it(" ",363,664,3),it("CEP",366,664,20)]);
+      reg("Itens colados no PDF viram a mesma palavra (resident+e, Ba+irro)",
+        /residente e domiciliado/.test(junto) && /Bairro Centro CEP/.test(junto), junto);
+      var semFolga=P.juntarItensTexto([it("Rua A,",10,700,30),it("54",60,700,12)]);
+      reg("Itens separados por espaço de verdade continuam separados", semFolga==="Rua A, 54", semFolga);
+      var pgs=P.tirarRepeticoesPaginas([
+        "ALTERAÇÃO Nº 02 DO CONTRATO EMPRESARIAL INDIVIDUAL DE RESPONSABILIDADE LIMITADA “EXEMPLO COMERCIO EIRELI” Pelo presente instrumento. CLÁUSULA PRIMEIRA. Texto um. A validade deste documento, se impresso, fica sujeito à comprovação de sua autenticidade nos respectivos portais.",
+        "ALTERAÇÃO Nº 02 DO CONTRATO EMPRESARIAL INDIVIDUAL DE RESPONSABILIDADE LIMITADA “EXEMPLO COMERCIO EIRELI” CLÁUSULA SEGUNDA. Texto dois. A validade deste documento, se impresso, fica sujeito à comprovação de sua autenticidade nos respectivos portais."]);
+      reg("Cabeçalho e rodapé repetidos saem da página 2 em diante",
+        pgs[1].indexOf("ALTERAÇÃO")<0 && /^CLÁUSULA SEGUNDA\. Texto dois\.$/.test(pgs[1]) && pgs[0].indexOf("ALTERAÇÃO Nº 02")===0, pgs[1].slice(0,80));
+
+      // --- contrato de EIRELI (alteração com consolidado; título ANTES do rótulo da cláusula) ---
+      var Q=", nacionalidade brasileira, natural de Aracaju/SE, solteiro, nascido em 15/05/1980, empresário, portador da CNH nº 01234567890 DETRAN/SE emitida em 01/03/2015, carteira de identidade RG. nº 1234567 SSP/SE, inscrito no CPF sob o nº 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Bairro Centro, Aracaju/SE, CEP 49000-400.";
+      var tE="ALTERAÇÃO Nº 02 DO CONTRATO EMPRESARIAL INDIVIDUAL DE RESPONSABILIDADE LIMITADA “EXEMPLO COMERCIO DE TESTE EIRELI” Pelo presente Instrumento Particular de Contrato Social: JOAO EXEMPLO SOUZA"+Q
+        +" Único sócio da Empresa Individual de Responsabilidade Limitada – EIRELI nos termos do inciso VI do art. 44, resolve modificar as cláusulas do Contrato Social mediante a seguinte alteração: "
+        +"1. Altera o endereço da empresa da Rua Velha, 5, Bairro Centro, em Itabaiana/SE CEP 49000-222, para Rua Nova, 321, Bairro Centro, Sala 3, em Itabaiana/SE CEP 49000-111. "
+        +"2. Altera o nome fantasia de ANTIGO para NOVO FANTASIA. Em face da alteração ocorrida, delibera o sócio, consolidar o contrato social da sociedade, pelas cláusulas e condições seguintes, que passarão a reger a sociedade. "
+        +"CONTRATO SOCIAL CONSOLIDADO EXEMPLO COMERCIO DE TESTE – EIRELI CNPJ (MF) nº 11.222.333/0001-81 Nire nº 28600012345 Pelo presente Instrumento Particular de Contrato Social: JOAO EXEMPLO SOUZA"+Q
+        +" Único sócio da firma EXEMPLO COMERCIO DE TESTE – EIRELI, com sede na Rua Nova, 321, Bairro Centro, Sala 3, em Itabaiana/SE CEP 49000-111, e inscrito no CNPJ sob o nº 11.222.333/0001-81, com seu ato constitutivo arquivado na Junta Comercial do Estado de Sergipe sob o Nire nº 28600012345, delibera ajustar a presente alteração contratual mediante as condições estabelecidas nas cláusulas seguintes: "
+        +"DO NOME EMPRESARIAL, DA SEDE E DAS FILIAIS CLÁUSULA PRIMEIRA . A empresa girará sob o nome empresarial EXEMPLO COMERCIO DE TESTE EIRELI e terá sede na Rua Nova, 321, Bairro Centro, Sala 3, em Itabaiana/SE CEP 49000-111, podendo, todavia, estabelecer filiais, agências ou sucursais. Parágrafo Único: A sociedade utilizará como nome fantasia a expressão “NOVO FANTASIA”. "
+        +"DO OBJETO CLÁUSULA SEGUNDA. A empresa terá o seguinte objeto: Comércio varejista de artigos de teste. "
+        +"DO PRAZO DE DURAÇÃO CLÁUSULA TERCEIRA. A empresa iniciará suas atividades na data de 05/03/2015 e o prazo de duração é indeterminado. "
+        +"DO CAPITAL CLÁUSULA QUARTA. O capital será de R$ 50.000,00 (cinquenta mil reais) integralizado neste ato em moeda corrente do País e representado por uma quota de igual valor nominal. "
+        +"DA ADMINISTRAÇÃO CLÁUSULA QUINTA. A administração da empresa será exercida isoladamente por seu titular JOAO EXEMPLO SOUZA, que ficará incumbido de exercer todos os atos pertinentes, vedado, no entanto, o uso do nome empresarial em atividades estranhas ao interesse social. "
+        +"DO EXERCÍCIO, BALANÇO PATRIMONIAL DOS LUCROS E PERDAS CLÁUSULA SEXTA. Ao término de cada exercício social, em 31 de dezembro, o administrador procederá à elaboração do inventário e do balanço patrimonial. "
+        +"CLÁUSULA SÉTIMA. O titular JOAO EXEMPLO SOUZA declara, sob as penas da Lei, não possuir nenhuma outra empresa nos moldes de EIRELI, em qualquer parte do território nacional. "
+        +"DO DESIMPEDIMENTO CLÁUSULA OITAVA. O administrador JOAO EXEMPLO SOUZA declara, sob as penas da lei, não estar impedido de exercer a administração da empresa, por lei especial ou em virtude de condenação criminal. "
+        +"Itabaiana/SE, 20 de agosto de 2021. _____________ JOAO EXEMPLO SOUZA Titular/Administrador ASSINATURA ELETRÔNICA Certificamos que o ato da empresa consta assinado digitalmente por:";
+      var pE=P.parseContratoTexto(tE,"","","SEGUNDA ALTERAÇÃO CONTRATUAL.pdf"), dE=(pE&&pE.d)||{}, sE=(dE.socios||[])[0]||{};
+      reg("EIRELI: razão social lida sem o sufixo e sem pedaço de frase", dE.razao==="EXEMPLO COMERCIO DE TESTE", dE.razao||"(vazia)");
+      reg("EIRELI: reconhecida como tal (para avisar a extinção)", dE.tipoOrig==="EIRELI", dE.tipoOrig||"(não)");
+      reg("Titular: 'nacionalidade brasileira' não faz o homem virar sócia", sE.sexo==="M", "sexo "+sE.sexo);
+      reg("RG: o órgão é o do RG (SSP/SE), não o da CNH (DETRAN/SE)", sE.orgao==="SSP" && sE.orgaoUF==="SE", (sE.orgao||"")+"/"+(sE.orgaoUF||""));
+      reg("Titular único tem uma quota e administra", sE.quotas===1 && sE.administrador===true, "quotas "+sE.quotas);
+      reg("Capital e quota única (igual ao capital)", dE.capital===50000 && dE.valorQuota===50000, dE.capital+" / "+dE.valorQuota);
+      reg("Nº da alteração lido de 'ALTERAÇÃO Nº 02' (a próxima é a 3ª)", dE.numAlteracao==="3", "lido "+dE.numAlteracao);
+      reg("Nome fantasia: vale o da cláusula, não a frase 'Altera o nome fantasia de X para Y'", dE.fantasia==="NOVO FANTASIA", dE.fantasia||"(vazio)");
+      reg("Sede com número, complemento e cidade sem o 'em'", !!dE.sede && dE.sede.num==="321" && dE.sede.mun==="Itabaiana" && /^Rua Nova/.test(dE.sede.log||""), JSON.stringify(dE.sede||{}));
+      reg("Início das atividades lido da cláusula", dE.dataInicioOrig==="05/03/2015", dE.dataInicioOrig||"(vazio)");
+      var cl=dE.clausulasOrig||[];
+      reg("Cláusulas: as 8 foram reconhecidas", cl.length===8, cl.length+" cláusulas");
+      reg("Cláusula não leva o título da seguinte colado no fim",
+        cl.length>=8 && cl.slice(0,7).every(function(c){ return !/\sD[AEO]S?\s[A-ZÀ-Ú ,]{4,}\.?$/.test(c.texto); }), cl.length?cl[0].texto.slice(-50):"");
+      reg("O título que veio antes do rótulo passa a abrir a própria cláusula", cl.length>=4 && /^DO CAPITAL\. O capital/.test(cl[3].texto), (cl[3]||{}).texto?cl[3].texto.slice(0,40):"");
+      reg("Última cláusula termina antes da data do fecho e da assinatura eletrônica", cl.length>=8 && !/agosto de 2021|ASSINATURA|Titular\/Administrador/.test(cl[7].texto), cl.length?cl[cl.length-1].texto.slice(-60):"");
+      reg("Cláusula 'não estar impedido' é o desimpedimento (não a administração)", cl.length>=8 && cl[7].tema==="desimpedimento", cl.length?cl[7].tema:"");
+      reg("'iniciará suas atividades' é o prazo e 'terá o seguinte objeto' é o objeto", cl.length>=3 && cl[1].tema==="objeto" && cl[2].tema==="prazo", (cl[1]||{}).tema+" / "+(cl[2]||{}).tema);
+      reg("Cláusula 'nome, sede e filiais' conta como nome E sede", cl.length>=1 && cl[0].tema==="nome" && (cl[0].extras||[]).indexOf("sede")>=0, JSON.stringify((cl[0]||{}).extras||[]));
+      // constituição: início = data do fecho, próximo ato = 1ª alteração
+      var tC="ATO CONSTITUTIVO DE EMPRESA INDIVIDUAL DE RESPONSABILIDADE LIMITADA - EIRELI Pelo presente instrumento particular de constituição de Empresa Individual de responsabilidade limitada: JOAO EXEMPLO SOUZA"+Q
+        +" Resolve constituir uma Empresa Individual de Responsabilidade Limitada - EIRELI mediante as cláusulas seguintes: DO NOME EMPRESARIAL, DA SEDE E DAS FILIAIS CLÁUSULA PRIMEIRA. A empresa girará sob o nome empresarial EXEMPLO COMERCIO DE TESTE EIRELI e terá sede na Rua Velha, n° 5, Bairro Centro, Itabaiana/SE, CEP 49000-222. DO OBJETO CLÁUSULA SEGUNDA. A empresa terá o seguinte objeto: Comércio varejista de artigos de teste. DO PRAZO DE DURAÇÃO CLÁUSULA TERCEIRA. A empresa iniciará suas atividades na data de assinatura deste ato e o prazo de duração é indeterminado. DO CAPITAL CLÁUSULA QUARTA. O capital será de R$ 50.000,00 (cinquenta mil reais) representado por uma quota de igual valor nominal. DA ADMINISTRAÇÃO CLÁUSULA QUINTA. A administração será exercida por seu titular JOAO EXEMPLO SOUZA. CLÁUSULA SEXTA. Ao término de cada exercício social, em 31 de dezembro, o administrador procederá ao balanço. Itabaiana/SE, 05 de março de 2015. JOAO EXEMPLO SOUZA Titular/Administrador";
+      var dC=(P.parseContratoTexto(tC,"","","CONTRATO SOCIAL AUTENTICADO DE CONSTITUIÇÃO.pdf")||{}).d||{};
+      reg("Constituição: início das atividades = data do fecho; próxima é a 1ª alteração", dC.dataInicioOrig==="05/03/2015" && dC.numAlteracao==="1", dC.dataInicioOrig+" / "+dC.numAlteracao);
+      var dN=(P.parseContratoTexto(tE,"","","PRIMEIRA ALTERAÇÃO CONTRATUAL.pdf")||{}).d||{};
+      var tSemNum=tE.replace("ALTERAÇÃO Nº 02","ALTERAÇÃO");
+      var dN2=(P.parseContratoTexto(tSemNum,"","","PRIMEIRA ALTERAÇÃO CONTRATUAL.pdf")||{}).d||{};
+      reg("Nº da alteração pelo nome do arquivo por extenso ('PRIMEIRA ALTERAÇÃO…')", dN2.numAlteracao==="2", "lido "+dN2.numAlteracao);
+
+      // --- a Conferência corrige o formulário (sem passar por outra tela) ---
+      P.aplicarDadosContrato(pE); await espera(150);
+      var proc=P.procedencia(tE,dE);
+      reg("A Conferência traz também o titular (nome, CPF, RG, órgão, residência…)", proc.filter(function(x){ return /^s0\./.test(x.campo); }).length>=8, proc.length+" linhas");
+      var okf=function(r){ return r===""; };
+      reg("Corrigir o capital pela Conferência grava no formulário", okf(P.atribuirCampo("capital","R$ 60.000,00")) && Number($("capital").value)===60000, $("capital").value);
+      reg("Valor que não é número é recusado e o campo não muda", P.atribuirCampo("capital","sem número")!=="" && Number($("capital").value)===60000, $("capital").value);
+      reg("Corrigir a sede (texto livre) separa logradouro, número, bairro, cidade e CEP",
+        okf(P.atribuirCampo("sede","Rua Exemplo Alfa, nº 54, Bairro Centro, Itabaiana/SE, CEP 49000-333")) && $("s_log").value==="Rua Exemplo Alfa" && $("s_num").value==="54" && $("s_mun").value==="Itabaiana" && $("s_cep").value==="49000-333",
+        [$("s_log").value,$("s_num").value,$("s_mun").value,$("s_cep").value].join("|"));
+      reg("Foro: 'Comarca de X/UF' vira só a cidade (e a UF vai para o campo da UF)", okf(P.atribuirCampo("foro","Comarca de Lagarto/SE")) && $("foro").value==="Lagarto", $("foro").value);
+      reg("Enquadramento aceita o texto do documento", okf(P.atribuirCampo("enquadramento","empresa de pequeno porte")) && $("enquadramento").value==="EPP", $("enquadramento").value);
+      reg("Razão social apontada perde aspas e o sufixo EIRELI", okf(P.atribuirCampo("razao","“OUTRA FIRMA TESTE EIRELI”")) && $("razao").value==="OUTRA FIRMA TESTE", $("razao").value);
+      reg("CPF do titular: 11 dígitos exigidos; certo, é formatado",
+        P.atribuirSocio(0,"cpf","123")!=="" && okf(P.atribuirSocio(0,"cpf","52998224725")) && /529\.982\.247-25/.test(D.querySelector('.socio:not(.filial) [data-f="cpf"]').value),
+        D.querySelector('.socio:not(.filial) [data-f="cpf"]').value);
+      reg("Órgão do RG: 'SSP/SE' separa sigla e UF", okf(P.atribuirSocio(0,"orgao","SSP/SE")) && D.querySelector('.socio:not(.filial) [data-f="orgao"]').value==="SSP" && D.querySelector('.socio:not(.filial) [data-f="orgaoUF"]').value==="SE", "");
+      reg("Residência do titular separa o endereço", okf(P.atribuirSocio(0,"res","Rua Dois, nº 7, Bairro Sul, Lagarto/SE, CEP 49400-000")) && D.querySelector('.socio:not(.filial) [data-f="log"]').value==="Rua Dois" && D.querySelector('.socio:not(.filial) [data-f="mun"]').value==="Lagarto", "");
+      // a tela
+      P.aplicarDadosContrato(pE); await espera(100);
+      P.definirProcedencia(P.procedencia(tE,dE));
+      P.abrirProcedencia();
+      await espera(150);
+      var linhas=D.querySelectorAll("#procLista .conf-lin");
+      reg("A tela da Conferência tem um campo editável por linha", linhas.length>=15 && D.querySelectorAll("#procLista [data-conf]").length===linhas.length, linhas.length+" linhas");
+      reg("Cada linha tem o botão 'Apontar no documento'", D.querySelectorAll("#procLista [data-ap]").length===linhas.length, "");
+      var cap=D.querySelector('#procLista [data-conf="capital"]');
+      cap.value="70.000,00"; cap.dispatchEvent(new W.Event("change",{bubbles:true})); await espera(120);
+      reg("Editar na tela grava no formulário e marca 'corrigido por você'",
+        Number($("capital").value)===70000 && /corrigido por você/.test((D.querySelector('#procLista [data-conf="capital"]').closest(".conf-lin").innerText)||""), $("capital").value);
+      D.getElementById("procModal").classList.remove("open");
+    }catch(e){ reg("Bateria de EIRELI e Conferência editável",false,String(e&&e.message||e).slice(0,160)); }
+
     /* ---------- 6b5b. CSP x endereços realmente usados ----------
        Esta bateria nasceu de um bug caro: a consulta de CNPJ e o Firebase foram adicionados sem
        abrir os endereços na política de segurança da página, e ficaram bloqueados em silêncio por

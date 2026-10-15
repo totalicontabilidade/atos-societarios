@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.46" />
+<meta name="versao" content="1.47" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -206,6 +206,12 @@
   .modal .mb table{width:100%;border-collapse:collapse;margin:8px 0}
   .modal .mb td{border-bottom:1px solid var(--line2);padding:7px 6px;vertical-align:top}
   .modal .mb td:first-child{white-space:nowrap;font-weight:600;color:var(--navy);width:38%}
+  .conf-sec{margin:14px 0 4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .conf-lin{margin-bottom:6px}
+  .conf-ctl{display:flex;gap:8px;align-items:flex-start;margin-top:5px}
+  .conf-ctl input,.conf-ctl textarea,.conf-ctl select{flex:1;min-width:0}
+  .conf-ctl .btn{white-space:nowrap}
+  #confTexto mark{background:#ffe58a;padding:0 1px;border-radius:2px}
   .modal .x{cursor:pointer;border:none;background:#eef1f6;border-radius:8px;padding:5px 12px;font-weight:700;color:var(--ink2)}
   .muted{color:var(--muted)}
   .pill{display:inline-flex;font-size:10.5px;font-weight:600;padding:2px 9px;border-radius:20px;background:#eef2f7;color:var(--navy);margin-left:4px;align-items:center}
@@ -648,6 +654,9 @@
                 <option value="cnpj">CNPJ</option>
                 <option value="nire">NIRE</option>
                 <option value="dataInicioOrig">Início das atividades</option>
+                <option value="valorQuota">Valor da quota</option>
+                <option value="numAlteracao">Nº desta alteração</option>
+                <option value="foro">Foro (comarca)</option>
               </select>
               <button class="btn p mini" type="button" id="btnAtrib">Aplicar</button>
               <span style="flex:1"></span>
@@ -1063,11 +1072,24 @@
 </div>
 
 <div class="modal-bg" id="procModal">
-  <div class="modal">
+  <div class="modal" style="max-width:900px">
     <div class="mh"><span>🔎 Conferência da leitura</span><button class="x" id="btnProcClose">Fechar</button></div>
     <div class="mb">
-      <div class="hint">O que o sistema leu do PDF e o trecho de onde tirou. Confira os que estiverem marcados como não encontrados.</div>
+      <div class="hint">O que o sistema leu do documento e o trecho de onde tirou. <b>Corrija direto no campo</b> — o que você mudar aqui já vai para o formulário — ou use <b>Apontar no documento</b> para marcar com o mouse o trecho que realmente é aquele dado. O que não foi encontrado fica em amarelo: ou o documento não traz, ou o leitor não reconheceu a redação.</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><span id="procResumo" class="hint" style="font-size:12px"></span><span style="flex:1"></span><button type="button" class="btn o mini" id="btnProcApontar">📌 Abrir o texto do documento</button></div>
       <div id="procLista" style="margin-top:10px"></div>
+      <div id="confDoc" style="display:none;position:sticky;bottom:-14px;background:#fff;border-top:2px solid var(--navy);margin-top:12px;padding:10px 0 4px;z-index:2">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b style="color:var(--navy)">Texto do documento</b>
+          <span class="hint">— selecione o trecho e diga o que ele é:</span>
+          <select id="confAlvo" style="width:auto;max-width:100%"></select>
+          <button type="button" class="btn p mini" id="confUsar" disabled>Usar o trecho selecionado</button>
+          <button type="button" class="btn o mini" id="confFechaDoc">Fechar o texto</button>
+        </div>
+        <div class="hint" id="confSelPrev" style="margin-top:6px"></div>
+        <div class="fldstat" id="confMsg"></div>
+        <pre id="confTexto" style="max-height:22vh;overflow:auto;background:#f6f8fb;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:12px;white-space:pre-wrap;margin:6px 0 0;user-select:text"></pre>
+      </div>
     </div>
   </div>
 </div>
@@ -1342,13 +1364,13 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.46"></script>
-<script defer src="js/nuvem.js?v=1.46"></script>
-<script defer src="js/integracao.js?v=1.46"></script>
-<script defer src="js/modelos-coop.js?v=1.46"></script>
-<script defer src="js/gerador-coop.js?v=1.46"></script>
-<script defer src="js/modelos-sa.js?v=1.46"></script>
-<script defer src="js/gerador-sa.js?v=1.46"></script>
+<script defer src="js/nuvem-config.js?v=1.47"></script>
+<script defer src="js/nuvem.js?v=1.47"></script>
+<script defer src="js/integracao.js?v=1.47"></script>
+<script defer src="js/modelos-coop.js?v=1.47"></script>
+<script defer src="js/gerador-coop.js?v=1.47"></script>
+<script defer src="js/modelos-sa.js?v=1.47"></script>
+<script defer src="js/gerador-sa.js?v=1.47"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -2099,14 +2121,19 @@ window.TINA=(function(){
         || (tm==="sede" && CH.has("filiais"));
       orig.forEach(cl=>{
         const b=cl.tema?porTema.get(cl.tema):null;
-        if(b && mexeu(cl.tema)){                        // o ato mexe nisso → texto novo, mesma posição
-          usados.add(cl.tema);
-          const rot=rotulo();
-          ch.push(P([T(rot+b.titulo.replace(/^D[AEOU]S?\s+/,"").replace(/^DECLARAÇÃO DE\s+/,""),{bold:true})],LEFT,SP10));
-          b.paras.forEach(p=>ch.push(p));
-          _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:b.titulo,situacao:"reescrita",tema:cl.tema,antes:cl.texto});
+        /* Cláusula de vários assuntos ("DO NOME EMPRESARIAL, DA SEDE…"): se qualquer um muda, ela
+           sai reescrita com um bloco para cada assunto — nenhum fica com o texto antigo. */
+        const blocos=b?[b].concat((cl.extras||[]).map(e=>porTema.get(e)).filter(Boolean)):[];
+        if(b && (mexeu(cl.tema) || (cl.extras||[]).some(mexeu))){      // o ato mexe nisso → texto novo, mesma posição
+          blocos.forEach((bl,k)=>{
+            usados.add(bl.tema);
+            const rot=rotulo();
+            ch.push(P([T(rot+bl.titulo.replace(/^D[AEOU]S?\s+/,"").replace(/^DECLARAÇÃO DE\s+/,""),{bold:true})],LEFT,SP10));
+            bl.paras.forEach(p=>ch.push(p));
+            _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:bl.titulo,situacao:"reescrita",tema:bl.tema,antes:k===0?cl.texto:""});
+          });
         } else {                                        // não mexe → sai como está no contrato do cliente
-          if(b) usados.add(cl.tema);
+          if(b) blocos.forEach(bl=>usados.add(bl.tema));
           const rot=rotulo();
           /* A tabela de quotas chega do PDF "achatada" no fim do parágrafo. Reproduzir a cláusula
              só como texto fazia a tabela sumir do consolidado — então o texto sai até onde a
@@ -2115,7 +2142,8 @@ window.TINA=(function(){
           /* Regra da Junta: cláusula que este ato NÃO altera fica no presente. Se o contrato
              enviado a trazia no futuro (foi alterada no ato anterior), só o verbo volta ao
              presente — o resto do texto do cliente não é tocado. */
-          const tp=aoPresente(cl.tema,cl.texto);
+          let tp=aoPresente(cl.tema,cl.texto);
+          (cl.extras||[]).forEach(e=>{ const t2=aoPresente(e,tp.texto); tp={texto:t2.texto,mudou:tp.mudou||t2.mudou}; });   // cláusula de vários assuntos: o verbo de cada um volta ao presente
           const tq=cl.tema==="capital"?separarTabelaQuotas(rejuntarNomeTabela(tp.texto,(d.socios||[]).map(s=>s.nome))):null;
           if(tq){
             ch.push(P([T(rot,{bold:true}),...R(tq.antes)],JUST,SP15));
@@ -3593,26 +3621,204 @@ window.TINA=(function(){
     }).join("");
     $("compModal").classList.add("open");
   }
-  /* ===== Conferência da leitura ===== */
-  let _procedencia=[];
-  function abrirProcedencia(){
+  /* ===== Conferência da leitura =====
+     Lista cada dado que o sistema leu do documento, mostra o TRECHO de onde saiu e deixa o usuário
+     corrigir ali mesmo: digitando o valor certo ou APONTANDO, no próprio texto do documento, o
+     pedaço que corresponde ao campo. O que se edita aqui vai direto para o formulário, sem passar
+     por mais uma tela. "Não encontrado" separa o que o leitor falhou do que o documento não traz. */
+  let _procedencia=[], _confAlvo="", _confSel="", _confErro={};
+  const CONF_SELECTS={enquadramento:[["",""],["ME","ME"],["EPP","EPP"],["DEMAIS","Demais (nem ME nem EPP)"]]};
+  function confCard(i){ return [...document.querySelectorAll(".socio:not(.filial):not(.guardado)")][i]||null; }
+  function confSocioRef(campo){ const m=/^s(\d+)\.(.+)$/.exec(campo||""); return m?{i:+m[1],f:m[2]}:null; }
+  /* Valor que está NO FORMULÁRIO agora — não o que foi lido no começo. É ele que a tela mostra,
+     então corrigir no formulário ou aqui dá no mesmo. */
+  function confLer(l){
+    const r=confSocioRef(l.campo);
+    if(r){ const c=confCard(r.i); if(!c) return "";
+      const g=f=>{ const e=c.querySelector('[data-f="'+f+'"]'); return e?String(e.value||"").trim():""; };
+      if(r.f==="res") return [g("log"),g("num")&&("nº "+g("num")),g("comp"),g("bairro"),g("mun")&&(g("mun")+(g("uf")?"/"+g("uf"):"")),g("cep")&&("CEP "+g("cep"))].filter(Boolean).join(", ");
+      if(r.f==="orgao") return g("orgao")?(g("orgao")+(g("orgaoUF")?"/"+g("orgaoUF"):"")):"";
+      return g(r.f); }
+    if(l.campo==="sede"){ const g=id=>(($(id)||{}).value||"").trim();
+      return [g("s_log"),g("s_num")&&("nº "+g("s_num")),g("s_comp"),g("s_bairro"),g("s_mun")&&(g("s_mun")+(g("s_uf")?"/"+g("s_uf"):"")),g("s_cep")&&("CEP "+g("s_cep"))].filter(Boolean).join(", "); }
+    if(l.campo==="capital"||l.campo==="valorQuota"){ const n=Number(($(l.campo)||{}).value)||0; return n>0?reais(n).replace(/^R\$\s*/,""):""; }
+    const e=$(l.campo); return e?String(e.value||"").trim():"";
+  }
+  /* Grava no formulário o que o usuário digitou ou apontou. Devolve "" quando deu certo, ou a
+     mensagem do que não foi possível entender — nunca grava um valor que não reconheceu. */
+  function atribuirCampo(campo,txt,opt){
+    txt=String(txt==null?"":txt).replace(/\s+/g," ").trim();
+    const revisar=!!(opt&&opt.revisar);
+    const marca=(id)=>{ const e=$(id); if(e){ if(revisar) e.classList.add("revisar"); else e.classList.remove("revisar"); } };
+    const poe=(id,v)=>{ const e=$(id); if(!e) return; e.value=v; marca(id); e.dispatchEvent(new Event("input",{bubbles:true})); };
+    const tira=(s)=>String(s).replace(/^[“"'‘\s]+|[”"'’\s.,;]+$/g,"").trim();
+    if(campo==="objeto"){ poe("objeto",txt?normalizarAtividades(txt,manterCnaeAtivo()):""); }
+    else if(campo==="sede"){
+      if(!txt){ ["s_log","s_num","s_comp","s_bairro","s_mun","s_cep"].forEach(id=>poe(id,"")); }
+      else { const e=parseEnderecoComando(txt);
+        if(!e.log&&!e.mun&&!e.cep) return "Não consegui separar o endereço. Escreva assim: Rua X, nº 10, Bairro, Cidade/UF, CEP 00000-000.";
+        const munAntes=(($("s_mun")||{}).value||"").trim();
+        poe("s_log",e.log||""); poe("s_num",e.num||""); poe("s_comp",e.comp||""); poe("s_bairro",e.bairro||""); poe("s_mun",e.mun||""); poe("s_cep",e.cep?fmtCep(e.cep):"");
+        if(e.uf&&$("s_uf")){ $("s_uf").value=e.uf; marca("s_uf"); }
+        sincronizarForo(munAntes); } }
+    else if(campo==="capital"||campo==="valorQuota"){
+      if(!txt) poe(campo,""); else { const n=brNum((txt.match(/[\d][\d.,]*/)||[])[0]||"");
+        if(!(n>0)) return "Não achei um valor nesse texto."; poe(campo,n); }
+      recalc(); }
+    else if(campo==="cnpj"){
+      if(!txt) poe("cnpj",""); else { const v=(txt.match(/[\dA-Za-z]{2}[.\s]?[\dA-Za-z]{3}[.\s]?[\dA-Za-z]{3}[\/\s]?[\dA-Za-z]{4}[-\s]?\d{2}/)||[])[0];
+        if(!v) return "Não achei um CNPJ nesse texto."; poe("cnpj",fmtCnpj(v)); } }
+    else if(campo==="nire"){
+      if(!txt) poe("nire",""); else { const v=(txt.match(/[\d][\d. ]{8,16}\d/)||[])[0];
+        if(!v) return "Não achei um NIRE nesse texto."; poe("nire",v.replace(/\D/g,"")); } }
+    else if(campo==="dataInicioOrig"){
+      if(!txt) poe(campo,""); else { const v=(txt.match(/\d{1,2}\s*\/\s*\d{1,2}\s*\/\s*\d{4}/)||[])[0];
+        if(!v) return "Não achei uma data (DD/MM/AAAA) nesse texto."; poe(campo,v.replace(/\s/g,"")); } }
+    else if(campo==="numAlteracao"){
+      if(!txt) poe(campo,""); else { const v=(txt.match(/\d{1,2}/)||[])[0];
+        if(!v) return "Não achei um número nesse texto."; poe(campo,String(parseInt(v,10))); } }
+    else if(campo==="enquadramento"){
+      const v=!txt?"":/demais|nem\s+(?:como\s+)?micro/i.test(txt)?"DEMAIS":/pequeno\s+porte|\bEPP\b/i.test(txt)?"EPP":/micro|\bME\b/i.test(txt)?"ME":null;
+      if(v===null) return "Escolha ME, EPP ou Demais."; const e=$("enquadramento"); if(e){ e.value=v; marca("enquadramento"); e.dispatchEvent(new Event("change",{bubbles:true})); } }
+    else if(campo==="razao"){ poe("razao",tira(txt).replace(/\s+(?:LTDA|EIRELI|SLU|S\/?A)\.?$/i,"")); }
+    else if(campo==="fantasia"){ poe("fantasia",tira(txt)); }
+    else if(campo==="foro"){
+      let f=tira(txt).replace(/^o\s+/i,"").replace(/^foro\s+/i,"").replace(/^d[aeo]\s+/i,"").replace(/^comarca\s+/i,"").replace(/^d[aeo]\s+/i,"");
+      const mu=/\s*[-–\/]\s*([A-Z]{2})$/.exec(f); if(mu){ f=f.slice(0,mu.index); if($("foroUF")&&UFS.indexOf(mu[1])>=0) $("foroUF").value=mu[1]; }
+      poe("foro",f.trim()); }
+    else if($(campo)){ poe(campo,txt); }
+    else return "Campo desconhecido.";
+    if(typeof salvarRascunhoDeb==="function") salvarRascunhoDeb();
+    return "";
+  }
+  function atribuirSocio(i,f,txt){
+    const c=confCard(i); if(!c) return "Cartão do sócio não encontrado.";
+    txt=String(txt==null?"":txt).replace(/\s+/g," ").trim();
+    const put=(fd,v,ev)=>{ const e=c.querySelector('[data-f="'+fd+'"]'); if(!e) return false;
+      if(e.tagName==="SELECT"){ const alvo=String(v).toLowerCase(); const op=[...e.options].find(o=>o.value.toLowerCase()===alvo||o.textContent.trim().toLowerCase()===alvo);
+        if(!op&&v) return false; e.value=op?op.value:""; }
+      else e.value=v;
+      e.classList.remove("revisar"); if(ev) e.dispatchEvent(new Event(ev,{bubbles:true})); return true; };
+    let r="";
+    if(f==="res"){ const e=parseEnderecoComando(txt);
+      if(txt&&!e.log&&!e.mun&&!e.cep) return "Não consegui separar o endereço. Escreva assim: Rua X, nº 10, Bairro, Cidade/UF, CEP 00000-000.";
+      ["log","num","comp","bairro","mun"].forEach(x=>put(x,e[x]||"")); put("cep",e.cep?fmtCep(e.cep):""); if(e.uf) put("uf",e.uf,"change"); }
+    else if(f==="orgao"){ const m=/([A-Za-zÀ-ú]{2,8})\s*(?:[\/\- ]\s*([A-Z]{2}))?\s*$/.exec(txt);
+      if(txt&&!m) return "Escreva o órgão assim: SSP/SE.";
+      if(m){ if(!put("orgao",m[1].toUpperCase(),"change")) return "O órgão "+m[1].toUpperCase()+" não está na lista do cartão — escolha “Outro” no próprio cartão.";
+        if(m[2]) put("orgaoUF",m[2],"change"); }
+      else put("orgao","","change"); }
+    else if(f==="cpf"){ const dg=txt.replace(/\D/g,""); if(txt&&dg.length!==11) return "O CPF precisa ter 11 dígitos."; put("cpf",txt?fmtCpf(dg):"","input"); }
+    else if(f==="nascimento"){ const m=txt.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})/);
+      if(txt&&!m) return "Não achei uma data (DD/MM/AAAA)."; put("nascimento",m?String(m[1]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[3]:"","input"); }
+    else if(f==="rg"){ put("rg",txt.replace(/^(?:RG|CIN|identidade)[^\d]*/i,"").replace(/[^\dA-Za-z.\-]/g,"")); }
+    else if(f==="estadoCivil"){ if(!put("estadoCivil",txt,"change")) return "Escolha um dos estados civis da lista."; }
+    else if(f==="pjCnpj"){ const v=(txt.match(/[\dA-Za-z]{2}[.\s]?[\dA-Za-z]{3}[.\s]?[\dA-Za-z]{3}[\/\s]?[\dA-Za-z]{4}[-\s]?\d{2}/)||[])[0];
+      if(txt&&!v) return "Não achei um CNPJ nesse texto."; put("pjCnpj",v?fmtCnpj(v):"","input"); }
+    else put(f,txt,"input");
+    if(typeof salvarRascunhoDeb==="function") salvarRascunhoDeb();
+    return r;
+  }
+  function confGravar(l,txt){ const r=confSocioRef(l.campo); return r?atribuirSocio(r.i,r.f,txt):atribuirCampo(l.campo,txt); }
+  function confStatus(l){
+    if(_confErro[l.campo]) return [_confErro[l.campo],"var(--err)"];
+    if(l.editado) return [l.apontado?"corrigido por você, apontando no documento":"corrigido por você","var(--navy)"];
+    if(l.valor) return ["lido"+(l.origem?" · "+l.origem:""),"var(--ok)"];
+    if(confLer(l)) return ["preenchido por você","var(--navy)"];
+    return ["não encontrado no documento","var(--warn)"];
+  }
+  function confControle(l,atual){
+    const k=escHtml(l.campo), r=confSocioRef(l.campo);
+    let ops=CONF_SELECTS[l.campo];
+    if(r&&r.f==="estadoCivil"){ const c=confCard(r.i), s=c&&c.querySelector('[data-f="estadoCivil"]'); if(s) ops=[...s.options].map(o=>[o.value,o.textContent.trim()]); }
+    if(ops){ const sel=(ops.find(o=>String(o[0]).toLowerCase()===String(atual).toLowerCase())||[])[0];
+      return '<select data-conf="'+k+'">'+ops.map(o=>'<option value="'+escHtml(o[0])+'"'+(o[0]===sel?" selected":"")+">"+escHtml(o[1])+"</option>").join("")+"</select>"; }
+    if(l.campo==="objeto") return '<textarea rows="3" data-conf="'+k+'">'+escHtml(atual)+"</textarea>";
+    return '<input type="text" data-conf="'+k+'" value="'+escHtml(atual)+'" autocomplete="off">';
+  }
+  function renderConf(){
     const box=$("procLista"); if(!box) return;
-    box.innerHTML=_procedencia.map(p=>{
-      const ok=!!p.valor;
-      return '<div class="caso" style="padding:7px 9px">'
+    const sc=$("procModal")&&$("procModal").querySelector(".modal"); const topo=sc?sc.scrollTop:0;
+    const comValor=_procedencia.filter(l=>confLer(l)).length, edit=_procedencia.filter(l=>l.editado).length;
+    $("procResumo").innerHTML="<b>"+comValor+" de "+_procedencia.length+"</b> dados preenchidos"
+      +(_procedencia.length-comValor?(" · <span style='color:var(--warn)'>"+(_procedencia.length-comValor)+" sem valor</span>"):"")
+      +(edit?(" · <span style='color:var(--navy)'>"+edit+" corrigido"+(edit>1?"s":"")+" por você</span>"):"");
+    let secao=null, html="";
+    _procedencia.forEach(l=>{
+      const sec=l.secao||"Dados da empresa";
+      if(sec!==secao){ secao=sec; html+='<div class="conf-sec">'+escHtml(sec)+"</div>"; }
+      const atual=confLer(l), [rot,cor]=confStatus(l);
+      html+='<div class="caso conf-lin" style="padding:8px 10px">'
         +'<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
-        +"<b>"+escHtml(p.rotulo)+"</b>"
-        +'<span class="hint" style="color:'+(ok?"var(--ok)":"var(--warn)")+'">'
-        +(ok?("lido"+(p.origem?" · "+escHtml(p.origem):"")):"não encontrado no documento")+"</span></div>"
-        +(ok?'<div style="font-size:13px;margin-top:2px">'+escHtml(p.valor.slice(0,180))+"</div>":"")
-        +(p.trecho?'<div class="hint" style="margin-top:4px;background:#f6f8fb;border-radius:6px;padding:5px 7px">…'+escHtml(p.trecho)+"…</div>":"")
+        +"<b>"+escHtml(l.rotulo)+"</b>"
+        +'<span class="hint" style="color:'+cor+'">'+escHtml(rot)+"</span></div>"
+        +'<div class="conf-ctl">'+confControle(l,atual)
+        +'<button type="button" class="btn o mini" data-ap="'+escHtml(l.campo)+'" title="Abre o texto do documento para você marcar o trecho certo">📌 Apontar no documento</button></div>'
+        +(l.trecho?'<div class="hint" style="margin-top:4px;background:#f6f8fb;border-radius:6px;padding:5px 7px">'+(l.apontado?"Trecho apontado: ":"Trecho do documento: ")+"…"+escHtml(l.trecho)+"…</div>"
+          :(!atual?'<div class="hint" style="margin-top:4px">Nada encontrado no texto. Se o documento traz esse dado, use <b>Apontar no documento</b>; se não traz, deixe em branco.</div>':""))
         +"</div>";
-    }).join("")||'<div class="hint">Nada lido ainda.</div>';
+    });
+    box.innerHTML=html||'<div class="hint">Nada lido ainda.</div>';
+    if(sc) sc.scrollTop=topo;
+  }
+  function abrirProcedencia(){
+    if(!$("procLista")) return;
+    renderConf();
     $("procModal").classList.add("open");
   }
-  /* Atribuição manual: o usuário seleciona um trecho do texto lido e diz o que ele é.
-     É a saída garantida para redação que nenhuma expressão prevê — e não depende de eu
-     acertar mais um padrão. */
+  /* Painel com o texto do documento. O trecho lido fica marcado; quem confere seleciona com o
+     mouse o pedaço certo e diz a que campo ele pertence. */
+  function confTextoDoc(){ return ($("pdfTexto")||{}).textContent||""; }
+  function confApontar(campo){
+    const doc=$("confDoc"); if(!doc) return;
+    const alvo=$("confAlvo");
+    if(alvo){ alvo.innerHTML=_procedencia.map(l=>'<option value="'+escHtml(l.campo)+'">'+escHtml((l.secao?l.secao+" — ":"")+l.rotulo)+"</option>").join("");
+      if(campo) alvo.value=campo; _confAlvo=alvo.value; }
+    doc.style.display="";
+    const txt=confTextoDoc(), pre=$("confTexto"), l=_procedencia.find(x=>x.campo===_confAlvo);
+    _confSel=""; $("confSelPrev").textContent="Selecione um trecho no texto abaixo."; $("confUsar").disabled=true; $("confMsg").textContent="";
+    if(!txt.trim()){ pre.textContent="O texto do documento não está disponível (nenhum PDF foi lido nesta sessão)."; return; }
+    let i=-1, len=0;
+    if(l){ const b=String(l.busca||l.valor||"").trim(), lo=txt.toLowerCase();
+      if(b.length>=3){ i=lo.indexOf(b.toLowerCase()); len=b.length;
+        if(i<0){ const p=b.split(/[,;]/)[0].trim(); if(p.length>=6){ i=lo.indexOf(p.toLowerCase()); len=p.length; } } } }
+    pre.innerHTML=i>=0?(escHtml(txt.slice(0,i))+'<mark id="confMarca">'+escHtml(txt.slice(i,i+len))+"</mark>"+escHtml(txt.slice(i+len))):escHtml(txt);
+    const m=$("confMarca"); if(m&&m.scrollIntoView) m.scrollIntoView({block:"center"});
+    if(doc.scrollIntoView) doc.scrollIntoView({block:"nearest"});
+  }
+  function confSelecionou(){
+    const sel=window.getSelection(), pre=$("confTexto"); let s="";
+    if(sel&&!sel.isCollapsed&&pre&&sel.anchorNode&&sel.focusNode&&pre.contains(sel.anchorNode)&&pre.contains(sel.focusNode)) s=String(sel.toString()||"").replace(/\s+/g," ").trim();
+    _confSel=s; $("confUsar").disabled=!s;
+    $("confSelPrev").textContent=s?("Selecionado: “"+(s.length>160?s.slice(0,160)+"…":s)+"”"):"Selecione um trecho no texto abaixo.";
+  }
+  function confUsar(){
+    const campo=($("confAlvo")||{}).value, l=_procedencia.find(x=>x.campo===campo), msg=$("confMsg");
+    if(!l||!_confSel){ msg.className="fldstat bad"; msg.textContent="Selecione um trecho primeiro."; return; }
+    const err=confGravar(l,_confSel);
+    if(err){ msg.className="fldstat bad"; msg.textContent=err; return; }
+    delete _confErro[l.campo]; l.editado=true; l.apontado=true; l.trecho=_confSel.length>240?_confSel.slice(0,240):_confSel;
+    msg.className="fldstat ok"; msg.textContent="Aplicado em “"+l.rotulo+"”.";
+    renderConf();
+  }
+  function confEditou(el){
+    const l=_procedencia.find(x=>x.campo===el.getAttribute("data-conf")); if(!l) return;
+    const antes=confLer(l);
+    const err=confGravar(l,el.value);
+    if(err){ _confErro[l.campo]=err; } else { delete _confErro[l.campo]; if(confLer(l)!==antes){ l.editado=true; l.apontado=false; } }
+    renderConf();
+  }
+  function ligarConferencia(){
+    const lista=$("procLista"); if(!lista||lista._ligada) return; lista._ligada=true;
+    lista.addEventListener("change",e=>{ const el=e.target.closest("[data-conf]"); if(el) confEditou(el); });
+    lista.addEventListener("click",e=>{ const b=e.target.closest("[data-ap]"); if(b) confApontar(b.getAttribute("data-ap")); });
+    if($("btnProcApontar")) $("btnProcApontar").addEventListener("click",()=>confApontar(""));
+    if($("confUsar")) $("confUsar").addEventListener("click",confUsar);
+    if($("confFechaDoc")) $("confFechaDoc").addEventListener("click",()=>{ $("confDoc").style.display="none"; });
+    if($("confAlvo")) $("confAlvo").addEventListener("change",()=>{ _confAlvo=$("confAlvo").value; $("confMsg").textContent=""; });
+    const pre=$("confTexto"); if(pre){ ["mouseup","keyup","touchend"].forEach(ev=>pre.addEventListener(ev,()=>setTimeout(confSelecionou,0))); }
+  }
+  /* Atribuição direta, no quadro "Texto lido do PDF" do formulário: seleciona o trecho e escolhe o campo. */
   function trechoSelecionado(){
     const sel=window.getSelection(); if(!sel||sel.isCollapsed) return "";
     const pre=$("pdfTexto"); if(!pre) return "";
@@ -3623,29 +3829,9 @@ window.TINA=(function(){
   function aplicarAtribuicao(){
     const st=$("atribStat"), campo=($("atribCampo")||{}).value, txt=_selGuardada;
     if(!txt){ st.className="fldstat bad"; st.textContent="Selecione um trecho primeiro."; return; }
-    const marca=(id)=>{ const e=$(id); if(e) e.classList.add("revisar"); };
-    if(campo==="objeto"){ $("objeto").value=normalizarAtividades(txt,manterCnaeAtivo()); marca("objeto"); chk("alt_objeto"); }
-    else if(campo==="sede"){ const e=parseEnderecoComando(txt);
-      const munAntes=(($("s_mun")||{}).value||"").trim();
-      const põe=(id,v)=>{ if(v&&$(id)){ $(id).value=v; marca(id); } };
-      põe("s_log",e.log); põe("s_num",e.num); põe("s_comp",e.comp); põe("s_bairro",e.bairro); põe("s_mun",e.mun); põe("s_cep",e.cep);
-      if(e.uf&&$("s_uf")){ $("s_uf").value=e.uf; marca("s_uf"); }
-      chk("alt_sede"); sincronizarForo(munAntes); }
-    else if(campo==="capital"){ const n=brNum((txt.match(/[\d][\d.,]*/)||[])[0]||"");
-      if(!(n>0)){ st.className="fldstat bad"; st.textContent="Não achei um valor nesse trecho."; return; }
-      $("capital").value=n; marca("capital"); chk("alt_capital"); recalc(); }
-    else if(campo==="cnpj"){ const v=(txt.match(/[\dA-Za-z]{2}[.\s]?[\dA-Za-z]{3}[.\s]?[\dA-Za-z]{3}[\/\s]?[\dA-Za-z]{4}[-\s]?\d{2}/)||[])[0];
-      if(!v){ st.className="fldstat bad"; st.textContent="Não achei um CNPJ nesse trecho."; return; }
-      $("cnpj").value=fmtCnpj(v); marca("cnpj"); }
-    else if(campo==="nire"){ const v=(txt.match(/[\d][\d. ]{8,16}\d/)||[])[0];
-      if(!v){ st.className="fldstat bad"; st.textContent="Não achei um NIRE nesse trecho."; return; }
-      $("nire").value=v.replace(/\D/g,""); marca("nire"); }
-    else if(campo==="dataInicioOrig"){ const v=(txt.match(/\d{1,2}\/\d{1,2}\/\d{4}/)||[])[0];
-      if(!v){ st.className="fldstat bad"; st.textContent="Não achei uma data nesse trecho."; return; }
-      $("dataInicioOrig").value=v; marca("dataInicioOrig"); }
-    else { $(campo).value=txt; marca(campo); if(campo==="razao")chk("alt_nome"); if(campo==="fantasia")chk("alt_fantasia"); }
+    const err=atribuirCampo(campo,txt,{revisar:true});
+    if(err){ st.className="fldstat bad"; st.textContent=err; return; }
     st.className="fldstat ok"; st.textContent="Aplicado — confira o campo em amarelo.";
-    salvarRascunhoDeb&&salvarRascunhoDeb();
   }
   let _selGuardada="";
   /* ===== Solicitações (fila de trabalho da equipe) =====
@@ -4812,6 +4998,53 @@ window.TINA=(function(){
 
   /* ===== Preenchimento rápido (regras + PDF/OCR, sem IA) ===== */
   function brNum(s){s=String(s||"").replace(/\./g,"").replace(",",".").replace(/[^\d.]/g,"");return parseFloat(s)||0;}
+  /* Junta os pedaços de texto de uma página pela POSIÇÃO, não por um espaço fixo. Em texto justificado
+     o pdf.js entrega a mesma palavra em dois pedaços ("resident" + "e", "Ba" + "irro", "21" + "4"),
+     e juntá-los com espaço corrompe o que o leitor procura: CEP, número, bairro, palavra-chave.
+     Se o próximo pedaço começa colado no fim do anterior (folga menor que 12% do tamanho da letra,
+     na mesma linha), é a mesma palavra. Pedaço vazio ou só de espaço é espaço mesmo. */
+  function juntarItensTexto(items){
+    let s="", ant=null;
+    for(const i of (items||[])){
+      const str=i.str==null?"":String(i.str);
+      if(!str){ if(i.hasEOL) s+=" "; ant=null; continue; }
+      if(!str.trim()){ s+=" "; ant=null; continue; }
+      if(ant && ant.transform && i.transform && !ant.hasEOL){
+        const mesmaLinha=Math.abs(ant.transform[5]-i.transform[5])<2;
+        const folga=i.transform[4]-(ant.transform[4]+(ant.width||0));
+        const corpo=Math.max(ant.height||0,i.height||0,6);
+        if(mesmaLinha && folga<corpo*0.12 && !/\s$/.test(ant.str) && !/^\s/.test(str)) s+=str;
+        else s+=" "+str;
+      } else s+=(s&&!/\s$/.test(s)?" ":"")+str;
+      ant=i;
+      if(i.hasEOL){ s+=" "; ant=null; }   // quebra de linha vira espaço, como antes
+    }
+    return s.replace(/([A-Za-zÀ-ú])-\s+([a-zà-ú])/g,"$1-$2");   // "representá-" / "la" na quebra de linha: "representá-la"
+  }
+  /* Cabeçalho e rodapé que se repetem em toda página entram no meio do texto corrido: o título do
+     ato reaparece no meio de uma cláusula, e o aviso "A validade deste documento…" cola no fim dela.
+     Aqui sai da página 2 em diante o começo idêntico ao da página 1 e, em qualquer página, o final
+     que outra página repete. Só vale trecho de 30 caracteres ou mais, para nunca comer texto de
+     verdade que por acaso começa igual. */
+  function tirarRepeticoesPaginas(pags){
+    pags=pags.map(x=>String(x||"").replace(/\s+/g," ").trim());
+    if(pags.length<2) return pags;
+    const MIN=30;
+    const prefixo=(a,b)=>{ let i=0; const n=Math.min(a.length,b.length); while(i<n&&a[i]===b[i]) i++;
+      const c=a.slice(0,i); if(i===a.length||i===b.length||a[i]===" ") return c.trim();
+      const k=c.lastIndexOf(" "); return k>0?c.slice(0,k).trim():""; };
+    const sufixo=(a,b)=>{ let i=0; const n=Math.min(a.length,b.length); while(i<n&&a[a.length-1-i]===b[b.length-1-i]) i++;
+      const c=a.slice(a.length-i); if(i===a.length||i===b.length||a[a.length-1-i]===" ") return c.trim();
+      const k=c.indexOf(" "); return k>=0?c.slice(k+1).trim():""; };
+    const cab=pags.slice(1).map(x=>prefixo(pags[0],x)).sort((x,y)=>y.length-x.length)[0]||"";
+    return pags.map((x,i)=>{
+      let r=x;
+      if(i>0 && cab.length>=MIN && r.startsWith(cab)) r=r.slice(cab.length).trim();
+      let rod=""; pags.forEach((o,j)=>{ if(j===i) return; const c=sufixo(x,o); if(c.length>rod.length) rod=c; });
+      if(rod.length>=MIN && rod.length<r.length && r.endsWith(rod)) r=r.slice(0,r.length-rod.length).trim();
+      return r;
+    });
+  }
   async function extrairTextoPDF(file,onp){
     if(!window.pdfjsLib){ try{ await window.__pdfjsReady; }catch(e){ throw new Error("pdf.js não carregou"); } }   // carregamento do módulo é assíncrono
     if(!window.pdfjsLib) throw new Error("pdf.js não carregou");
@@ -4819,9 +5052,10 @@ window.TINA=(function(){
     // isEvalSupported:false — desliga o new Function() usado no desenho de glifos (CVE-2024-4367): um PDF
     // preparado poderia executar código pelo FontMatrix. A entrada aqui é arquivo de terceiro, então nunca reabilitar.
     const pdf=await pdfjsLib.getDocument({data:buf,isEvalSupported:false}).promise;
-    let txt=""; const sparse=[]; const itens=[];   // itens = texto COM posição (x,y) — usado pelos parsers de formulário (CCMEI/cartão CNPJ), onde rótulo e valor são colunas
-    for(let p=1;p<=pdf.numPages;p++){onp&&onp("Lendo página "+p+"/"+pdf.numPages+"…");const pg=await pdf.getPage(p);const tc=await pg.getTextContent();const s=tc.items.map(i=>i.str).join(" ");txt+=s+"\n";if(s.replace(/\s/g,"").length<20)sparse.push(p);
+    let txt=""; const paginas=[]; const sparse=[]; const itens=[];   // itens = texto COM posição (x,y) — usado pelos parsers de formulário (CCMEI/cartão CNPJ), onde rótulo e valor são colunas
+    for(let p=1;p<=pdf.numPages;p++){onp&&onp("Lendo página "+p+"/"+pdf.numPages+"…");const pg=await pdf.getPage(p);const tc=await pg.getTextContent();const s=juntarItensTexto(tc.items);paginas.push(s);if(s.replace(/\s/g,"").length<20)sparse.push(p);
       tc.items.forEach(i=>{const v=(i.str||"").trim(); if(v&&i.transform)itens.push({s:v,x:Math.round(i.transform[4]),y:Math.round(i.transform[5]),p});});}
+    txt=tirarRepeticoesPaginas(paginas).map(x=>x+"\n").join("");
     const total=txt.replace(/\s/g,"").length;
     // texto embutido ILEGÍVEL (fonte sem ToUnicode → sai como caracteres de controle) também exige OCR
     let ctrl=0;for(let _i=0;_i<txt.length;_i++){const _c=txt.charCodeAt(_i);if(_c<9||(_c>13&&_c<32)||(_c>=127&&_c<160))ctrl++;}
@@ -4916,6 +5150,7 @@ window.TINA=(function(){
       if(!e.bairro){const numIdx=clean.findIndex(p=>/^n[º°o.]/i.test(p)||/^\d+[A-Za-z]?$/.test(p));const munIdx=e.mun?clean.findIndex(p=>p.toUpperCase().includes(e.mun.toUpperCase())):-1;const stop=munIdx>=0?munIdx:(ufi>=0?ufi:clean.length);
         for(let i=(numIdx>=0?numIdx+1:1);i<stop;i++){const p=clean[i];if(/^[A-Z]{2}$/.test(p)||/^\d/.test(p))continue;if(/^(?:sala|bloco|apto?|apartamento|andar|loja|quadra|lote|conjunto|conj|galp|sobreloja|casa|km|sl|condom[íi]nio|cond|edif[íi]cio|fundos|t[ée]rreo|anexo)(?![A-Za-zÀ-ú])/i.test(p))continue;const pc=p.replace(/\s*-\s*SEDE\s*$/i,"").replace(/^bairro\s+/i,"").trim();if(pc&&pc.toUpperCase()!==(e.log||"").toUpperCase()){e.bairro=pc;break;}}}
     }
+    if(e.mun) e.mun=e.mun.replace(/^(?:em|na cidade de|no munic[íi]pio de)\s+/i,"").trim();   // "…, Bairro Centro, em Itabaiana/SE": o "em" é conector, não parte da cidade
     return e;
   }
   function hojeBR(){const h=new Date();return String(h.getDate()).padStart(2,"0")+"/"+String(h.getMonth()+1).padStart(2,"0")+"/"+h.getFullYear();}
@@ -4942,6 +5177,16 @@ window.TINA=(function(){
       if(nm=seg.match(/naturalizad([oa])/i)){s.nacionalidade="naturalizado";s.sexo=/a/i.test(nm[1])?"F":"M";}
       else if(nm=seg.match(/estrangeir([oa])/i)){s.nacionalidade="estrangeiro";s.sexo=/a/i.test(nm[1])?"F":"M";}
       else if(nm=seg.match(/brasileir([oa])/i)){s.nacionalidade="brasileiro";s.sexo=/a/i.test(nm[1])?"F":"M";} }
+    /* "nacionalidade brasileira" concorda com a palavra "nacionalidade" (feminina), não com a pessoa:
+       um titular homem saía como sócia. O sexo passa a ser decidido pelo conjunto das palavras que
+       flexionam por gênero (solteiro, nascido, inscrito, domiciliado, portador, empresário…); a
+       nacionalidade só conta quando NÃO vem depois de "nacionalidade". */
+    { let fem=0, masc=0, g; const reG=/\b(solteir|casad|divorciad|separad|nascid|inscrit|domiciliad|naturalizad|estrangeir|brasileir|vi[úu]v|empres[áa]ri|residid)([oa])\b|\bportador(a?)\b/gi;
+      while((g=reG.exec(seg))){
+        if(/^brasileir$/i.test(g[1]) && /nacionalidade\s*[:,]?\s*$/i.test(seg.slice(Math.max(0,g.index-20),g.index))) continue;
+        const f = g[1] ? /a/i.test(g[2]) : (g[3]==="a"||g[3]==="A");
+        if(f) fem++; else masc++; }
+      if(fem+masc>0) s.sexo = fem>masc ? "F" : "M"; }
     const ec=seg.match(/\b(solteir[oa]|casad[oa]|divorciad[oa]|vi[úu]v[oa]|separad[oa])\b|uni[ãa]o est[áa]vel/i);
     if(ec){const w=ec[0].toLowerCase(); s.estadoCivil=w.startsWith("solteir")?"solteiro":w.startsWith("casad")?"casado":w.startsWith("divorc")?"divorciado":/^vi/.test(w)?"viuvo":w.startsWith("separad")?"separado":"uniao";}
     const rgm=seg.match(/(comunh[ãa]o\s+parcial|comunh[ãa]o\s+universal|separa[çc][ãa]o\s+obrigat[óo]ria|separa[çc][ãa]o\s+total|separa[çc][ãa]o(?:\s+convencional)?\s+de\s+bens|participa[çc][ãa]o\s+final)/i);
@@ -4957,7 +5202,17 @@ window.TINA=(function(){
        virava o RG do sócio. \b não serve aqui (letra acentuada não conta como letra em JS). */
     const rg=seg.match(/(?<![A-Za-zÀ-ú])(?:RG|CIN|C\.\s?I\.?|R\.\s?G\.?|carteira de identidade|identidade)(?![A-Za-zÀ-ú])[^\d]{0,25}([\d][\d.\-]{3,})/i); if(rg)s.rg=rg[1].replace(/[.\-]/g,"");
     if(!s.rg){const est=seg.match(/\b(?:RNM|RNE|CIE|RG estrangeiro|c[ée]dula de identidade de estrangeiro|passaporte)\b[^A-Za-z0-9]{0,15}(?:n[º°o.]?\s*)?([A-Z]?-?\d[\dA-Za-z.\-\/]{3,})/i); if(est)s.rg=est[1].replace(/\./g,"").trim();}  // documento de estrangeiro (RNM/RNE/passaporte) é alfanumérico
-    let org=seg.match(/expedid[oa]\s+p[eo]la\s+([A-ZÀ-Ú]{2,6})\s*[\/\-]?\s*([A-Z]{2})?/i)||seg.match(/\b(SSP|SDS|DGPC|DPT|IFP|IIRGD|DETRAN|POLITEC|ITEP|IGP|SESP|SPTC|PTC|PC|SESDEC|SEJUSP)\s*[\/\- ]\s*(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/i); if(org){s.orgao=(org[1]||"").toUpperCase(); if(org[2])s.orgaoUF=org[2].toUpperCase();}
+    /* Órgão emissor do RG: o que vem logo depois do número do RG. Procurar a sigla no trecho inteiro
+       pegava o DETRAN da CNH ("CNH nº … DETRAN/SE … RG nº … SSP/SE") e o RG saía com o órgão errado. */
+    const ORG_SIGLAS="SSP|SDS|DGPC|DPT|IFP|IIRGD|DETRAN|POLITEC|ITEP|IGP|SESP|SPTC|PTC|PC|SESDEC|SEJUSP|CGPI|SJS|SEJUSC|DIC";
+    const ORG_UFS="AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO";
+    let org=null;
+    if(rg){ const cauda=seg.slice(rg.index+rg[0].length, rg.index+rg[0].length+32);
+      org=cauda.match(new RegExp("^\\s*[,\\-–]?\\s*(?:expedid[oa]\\s+p[eo]l[ao]\\s+)?("+ORG_SIGLAS+")\\s*[\\/\\- ]\\s*("+ORG_UFS+")\\b","i")); }
+    if(!org) org=seg.match(/expedid[oa]\s+p[eo]la\s+([A-ZÀ-Ú]{2,6})\s*[\/\-]?\s*([A-Z]{2})?/i);
+    if(!org){ const reO=new RegExp("\\b("+ORG_SIGLAS+")\\s*[\\/\\- ]\\s*("+ORG_UFS+")\\b","gi"); let og;
+      while((og=reO.exec(seg))){ if(/CNH|habilita[çc][ãa]o/i.test(seg.slice(Math.max(0,og.index-45),og.index))) continue; org=og; break; } }
+    if(org){s.orgao=(org[1]||"").toUpperCase(); if(org[2])s.orgaoUF=org[2].toUpperCase();}
     const prof=seg.match(/\b(empres[áa]ri[oa]|comerciante|administrador[a]?|advogad[oa]|contador[a]?|contabilista|m[ée]dic[oa]|engenheir[oa]|arquitet[oa]|professor[a]?|estudante|aut[ôo]nom[oa]|do lar|aposentad[oa]|vendedor[a]?|t[ée]cnic[oa]|funcion[áa]ri[oa](?: p[úu]blic[oa])?|servidor[a]?(?: p[úu]blic[oa])?)\b/i); if(prof)s.profissao=prof[1];
     const end=seg.match(/(?:residente e domiciliad[oa]|domiciliad[oa])[^A-ZÀ-Ú0-9]{0,18}(.+?CEP[:\s]*[\d.\- ]{7,13})/i)||seg.match(/(?:residente e domiciliad[oa]|domiciliad[oa])[^A-ZÀ-Ú0-9]{0,18}(.+?)(?:;|\bcom sede\b|\bEmpres[áa]ri|$)/i); if(end){const e=parseEndereco(end[1]); s.log=e.log;s.num=e.num;s.comp=e.comp;s.bairro=e.bairro;s.mun=e.mun;s.uf=e.uf;s.cep=e.cep;}
     return s;
@@ -5271,13 +5526,13 @@ window.TINA=(function(){
     if(/se\s+enquadra|enquadrar[áa]|declara.{0,40}(?:microempresa|pequeno porte|condicao de)/.test(s)) return "enquadramento";
     if(/(?:tem|tera|possui)\s+(?:matriz|sede)|sede\s+e\s+foro|sede\s+(?:esta\s+)?(?:na|no|em)|endereco\s+da\s+sede/.test(s)) return "sede";
     if(/(?:tem\s+filial|possui\s+filial|filiais\s+(?:situad|localizad)|estabelecimento\s+eleito\s+como\s+filial)/.test(s)) return "filiais";
-    if(/objeto\s+(?:social|da\s+sociedade)|(?:tem|tera)\s+(?:por|como)\s+objeto/.test(s)) return "objeto";
-    if(/prazo\s+de\s+duracao|tempo\s+indeterminado|inicio\w*\s+(?:suas\s+)?atividades|atividades\s+(?:tiveram\s+)?inicia/.test(s)) return "prazo";
+    if(/objeto\s+(?:social|da\s+sociedade)|(?:tem|tera)\s+(?:por|como)\s+objeto|(?:tem|tera)\s+o\s+seguinte\s+objeto/.test(s)) return "objeto";
+    if(/prazo\s+de\s+duracao|tempo\s+indeterminado|inici(?:o|a|ou|ara)\w*\s+(?:suas\s+)?atividades|atividades\s+(?:tiveram\s+)?inicia/.test(s)) return "prazo";
     if(/^o?\s*capital\s+social|capital\s+social\s+(?:e|sera|fica)\b|^o\s+capital\b/.test(s)) return "capital";
     if(/aumento\s+de\s+capital/.test(s)) return "aumento";
     if(/quotas?\s+sao\s+indivisiveis|cotas?\s+sao\s+indivisiveis|cedidas\s+ou\s+transferidas|direito\s+de\s+preferencia/.test(s)) return "cessao";
     if(/responsabilidade\s+(?:de\s+cada|do|da)\s+socia?o?|restrita\s+ao\s+valor/.test(s)) return "responsabilidade";
-    if(/(?:nao\s+(?:esta|estao)\s+impedid|declara\w*,?\s+sob\s+as\s+penas\s+da\s+lei,?\s+(?:de\s+)?que\s+nao)/.test(s)) return "desimpedimento";
+    if(/desimpediment|(?:nao\s+(?:estar?|estao)\s+impedid|declara\w*,?\s+sob\s+as\s+penas\s+da\s+lei,?\s+(?:de\s+)?que\s+nao)/.test(s)) return "desimpedimento";
     if(/pro-?labore|retirada\s+mensal/.test(s)) return "prolabore";
     if(/balanco|exercicio\s+social|presta\s+contas|inventario|termino\s+de\s+cada\s+exercicio/.test(s)) return "balanco";
     if(/falecend|interditad|herdeiros|sucessores/.test(s)) return "falecimento";
@@ -5298,17 +5553,55 @@ window.TINA=(function(){
     // corta no fecho (assinaturas) — dali para a frente não há mais cláusula
     const fim=corpo.search(/E,?\s+por\s+estar|E,?\s+por\s+estarem|Por\s+estarem\s+justos|_{6,}/i);
     if(fim>200) corpo=corpo.slice(0,fim);
+    /* Carimbo da Junta e aviso de validade que o PDF traz no meio da página: não são cláusula e,
+       se ficassem, seriam reproduzidos dentro da cláusula vizinha. */
+    corpo=corpo.replace(/CERTIFICO O REGISTRO[\s\S]*?(?:www\.[\w.\-\/]+|c[óo]digos? de verifica[çc][ãa]o\.?)/g," ")
+      .replace(/A validade deste documento[\s\S]*?c[óo]digos? de verifica[çc][ãa]o\.?/g," ");
     const marcas=[...corpo.matchAll(ROTULO_CLAUSULA)];
     if(marcas.length<5) return [];                      // estrutura não reconhecida
+    /* Fecho SEM as expressões acima: a última cláusula termina na linha "Cidade/UF, 8 de julho de
+       2020", em "Testemunhas" ou no bloco da assinatura eletrônica. Sem este corte, a data e o
+       bloco da assinatura saíam colados no fim da última cláusula do consolidado. */
+    { const ult=marcas[marcas.length-1].index;
+      const f2=corpo.slice(ult).search(/(?<=[.;:!?)”"']\s)[A-Za-zÀ-ú][A-Za-zÀ-ú '\-]{2,40}(?:\s*\/\s*[A-Z]{2})?\s*,\s*\d{1,2}\s+de\s+[A-Za-zçÇ]+\s+de\s+\d{4}|\bTestemunhas\b|MINIST[ÉE]RIO DA ECONOMIA|ASSINATURA ELETR[ÔO]NICA|_{4,}/);
+      if(f2>40) corpo=corpo.slice(0,ult+f2); }
     const out=[];
+    /* Título ANTES do rótulo ("DO CAPITAL  CLÁUSULA QUARTA. O capital…"): é o modelo da Junta de
+       Sergipe. O título da cláusula seguinte vem colado ao fim da anterior e, deixado lá, era
+       reproduzido no lugar errado e atrapalhava a classificação do tema. Passa a ser o início do
+       texto da cláusula a que pertence. */
+    const tiraTitulo=(s)=>{
+      s=String(s||"");
+      const m=s.match(/^([\s\S]*?[.;:!?)”"'])\s+(D[AEOU]S?\s+[A-ZÀ-Ú0-9ªº°,.\-–()\/ ]{3,140}?)\s*$/);
+      if(!m || /[a-zà-ú]/.test(m[2])) return {resto:s,titulo:""};
+      return {resto:m[1],titulo:m[2].replace(/\s+/g," ").trim()};
+    };
+    let tituloPend=tiraTitulo(corpo.slice(0,marcas[0].index)).titulo;
     for(let i=0;i<marcas.length;i++){
       const ini=marcas[i].index+marcas[i][0].length;
-      const txt=corpo.slice(ini, i+1<marcas.length?marcas[i+1].index:corpo.length)
+      let txt=corpo.slice(ini, i+1<marcas.length?marcas[i+1].index:corpo.length)
         .replace(/\s+/g," ").replace(/^[\s.–—-]+/,"").trim();
-      if(txt.length<15) continue;
-      out.push({rotulo:marcas[i][1].replace(/\s+/g,""), texto:txt, tema:classificarClausula(txt)});
+      let tituloProx="";
+      if(i+1<marcas.length){ const tt=tiraTitulo(txt); txt=tt.resto.trim(); tituloProx=tt.titulo; }
+      if(txt.length<15){ tituloPend=tituloProx; continue; }
+      const titulo=tituloPend; tituloPend=tituloProx;
+      const texto=titulo?(titulo.replace(/[.,;:\s]+$/,"")+". "+txt):txt;
+      const tema=classificarClausula(texto);
+      const c={rotulo:marcas[i][1].replace(/\s+/g,""), texto:texto, tema:tema};
+      if(titulo) c.titulo=titulo;
+      const ex=temasExtras(tema,texto); if(ex.length) c.extras=ex;
+      out.push(c);
     }
     return out;
+  }
+  /* Cláusula que trata de mais de um assunto. No modelo da Junta de Sergipe a primeira cláusula é
+     "DO NOME EMPRESARIAL, DA SEDE E DAS FILIAIS": o nome e a sede moram no mesmo texto. Sem
+     reconhecer a sede ali, mudar o endereço deixava o endereço antigo na cláusula do nome e
+     acrescentava OUTRA cláusula de sede no fim — dois endereços no mesmo contrato. */
+  function temasExtras(tema,texto){
+    const ex=[];
+    if(tema==="nome" && /(?:\b(?:ter[áa]|tem|possui)\s+(?:a\s+)?(?:sua\s+)?(?:sede|matriz)\b|\bsede\s+(?:na|no|em|à)\s)/i.test(String(texto).slice(0,700))) ex.push("sede");
+    return ex;
   }
   /* Tabela de quotas dentro de uma cláusula lida do PDF. O pdf.js devolve a tabela "achatada":
      cabeçalho, linhas e total viram uma frase só, colada no fim do parágrafo
@@ -5375,7 +5668,7 @@ window.TINA=(function(){
         r("\\bficará(?=\\s+(?:situada|localizada|estabelecida|sediada))","fica"),
         r("\\bserá(?=\\s+(?:situada|localizada|estabelecida|sediada))","é"),ATIV],
       filiais:[r("\\batuará"+F,"atua",true),ATIV],
-      objeto:[r("\\bterá(?=\\s+(?:por|como)\\s+objeto)","tem"),
+      objeto:[r("\\bterá(?=\\s+(?:por|como)\\s+objeto)","tem"),r("\\bterá(?=\\s+o\\s+seguinte\\s+objeto)","tem"),
         r("\\b(objeto(?:\\s+social)?(?:\\s+da\\s+sociedade)?)\\s+será"+F,"$1 é"),ATIV],
       prazo:[r("\\biniciará(?=\\s+(?:as\\s+)?(?:suas\\s+)?atividades)","iniciou"),
         r("\\b(prazo(?:\\s+de\\s+dura[çc][ãa]o)?(?:\\s+da\\s+sociedade)?)\\s+será"+F,"$1 é"),
@@ -5412,7 +5705,7 @@ window.TINA=(function(){
     ["razao","Razão social"],["fantasia","Nome fantasia"],["cnpj","CNPJ"],["nire","NIRE"],
     ["sede","Endereço da sede"],["objeto","Objeto social"],["capital","Capital social"],
     ["valorQuota","Valor da quota"],["numAlteracao","Nº desta alteração"],
-    ["dataInicioOrig","Início das atividades"],["enquadramento","Enquadramento"]
+    ["dataInicioOrig","Início das atividades"],["enquadramento","Enquadramento"],["foro","Foro (comarca)"]
   ];
   function procedencia(t,d){
     const achaTrecho=(valor)=>{
@@ -5431,9 +5724,23 @@ window.TINA=(function(){
          Só "1" seria curto demais para achar trecho, e "30000,00" não existe no texto. */
       else if(k==="capital"||k==="valorQuota"){ const n=Number(d[k])||0; valor=n>0?reais(n):""; busca=n>0?reais(n).replace(/^R\$\s*/,""):""; }
       else { valor=d[k]==null?"":String(d[k]); busca=valor; }
-      out.push({campo:k,rotulo:rot,valor:valor,
+      out.push({campo:k,rotulo:rot,valor:valor,busca:busca,
         origem:(d.lidoDe&&d.lidoDe[k])||"",
         trecho:valor?achaTrecho(busca):""});
+    });
+    /* Quadro societário: cada sócio (ou o titular) com os dados que a Junta exige na qualificação.
+       Antes só a empresa era conferida, e é na qualificação do sócio que o leitor mais erra. */
+    (d.socios||[]).forEach((s,i)=>{
+      const pj=s.tipoPessoa==="PJ", sec=(pj?"Sócia PJ ":(d.socios.length===1?"Titular / sócio único":"Sócio "))+(pj||d.socios.length>1?(i+1):"");
+      const campos=pj?[["nome","Razão social"],["pjCnpj","CNPJ"],["pjRep","Representante"]]
+        :[["nome","Nome"],["cpf","CPF"],["rg","RG"],["orgao","Órgão do RG"],["nascimento","Nascimento"],["estadoCivil","Estado civil"],["profissao","Profissão"],["res","Residência"]];
+      campos.forEach(([f,rot])=>{
+        let valor="", busca="";
+        if(f==="res"){ valor=[s.log,s.num&&("nº "+s.num),s.comp,s.bairro,s.mun&&(s.mun+(s.uf?"/"+s.uf:"")),s.cep&&("CEP "+s.cep)].filter(Boolean).join(", "); busca=s.log||""; }
+        else if(f==="orgao"){ valor=s.orgao?(s.orgao+(s.orgaoUF?"/"+s.orgaoUF:"")):""; busca=s.orgao||""; }
+        else { valor=s[f]==null?"":String(s[f]); busca=valor; }
+        out.push({campo:"s"+i+"."+f,rotulo:rot,secao:sec,valor:valor,busca:busca,origem:"",trecho:valor?achaTrecho(busca):""});
+      });
     });
     return out;
   }
@@ -5460,10 +5767,22 @@ window.TINA=(function(){
     if(!raz) raz=m1(t,/sociedade (?:empres[áa]ria )?limitada\s+([A-ZÀ-Ú][A-ZÀ-Ú0-9 .&'\-]{2,60}?)\s+LTDA\b/i);  // "…SOCIEDADE LIMITADA RAZÃO LTDA" (distrato REGIN)
     if(!raz) raz=m1(t,/(?:CONTRATO SOCIAL|CONSOLIDA[ÇC][ÃA]O|ALTERA[ÇC][ÃA]O|DISTRATO)\b[^.]{0,80}\bD[AEO]\s+([A-ZÀ-Ú][A-ZÀ-Ú0-9 .&'\-]{2,55}?)\s+LTDA\b/);  // razão no título do documento: "…ALTERAÇÃO … DA <RAZÃO> LTDA" (greedy p/ pegar o último "DA … LTDA")
     if(raz){const u=raz.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9 .&\-]{2,})$/);if(u)raz=u[1].trim(); raz=raz.replace(/^[\d.\-\s]+/,"").trim();}  // começa por letra (tira CPF/nº colado antes da razão)
+    /* EIRELI: a firma termina em "EIRELI", não em LTDA. Sem este ramo a razão caía no fallback de
+       Empresário Individual e saía com um pedaço de frase ("em atividades estranhas ao interesse
+       social", de "o uso do nome empresarial em atividades…"). O sufixo não entra na razão: o
+       formulário trabalha sem ele, como faz com o LTDA. Vale a ÚLTIMA ocorrência (consolidação). */
+    const ehEIRELI=/\bEIRELI\b/.test(t) && /Empresa\s+Individual\s+de\s+Responsabilidade\s+Limitada|EMPRESA\s+INDIVIDUAL\s+DE\s+RESPONSABILIDADE\s+LIMITADA|EMPRESARIAL\s+INDIVIDUAL\s+DE\s+RESPONSABILIDADE/.test(t);
+    if(ehEIRELI) d.tipoOrig="EIRELI";
+    if(!raz && ehEIRELI){
+      const reE=/(?:[Nn]ome\s+[Ee]mpresarial|[Ff]irma|[“"])\s*:?\s*(?:de\s+|a\s+firma\s+)?([A-ZÀ-Ú][A-ZÀ-Ú0-9 .&'\-–]{2,80}?)[\s\-–]*\bEIRELI\b/g;
+      let me,ult=""; while((me=reE.exec(t))){ const c=me[1].replace(/[\s\-–]+$/,"").trim(); if(c.split(/\s+/).length>=2) ult=c; }
+      if(ult) raz=ult;
+    }
     if(!raz){ // EI / sem sufixo LTDA — pega a ÚLTIMA ocorrência (na consolidação = nome NOVO).
       // aceita iniciais sem ponto ("J S SANTOS"), com ponto ("J. S. LIMA") e complemento ("... MARKETING"/mixed case)
       // termina em , ; "com sede"/"em todas"/"Parágrafo"/"Resolv"/"O Empres" OU ponto de FIM (precedido de 2+ letras — não confunde com ponto de inicial "J. S.")
-      const capName=s=>{const re=new RegExp(s+"([A-ZÀ-Ú].{0,70}?)\\s*(?:,|;|\\s+com sede|\\s+em todas|\\s+Par[áa]grafo|\\s+Resolv|\\s+O Empres|(?<=[A-Za-zÀ-ú]{2})\\.(?=\\s|$)|\\s*$)","gi");let mm2,last;while((mm2=re.exec(t)))last=mm2[1];return last?last.replace(/[.,;\s]+$/,"").trim():"";};
+      const capName=s=>{const re=new RegExp(s+"([A-ZÀ-Ú].{0,70}?)\\s*(?:,|;|\\s+com sede|\\s+em todas|\\s+Par[áa]grafo|\\s+Resolv|\\s+O Empres|(?<=[A-Za-zÀ-ú]{2})\\.(?=\\s|$)|\\s*$)","gi");let mm2,last;while((mm2=re.exec(t))){ if(/^[A-ZÀ-Ú]/.test(mm2[1])) last=mm2[1]; }   // o /i deixa [A-Z] casar minúscula: "nome empresarial EM atividades…" não é nome
+        return last?last.replace(/[.,;\s]+$/,"").trim():"";};
       raz=capName("nome empresarial(?: de)?:?\\s+a firma\\s+")                    // "tem como nome empresarial a firma JOSÉ..."
         ||capName("adotar[áa](?: como)? (?:o seguinte )?nome empresarial:?\\s*")
         ||capName("nome empresarial:\\s*")
@@ -5479,12 +5798,17 @@ window.TINA=(function(){
       const pats=[
         /t[íi]tulo (?:de|do) estabelecimento\s*(?:\(nome fantasia\)\s*)?(?:,?\s*(?:a\s+)?express[ãa]o\s+)?:?\s*["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|\s+em (?:todas|suas)|CL[ÁA]USULA|$)/i,
         /\(nome fantasia\)\s*:?\s*["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|CL[ÁA]USULA|$)/i,
-        /(?:adotar?|usar?|utilizar?|ter[áa]?)[^.]{0,25}?(?:nome fantasia|t[íi]tulo (?:de|do) estabelecimento)(?:\s*\(nome fantasia\))?\s*(?:a express[ãa]o\s+|:\s*)?["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|\s+como |\s+em (?:todas|suas|todos|seus|sua|seu)\b|CL[ÁA]USULA|$)/i,
+        /\b(?:adotar?|usar?|utilizar?|ter[áa]?)[^.]{0,25}?(?:nome fantasia|t[íi]tulo (?:de|do) estabelecimento)(?:\s*\(nome fantasia\))?\s*(?:a express[ãa]o\s+|:\s*)?["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|\s+como |\s+em (?:todas|suas|todos|seus|sua|seu)\b|CL[ÁA]USULA|$)/i,
         /(?:a\s+)?express[ãa]o\s+["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s+como\s+(?:seu\s+)?(?:nome\s+)?fantasia/i,   // "(a) expressão X como (nome) fantasia"
         /(?:nome fantasia|t[íi]tulo (?:de|do) estabelecimento|express[ãa]o)\s*:\s*["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|$)/i,
         /\bnome\s+(?:de\s+)?fantasia\s*:?\s*["“]?([A-ZÀ-Ú][^.,;\n"”]{1,45}?)["”]?\s*(?:\.|,|;|\s+em (?:todas|suas)|CL[ÁA]USULA|$)/i   // "…nome fantasia \"X\"" / "nome fantasia: X" (sem verbo nem parênteses)
       ];
-      for(const p of pats){ const m=t.match(p); if(m){ const v=(m[1]||"").trim(); if(v.length>=2 && !bad.test(v)){ d.fantasia=v; inc.add("fantasia"); break; } } }
+      /* Vale a ÚLTIMA ocorrência válida de cada forma: numa alteração a deliberação ("Altera o nome fantasia de X
+         para Y") vem antes e a cláusula consolidada, com o nome vigente, vem depois. Só a primeira ocorrência
+         bloqueava a leitura quando era a frase da deliberação (que começa com "de"). */
+      for(const p of pats){ let v2=""; const g=new RegExp(p.source,p.flags.includes("g")?p.flags:p.flags+"g"); let m;
+        while((m=g.exec(t))){ const v=(m[1]||"").trim(); if(v.length>=2 && !bad.test(v)) v2=v; }
+        if(v2){ d.fantasia=v2; inc.add("fantasia"); break; } }
     }
     /* Capital: procura PRIMEIRO dentro da cláusula de capital. Procurar no documento inteiro é o
        que faz o leitor pegar o número certo no lugar errado — foi assim que a sede da sócia PJ
@@ -5492,7 +5816,7 @@ window.TINA=(function(){
        reserva para contratos cuja estrutura o leitor não reconheceu. */
     d.clausulasOrig=extrairClausulas(tOriginal);   // cláusulas do contrato enviado, no texto original — para não trocar nem retirar nenhuma
     d._txtOrig=tOriginal;                          // guardado só para montar a procedência depois da leitura
-    const claus={}; (d.clausulasOrig||[]).forEach(c=>{ if(c.tema && !claus[c.tema]) claus[c.tema]=c.texto; });
+    const claus={}; (d.clausulasOrig||[]).forEach(c=>{ if(c.tema && !claus[c.tema]) claus[c.tema]=c.texto; (c.extras||[]).forEach(e=>{ if(!claus[e]) claus[e]=c.texto; }); });
     const ultimaEm=(txt,re)=>{ let m,last; const r=new RegExp(re.source,re.flags.includes("g")?re.flags:re.flags+"g"); while((m=r.exec(txt||"")))last=m[1]; return last||""; };
     const RE_CAP=/capital[\s\S]{0,45}?R\$\s*([\d][\d., ]{0,16}\d|\d)/i;
     let cap=claus.capital?ultimaEm(claus.capital,RE_CAP):"";
@@ -5512,6 +5836,10 @@ window.TINA=(function(){
           (d.conferir=d.conferir||[]).push("Capital: a cláusula diz "+reais(d.capital)+", mas "+numBR(nq)+" quotas de "+reais(vq)+" dão "+reais(porQuotas)+".");
       } }
     if(capDaClausula) (d.lidoDe=d.lidoDe||{}).capital="cláusula do capital";
+    /* EIRELI e titular único: "representado por UMA quota de igual valor nominal". Não há número de
+       quotas nem valor nominal escritos — a quota vale o capital inteiro. */
+    if(!(d.valorQuota>0) && d.capital>0 && /representad[oa]\s+por\s+(?:uma|1|01)\s*(?:\(\s*(?:uma|1|um)\s*\)\s*)?(?:[úu]nica\s+)?(?:quota|cota)\b/i.test(claus.capital||t)){
+      d.valorQuota=d.capital; (d.lidoDe=d.lidoDe||{}).valorQuota="quota única (igual ao capital)"; }
     if(/integraliz\w+[^.]{0,45}?bens\s+im[óo]ve/i.test(t)) d.integralizacao="bens_imoveis";   // capital em bens (imóveis/móveis)
     else if(/integraliz\w+[^.]{0,45}?\bbens\b/i.test(t)) d.integralizacao="bens";
     const objFim="(?:\\.{1,2}\\s+[A-ZÀ-Ú]|Par[áa]grafo|CL[ÁA]USULA|Cl[áa]usula|$)";
@@ -5598,7 +5926,18 @@ window.TINA=(function(){
     { const fm=t.match(/foro\s+d(?:a\s+comarca|[eo])\s+(?:d[ae]\s+)?[A-Za-zÀ-ú .']+?\s*[-–\/]\s*([A-Z]{2})\b/i);
       if(d.foro && fm && UFS.indexOf(fm[1].toUpperCase())>=0) d.foroUF=fm[1].toUpperCase(); }
     d.dataInicioOrig=m1(t,/(?:produz(?:ir[áa])?\s+efeitos\s+a\s+partir\s+de|efeitos a partir de|in[íi]cio das atividades[^.\d]{0,20}|atividad[^.\d]{0,40}?)\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
-    let nAlt=0; const naD=t.match(/(\d+)\s*[ªaº°]?\s*ALTERA[ÇC][ÃA]O/i);
+    /* Ato de CONSTITUIÇÃO (primeiro ato da empresa): o início das atividades pode ser "a data de
+       assinatura deste ato", escrita só no fecho; e o próximo ato dela é a 1ª alteração. Só vale
+       para o ato constitutivo — numa alteração a mesma frase copiada refere-se à assinatura de outro. */
+    const ehConstituicao=/CONSTITUTIVO|CONSTITUI[ÇC][ÃA]O/i.test(t.slice(0,400)) && !/ALTERA[ÇC][ÃA]O/i.test(t.slice(0,400));
+    if(ehConstituicao) d.ehConstituicao=true;
+    if(!d.dataInicioOrig && ehConstituicao && /inici[a-zà-ú]+\s+(?:suas\s+)?atividades\s+na\s+data\s+de\s+assinatura/i.test(t)){
+      const MES={janeiro:1,fevereiro:2,"março":3,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12};
+      let mf,ultF=null; const reF=/,\s*(\d{1,2})\s+de\s+(janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+(\d{4})/gi;
+      while((mf=reF.exec(t))) ultF=mf;
+      if(ultF){ const mm=MES[ultF[2].toLowerCase()]; d.dataInicioOrig=String(ultF[1]).padStart(2,"0")+"/"+String(mm).padStart(2,"0")+"/"+ultF[3]; (d.lidoDe=d.lidoDe||{}).dataInicioOrig="data da assinatura do ato (fecho)"; }
+    }
+    let nAlt=0; const naD=t.match(/(\d+)\s*[ªaº°]?\s*ALTERA[ÇC][ÃA]O/i)||t.match(/ALTERA[ÇC][ÃA]O\s*(?:N[º°o.]{0,2}|N[úu]mero)\s*0*(\d{1,2})\b/i);   // "2ª ALTERAÇÃO" ou "ALTERAÇÃO Nº 02"
     if(naD){ nAlt=parseInt(naD[1],10); }
     else { const oMap={primeira:1,segunda:2,terceira:3,quarta:4,quinta:5,sexta:6,setima:7,oitava:8,nona:9,decima:10};
       const oM=t.match(/\b(primeira|segunda|terceira|quarta|quinta|sexta|s[ée]tima|oitava|nona|d[ée]cima)\s+ALTERA[ÇC][ÃA]O/i);
@@ -5608,8 +5947,12 @@ window.TINA=(function(){
     if(!nAlt && nomeArquivo){
       const na=String(nomeArquivo).match(/(\d{1,2})\s*[ªaº°]?\s*[-_. ]*\s*ALTERA[ÇC]?[ÃA]?O?/i);
       if(na) nAlt=parseInt(na[1],10)||0;
+      else { const ordN={primeira:1,segunda:2,terceira:3,quarta:4,quinta:5,sexta:6,setima:7,oitava:8,nona:9,decima:10};
+        const no=semAcento(String(nomeArquivo)).toLowerCase().match(/\b(primeira|segunda|terceira|quarta|quinta|sexta|setima|oitava|nona|decima)\s+alteracao/);
+        if(no) nAlt=ordN[no[1]]||0; }   // "PRIMEIRA ALTERAÇÃO CONTRATUAL.pdf"
     }
     if(nAlt>0){ d.numAlteracao=String(nAlt+1); inc.add("numAlteracao"); }
+    else if(ehConstituicao){ d.numAlteracao="1"; inc.add("numAlteracao"); (d.lidoDe=d.lidoDe||{}).numAlteracao="o documento é o ato de constituição: o próximo é a 1ª alteração"; }
     // acha "NOME , brasileiro/estrangeiro" em qualquer lugar (até 9 palavras de nome, com partículas de/dos/e); limparNome tira o lixo
     const socios=[]; const NW="(?:[A-ZÀ-Ú][A-Za-zÀ-ú'.\\-]*|d[eoa]s?|e)";
     const startRe=new RegExp("("+NW+"(?:\\s+"+NW+"){1,8})\\s*,?\\s*(?:nacionalidade\\s+)?(?:brasileir[oa]|estrangeir[oa]|naturalizad[oa])\\b","gi"); const found=[]; let mm;
@@ -5954,6 +6297,7 @@ window.TINA=(function(){
         ((par&&par.d&&par.d.conferir)||[]).forEach(c=>avisosDoc.push("<b>Confira:</b> "+escHtml(c)));
         // procedência: fica guardada e só aparece se o usuário pedir, para não encher a tela
         try{ _procedencia=procedencia((par&&par.d&&par.d._txtOrig)||txt,(par&&par.d)||{}); }catch(e){ _procedencia=[]; }
+        if(par&&par.d&&par.d.tipoOrig==="EIRELI") avisosDoc.push("<b>Documento de EIRELI.</b> A EIRELI foi extinta pela Lei 14.195/2021: as que existiam viraram sociedades limitadas unipessoais (SLU). O titular foi lido como <b>sócio único</b> (uma quota) e a razão social entrou <b>sem o sufixo “EIRELI”</b>. Confira com a Junta se este ato deve ajustar o nome empresarial para terminar em <b>LTDA</b>; se deve, marque “Nome empresarial” em “O que muda”.");
         const faltantes=_procedencia.filter(p=>!p.valor).length;
         avisosDoc.push('<button type="button" class="btn o mini" id="btnVerProc">Conferir a leitura</button>'
           +' <span class="hint">'+(_procedencia.length-faltantes)+" de "+_procedencia.length+" campos lidos"
@@ -5963,7 +6307,7 @@ window.TINA=(function(){
           const falta=[]; if(!p.pjCnpj)falta.push("CNPJ"); if(!p.pjRep)falta.push("representante"); if(!p.log)falta.push("sede"); if(!p.pjNire)falta.push("NIRE");
           return escHtml(p.nome||"(sem razão social)")+(p.pjCnpj?" — CNPJ "+escHtml(p.pjCnpj):"")+(falta.length?" <b>(faltou: "+falta.join(", ")+" — complete no cartão)</b>":"");
         }).join("; ")+".");
-        else if(/\b(?:LTDA|LIMITADA|EIRELI|S\/A|S\.A\.)\b/i.test(txt.replace(new RegExp("("+(par&&par.d&&par.d.razao||"@@").replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi"),"")))
+        else if(!(par&&par.d&&par.d.tipoOrig==="EIRELI") && /\b(?:LTDA|LIMITADA|EIRELI|S\/A|S\.A\.)\b/i.test(txt.replace(new RegExp("("+(par&&par.d&&par.d.razao||"@@").replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi"),"")))
           avisosDoc.push("O texto menciona outra empresa, mas <b>nenhuma sócia pessoa jurídica</b> foi reconhecida. Se houver uma no quadro, marque “Pessoa jurídica” no cartão do sócio e preencha o CNPJ — os demais dados vêm da Receita.");
       }
       houvePDF=true;$("pdfStat").className="fldstat ok";$("pdfStat").textContent="✓ "+(nomeDoc?nomeDoc+" lido":"Dados do PDF extraídos")+" — confira os campos em amarelo.";}catch(e){$("pdfStat").className="fldstat bad";$("pdfStat").textContent="Falha ao ler PDF: "+((e&&e.message)||(typeof e==="string"?e:"")||"erro desconhecido");console.error(e);}}
@@ -6374,6 +6718,7 @@ window.TINA=(function(){
       document.addEventListener("keydown",e=>{ if(e.key==="Escape") fechar(); });
     }
     if($("btnProcClose")) $("btnProcClose").addEventListener("click",()=>$("procModal").classList.remove("open"));
+    ligarConferencia();
     if($("btnCompClose")) $("btnCompClose").addEventListener("click",()=>$("compModal").classList.remove("open"));
     if($("btnComparar")) $("btnComparar").addEventListener("click",abrirComparacao);
     if($("btnProtoClose")) $("btnProtoClose").addEventListener("click",()=>$("protoModal").classList.remove("open"));
@@ -6775,7 +7120,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
