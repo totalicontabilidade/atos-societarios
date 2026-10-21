@@ -528,6 +528,23 @@
       var apF=W.TINA._cmd.parseComandos("excluir sócia MODELO");
       reg("“excluir sócia” funciona igual a “excluir sócio”",
         (apF||[]).some(function(x){ return /retirada de s[óo]cio|excluir s[óo]cio/i.test(x); }), (apF||[]).join(" | ").slice(0,80));
+      /* Endereço do SÓCIO: Manual de LTDA, Seção IV — vai só no preâmbulo, sem cláusula. Antes não
+         havia comando, e "sócio X, endereço para …" caía no comando da SEDE. */
+      W.TINA._pdf.aplicarDadosContrato(W.TINA._pdf.parseContratoTexto(tMF,"","",""));
+      await espera(600);
+      var sedeAntes=$("s_log").value, cxSede=$("alt_sede").checked, cxQuadro=$("alt_quadro").checked;
+      var apE=W.TINA._cmd.parseComandos("endereço do sócio Joao Exemplo para Rua Nova, 200, Bairro Sul, Lagarto/SE");
+      var cE=[].slice.call(D.querySelectorAll("#socios .socio:not(.filial):not(.guardado)"))[0];
+      var vE=function(f){ return ((cE&&cE.querySelector('[data-f="'+f+'"]'))||{}).value||""; };
+      reg("“endereço do sócio X para …” troca o endereço no cartão do sócio",
+        vE("log")==="Rua Nova" && vE("num")==="200" && vE("mun")==="Lagarto" && vE("uf")==="SE", vE("log")+"|"+vE("num")+"|"+vE("bairro")+"|"+vE("mun")+"|"+vE("uf"));
+      reg("…sem mexer na sede nem marcar cláusula em “O que muda”",
+        $("s_log").value===sedeAntes && $("alt_sede").checked===cxSede && $("alt_quadro").checked===cxQuadro, $("s_log").value+" | sede "+$("alt_sede").checked+" | quadro "+$("alt_quadro").checked);
+      reg("O retorno avisa que é só no preâmbulo", (apE||[]).some(function(x){ return /preâmbulo, sem cláusula/.test(x); }), (apE||[]).join(" | ").slice(0,120));
+      W.TINA._cmd.parseComandos("sócio JOÃO EXEMPLO, novo endereço: Avenida Beira Mar, nº 15, Atalaia, Aracaju/SE");
+      reg("Também aceita “sócio X, novo endereço: …” (com acento no nome)", vE("log")==="Avenida Beira Mar" && vE("num")==="15" && $("s_log").value===sedeAntes, vE("log")+" | sede "+$("s_log").value);
+      var apN=W.TINA._cmd.parseComandos("endereço do sócio FULANO INEXISTENTE para Rua X, 1, Centro, Aracaju/SE");
+      reg("Sócio que não existe: avisa em vez de mudar a sede", (apN||[]).some(function(x){ return /não encontrado/.test(x); }) && $("s_log").value===sedeAntes, (apN||[]).join(" | ").slice(0,100));
       reg("Sem divergência, não inventa aviso", !(dA.conferir&&dA.conferir.length), (dA.conferir||[]).join(" | "));
       // agora um contrato em que a cláusula se contradiz: 30.000 declarado x 20.000 pela tabela
       var tB=tA.replace("dividido em 30.000 quotas no valor nominal de R$ 1,00","dividido em 20.000 quotas no valor nominal de R$ 1,00");

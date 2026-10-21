@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.47" />
+<meta name="versao" content="1.48" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -901,6 +901,7 @@
         <tr><td>Foro</td><td><code>foro para Itabaiana</code> <span class="hint">(se a sede muda de município, o foro já acompanha sozinho quando era o da própria sede)</span></td></tr>
         <tr><td>Incluir sócio</td><td><code>incluir sócio MARIA SOUZA LIMA, CPF 111.444.777-35</code></td></tr>
         <tr><td>Excluir sócio</td><td><code>excluir sócio JOÃO DA COSTA</code></td></tr>
+        <tr><td>Endereço do sócio</td><td><code>endereço do sócio JOÃO DA COSTA para Rua X, 100, Centro, Aracaju/SE, 49000-000</code> <span class="hint">(também: <code>sócio JOÃO mudou para …</code>. Só atualiza a qualificação no preâmbulo — sem cláusula, como permite o Manual da Junta)</span></td></tr>
       </table>
       <p style="margin-top:12px"><b>Exemplo completo:</b><br>
         <code>razão social para PADARIA NOVA; fantasia para Pão Quente; endereço para Rua das Flores, 120, Centro, Aracaju/SE, 49000-000; capital para R$ 50.000; porte para EPP; incluir sócio Maria Souza, CPF 111.444.777-35; excluir sócio João Costa; excluir todas as atividades; incluir atividades: Lanchonete; Padaria; Confeitaria</code></p>
@@ -1364,13 +1365,13 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.47"></script>
-<script defer src="js/nuvem.js?v=1.47"></script>
-<script defer src="js/integracao.js?v=1.47"></script>
-<script defer src="js/modelos-coop.js?v=1.47"></script>
-<script defer src="js/gerador-coop.js?v=1.47"></script>
-<script defer src="js/modelos-sa.js?v=1.47"></script>
-<script defer src="js/gerador-sa.js?v=1.47"></script>
+<script defer src="js/nuvem-config.js?v=1.48"></script>
+<script defer src="js/nuvem.js?v=1.48"></script>
+<script defer src="js/integracao.js?v=1.48"></script>
+<script defer src="js/modelos-coop.js?v=1.48"></script>
+<script defer src="js/gerador-coop.js?v=1.48"></script>
+<script defer src="js/modelos-sa.js?v=1.48"></script>
+<script defer src="js/gerador-sa.js?v=1.48"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -4467,9 +4468,18 @@ window.TINA=(function(){
     if(CH.has("quadro")){ if(va&&va.socios&&va.socios.length) L.push("▸ QUADRO SOCIETÁRIO\n    De:\n"+fmtQuadro(va.socios)+"\n    Para:\n"+fmtQuadro(d.socios)); else L.push("▸ QUADRO SOCIETÁRIO\n"+fmtQuadro(d.socios).replace(/^ {2}/gm,"")); }
     if(CH.has("enquadramento")) L.push(dp("ENQUADRAMENTO (PORTE)", (va&&va.enquadramento)?(ENQ[va.enquadramento]||va.enquadramento):"", (ENQ[d.enquadramento]||d.enquadramento)));
     if(CH.has("foro")) L.push(dp("FORO", "", "Comarca de "+(d.foro||(d.sede&&d.sede.mun)||"")+" - "+(d.foroUF||(d.sede&&d.sede.uf)||"")));
-    return L;}
+    return L.concat(linhasEnderecoSocio(d));}
+  /* Endereço de sócio que mudou: não é item de "O que muda" (vai só no preâmbulo, sem cláusula —
+     Manual de LTDA, Seção IV), mas o cliente precisa ver no e-mail o que vai sair no ato. */
+  function linhasEnderecoSocio(d){const va=valoresAntes; if(!va||!va.socios||!va.socios.length) return [];
+    const dig=x=>String(x||"").replace(/\D/g,""), nm=x=>String(x||"").trim().toUpperCase();
+    return (d.socios||[]).map(s=>{const a=va.socios.find(o=>(dig(o.cpf)&&dig(o.cpf)===dig(s.cpf))||(nm(o.nome)&&nm(o.nome)===nm(s.nome)));
+      if(!a) return null; const de=endLinha(a), para=endLinha(s);
+      return (de.replace(/[\s,;-]/g,"")&&para.replace(/[\s,;-]/g,"")&&de!==para)
+        ? "▸ ENDEREÇO DO SÓCIO "+nm(s.nome)+" (atualizado no preâmbulo)\n    De:   "+de+"\n    Para: "+para : null;
+    }).filter(Boolean);}
   function blocosEmail(d,sufixo){let L=[]; const CH=d.changed||new Set(); const isAltMode=MODE.endsWith("alt");
-    if(isAltMode && CH.size){
+    if(isAltMode && (CH.size || linhasEnderecoSocio(d).length)){
       L=linhasAlteracoes(d,sufixo,CH);
       if(!L.length) L.push("(Marque em \"O que muda\" os itens alterados para detalhá-los aqui.)");
     } else if(MODE==="const"||MODE==="ei_const"){
@@ -6169,6 +6179,33 @@ window.TINA=(function(){
     const segs=corpo.split(/[;\n]+/).map(s=>s.trim()).filter(Boolean);
     for(const s of segs){
       let m;
+      /* Endereço do SÓCIO (não da sede). Manual de LTDA, Seção IV, nota: mudança de dados pessoais do
+         sócio (nome civil, endereço, estado civil) "pode ser realizada no preâmbulo, sendo desnecessário
+         que conste em cláusulas específicas". Então só troca o endereço no cartão do sócio — que é o que
+         sai na qualificação do preâmbulo — e NÃO marca nada em "O que muda" (não vira cláusula).
+         Tem de vir antes do comando da sede: "sócio João, endereço para Rua X" casava com ele e mudava a SEDE.
+         Aceita: "endereço do sócio JOÃO para …", "mudança de endereço da sócia MARIA: …",
+         "sócio JOÃO, novo endereço: …", "sócio JOÃO mudou para …". */
+      if((m=s.match(/^(?:(?:mud\w+|alter\w+|troc\w+|atualiz\w+)\s+(?:d[eoa]\s+|o\s+)?)?(?:nov[oa]\s+)?endere[çc]o\s+d[oa]\s+s[óo]ci[oa]\s+(.+?)\s*(?:\bpara\b\s*:?|:)\s*(.+)$/i))
+         ||(m=s.match(/^s[óo]ci[oa]\s+(.+?)[\s,]+(?:(?:(?:mud\w+|alter\w+|troc\w+)\s+(?:d[eoa]\s+|o\s+)?)?(?:nov[oa]\s+)?endere[çc]o|mud\w+(?:-se)?)\s*(?:\bpara\b\s*:?|:)\s*(.+)$/i))){
+        const chave=x=>semAcento(x).toLowerCase().replace(/\s+/g," ").trim();
+        const alvo=chave(m[1].replace(/[,.:;]+$/,"")), alvoCpf=m[1].replace(/\D/g,"");
+        const cards=[...document.querySelectorAll(".socio:not(.filial):not(.guardado)")];
+        const achados=cards.filter(c=>{const nm=chave((c.querySelector("[data-f=nome]")||{}).value);
+          const cpf=(((c.querySelector("[data-f=cpf]")||{}).value)||"").replace(/\D/g,"");
+          return (alvoCpf.length===11&&cpf===alvoCpf)||(alvo&&nm.includes(alvo)); });
+        if(achados.length!==1){ applied.push((achados.length?"⚠ mais de um sócio com “":"⚠ sócio não encontrado para mudar o endereço: “")+m[1].trim()+(achados.length?"” — escreva o nome completo":"”")); continue; }
+        const card=achados[0], e=parseEnderecoComando(m[2]);
+        const q=f=>card.querySelector("[data-f="+f+"]");
+        ["cep","log","num","comp","bairro","mun"].forEach(f=>{const el=q(f); if(el){ el.value=e[f]||""; if(e[f]) el.classList.add("revisar"); }});
+        if(e.uf&&q("uf")){ q("uf").value=e.uf; q("uf").classList.add("revisar"); }
+        // com CEP, a busca do próprio cartão completa logradouro/bairro vazios e confere município/UF
+        if(e.cep&&q("cep")) q("cep").dispatchEvent(new Event("blur"));
+        const nomeCard=((q("nome")||{}).value||m[1]).trim();
+        const faltam=[!e.log&&!e.cep&&"logradouro",!e.num&&"número",!e.mun&&!e.cep&&"município"].filter(Boolean);
+        applied.push("endereço do sócio "+nomeCard+" → "+(e.log||"(pelo CEP)")+(e.num?", nº "+e.num:"")+(e.mun?" — "+e.mun:"")+(e.uf?"/"+e.uf:"")
+          +" (só no preâmbulo, sem cláusula)"+(faltam.length?" · faltou: "+faltam.join(", "):""));
+        continue;}
       if(m=s.match(/inclu\w+\s+s[óo]ci[oa]\s+(.+)/i)){const rest=m[1];const cpf=(rest.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/)||[])[0]||"";const nome=rest.replace(/,?\s*cpf.*/i,"").replace(/,\s*\d.*/,"").trim();socioCard({nome,cpf});const last=[...document.querySelectorAll(".socio:not(.filial)")].pop();if(last)last.querySelectorAll("[data-f=nome],[data-f=cpf]").forEach(el=>el.classList.add("revisar"));chk("alt_quadro");applied.push("incluir sócio: "+nome);continue;}
       /* "excluir sócio X": numa ALTERAÇÃO ele não pode simplesmente sumir — quem sai assina o ato e
          precisa continuar qualificado no preâmbulo. Então o comando MARCA A RETIRADA e o sócio fica
