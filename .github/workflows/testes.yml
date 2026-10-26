@@ -1,0 +1,25 @@
+# Bateria de testes a cada envio para o GitHub (e à mão, pela aba Actions).
+# Roda o testes.html num Chrome sem tela, sem login — nada vai para a nuvem real.
+name: Testes
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  bateria:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instala o controlador do Chrome
+        run: npm install --no-save --no-package-lock puppeteer-core@23
+      - name: Roda a bateria
+        run: |
+          nohup python3 -m http.server 8080 > /dev/null 2>&1 &
+          sleep 2
+          node .github/testes/rodar.mjs

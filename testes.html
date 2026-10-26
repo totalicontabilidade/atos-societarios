@@ -46,7 +46,7 @@
 
   function grupo(nome){ grupoAtual=nome; var tr=document.createElement("tr"); tr.className="grupo";
     tr.innerHTML='<td colspan="4">'+esc(nome)+'</td>'; tbody.appendChild(tr); }
-  function reg(nome,ok,det){ linhas.push({ok:ok}); var tr=document.createElement("tr");
+  function reg(nome,ok,det){ linhas.push({ok:ok,nome:grupoAtual+" › "+nome,det:String(det||"")}); var tr=document.createElement("tr");
     var r = ok===null ? "PULADO" : (ok?"PASSOU":"FALHOU");
     tr.innerHTML='<td class="det">'+esc(grupoAtual)+'</td><td>'+esc(nome)+'</td><td class="res '+r+'">'+r+'</td><td class="det">'+esc(det||"")+'</td>';
     tbody.appendChild(tr); atualizaPlacar(); }
@@ -66,6 +66,9 @@
        _wk.onmessage=function(e){ var f=_wkPend[e.data]; delete _wkPend[e.data]; if(f) f(); };
        _wk.onerror=function(){ _wk=null; }; }catch(e){ _wk=null; }
   function espera(ms){ return new Promise(function(r){ if(!_wk){ setTimeout(r,ms); return; } var id=++_wkSeq; _wkPend[id]=r; try{ _wk.postMessage({id:id,ms:ms}); }catch(e){ delete _wkPend[id]; setTimeout(r,ms); } }); }
+  /* A bateria roda sem ninguém na frente (e no GitHub, sem tela): uma caixa de confirmação do app
+     pararia tudo esperando um clique. Aceita sempre; quem quer testar o "cancelar" troca na hora. */
+  function semDialogos(w){ try{ w.confirm=function(){ return true; }; w.alert=function(){}; w.prompt=function(){ return ""; }; }catch(e){} }
   function ate(cond,limite){ limite=limite||15000; var ini=Date.now();
     return new Promise(function(res,rej){ (function tenta(){
       var v; try{ v=cond(); }catch(e){ v=false; }
@@ -82,7 +85,7 @@
     var W,D;
     try{
       await new Promise(function(r){ fr.onload=r; });
-      W=fr.contentWindow; D=fr.contentDocument;
+      W=fr.contentWindow; D=fr.contentDocument; semDialogos(W);
       await ate(function(){ return W.TINA && D.getElementById("btnGerar"); });
     }catch(e){ grupo("Carregamento"); reg("App carrega no quadro de teste",false,String(e.message||e)); fim(); return; }
 
@@ -91,7 +94,7 @@
     async function recarregar(){
       fr.src="index.html?teste="+Date.now();
       await new Promise(function(r){ fr.onload=r; });
-      W=fr.contentWindow; D=fr.contentDocument;
+      W=fr.contentWindow; D=fr.contentDocument; semDialogos(W);
       await ate(function(){ return W.TINA && D.getElementById("btnGerar"); });
     }
     var $=function(id){ return D.getElementById(id); };
@@ -102,7 +105,7 @@
 
     // começa do zero: sobra de uma execução interrompida (licença vencida, casos, rascunho)
     // faria testes falharem por motivo que não é do app
-    try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic","tinaIdsExcluidos"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
+    try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic","tinaIdsExcluidos","tinaErros"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
     try{
     // ---------- 1. Carregamento ----------
     grupo("Carregamento");
@@ -2386,7 +2389,7 @@
       // isola: o grupo do CEP deixa uma busca em voo que pendura esta bateria
       fr.src="index.html?teste="+Date.now();
       await new Promise(function(r){ fr.onload=r; });
-      W=fr.contentWindow; D=fr.contentDocument;
+      W=fr.contentWindow; D=fr.contentDocument; semDialogos(W);
       await ate(function(){ return W.TINA && D.getElementById("btnGerar"); });
       $=function(id){ return D.getElementById(id); };
       modo=function(m){ var el=D.querySelector('[data-mode="'+m+'"]'); if(el) el.click(); };
@@ -2432,7 +2435,7 @@
     // recarrega o app: o grupo anterior deixa uma busca de CEP em voo, e este grupo precisa de estado limpo
     fr.src="index.html?teste="+Date.now();
     await new Promise(function(r){ fr.onload=r; });
-    W=fr.contentWindow; D=fr.contentDocument;
+    W=fr.contentWindow; D=fr.contentDocument; semDialogos(W);
     await ate(function(){ return W.TINA && D.getElementById("btnGerar"); });
     $=function(id){ return D.getElementById(id); };
     modo=function(m){ var el=D.querySelector('[data-mode="'+m+'"]'); if(el) el.click(); };
@@ -2521,6 +2524,72 @@
       if($("solicModal")) $("solicModal").classList.remove("open");
     }catch(e){ reg("Bateria da solicitação ligada ao ato",false,String(e&&e.message||e).slice(0,120)); }
 
+    // ---------- 6g. Exigência da Junta ----------
+    grupo("Exigência da Junta");
+    try{
+      ["tinaSolic"].forEach(function(k){ W.localStorage.removeItem(k); });
+      var agE=new Date().toISOString(), solE=function(){ return JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{}; };
+      W.localStorage.setItem("tinaSolic",JSON.stringify([{id:"SEX1",empresa:"EXIGENCIA MODELO",tipo:"alt",status:"protocolada",criadoEm:agE,alteradoEm:agE}]));
+      $("btnSolic").click(); await espera(250);
+      var bEx=D.querySelector('[data-sol-exig="SEX1"]');
+      reg("Protocolada ganha o botão “Exigência”", !!bEx);
+      bEx.click(); await espera(200);
+      reg("O formulário abre em “Em exigência” com o motivo à vista", $("sStatus").value==="exigencia" && $("wrapExig").style.display!=="none" && $("sExigCat").options.length>=5);
+      $("sExigCat").value="Cláusula obrigatória faltando"; $("sExigTxt").value="incluir desimpedimento"; $("btnSolicSalvar").click(); await espera(250);
+      var e1=solE();
+      reg("Exigência gravada com categoria e texto", e1.status==="exigencia" && (e1.exigencias||[]).length===1 && e1.exigencias[0].cat==="Cláusula obrigatória faltando" && e1.exigencias[0].txt==="incluir desimpedimento");
+      reg("O cartão mostra o que a Junta pediu", /incluir desimpedimento/.test((D.querySelector('[data-sol-id="SEX1"] .sol-exig')||{}).textContent||""));
+      D.querySelector('[data-sol-reproto="SEX1"]').click(); await espera(200);
+      reg("“Protocolei de novo” volta para Protocolada e guarda o histórico", solE().status==="protocolada" && (solE().exigencias||[]).length===1);
+      W.TINA._ux.renderSolic(); var fe=$("solicFiltro"); fe.value="todas"; W.TINA._ux.renderSolic();
+      reg("Resumo conta os motivos dos últimos 6 meses", /1 exigência nos últimos 6 meses/.test(($("solicLista").textContent||"")) && /Cláusula obrigatória faltando \(1\)/.test($("solicLista").textContent||""));
+      fe.value="abertas"; if($("solicModal")) $("solicModal").classList.remove("open");
+    }catch(e){ reg("Bateria da exigência",false,String(e&&e.message||e).slice(0,120)); }
+
+    // ---------- 6g2. Leitura de pouca confiança ----------
+    grupo("Leitura de pouca confiança");
+    try{
+      var P=W.TINA._pdf;
+      modo("alt"); await espera(120); $("btnExemplo").click(); await espera(400);
+      var lst=P.avaliarConfianca([
+        {campo:"razao",valor:"COMERCIAL MODELO",busca:"COMERCIAL MODELO",trecho:"… COMERCIAL MODELO …",origem:""},
+        {campo:"capital",valor:"R$ 30.000,00",busca:"30.000,00",trecho:"… 30.000,00 …",origem:""},
+        {campo:"objeto",valor:"comércio",busca:"comércio",trecho:"… comércio …",origem:"cláusula do objeto"},
+        {campo:"s0.cpf",valor:"111.111.111-12",busca:"111.111.111-12",trecho:"…111.111.111-12…",origem:""},
+        {campo:"s0.estadoCivil",valor:"casado",busca:"casado",trecho:"",origem:""},
+        {campo:"fantasia",valor:"LOJA INVENTADA",busca:"LOJA INVENTADA",trecho:"",origem:""}],{conferir:[]});
+      var mot=function(c){ return (lst.filter(function(l){ return l.campo===c; })[0]||{}).baixa||""; };
+      reg("Texto lido igual ao documento não é marcado", mot("razao")==="" && mot("objeto")==="");
+      reg("Capital achado fora da cláusula é marcado", /fora da cláusula/.test(mot("capital")));
+      reg("CPF com dígito inválido é marcado", /CPF/.test(mot("s0.cpf")));
+      reg("Valor que não aparece escrito no documento é marcado", /não aparece/.test(mot("fantasia")));
+      reg("Campo que o leitor normaliza (estado civil) não gera alarme falso", mot("s0.estadoCivil")==="");
+      var n=P.marcarBaixaConfianca(lst);
+      reg("Os campos ficam em laranja no formulário", n>=3 && $("fantasia").classList.contains("baixa-conf") && $("capital").classList.contains("baixa-conf"));
+      val("fantasia","LOJA CORRIGIDA");
+      reg("Mexer no campo tira o laranja", !$("fantasia").classList.contains("baixa-conf"));
+      W.TINA.limpar();
+      reg("Limpar tira todas as marcas", D.querySelectorAll(".baixa-conf").length===0);
+    }catch(e){ reg("Bateria da pouca confiança",false,String(e&&e.message||e).slice(0,120)); }
+
+    // ---------- 6h. Índice das seções, exemplo e teclado ----------
+    grupo("Índice das seções e teclado");
+    try{
+      modo("alt"); await espera(150); W.TINA.limpar(); await ate(function(){ return D.querySelectorAll("#secoesIdx .sec").length>3; },5000);
+      reg("Índice lista as seções visíveis da alteração", D.querySelectorAll("#secoesIdx .sec").length>=6, D.querySelectorAll("#secoesIdx .sec").length+" seções");
+      reg("Formulário vazio: seções com ⚠", D.querySelectorAll("#secoesIdx .sec.pend").length>=4);
+      $("btnExemplo").click(); await espera(1100);
+      var pendS=[].map.call(D.querySelectorAll("#secoesIdx .sec.pend"),function(b){ return b.textContent; });
+      reg("Exemplo preenchido: só sobra o que falta de verdade", pendS.length<=1, pendS.join(", "));
+      var perg=false; W.confirm=function(){ perg=true; return false; }; var razaoAntes=$("razao").value; $("btnExemplo").click(); semDialogos(W);
+      reg("“Preencher exemplo” pergunta antes de apagar um ato preenchido", perg && $("razao").value===razaoAntes);
+      reg("Abas de tipo de ato são botões (alcançáveis pelo Tab)", D.querySelectorAll("button.t[data-mode]").length>=20 && D.querySelectorAll("div.t[data-mode]").length===0);
+      $("btnPainel").click(); await espera(150);
+      D.dispatchEvent(new W.KeyboardEvent("keydown",{key:"Escape",bubbles:true})); await espera(120);
+      reg("Esc fecha a janela da frente", !$("painelModal").classList.contains("open"));
+      reg("Janelas se anunciam como diálogo com título", D.querySelectorAll('.modal-bg[role="dialog"][aria-labelledby]').length===D.querySelectorAll(".modal-bg").length);
+    }catch(e){ reg("Bateria do índice e teclado",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 7. Segurança ----------
     grupo("Segurança");
     await recarregar();
@@ -2560,7 +2629,7 @@
       grupo("Execução"); reg("A bateria terminou sem erro inesperado",false,String(e&&e.message||e).slice(0,140));
       try{ console.error("erro na suite:",e); }catch(_){}
     } finally {
-      try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic","tinaIdsExcluidos"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
+      try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic","tinaIdsExcluidos","tinaErros"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
       fim();
     }
   }
@@ -2570,9 +2639,14 @@
     var f=linhas.filter(function(l){return l.ok===false;}).length;
     document.getElementById("tempo").textContent="concluído em "+((Date.now()-t0)/1000).toFixed(1)+"s"+(f?" — há falhas":" — tudo certo");
     document.title=(f? "✗ "+f+" falha(s)" : "✓ testes ok")+" — Atos Societários";
+    // para quem roda sem tela (o GitHub): o resultado fica num lugar só, fácil de ler de fora
+    window.__resultado={falhas:f,total:linhas.length,segundos:Math.round((Date.now()-t0)/1000),
+      falharam:linhas.filter(function(l){return l.ok===false;}).map(function(l){return l.nome+(l.det?" — "+l.det:"");})};
   }
 
   document.getElementById("btnRodar").addEventListener("click",rodar);
+  // testes.html?auto=1 roda sozinho ao abrir (é assim que o GitHub roda a bateria a cada envio)
+  if(/[?&]auto=1(&|$)/.test(location.search)) setTimeout(rodar,800);
 })();
 </script>
 </body>

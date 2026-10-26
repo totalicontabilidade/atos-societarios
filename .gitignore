@@ -33,3 +33,6 @@ Desktop.ini
 .vscode/
 .idea/
 *~
+
+# Dependência só da bateria no GitHub (o sistema não usa)
+/node_modules/

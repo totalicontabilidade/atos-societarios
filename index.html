@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.49" />
+<meta name="versao" content="1.50" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -21,7 +21,7 @@
 <style>
   :root{
     --navy:#14293f; --navy2:#22456c; --navy3:#0e1f30; --gold:#c2a250; --gold2:#d8bd74;
-    --ink:#132132; --ink2:#26384c; --muted:#5f7186; --muted2:#93a1b3;
+    --ink:#132132; --ink2:#26384c; --muted:#5f7186; --muted2:#687889;
     --line:#e4e8ef; --line2:#eef1f6; --bg:#f3f5f9; --card:#ffffff;
     --ok:#0f8a53; --okbg:#eafaf1; --okln:#a7e7c3;
     --warn:#9a6a09; --warnbg:#fdf6e6; --warnln:#f0dca0;
@@ -54,8 +54,8 @@
   .card h2{font-size:14px;margin:0 0 15px;color:var(--ink);display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.1px}
   .card h2 .n{width:26px;height:26px;border-radius:8px;color:#fff;display:grid;place-items:center;font-size:12.5px;font-weight:800;
     background:linear-gradient(135deg,var(--navy),var(--navy2));box-shadow:0 3px 8px rgba(20,41,63,.3)}
-  label{display:block;font-size:11.5px;font-weight:600;color:var(--ink2);margin:0 0 5px}
-  .hint{font-size:10.5px;color:var(--muted2);font-weight:500}
+  label{display:block;font-size:12.5px;font-weight:600;color:var(--ink2);margin:0 0 5px}
+  .hint{font-size:12px;color:var(--muted2);font-weight:500}
   input[type=text],input[type=search],input[type=number],input[type=date],select,textarea{
     width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;color:var(--ink);transition:.13s}
   input:hover,select:hover,textarea:hover{border-color:#ccd4e0}
@@ -71,7 +71,7 @@
   /* (responsivo movido para o final do CSS para vencer a cascata) */
   .row{margin-bottom:13px}
   .cepwrap,.cpfwrap{position:relative}
-  .fldstat{font-size:10.5px;margin-top:4px;min-height:13px;font-weight:600}
+  .fldstat{font-size:12px;margin-top:4px;min-height:13px;font-weight:600}
   .fldstat.ok{color:var(--ok)}.fldstat.bad{color:var(--err)}.fldstat.load{color:var(--muted)}.fldstat.warn{color:var(--warn)}
   .socio{border:1px solid var(--line);border-radius:13px;padding:16px;margin-bottom:14px;background:linear-gradient(180deg,#fbfcfe,#fff);position:relative;box-shadow:0 1px 2px rgba(20,41,63,.03)}
   .socio .tag{position:absolute;top:-10px;left:14px;background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;font-size:10.5px;font-weight:700;padding:2px 11px;border-radius:12px;letter-spacing:.3px}
@@ -95,7 +95,7 @@
   .anexo{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:12px}
   .anexo .ic{font-size:16px;line-height:1}
   .anexo .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .anexo .tm{color:var(--muted);font-size:10.5px;white-space:nowrap}
+  .anexo .tm{color:var(--muted);font-size:11.5px;white-space:nowrap}
   .anexo img.thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
   .anexo .barra{height:3px;background:var(--line);border-radius:2px;overflow:hidden;width:70px}
   .anexo .barra i{display:block;height:100%;background:var(--navy2);width:0}
@@ -114,7 +114,7 @@
   #solicNuvem{display:block;margin-top:6px}
   #solicNuvem:empty{display:none}
   .sol{--c:var(--navy2);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;background:#fff;padding:12px 13px;margin-bottom:10px;box-shadow:0 1px 2px rgba(20,41,63,.04)}
-  .sol.st-nova{--c:#1d5fa8}.sol.st-andamento{--c:#b8860b}.sol.st-cliente{--c:#c2570c}.sol.st-protocolada{--c:#6b3fa0}.sol.st-concluida{--c:var(--ok)}
+  .sol.st-nova{--c:#1d5fa8}.sol.st-andamento{--c:#b8860b}.sol.st-cliente{--c:#c2570c}.sol.st-protocolada{--c:#6b3fa0}.sol.st-exigencia{--c:#b42318}.sol.st-concluida{--c:var(--ok)}
   .sol.acabou{animation:valflash 1.15s ease-out}
   .sol-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
   .sol-emp{font-size:14.5px;font-weight:750;color:var(--ink);line-height:1.3;word-break:break-word}
@@ -122,6 +122,10 @@
   .sol.st-andamento .sol-st{background:#fdf6e6;color:#8a5f00}
   .sol.st-cliente .sol-st{background:#fff0e5;color:#b04a06}
   .sol.st-protocolada .sol-st{background:#f3edfb;color:#5d3591}
+  .sol.st-exigencia .sol-st{background:#fdecea;color:#a3221a}
+  .sol-exig{margin-top:8px;padding:7px 10px;border-radius:8px;background:#fdecea;border:1px solid #f4c7c3;color:#8a1c14;font-size:12.5px}
+  .exig-resumo{margin:4px 0 10px;padding:9px 12px;border-radius:10px;background:#fff7f6;border:1px solid #f4c7c3;font-size:12.5px;color:var(--ink2)}
+  .exig-resumo b{color:#8a1c14}
   .sol.st-concluida .sol-st{background:var(--okbg);color:var(--ok)}
   .sol-meta{font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center}
   .sol-prazo{font-weight:650;color:var(--ink2)}
@@ -132,7 +136,7 @@
   .sol-recado{margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--warnbg);border:1px solid var(--warnln);color:#7c5406;font-size:12.5px}
   .sol-contato{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:var(--ink2)}
   .sol-contato>span{flex-basis:100%}
-  .sol-rodape{font-size:11.5px;color:var(--muted2);margin-top:6px}
+  .sol-rodape{font-size:12px;color:var(--muted2);margin-top:6px}
   .sol-anexos{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .sol-anexos a{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sol-anexos .ler{font-weight:650}
@@ -188,6 +192,9 @@
   .val-flash{animation:valflash 1.15s ease-out}
   @media (prefers-reduced-motion: reduce){ .val-flash{animation:none} }
   input.revisar,select.revisar,textarea.revisar{border-color:var(--warnln)!important;background:#fffdf4;box-shadow:inset 3px 0 0 var(--warn)}
+  /* leitura de pouca confiança: laranja, acima do amarelo de "confira" — é o que conferir primeiro */
+  input.baixa-conf,select.baixa-conf,textarea.baixa-conf{border-color:#e07b00!important;background:#fff4e5!important;box-shadow:inset 4px 0 0 #e07b00,0 0 0 2px rgba(224,123,0,.15)!important}
+  .conf-lin.baixa{border-color:#f0b46a;background:#fffaf2}
   .helpbtn{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--navy);color:#fff;font-size:11px;font-weight:800;cursor:pointer;margin-left:4px;vertical-align:middle;user-select:none}
   /* ===== tela de carregamento ===== */
   #bootLoad{position:fixed;inset:0;z-index:200;background:var(--navy);display:flex;align-items:center;justify-content:center;transition:opacity .35s ease,visibility .35s}
@@ -218,14 +225,25 @@
   #confTexto mark{background:#ffe58a;padding:0 1px;border-radius:2px}
   .modal .x{cursor:pointer;border:none;background:#eef1f6;border-radius:8px;padding:5px 12px;font-weight:700;color:var(--ink2)}
   .muted{color:var(--muted)}
-  .pill{display:inline-flex;font-size:10.5px;font-weight:600;padding:2px 9px;border-radius:20px;background:#eef2f7;color:var(--navy);margin-left:4px;align-items:center}
+  .pill{display:inline-flex;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:20px;background:#eef2f7;color:var(--navy);margin-left:4px;align-items:center}
   .typebar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-  .typebar .t{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;font-size:12.5px;cursor:pointer;font-weight:600;color:var(--ink2)}
+  .typebar .t{font:inherit;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;font-size:12.5px;cursor:pointer;font-weight:600;color:var(--ink2)}
+  .typebar .t:focus-visible,.modal:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .tipo-mob{display:none}
+  .so-cel{display:none}
   .typebar .t.active{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(20,41,63,.26)}
   .typebar .t.soon{opacity:.5;cursor:not-allowed}
   .actions{position:sticky;bottom:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1px solid var(--line);
     border-radius:var(--r);padding:13px 16px;margin-bottom:16px;box-shadow:var(--shadow);display:flex;gap:10px;flex-wrap:wrap;align-items:center;z-index:20}
   .status{font-size:12px;font-weight:600}
+  .secoes{flex-basis:100%;padding-bottom:9px;border-bottom:1px solid var(--line2)}
+  .secoes:empty{display:none}
+  .sec-lista{display:flex;flex-wrap:wrap;gap:6px}
+  .sec{font:inherit;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer}
+  .sec:hover{border-color:var(--navy)}
+  .sec.pend{background:var(--warnbg);border-color:var(--warnln);color:#7c5406}
+  .sec:focus-visible,.sec-resumo:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .sec-resumo{display:none}
   #previewCard{padding:0;overflow:hidden}
   .pv-head{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line2);font-weight:700;font-size:13px}
   .pv-head .dot{width:8px;height:8px;border-radius:50%;background:var(--gold)}
@@ -233,7 +251,7 @@
   /* o docx-preview aplica hyphens:auto e o navegador hifeniza nomes/palavras longas na prévia — desligamos (o .docx e o PDF já não hifenizam) */
   #preview, #preview *{ -webkit-hyphens:none!important; -ms-hyphens:none!important; hyphens:none!important }
   #preview .empty{padding:64px 20px;text-align:center;color:var(--muted2);font-size:13px}
-  .foot{font-size:11px;color:var(--muted2);text-align:center;margin:8px 0 34px}
+  .foot{font-size:12px;color:var(--muted2);text-align:center;margin:8px 0 34px}
   /* botão "voltar ao topo" — pequeno, sutil, aparece só ao rolar para baixo */
   #btnTopo{position:fixed;right:18px;bottom:76px;z-index:45;width:42px;height:42px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:50%;background:var(--navy);color:#fff;font-size:20px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(20,41,63,.30);opacity:0;visibility:hidden;transform:translateY(10px);transition:opacity .22s ease,transform .22s ease,visibility .22s}
   #btnTopo.show{opacity:.9;visibility:visible;transform:translateY(0)}
@@ -264,9 +282,26 @@
     .card h2{font-size:13.5px}
     .typebar{flex-wrap:wrap}
     .typebar .t{flex:1 1 auto;text-align:center}
-    .actions{position:static!important;bottom:auto;flex-direction:column;align-items:stretch;gap:8px}
-    .actions .btn{width:100%;justify-content:center;padding:12px 16px}
-    .actions .status{text-align:center;order:3}
+    /* no celular os 6 tipos + subtipos ocupavam meia tela: viram uma lista de escolha */
+    .form-cards .typebar{display:none!important}
+    .tipo-mob{display:block;margin-bottom:10px}
+    /* a barra de ações fica presa no rodapé também no celular, numa linha compacta — antes ficava
+       parada no fim do formulário, a quase dez telas de rolagem */
+    .actions{position:sticky!important;bottom:0;margin:0 -12px 12px;border-radius:14px 14px 0 0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));gap:6px;flex-wrap:wrap}
+    .actions .btn{flex:1 1 0;justify-content:center;padding:11px 6px;font-size:13px;min-width:0}
+    .actions #btnGerar{flex:1.7 1 0}
+    .actions .status{flex-basis:100%;text-align:center;order:3;font-size:11.5px}
+    .actions .status:empty{display:none}
+    .so-pc{display:none}
+    .so-cel{display:inline}
+    .secoes{padding-bottom:6px}
+    .sec-resumo{display:flex;justify-content:space-between;align-items:center;width:100%;font:inherit;font-size:12.5px;font-weight:600;background:none;border:0;color:var(--ink2);padding:2px;cursor:pointer}
+    .sec-resumo.pend{color:#7c5406}
+    .secoes .sec-lista{display:none}
+    .secoes.aberto .sec-lista{display:flex;margin-top:8px;max-height:40vh;overflow:auto}
+    .secoes:not(.aberto) .sec-resumo span{transform:none}
+    .secoes.aberto .sec-resumo span{display:inline-block;transform:rotate(180deg)}
+    #btnTopo{bottom:150px!important}
     #preview{max-height:none}
     input[type=text],input[type=search],input[type=number],input[type=date],select,textarea{font-size:16px}
     .toast-wrap{top:10px;left:10px;right:10px;transform:none}
@@ -427,41 +462,52 @@
   <div class="form-cards">
     <div class="sol-ligada" id="solicLigadaBar" style="display:none"></div>
     <div class="card">
+      <div class="tipo-mob">
+        <label for="tipoAtoMob">Tipo de ato</label>
+        <select id="tipoAtoMob">
+          <optgroup label="Sociedade Limitada"><option value="alt">Ltda · Alteração + Consolidação</option><option value="const">Ltda · Contrato Social (abertura)</option></optgroup>
+          <optgroup label="Empresário Individual"><option value="ei_alt">EI · Alteração + Consolidação</option><option value="ei_const">EI · Inscrição (abertura)</option></optgroup>
+          <optgroup label="Transformação"><option value="transf_ei_ltda">EI → Ltda</option><option value="transf_ei_slu">EI → SLU (unipessoal)</option><option value="transf_ltda_ei">Ltda/SLU → EI</option></optgroup>
+          <optgroup label="Distrato"><option value="dist_ltda">Distrato de Sociedade (Ltda/SLU)</option><option value="dist_ei">Extinção de Empresário Individual</option></optgroup>
+          <optgroup label="Cooperativa"><option value="coop_const">Cooperativa · Estatuto + Ata de constituição</option><option value="coop_reforma">Cooperativa · Reforma do estatuto (AGE)</option></optgroup>
+          <optgroup label="S.A."><option value="sa_transf_ltda">Ltda → S.A. (transformação)</option><option value="sa_const">S.A. · Constituição (assembleia)</option><option value="sa_transf_sa_ltda">S.A. → Ltda (transformação)</option><option value="sa_age">S.A. · AGE (estatuto, diretoria, capital)</option><option value="sa_ago">S.A. · AGO (contas do exercício)</option></optgroup>
+        </select>
+      </div>
       <div class="typebar">
-        <div class="t active" data-mode="ltda">Sociedade Limitada</div>
-        <div class="t" data-mode="ei">Empresário Individual</div>
-        <div class="t" data-mode="transf">Transformação</div>
-        <div class="t" data-mode="dist">Distrato</div>
-        <div class="t" data-mode="coop">Cooperativa</div>
-        <div class="t" data-mode="sa">S.A.</div>
+        <button type="button" class="t active" data-mode="ltda">Sociedade Limitada</button>
+        <button type="button" class="t" data-mode="ei">Empresário Individual</button>
+        <button type="button" class="t" data-mode="transf">Transformação</button>
+        <button type="button" class="t" data-mode="dist">Distrato</button>
+        <button type="button" class="t" data-mode="coop">Cooperativa</button>
+        <button type="button" class="t" data-mode="sa">S.A.</button>
       </div>
       <div class="sasub saonly typebar" style="display:none;margin-top:2px">
-        <div class="t active" data-mode="sa_transf_ltda">Ltda → S.A. (transformação)</div>
-        <div class="t" data-mode="sa_const">S.A. · Constituição (assembleia)</div>
-        <div class="t" data-mode="sa_transf_sa_ltda">S.A. → Ltda (transformação)</div>
-        <div class="t" data-mode="sa_age">S.A. · AGE (estatuto, diretoria, capital)</div>
-        <div class="t" data-mode="sa_ago">S.A. · AGO (contas do exercício)</div>
+        <button type="button" class="t active" data-mode="sa_transf_ltda">Ltda → S.A. (transformação)</button>
+        <button type="button" class="t" data-mode="sa_const">S.A. · Constituição (assembleia)</button>
+        <button type="button" class="t" data-mode="sa_transf_sa_ltda">S.A. → Ltda (transformação)</button>
+        <button type="button" class="t" data-mode="sa_age">S.A. · AGE (estatuto, diretoria, capital)</button>
+        <button type="button" class="t" data-mode="sa_ago">S.A. · AGO (contas do exercício)</button>
       </div>
       <div class="coopsub cooponly typebar" style="display:none;margin-top:2px">
-        <div class="t active" data-mode="coop_const">Cooperativa · Estatuto + Ata de constituição</div>
-        <div class="t" data-mode="coop_reforma">Cooperativa · Reforma do estatuto (AGE)</div>
+        <button type="button" class="t active" data-mode="coop_const">Cooperativa · Estatuto + Ata de constituição</button>
+        <button type="button" class="t" data-mode="coop_reforma">Cooperativa · Reforma do estatuto (AGE)</button>
       </div>
       <div class="ltdasub ltdagrponly typebar" style="margin-top:2px">
-        <div class="t active" data-mode="alt">Ltda · Alteração + Consolidação</div>
-        <div class="t" data-mode="const">Ltda · Contrato Social (abertura)</div>
+        <button type="button" class="t active" data-mode="alt">Ltda · Alteração + Consolidação</button>
+        <button type="button" class="t" data-mode="const">Ltda · Contrato Social (abertura)</button>
       </div>
       <div class="eisub eionly typebar" style="display:none;margin-top:2px">
-        <div class="t" data-mode="ei_alt">EI · Alteração + Consolidação</div>
-        <div class="t" data-mode="ei_const">EI · Inscrição (abertura)</div>
+        <button type="button" class="t" data-mode="ei_alt">EI · Alteração + Consolidação</button>
+        <button type="button" class="t" data-mode="ei_const">EI · Inscrição (abertura)</button>
       </div>
       <div class="transfsub transfonly typebar" style="display:none;margin-top:2px">
-        <div class="t" data-mode="transf_ei_ltda">EI → Ltda</div>
-        <div class="t" data-mode="transf_ei_slu">EI → SLU (unipessoal)</div>
-        <div class="t" data-mode="transf_ltda_ei">Ltda/SLU → EI</div>
+        <button type="button" class="t" data-mode="transf_ei_ltda">EI → Ltda</button>
+        <button type="button" class="t" data-mode="transf_ei_slu">EI → SLU (unipessoal)</button>
+        <button type="button" class="t" data-mode="transf_ltda_ei">Ltda/SLU → EI</button>
       </div>
       <div class="distsub distonly typebar" style="display:none;margin-top:2px">
-        <div class="t" data-mode="dist_ltda">Distrato de Sociedade (Ltda/SLU)</div>
-        <div class="t" data-mode="dist_ei">Extinção de Empresário Individual</div>
+        <button type="button" class="t" data-mode="dist_ltda">Distrato de Sociedade (Ltda/SLU)</button>
+        <button type="button" class="t" data-mode="dist_ei">Extinção de Empresário Individual</button>
       </div>
       <div class="bar">
         <button class="btn s mini" id="btnExemplo">↺ Preencher exemplo</button>
@@ -869,8 +915,9 @@
   </div>
 
   <div class="actions">
-    <button class="btn o" id="btnValidar">✓ Validar preenchimento</button>
-    <button class="btn p" id="btnGerar">👁 Gerar prévia</button>
+    <nav class="secoes" id="secoesIdx" aria-label="Seções do formulário"></nav>
+    <button class="btn o" id="btnValidar" aria-label="Validar preenchimento">✓ Validar<span class="so-pc"> preenchimento</span></button>
+    <button class="btn p" id="btnGerar">👁 <span class="so-pc">Gerar </span>prévia</button>
     <button class="btn g" id="btnBaixar">⬇ .docx</button>
     <button class="btn o" id="btnPDF">⬇ PDF</button>
     <span class="status muted" id="status">Preencha os dados e gere a prévia.</span>
@@ -1119,7 +1166,7 @@
         <select id="solicFiltro" hidden>
           <option value="abertas">Em aberto</option><option value="nova">Novas</option>
           <option value="andamento">Em andamento</option><option value="cliente">Aguardando cliente</option>
-          <option value="protocolada">Protocoladas</option><option value="concluida">Finalizadas</option>
+          <option value="protocolada">Protocoladas</option><option value="exigencia">Em exigência</option><option value="concluida">Finalizadas</option>
           <option value="todas">Todas</option></select>
         <span class="hint" id="solicNuvem"></span>
       </div>
@@ -1168,7 +1215,12 @@
         <div class="row" id="wrapStatus"><label for="sStatus">Situação</label><select id="sStatus">
           <option value="nova">Nova</option><option value="andamento">Em andamento</option>
           <option value="cliente">Aguardando cliente</option><option value="protocolada">Protocolada</option>
-          <option value="concluida">Finalizada</option></select></div>
+          <option value="exigencia">Em exigência</option><option value="concluida">Finalizada</option></select></div>
+        <!-- a exigência da Junta vira registro: categoria (para contar o que mais volta) + o que ela pediu -->
+        <div class="grid g2 row" id="wrapExig" style="display:none">
+          <div><label for="sExigCat">Motivo da exigência</label><select id="sExigCat"></select></div>
+          <div><label for="sExigTxt">O que a Junta pediu <span class="hint">— resumo</span></label><input type="text" id="sExigTxt" autocomplete="off" placeholder="Ex.: incluir a cláusula de desimpedimento do administrador"></div>
+        </div>
         <!-- recado de quem cadastra para quem abriu: opcional e discreto; o comercial só lê, no cartão -->
         <div class="row" id="wrapPend"><label for="sPend"><span class="hint">Recado / pendência para o comercial (opcional)</span></label>
           <input type="text" id="sPend" placeholder="Ex.: falta o comprovante de endereço"></div>
@@ -1195,7 +1247,14 @@
         <button type="button" class="cfg-aba" data-cfg="nuvem" role="tab">Nuvem</button>
         <button type="button" class="cfg-aba" data-cfg="integracao" role="tab">Integração</button>
         <button type="button" class="cfg-aba" data-cfg="equipe" role="tab" id="cfgAbaEquipe" style="display:none">Equipe</button>
+        <button type="button" class="cfg-aba" data-cfg="erros" role="tab" id="cfgAbaErros">Erros</button>
       </div>
+
+      <section class="cfg-painel" data-cfg="erros" hidden>
+        <div class="hint" style="margin-bottom:10px">Falhas do sistema registradas sozinhas: a mensagem técnica, onde aconteceu e a versão. <b>Nunca leva dado de cliente</b> (números e e-mails são apagados da mensagem). Com login, os erros de toda a equipe ficam reunidos aqui.</div>
+        <div class="bar"><button type="button" class="btn o mini" id="btnErrosAtualizar">Atualizar</button></div>
+        <div id="cfgErros" style="margin-top:10px"></div>
+      </section>
 
       <section class="cfg-painel" data-cfg="escritorio">
       <div class="hint" style="margin-bottom:10px">A identidade do seu escritório nos documentos e no e-mail. Fica salvo <b>só neste navegador</b>.</div>
@@ -1374,16 +1433,44 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.49"></script>
-<script defer src="js/nuvem.js?v=1.49"></script>
-<script defer src="js/integracao.js?v=1.49"></script>
-<script defer src="js/modelos-coop.js?v=1.49"></script>
-<script defer src="js/gerador-coop.js?v=1.49"></script>
-<script defer src="js/modelos-sa.js?v=1.49"></script>
-<script defer src="js/gerador-sa.js?v=1.49"></script>
+<script defer src="js/nuvem-config.js?v=1.50"></script>
+<script defer src="js/nuvem.js?v=1.50"></script>
+<script defer src="js/integracao.js?v=1.50"></script>
+<script defer src="js/modelos-coop.js?v=1.50"></script>
+<script defer src="js/gerador-coop.js?v=1.50"></script>
+<script defer src="js/modelos-sa.js?v=1.50"></script>
+<script defer src="js/gerador-sa.js?v=1.50"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
+<script>
+/* Registro de erros: quando algo quebra no computador de alguém da equipe, ninguém ficava sabendo
+   até a pessoa reclamar. Fica aqui, ANTES do sistema, para pegar até erro de carregamento. Guarda a
+   mensagem técnica, o arquivo e a linha, a versão — e apaga da mensagem qualquer sequência de 4+
+   dígitos e qualquer e-mail, para não carregar CPF, CNPJ ou contato de cliente. Até 10 por
+   carregamento, sem repetir a mesma mensagem. Quem envia para a nuvem é o sistema, quando há login. */
+(function(){
+  var MAX=30, porCarga=0, vistos={};
+  function limpa(s){ return String(s==null?"":s).replace(/[\w.+-]+@[\w-]+\.[\w.]+/g,"@").replace(/\d{4,}/g,"#").replace(/\s+/g," ").trim().slice(0,160); }
+  function guardar(msg,onde){
+    msg=limpa(msg); if(!msg || vistos[msg] || porCarga>=10) return; vistos[msg]=1; porCarga++;
+    var v=(document.querySelector('meta[name="versao"]')||{}).content||"";
+    var modo=""; try{ modo=(window.TINA&&window.TINA._ux&&window.TINA._ux.modo)?window.TINA._ux.modo():""; }catch(_){}
+    var e={em:new Date().toISOString(),msg:msg,onde:limpa(onde).slice(0,80),versao:v,modo:modo,enviado:false};
+    try{ var l=JSON.parse(localStorage.getItem("tinaErros")||"[]"); l.push(e); localStorage.setItem("tinaErros",JSON.stringify(l.slice(-MAX))); }catch(_){}
+    try{ if(window.__enviarErros) window.__enviarErros(); }catch(_){}
+  }
+  window.addEventListener("error",function(ev){
+    var t=ev&&ev.target;
+    if(t && t!==window){   // falha de carregamento: só script do próprio sistema interessa
+      if(t.tagName==="SCRIPT" && t.src && t.src.indexOf(location.origin)===0) guardar("não carregou "+t.src.split("/").pop().split("?")[0],"carregamento");
+      return; }
+    guardar(ev.message||(ev.error&&ev.error.message),(String(ev.filename||"").split("/").pop()||"?")+":"+(ev.lineno||""));
+  },true);
+  window.addEventListener("unhandledrejection",function(ev){ var r=ev&&ev.reason; guardar("promessa rejeitada: "+((r&&r.message)||r),String((r&&r.stack)||"").split("\n")[1]||""); });
+  window.__registrarErro=guardar;
+})();
+</script>
 <script>
 /* ================= TINA v0.3 — Contrato Social Ltda (modelo JUCESE/REGIN) ================= */
 window.TINA=(function(){
@@ -1831,7 +1918,7 @@ window.TINA=(function(){
     else if(MODE==="alt") m.innerHTML="Nas <b>alterações contratuais</b> o visto <b>não é obrigatório</b> (nota do Manual de Registro de LTDA). Marque só se quiser incluí-lo.";
     else m.innerHTML="Dispensado: a sociedade é "+(enq==="EPP"?"EPP":"ME")+" (LC 123/2006). Marque só se quiser incluí-lo mesmo assim.";
   }
-  function recalc(){const cap=Number($("capital").value)||0,vq=Number($("valorQuota").value)||0;
+  function recalc(){agendarIndice();const cap=Number($("capital").value)||0,vq=Number($("valorQuota").value)||0;
     // "Modo de administração" só faz sentido com 2+ administradores (com 1, é sempre isoladamente)
     if($("modoAdmRow")){const nAdm=[...document.querySelectorAll(".socio:not(.filial):not(.guardado) [data-f=administrador]")].filter(c=>c.checked).length; const semAdm=semQuotasPorSocio(); $("modoAdmRow").style.display=(nAdm>=2&&!semAdm)?"":"none";}  // só com 2+ administradores e onde há cláusula de administração (não no distrato)
     $("numQuotas").value=vq>0?numBR(Math.round(cap/vq)):"";let somaV=0;
@@ -3070,6 +3157,9 @@ window.TINA=(function(){
     document.querySelectorAll(".distsub .t[data-mode]").forEach(t=>t.classList.toggle("active",t.dataset.mode===m));
     document.querySelectorAll(".coopsub .t[data-mode]").forEach(t=>t.classList.toggle("active",t.dataset.mode===m));
     document.querySelectorAll(".sasub .t[data-mode]").forEach(t=>t.classList.toggle("active",t.dataset.mode===m));
+    // leitor de tela e teclado: a aba escolhida se anuncia como apertada; a lista do celular acompanha
+    document.querySelectorAll(".typebar .t[data-mode]").forEach(t=>t.setAttribute("aria-pressed",t.classList.contains("active")?"true":"false"));
+    if($("tipoAtoMob") && $("tipoAtoMob").value!==m) $("tipoAtoMob").value=m;
     document.querySelectorAll(".saonly").forEach(el=>el.style.display=isSA?"":"none");
     document.querySelectorAll(".saconst").forEach(el=>el.style.display=(m==="sa_const")?"":"none");
     document.querySelectorAll(".saestatuto").forEach(el=>el.style.display=(m==="sa_transf_sa_ltda")?"none":"");
@@ -3361,6 +3451,7 @@ window.TINA=(function(){
     if(d.admNaoSocio){ if(!(d.admnsNome||"").trim()) f.push("Administrador não sócio: nome");
       if(!(d.admnsQualif||"").trim()) f.push("Administrador não sócio: qualificação (exigida pela IN)"); }
     (d.filiais||[]).forEach((fl,i)=>{ if(!(fl.log||"").trim()||!(fl.mun||"").trim()) f.push("Filial "+(i+1)+": logradouro e município"); });
+    if(blobOpt==="sóCampos") return f;   // o índice das seções confere só os campos, a cada digitação — montar o documento ali pesaria
     try{ let blob=blobOpt; if(!blob)blob=(await buildBlob()).blob;
       const zip=await window.JSZip.loadAsync(blob); const xml=await zip.file("word/document.xml").async("string");
       const txt=xml.replace(/<[^>]+>/g," ");
@@ -3411,6 +3502,89 @@ window.TINA=(function(){
   async function acaoValidar(){ const box=$("validacaoBox"); box.style.display="block"; box.className="val"; box.style.color="var(--muted)"; box.textContent="Validando…"; renderValidacao(await validar());
     // rola sozinho até a validação e dá um flash de destaque (bloco central, livre do header/ações sticky)
     box.scrollIntoView({behavior:"smooth",block:"center"}); box.classList.remove("val-flash"); void box.offsetWidth; box.classList.add("val-flash"); }
+
+  /* ===== Índice das seções =====
+     Mora dentro da barra de ações (que já acompanha a rolagem), então não acrescenta faixa nenhuma
+     à tela. Cada seção visível vira um atalho com ✓ ou ⚠, calculado pela MESMA conferência do
+     "Validar" — só a parte dos campos, sem montar o documento, para poder rodar a cada digitação.
+     Pendência que não pertence a uma seção só (variável no documento, por exemplo) entra no total.
+     No celular vira uma linha ("2 pendências · 5 de 7 seções ok") que abre a lista ao toque. */
+  // [título do card, rótulo curto, chave]
+  const SECOES=[[/Identifica/i,"Empresa","empresa"],[/Registro/i,"Registro","registro"],[/Endereço da sede/i,"Sede","sede"],
+    [/Capital/i,"Capital","capital"],[/Quadro|Acionista|Titular|Fundador/i,"Sócios","socios"],[/O que muda/i,"O que muda","muda"],
+    [/Encerramento/i,"Encerramento","encerra"],[/Local e data/i,"Data","data"]];
+  // a qual seção vai cada pendência do "Validar" — a primeira regra que casar (por isso "Razão social ANTERIOR" vem antes de "Razão social")
+  const PEND_SECAO=[["registro",/^(CNPJ|NIRE|Nº|Número da alteração|Início|Nome empresarial anterior|Razão social ANTERIOR|Endereço ANTERIOR|Data da constituição)/],
+    ["empresa",/^(Razão social|Nome empresarial|Denominação|A denominação|Objeto social)/],
+    ["sede",/^(Endereço da sede|Filial)/],["capital",/^(Capital|Valor da quota|Quotas-partes)/],
+    ["socios",/^(Sócio|Sócia|Titular|Acionista|Nenhum|Administrador|Cessão de quotas|Fundador|Diretoria|Ações subscritas)/],
+    ["muda",/^Marque/],["encerra",/^(Data de encerramento|Guardião|Acervo|Haveres)/],
+    ["data",/^(Foro|UF do foro|UF do local|Cidade do ato|Data do ato|Hora da assembleia)/]];
+  function secaoDaPendencia(m){ const r=PEND_SECAO.find(x=>x[1].test(m)); return r?r[0]:""; }
+  let _idxSeq=0;
+  async function atualizarIndice(){
+    const box=$("secoesIdx"); if(!box) return;
+    const seq=++_idxSeq;
+    let f=[]; try{ f=await validar("sóCampos"); }catch(e){ return; }
+    if(seq!==_idxSeq) return;   // outra digitação chegou antes: vale a mais nova
+    const cards=[...document.querySelectorAll(".form-cards > .card")].filter(c=>c.offsetParent!==null && c.id!=="cardRapido" && c.querySelector("h2"));
+    const itens=cards.map((c,i)=>{
+      const h=c.querySelector("h2"), nEl=h.querySelector(".n"), n=nEl?nEl.textContent.trim():"";
+      const hint=h.querySelector(".hint"); const tit=h.textContent.replace(n,"").replace(hint?hint.textContent:"","").trim();
+      const r=SECOES.find(x=>x[0].test(tit));
+      const pend=r?f.filter(m=>secaoDaPendencia(m)===r[2]):[];
+      if(!c.id) c.id="secao-"+i;
+      return {id:c.id, rot:(/^\d$/.test(n)?n+" ":"")+(r?r[1]:tit.split(/\s+/).slice(0,2).join(" ")), pend,
+              amarelos:c.querySelectorAll(".revisar").length};
+    });
+    const ok=itens.filter(x=>!x.pend.length).length;
+    const resumo=(f.length?"⚠ "+f.length+(f.length>1?" pendências":" pendência"):"✓ Campos obrigatórios preenchidos")+" · "+ok+" de "+itens.length+" seções ok";
+    const aberto=box.classList.contains("aberto");
+    box.innerHTML='<button type="button" class="sec-resumo'+(f.length?" pend":"")+'" aria-expanded="'+aberto+'">'+escHtml(resumo)+' <span aria-hidden="true">▴</span></button>'
+      +'<div class="sec-lista">'+itens.map(x=>'<button type="button" class="sec'+(x.pend.length?" pend":"")+'" data-ir="'+escHtml(x.id)+'" title="'
+        +escHtml(x.pend.length?x.pend.join("; "):(x.amarelos?x.amarelos+" campo(s) em amarelo para conferir":"Sem pendência"))+'">'
+        +(x.pend.length?"⚠ ":"✓ ")+escHtml(x.rot)+"</button>").join("")+"</div>";
+    box.querySelector(".sec-resumo").addEventListener("click",()=>{ const a=box.classList.toggle("aberto"); box.querySelector(".sec-resumo").setAttribute("aria-expanded",String(a)); });
+    box.querySelectorAll("[data-ir]").forEach(b=>b.addEventListener("click",()=>{
+      const alvo=$(b.dataset.ir); if(!alvo) return;
+      box.classList.remove("aberto");
+      alvo.scrollIntoView({behavior:"smooth",block:"start"});
+      alvo.classList.remove("val-flash"); void alvo.offsetWidth; alvo.classList.add("val-flash");
+      // leva o cursor ao primeiro campo vazio da seção (no celular, só rola: focar abriria o teclado)
+      if(!window.matchMedia("(hover:none)").matches){
+        const vazio=[...alvo.querySelectorAll("input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea")].find(e=>e.offsetParent!==null && !String(e.value||"").trim());
+        if(vazio) setTimeout(()=>{ try{ vazio.focus({preventScroll:true}); }catch(e){} },350);
+      }
+    }));
+  }
+  // declaração de função (e var) de propósito: recalc() chama isto e pode rodar antes desta linha
+  var _idxTimer=null;
+  function agendarIndice(){ clearTimeout(_idxTimer); _idxTimer=setTimeout(atualizarIndice,500); }
+
+  /* ===== Registro de erros (envio e consulta) =====
+     A captura mora num script antes deste (pega até erro de carregamento). Aqui: subir para a
+     trilha da nuvem o que ainda não subiu — a trilha já aceita gravação da equipe e nunca aceita
+     alteração, e o detalhe vai sem dado de cliente — e mostrar na aba "Erros" das Configurações. */
+  function lerErros(){ try{ const a=JSON.parse(localStorage.getItem("tinaErros")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+  window.__enviarErros=function(){
+    if(!(window.Nuvem&&window.Nuvem.podeGravar())) return;
+    const l=lerErros(); let mudou=false;
+    l.forEach(e=>{ if(e.enviado) return; e.enviado=true; mudou=true;
+      window.Nuvem.trilha("erro.js",e.versao||"",(e.msg+" @ "+(e.onde||"?")+(e.modo?" ["+e.modo+"]":"")).slice(0,200)); });
+    if(mudou) try{ localStorage.setItem("tinaErros",JSON.stringify(l)); }catch(e){}
+  };
+  async function renderErros(){
+    const box=$("cfgErros"); if(!box) return;
+    const linha=(quando,txt,extra)=>'<div class="caso" style="padding:7px 10px"><div class="hint">'+escHtml(quando)+(extra?" · "+escHtml(extra):"")+'</div><div style="font-size:12.5px;word-break:break-word">'+escHtml(txt)+"</div></div>";
+    const loc=lerErros().slice().reverse();
+    let html='<div class="conf-sec">Neste navegador</div>'+(loc.length?loc.map(e=>linha(new Date(e.em).toLocaleString("pt-BR"),e.msg+" @ "+(e.onde||"?"),"v"+(e.versao||"?")+(e.modo?" · "+e.modo:""))).join(""):'<div class="hint">Nenhum erro registrado.</div>');
+    box.innerHTML=html+'<div class="hint" style="margin-top:8px">Carregando os da equipe…</div>';
+    if(!(window.Nuvem&&window.Nuvem.podeGravar()&&window.Nuvem.listarTrilha)){ box.innerHTML=html+'<div class="hint" style="margin-top:8px">Entre com o seu login para ver os erros de toda a equipe.</div>'; return; }
+    const r=await window.Nuvem.listarTrilha("erro.js",60);
+    const it=(r.itens||[]).sort((a,b)=>(b.ms||0)-(a.ms||0));
+    html+='<div class="conf-sec">Equipe (nuvem)</div>'+(r.ok?(it.length?it.map(x=>linha(x.ms?new Date(x.ms).toLocaleString("pt-BR"):"—",x.detalhe||"",(x.autorEmail||"").split("@")[0]+" · v"+(x.ref||"?"))).join(""):'<div class="hint">Nenhum erro registrado pela equipe.</div>'):'<div class="hint">Não foi possível ler a nuvem ('+escHtml(r.msg||"")+").</div>");
+    box.innerHTML=html;
+  }
 
   function gerarPreview(){$("status").className="status muted";$("status").textContent="Gerando prévia…";
     return buildBlob().then(({blob,nomeArq})=>{_blob={blob,nomeArq};const c=$("preview");c.innerHTML="";
@@ -3593,7 +3767,11 @@ window.TINA=(function(){
     // 9) confirmação do cliente
     { const c=lerCasos().find(x=>x.id===casoAtualId);
       add(!!(c&&c.confirmadoEm),"Confirmação do cliente registrada", (c&&c.confirmadoEm)?("em "+c.confirmadoEm):"registre antes de protocolar"); }
-    // 10) validação de preenchimento sem pendências
+    // 10) exigências que este pedido já teve: o que a Junta já pediu uma vez não pode voltar
+    { const sid=solicDoAto(), r=sid?lerSolic().find(x=>x.id===sid):null, ex=(r&&r.exigencias)||[];
+      if(ex.length) add(r.status!=="exigencia","Exigências anteriores deste pedido",
+        ex.map(e=>(e.cat||"Outro")+(e.txt?": "+e.txt:"")).join("; ")+(r.status==="exigencia"?" — confira se foi cumprida antes de protocolar de novo":"")); }
+    // 11) validação de preenchimento sem pendências
     return itens;
   }
   async function abrirPreProtocolo(){
@@ -3739,6 +3917,7 @@ window.TINA=(function(){
   function confStatus(l){
     if(_confErro[l.campo]) return [_confErro[l.campo],"var(--err)"];
     if(l.editado) return [l.apontado?"corrigido por você, apontando no documento":"corrigido por você","var(--navy)"];
+    if(l.valor && l.baixa) return ["⚠ conferir primeiro · "+l.baixa,"#b45f00"];
     if(l.valor) return ["lido"+(l.origem?" · "+l.origem:""),"var(--ok)"];
     if(confLer(l)) return ["preenchido por você","var(--navy)"];
     return ["não encontrado no documento","var(--warn)"];
@@ -3764,7 +3943,7 @@ window.TINA=(function(){
       const sec=l.secao||"Dados da empresa";
       if(sec!==secao){ secao=sec; html+='<div class="conf-sec">'+escHtml(sec)+"</div>"; }
       const atual=confLer(l), [rot,cor]=confStatus(l);
-      html+='<div class="caso conf-lin" style="padding:8px 10px">'
+      html+='<div class="caso conf-lin'+(l.baixa&&!l.editado?" baixa":"")+'" style="padding:8px 10px">'
         +'<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
         +"<b>"+escHtml(l.rotulo)+"</b>"
         +'<span class="hint" style="color:'+cor+'">'+escHtml(rot)+"</span></div>"
@@ -3853,7 +4032,12 @@ window.TINA=(function(){
   /* ===== Solicitações (fila de trabalho da equipe) =====
      Guarda no navegador e, quando há login na nuvem, também no Firestore. O local é a
      fonte do dia a dia; a nuvem é o registro compartilhado. Nunca depende da rede. */
-  const SOLIC_STATUS={nova:"Nova",andamento:"Em andamento",cliente:"Aguardando cliente",protocolada:"Protocolada",concluida:"Finalizada"};
+  const SOLIC_STATUS={nova:"Nova",andamento:"Em andamento",cliente:"Aguardando cliente",protocolada:"Protocolada",exigencia:"Em exigência",concluida:"Finalizada"};
+  /* Exigência da Junta: a categoria é o que permite contar o que mais volta (e virar conferência no
+     pré-protocolo); o texto livre guarda o que ela pediu de fato. Cada exigência fica no histórico da
+     solicitação — uma mesma empresa pode voltar mais de uma vez. */
+  const EXIG_MOTIVOS=["Cláusula obrigatória faltando","Qualificação de sócio ou representante","Nome empresarial","Objeto social / atividades",
+    "Endereço / sede","Capital e quotas","Tempo verbal / consolidação","Assinatura ou documento faltando","Taxa / DARE","Outro"];
   // finalizada há pouco continua à vista de quem pediu: é como o comercial fica sabendo que acabou
   const DIAS_RECEM_FINALIZADA=7;
   function _recemFinalizada(r){
@@ -3861,7 +4045,7 @@ window.TINA=(function(){
     const t=Date.parse(r.finalizadoEm); if(isNaN(t)) return false;
     return (Date.now()-t) < DIAS_RECEM_FINALIZADA*86400000;
   }
-  const SOLIC_ABERTAS=["nova","andamento","cliente","protocolada"];
+  const SOLIC_ABERTAS=["nova","andamento","cliente","protocolada","exigencia"];
   let _solicEditando=null;
   let _solicLigada=null;   // a solicitação de onde veio o ato na tela (ver "Solicitação ligada ao ato")
   function lerSolic(){ try{ const a=JSON.parse(localStorage.getItem("tinaSolic")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
@@ -3875,6 +4059,12 @@ window.TINA=(function(){
     const sel=$("sTipo"); if(!sel || sel.options.length) return;
     const t=tiposAto();
     sel.innerHTML=Object.keys(t).map(k=>'<option value="'+k+'">'+escHtml(t[k])+"</option>").join("");
+  }
+  // os campos do motivo só aparecem com a situação "Em exigência" (e nunca para o comercial, que não muda a situação)
+  function mostrarExig(){
+    const w=$("wrapExig"), ec=$("sExigCat"); if(!w) return;
+    if(ec && !ec.options.length) ec.innerHTML=EXIG_MOTIVOS.map(m=>"<option>"+escHtml(m)+"</option>").join("");
+    w.style.display=(!_modoComercial && ($("sStatus")||{}).value==="exigencia")?"":"none";
   }
   function abrirSolic(){
     montarTiposAto();
@@ -3932,6 +4122,7 @@ window.TINA=(function(){
     ["sEmpresa","sCnpj","sPrazo","sResp","sContato","sFone","sObs","sPend"].forEach(id=>{if($(id))$(id).value="";});
     if($("sDup"))$("sDup").style.display="none";
     if($("sStatus"))$("sStatus").value="nova";
+    if($("sExigTxt"))$("sExigTxt").value=""; mostrarExig();
     if($("sTipo"))$("sTipo").value="alt";
     if($("solicStat"))$("solicStat").textContent="";
     mostrarFormSolic("Nova solicitação");
@@ -3964,6 +4155,14 @@ window.TINA=(function(){
     // o comercial não mexe na situação: nova ao abrir, e a que já estava ao editar
     reg.status=_modoComercial ? ((_solicEditando&&_solicEditando.status)||"nova") : $("sStatus").value;
     reg.obs=($("sObs").value||"").trim(); reg.pendencia=($("sPend").value||"").trim();
+    if(reg.status==="exigencia" && !_modoComercial){
+      const cat=($("sExigCat")||{}).value||"", txt=(($("sExigTxt")||{}).value||"").trim();
+      const hist=Array.isArray(reg.exigencias)?reg.exigencias.slice():[], ult=hist[hist.length-1];
+      // entrou agora em exigência: abre um registro novo; já estava: corrige o último
+      if(_statusAntes!=="exigencia" || !ult) hist.push({em:new Date().toISOString(),cat,txt,por:_meuEmail()});
+      else { ult.cat=cat; ult.txt=txt; }
+      reg.exigencias=hist;
+    }
     if(!_solicEditando) reg.abertaPor=_meuEmail();
     const dup=solicDuplicada(reg.cnpj,reg.id);
     if(dup) toast("Atenção: já existe solicitação em aberto para este CNPJ — "+(dup.empresa||"")+" ("+(SOLIC_STATUS[dup.status]||dup.status)+"). Salva mesmo assim.","warn",6000);
@@ -4010,6 +4209,9 @@ window.TINA=(function(){
     $("sEmpresa").value=r.empresa||""; $("sCnpj").value=r.cnpj||""; $("sTipo").value=r.tipo||"alt";
     $("sPrazo").value=r.prazo||""; $("sResp").value=r.responsavel||""; $("sContato").value=r.contato||"";
     $("sFone").value=r.fone||""; $("sStatus").value=r.status||"nova"; $("sObs").value=r.obs||""; if($("sPend"))$("sPend").value=r.pendencia||"";
+    mostrarExig();
+    { const ult=(r.status==="exigencia" && (r.exigencias||[]).slice(-1)[0])||null;
+      if($("sExigCat")) $("sExigCat").value=(ult&&ult.cat)||EXIG_MOTIVOS[0]; if($("sExigTxt")) $("sExigTxt").value=(ult&&ult.txt)||""; }
     avisarDuplicada();
     _anexos=Array.isArray(r.anexos)?r.anexos.slice():[]; renderAnexos();
     if($("solicStat"))$("solicStat").textContent="";
@@ -4221,7 +4423,7 @@ window.TINA=(function(){
         const b=$("btnDesligarSolic"); if(b) b.addEventListener("click",desligarSolic);
       }
     }
-    const ps=$("protoSolic"); if(ps) ps.style.display=(r && ["nova","andamento","cliente"].indexOf(r.status)>=0)?"":"none";
+    const ps=$("protoSolic"); if(ps) ps.style.display=(r && ["nova","andamento","cliente","exigencia"].indexOf(r.status)>=0)?"":"none";
   }
 
   /* "Ler este anexo": o comercial já anexou o contrato ou o cartão CNPJ na solicitação. Em vez de
@@ -4247,6 +4449,28 @@ window.TINA=(function(){
     if($("solicModal")) $("solicModal").classList.remove("open");
     const card=$("cardRapido"); if(card&&card.scrollIntoView) card.scrollIntoView({behavior:"smooth",block:"start"});
     await processarRapido();
+  }
+  // "⚠ Exigência" no cartão: abre a edição já em "Em exigência", no campo do motivo
+  function registrarExigencia(id){
+    editarSolic(id); if($("sStatus")) $("sStatus").value="exigencia";
+    if($("sExigCat")) $("sExigCat").value=EXIG_MOTIVOS[0]; if($("sExigTxt")) $("sExigTxt").value="";
+    mostrarExig(); if($("sExigCat")) $("sExigCat").focus();
+  }
+  function reprotocolar(id){
+    const l=lerSolic(), r=l.find(x=>x.id===id); if(!r) return;
+    r.status="protocolada"; r.protocoladaEm=r.alteradoEm=new Date().toISOString(); salvarSolic(l);
+    if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.salvar("solicitacoes",r.id,{status:r.status,protocoladaEm:r.protocoladaEm,alteradoEm:r.alteradoEm});
+      window.Nuvem.trilha("solicitacao.status",r.id,"exigencia→protocolada"); }
+    renderSolic(); toast("Protocolada de novo: "+(r.empresa||"solicitação")+".","ok");
+  }
+  /* O que mais volta da Junta, nos últimos 6 meses: é a lista do que conferir antes do próximo
+     protocolo. Conta cada exigência (uma empresa pode ter mais de uma). */
+  function resumoExigencias(lista){
+    const desde=Date.now()-183*86400000, cont={}; let n=0;
+    (lista||[]).forEach(r=>(r.exigencias||[]).forEach(e=>{ const t=Date.parse(e.em); if(isNaN(t)||t<desde) return; n++; const k=e.cat||"Outro"; cont[k]=(cont[k]||0)+1; }));
+    if(!n) return "";
+    const top=Object.keys(cont).sort((a,b)=>cont[b]-cont[a]).map(k=>escHtml(k)+" ("+cont[k]+")").join(" · ");
+    return '<div class="exig-resumo"><b>'+n+(n>1?" exigências":" exigência")+" nos últimos 6 meses.</b> Motivos: "+top+"</div>";
   }
   /* Modo comercial: quem só lança solicitação não precisa ver — nem esbarrar em — o gerador de
      atos. A tela de solicitações deixa de ser uma janela sobre o sistema e passa a SER o sistema.
@@ -4291,7 +4515,7 @@ window.TINA=(function(){
   /* Filtro em botões com a contagem de cada situação. A situação sem nenhuma solicitação não
      ganha botão (é ruído numa faixa que já não cabe inteira no celular), a não ser a escolhida. */
   const SOLIC_FILTROS=[["abertas","Em aberto"],["nova","Novas"],["andamento","Em andamento"],["cliente","Aguardando cliente"],
-    ["protocolada","Protocoladas"],["concluida","Finalizadas"],["todas","Todas"]];
+    ["protocolada","Protocoladas"],["exigencia","Em exigência"],["concluida","Finalizadas"],["todas","Todas"]];
   function renderChipsSolic(tot,f){
     const box=$("solicChips"); if(!box) return;
     const n={abertas:tot.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0).length};
@@ -4346,7 +4570,7 @@ window.TINA=(function(){
       return;
     }
     const hoje=new Date(); hoje.setHours(0,0,0,0);
-    box.innerHTML=l.map(r=>{
+    box.innerHTML=((f==="exigencia"||f==="todas")?resumoExigencias(tot):"")+l.map(r=>{
       const pz=_prazoSolic(r,hoje), st=SOLIC_STATUS[r.status]?r.status:"nova";
       return '<div class="sol st-'+st+'" data-sol-id="'+escHtml(r.id)+'">'
         +'<div class="sol-cab"><div class="sol-emp">'+escHtml(r.empresa||"(sem empresa)")+"</div>"
@@ -4356,6 +4580,9 @@ window.TINA=(function(){
           +(r.responsavel?"<span>resp. "+escHtml(r.responsavel)+"</span>":"")
           +(pz?'<span class="sol-prazo '+pz.cls+'">'+escHtml(pz.txt)+"</span>":"")+"</div>"
         +(r.status==="concluida"?'<div class="selo-fim">✓ Finalizada'+(r.finalizadoEm?" em "+escHtml(_dataBR(r.finalizadoEm)):"")+(r.finalizadoPor?" por "+escHtml(r.finalizadoPor):"")+"</div>":"")
+        +(r.status==="exigencia"?(function(){ const u=(r.exigencias||[]).slice(-1)[0]||{};
+            return '<div class="sol-exig"><b>⚠ Exigência'+(u.em?" de "+escHtml(_dataBR(u.em)):"")+(u.cat?" — "+escHtml(u.cat):"")+"</b>"+(u.txt?": "+escHtml(u.txt):"")
+              +((r.exigencias||[]).length>1?' <span class="hint">('+r.exigencias.length+"ª exigência deste pedido)</span>":"")+"</div>"; })():"")
         // o recado é o que o comercial tem de resolver: vem antes da descrição, em destaque
         +(r.pendencia?'<div class="sol-recado"><b>Recado:</b> '+escHtml(r.pendencia)+"</div>":"")
         +(r.obs?'<div class="sol-desc" title="Toque para ver tudo">'+escHtml(r.obs)+"</div>":"")
@@ -4376,6 +4603,8 @@ window.TINA=(function(){
         +'<div class="sol-acoes">'
         // "Trabalhar" abre o gerador de atos — para quem só lança solicitação, é botão que não leva a lugar nenhum
         +(_modoComercial?"":'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'" title="Marca o processo como em andamento para o comercial acompanhar. Não preenche o formulário: os dados do ato vêm do cartão CNPJ ou do contrato.">Trabalhar</button>')
+        +((!_modoComercial && r.status==="protocolada")?'<button class="btn o mini" data-sol-exig="'+escHtml(r.id)+'" title="A Junta devolveu com exigência: registra o motivo">⚠ Exigência</button>':"")
+        +((!_modoComercial && r.status==="exigencia")?'<button class="btn o mini" data-sol-reproto="'+escHtml(r.id)+'" title="Exigência cumprida e ato protocolado de novo">↻ Protocolei de novo</button>':"")
         // finalizar é ato de quem faz o cadastro; o comercial acompanha, não encerra
         +((!_modoComercial && r.status!=="concluida")?'<button class="btn ok mini" data-sol-fim="'+escHtml(r.id)+'" title="Marcar o processo como finalizado — quem abriu a solicitação passa a ver">✓ Finalizar</button>':"")
         +((!_modoComercial && r.status==="concluida")?'<button class="btn o mini" data-sol-reabrir="'+escHtml(r.id)+'" title="Voltar para “Em andamento”">↺ Reabrir</button>':"")
@@ -4386,6 +4615,8 @@ window.TINA=(function(){
         +"</div></div>";
     }).join("");
     box.querySelectorAll("[data-sol-abrir]").forEach(b=>b.addEventListener("click",()=>trabalharSolic(b.dataset.solAbrir)));
+    box.querySelectorAll("[data-sol-exig]").forEach(b=>b.addEventListener("click",()=>registrarExigencia(b.dataset.solExig)));
+    box.querySelectorAll("[data-sol-reproto]").forEach(b=>b.addEventListener("click",()=>reprotocolar(b.dataset.solReproto)));
     box.querySelectorAll("[data-sol-ler]").forEach(b=>b.addEventListener("click",()=>lerAnexoSolic(b.dataset.solLer,Number(b.dataset.anexo))));
     box.querySelectorAll("[data-sol-editar]").forEach(b=>b.addEventListener("click",()=>editarSolic(b.dataset.solEditar)));
     box.querySelectorAll("[data-sol-avisar]").forEach(b=>b.addEventListener("click",()=>avisarSolic(b.dataset.solAvisar)));
@@ -5129,6 +5360,7 @@ window.TINA=(function(){
     if($("emailStat"))$("emailStat").textContent=""; if($("gateStat"))$("gateStat").textContent="";
     _emailEditado=false; emailIdAtual="";
     document.querySelectorAll(".revisar").forEach(e=>e.classList.remove("revisar"));
+    document.querySelectorAll(".baixa-conf").forEach(e=>{ e.classList.remove("baixa-conf"); if(e.dataset.tituloBaixa){ e.removeAttribute("title"); delete e.dataset.tituloBaixa; } });
     ["nome","fantasia","sede","objeto","capital","quadro","enquadramento","foro"].forEach(k=>{if($("alt_"+k))$("alt_"+k).checked=false;});
     if($("altRetifica"))$("altRetifica").checked=false; if($("retificaRef"))$("retificaRef").value=""; if($("wrapRetifica"))$("wrapRetifica").style.display="none";
     $("valorQuota").value="1.00";$("enquadramento").value=(MODE.startsWith("sa_")&&MODE!=="sa_transf_sa_ltda")?"DEMAIS":"ME";$("modoAdm").value="ISOLADAMENTE e/ou CONJUNTAMENTE";if($("integralizacao"))$("integralizacao").value="moeda";if($("socioRetiraSexo"))$("socioRetiraSexo").value="M";
@@ -5889,6 +6121,43 @@ window.TINA=(function(){
     });
     return out;
   }
+  /* Leitura de pouca confiança. O amarelo marca TUDO o que veio do documento (confira); o laranja
+     separa o que tem motivo concreto de desconfiança, para conferir primeiro:
+     - o valor não aparece escrito assim no documento (foi montado ou corrigido pelo leitor);
+     - capital ou objeto achados fora da cláusula do assunto (a leitura ancorada falhou);
+     - a dupla checagem do capital (cláusula × quotas) não bateu;
+     - CPF ou CNPJ com dígito verificador inválido.
+     Campos que o leitor normaliza de propósito (estado civil, datas por extenso, enquadramento)
+     ficam fora da primeira regra: neles "não achei escrito igual" é o normal, não um sinal. */
+  const SEM_TRECHO_OK=/^(enquadramento|dataInicioOrig|numAlteracao|valorQuota)$|\.(estadoCivil|nascimento|orgao|sexo)$/;
+  function avaliarConfianca(lista,d){
+    const conf=(d&&d.conferir)||[];
+    (lista||[]).forEach(l=>{
+      l.baixa="";
+      if(!l.valor) return;
+      const r=confSocioRef(l.campo);
+      if(!l.trecho && !l.origem && String(l.busca||"").trim().length>=3 && !SEM_TRECHO_OK.test(l.campo)) l.baixa="o valor não aparece escrito assim no documento";
+      else if((l.campo==="capital"||l.campo==="objeto") && !l.origem) l.baixa="achado fora da cláusula do assunto";
+      else if((l.campo==="capital"||l.campo==="valorQuota") && conf.some(c=>/^Capital/.test(c))) l.baixa="a dupla checagem do capital não bateu";
+      else if(r && r.f==="cpf" && !validaCPF(l.valor)) l.baixa="CPF com dígito verificador inválido";
+      else if(l.campo==="cnpj" && !validaCNPJ(l.valor)) l.baixa="CNPJ com dígito verificador inválido";
+    });
+    return lista;
+  }
+  function elsDoCampo(campo){
+    const r=confSocioRef(campo);
+    if(r){ const c=confCard(r.i); if(!c) return []; return [...c.querySelectorAll('[data-f="'+(r.f==="res"?"log":r.f)+'"]')]; }
+    const e=$(campo==="sede"?"s_log":campo); return e?[e]:[];
+  }
+  // pinta de laranja; a marca sai sozinha quando a pessoa mexe no campo
+  function marcarBaixaConfianca(lista){
+    document.querySelectorAll(".baixa-conf").forEach(e=>{ e.classList.remove("baixa-conf"); if(e.dataset.tituloBaixa) e.removeAttribute("title"); delete e.dataset.tituloBaixa; });
+    let n=0;
+    (lista||[]).forEach(l=>{ if(!l.baixa) return; const els=elsDoCampo(l.campo); if(!els.length) return; n++;
+      els.forEach(e=>{ e.classList.add("baixa-conf"); if(!e.title){ e.title="Conferir primeiro: "+l.baixa; e.dataset.tituloBaixa="1"; }
+        e.addEventListener("input",function tira(){ e.classList.remove("baixa-conf"); if(e.dataset.tituloBaixa){ e.removeAttribute("title"); delete e.dataset.tituloBaixa; } e.removeEventListener("input",tira); }); }); });
+    return n;
+  }
   function parseContratoTexto(t,extra,auth,nomeArquivo){
     t=(t||"").replace(/\s+/g," ").replace(/P[áa]gina\s+\d+\s+de\s+\d+\s*\/?/gi," ");  // tira marcador de rodapé "Página X de Y" (+ a "/" que costuma segui-lo)
     /* Guarda o texto ANTES dos consertos de leitura. As correções abaixo existem para o parser achar
@@ -6468,7 +6737,9 @@ window.TINA=(function(){
            Só aparece quando há divergência de verdade — não é aviso de rotina. */
         ((par&&par.d&&par.d.conferir)||[]).forEach(c=>avisosDoc.push("<b>Confira:</b> "+escHtml(c)));
         // procedência: fica guardada e só aparece se o usuário pedir, para não encher a tela
-        try{ _procedencia=procedencia((par&&par.d&&par.d._txtOrig)||txt,(par&&par.d)||{}); }catch(e){ _procedencia=[]; }
+        try{ _procedencia=avaliarConfianca(procedencia((par&&par.d&&par.d._txtOrig)||txt,(par&&par.d)||{}),(par&&par.d)||{}); }catch(e){ _procedencia=[]; }
+        const nBaixa=marcarBaixaConfianca(_procedencia);
+        if(nBaixa) avisosDoc.push("<b style='color:#b45f00'>"+nBaixa+(nBaixa>1?" campos em laranja":" campo em laranja")+"</b>: leitura com motivo de dúvida — confira "+(nBaixa>1?"esses":"esse")+" primeiro (passe o mouse sobre o campo para ver o motivo).");
         if(par&&par.d&&par.d.tipoOrig==="EIRELI") avisosDoc.push("<b>Documento de EIRELI.</b> A EIRELI foi extinta pela Lei 14.195/2021: as que existiam viraram sociedades limitadas unipessoais (SLU). O titular foi lido como <b>sócio único</b> (uma quota) e a razão social entrou <b>sem o sufixo “EIRELI”</b>. Confira com a Junta se este ato deve ajustar o nome empresarial para terminar em <b>LTDA</b>; se deve, marque “Nome empresarial” em “O que muda”.");
         const faltantes=_procedencia.filter(p=>!p.valor).length;
         avisosDoc.push('<button type="button" class="btn o mini" id="btnVerProc">Conferir a leitura</button>'
@@ -6857,7 +7128,10 @@ window.TINA=(function(){
     if($("cl_conselho")) $("cl_conselho").addEventListener("change",function(){const w=$("wrapConselho"); if(w)w.style.display=this.checked?"":"none";});
     if($("alt_cessao")) $("alt_cessao").addEventListener("change",function(){const w=$("wrapCessao"); if(w)w.style.display=this.checked?"":"none";});
     // o exemplo tem um ramo por tipo de ato (vários terminam cedo): a UF do foro e do ato é completada aqui, depois de qualquer um deles
-    $("btnExemplo").addEventListener("click",()=>{ exemplo(); completarUFs(); });
+    // o exemplo passa por cima de tudo (e do rascunho): com um ato na tela, pergunta antes, como o "Limpar"
+    $("btnExemplo").addEventListener("click",()=>{
+      if(draftTemConteudo(snapshotForm()) && !confirm("O formulário já está preenchido. Preencher o exemplo apaga o que está lá.\n\nContinuar?")) return;
+      exemplo(); completarUFs(); });
     $("btnLimpar").addEventListener("click",limparComConfirmacao);
     $("btnGerar").addEventListener("click",()=>{ gerarPreview().then(()=>{ const pc=$("previewCard"); if(pc){ pc.scrollIntoView({behavior:"smooth",block:"start"}); pc.classList.remove("val-flash"); void pc.offsetWidth; pc.classList.add("val-flash"); } }); });
     $("btnBaixar").addEventListener("click",baixarDocx);
@@ -6871,7 +7145,10 @@ window.TINA=(function(){
       document.querySelectorAll(".cfg-aba").forEach(x=>x.classList.toggle("ativa",x===b));
       document.querySelectorAll(".cfg-painel").forEach(p=>{ p.hidden=(p.dataset.cfg!==alvo); });
       const mb=b.closest(".mb"); if(mb) mb.scrollTop=0;
+      if(alvo==="erros") renderErros();
     }));
+    if($("btnErrosAtualizar")) $("btnErrosAtualizar").addEventListener("click",()=>{ window.__enviarErros(); renderErros(); });
+    setTimeout(()=>window.__enviarErros(),8000);   // o que ficou guardado de uma sessão sem login sobe quando houver
     /* Nuvem: liga os controles e mantém o rodapé em dia. Se não houver configuração
        (arquivo nuvem-config.js em branco), tudo continua funcionando só no navegador. */
     /* Menu do usuário: abre no clique, fecha ao escolher, ao clicar fora ou com Esc. */
@@ -6896,7 +7173,7 @@ window.TINA=(function(){
     if($("btnComparar")) $("btnComparar").addEventListener("click",abrirComparacao);
     if($("btnProtoClose")) $("btnProtoClose").addEventListener("click",()=>$("protoModal").classList.remove("open"));
     if($("btnPreProto")) $("btnPreProto").addEventListener("click",abrirPreProtocolo);
-    if($("btnProtocolei")) $("btnProtocolei").addEventListener("click",()=>moverSolic("protocolada",["nova","andamento","cliente"]));
+    if($("btnProtocolei")) $("btnProtocolei").addEventListener("click",()=>moverSolic("protocolada",["nova","andamento","cliente","exigencia"]));
     /* A barra de atribuição só aparece quando há trecho selecionado dentro da caixa do texto.
        A seleção é guardada porque clicar no botão a desfaz. */
     if($("pdfTexto")){
@@ -6941,6 +7218,7 @@ window.TINA=(function(){
     if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>{ if(_formSolicAberto()) cancelarFormSolic(); $("solicModal").classList.remove("open"); });
     if($("btnSolicNova")) $("btnSolicNova").addEventListener("click",novaSolic);
     if($("btnSolicSalvar")) $("btnSolicSalvar").addEventListener("click",gravarSolic);
+    if($("sStatus")) $("sStatus").addEventListener("change",mostrarExig);
     if($("btnSolicCancelar")) $("btnSolicCancelar").addEventListener("click",cancelarFormSolic);
     ligarAnexos();
     ligarCnpjSolic();
@@ -7054,7 +7332,7 @@ window.TINA=(function(){
         const semAdm=$("equipeSemAdmin"); if(semAdm) semAdm.style.display=e.admin?"none":"";
         const abaEq=$("cfgAbaEquipe"); if(abaEq) abaEq.style.display=e.configurado?"":"none";
         if(e.admin && window.__renderEquipe) window.__renderEquipe();
-        if(e.daEquipe){ sincronizarSolic(); sincronizarAtos(); ligarAvisoSolic(); ligarEspelhoAtos(); }
+        if(e.daEquipe){ sincronizarSolic(); sincronizarAtos(); ligarAvisoSolic(); ligarEspelhoAtos(); window.__enviarErros(); }
       });
       // Equipe — visível só para administrador
       const renderEquipe=async()=>{
@@ -7150,13 +7428,40 @@ window.TINA=(function(){
     // Um modal aberto POR CIMA de outro (o registro da confirmação sobre o painel de casos) ficava
     // atrás, porque todos compartilham o mesmo z-index e vence quem vem depois no HTML.
     // Em vez de escalonar à mão, o último a abrir vai para a frente — vale para qualquer combinação.
+    /* Teclado e leitor de tela: cada janela se anuncia como janela (com o título dela), recebe o
+       foco ao abrir — sem pular para um campo, que no celular abriria o teclado — e, ao fechar,
+       devolve o foco ao botão que a abriu. Esc fecha a da frente pelo próprio botão "Fechar",
+       para passar pelas mesmas rotinas de fechamento (o portão, por exemplo, larga o download pendente). */
     (function(){
-      let z=50;
+      let z=50; const quemAbriu=new WeakMap();
       const obs=new MutationObserver(ms=>ms.forEach(m=>{
-        const el=m.target;
-        if(el.classList && el.classList.contains("modal-bg") && el.classList.contains("open")) el.style.zIndex=String(++z);
+        const el=m.target; if(!(el.classList && el.classList.contains("modal-bg"))) return;
+        const aberta=el.classList.contains("open"), estava=el.dataset.aberta==="1";
+        if(aberta===estava) return;
+        el.dataset.aberta=aberta?"1":"";
+        if(aberta){
+          el.style.zIndex=String(++z);
+          const ativo=document.activeElement; if(ativo && ativo!==document.body && !el.contains(ativo)) quemAbriu.set(el,ativo);
+          const caixa=el.querySelector(".modal"); if(caixa) setTimeout(()=>{ if(!caixa.contains(document.activeElement)) try{ caixa.focus({preventScroll:true}); }catch(e){} },30);
+        } else {
+          const volta=quemAbriu.get(el); quemAbriu.delete(el);
+          if(volta && document.contains(volta) && volta.offsetParent!==null) try{ volta.focus({preventScroll:true}); }catch(e){}
+        }
       }));
-      document.querySelectorAll(".modal-bg").forEach(m=>obs.observe(m,{attributes:true,attributeFilter:["class"]}));
+      document.querySelectorAll(".modal-bg").forEach((m,i)=>{
+        m.setAttribute("role","dialog"); m.setAttribute("aria-modal","true");
+        const tit=m.querySelector(".mh > span"); if(tit){ if(!tit.id) tit.id="tituloJanela"+i; m.setAttribute("aria-labelledby",tit.id); }
+        const caixa=m.querySelector(".modal"); if(caixa && !caixa.hasAttribute("tabindex")) caixa.setAttribute("tabindex","-1");
+        obs.observe(m,{attributes:true,attributeFilter:["class"]});
+      });
+      document.addEventListener("keydown",e=>{
+        if(e.key!=="Escape" || e.defaultPrevented) return;
+        const abertas=[...document.querySelectorAll(".modal-bg.open")]; if(!abertas.length) return;
+        const frente=abertas.sort((a,b)=>(+b.style.zIndex||0)-(+a.style.zIndex||0))[0];
+        if(frente.id==="solicModal" && _formSolicAberto()) return;   // fechar ali descarta a solicitação que está sendo digitada
+        const fechar=frente.querySelector(".mh .x");
+        if(fechar && fechar.offsetParent!==null){ e.preventDefault(); fechar.click(); }   // sem "Fechar" à vista (tela do comercial), Esc não tira a pessoa de lá
+      });
     })();
     if($("btnJustClose")) $("btnJustClose").addEventListener("click",()=>$("justModal").classList.remove("open"));
     if($("btnEnviarClose")) $("btnEnviarClose").addEventListener("click",()=>$("enviarModal").classList.remove("open"));
@@ -7174,6 +7479,9 @@ window.TINA=(function(){
     document.addEventListener("input",e=>{if(e.target&&e.target.classList&&e.target.classList.contains("revisar"))e.target.classList.remove("revisar");});
     // abas-grupo (Sociedade Limitada, EI, Transformação, Distrato) caem no primeiro modo do grupo — a ordem é a de uso: alteração antes da abertura
     document.querySelectorAll(".typebar .t[data-mode]").forEach(t=>t.addEventListener("click",()=>{const m0=t.dataset.mode;switchMode(m0==="ltda"?"alt":m0==="ei"?"ei_alt":m0==="transf"?"transf_ei_ltda":m0==="dist"?"dist_ltda":m0==="coop"?"coop_const":m0==="sa"?"sa_transf_ltda":m0);}));
+    if($("tipoAtoMob")) $("tipoAtoMob").addEventListener("change",function(){ switchMode(this.value); });
+    // o índice das seções acompanha cada digitação (nem todo campo passa pelo recalc)
+    const fc=document.querySelector(".form-cards"); if(fc){ fc.addEventListener("input",agendarIndice); fc.addEventListener("change",agendarIndice); }
     // campos da cooperativa que dependem de escolhas (tipo, prazo) e a mesa, que lista os fundadores
     ["coopTipo","coopPrazo"].forEach(id=>{ if($(id)) $(id).addEventListener("change",atualizarCoopUI); });
     if($("socios")) $("socios").addEventListener("input",e=>{ const f=e.target && e.target.dataset && e.target.dataset.f; if(f==="nome"||f==="pjRep"){ if(MODE.startsWith("coop")) atualizarCoopUI(); if(MODE.startsWith("sa_")) atualizarSaUI(); } });
@@ -7296,7 +7604,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();

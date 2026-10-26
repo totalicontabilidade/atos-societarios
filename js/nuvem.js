@@ -262,6 +262,19 @@
     } catch (e) { return Promise.resolve({ ok: false, msg: (e && e.message) || "falha ao enviar" }); }
   }
 
+  /* Lê a trilha de um tipo de ação (ex.: "erro.js"). Só igualdade num campo, sem ordenar no
+     servidor — assim não precisa de índice composto no Firestore; quem ordena é a tela. */
+  function listarTrilha(acao, limite) {
+    if (!podeGravar()) return Promise.resolve({ ok: false, msg: "não conectado", itens: [] });
+    return db.collection("auditoria").where("acao", "==", String(acao || "")).limit(limite || 50).get()
+      .then(function (s) {
+        var itens = [];
+        s.forEach(function (d) { var x = d.data() || {}; x.id = d.id; x.ms = (x.criadoEm && x.criadoEm.toMillis) ? x.criadoEm.toMillis() : 0; itens.push(x); });
+        return { ok: true, itens: itens };
+      })
+      .catch(function (e) { return { ok: false, msg: (e && e.message) || "falha ao ler", itens: [] }; });
+  }
+
   function excluirAnexo(caminho) {
     if (!(podeGravar() && armaz && caminho)) return Promise.resolve({ ok: false });
     return armaz.ref(String(caminho)).delete()
@@ -373,6 +386,7 @@
     ouvirNovos: ouvirNovos,
     ouvirColecao: ouvirColecao,
     enviarAnexo: enviarAnexo,
+    listarTrilha: listarTrilha,
     excluirAnexo: excluirAnexo,
     LIMITE_ANEXO: LIMITE_ANEXO,
     papelLembrado: papelLembrado,
