@@ -9,13 +9,21 @@ const navegador = await puppeteer.launch({
   executablePath: process.env.CHROME || "/usr/bin/google-chrome",
   headless: true,
   args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  // a bateria leva uns 4 minutos e trava a página em trechos (OCR, PDF): o padrão de 3 min derrubava a conexão
+  protocolTimeout: 30 * 60 * 1000,
 });
 const pagina = await navegador.newPage();
 pagina.on("dialog", (d) => d.accept());   // a bateria já aceita sozinha; isto é só garantia
 pagina.on("pageerror", (e) => console.log("erro na página:", e.message));
 await pagina.goto(URL, { waitUntil: "load" });
-await pagina.waitForFunction(() => window.__resultado, { timeout: 20 * 60 * 1000, polling: 2000 });
-const r = await pagina.evaluate(() => window.__resultado);
+// pergunta a cada 5 s se acabou; uma pergunta que demora (página ocupada) só adia a próxima
+let r = null;
+const limite = Date.now() + 25 * 60 * 1000;
+while (!r && Date.now() < limite) {
+  await new Promise((ok) => setTimeout(ok, 5000));
+  try { r = await pagina.evaluate(() => window.__resultado || null); } catch (e) { console.log("aguardando…", e.message.slice(0, 80)); }
+}
+if (!r) { console.log("A bateria não terminou em 25 minutos."); await navegador.close(); process.exit(1); }
 await navegador.close();
 
 const linha = `${r.total} verificações em ${r.segundos}s — ${r.falhas ? r.falhas + " falha(s)" : "tudo certo"}`;
