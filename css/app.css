@@ -1,0 +1,370 @@
+/* Atos Societários · Totali — visual do sistema (saiu do index.html na v1.51).
+   Carregado com ?v= da versão: o navegador nunca usa uma cópia velha. */
+  :root{
+    --navy:#14293f; --navy2:#22456c; --navy3:#0e1f30; --gold:#c2a250; --gold2:#d8bd74;
+    --ink:#132132; --ink2:#26384c; --muted:#5f7186; --muted2:#687889;
+    --line:#e4e8ef; --line2:#eef1f6; --bg:#f3f5f9; --card:#ffffff;
+    --ok:#0f8a53; --okbg:#eafaf1; --okln:#a7e7c3;
+    --warn:#9a6a09; --warnbg:#fdf6e6; --warnln:#f0dca0;
+    --err:#c62f28; --errbg:#fdecea; --errln:#f5c4bf;
+    --shadow:0 1px 2px rgba(20,41,63,.05),0 10px 30px rgba(20,41,63,.07);
+    --r:15px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);
+    background:radial-gradient(1100px 460px at 82% -8%,rgba(34,69,108,.12),transparent 60%),
+               radial-gradient(900px 440px at 0% -6%,rgba(20,41,63,.10),transparent 55%),var(--bg);
+    font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  header{position:sticky;top:0;z-index:30;background:linear-gradient(120deg,var(--navy3),var(--navy) 55%,var(--navy2));
+    color:#fff;padding:12px 24px;display:flex;align-items:center;gap:16px;box-shadow:0 3px 16px rgba(14,31,48,.28);
+    border-bottom:2px solid var(--gold)}
+  header img.logo{height:28px;width:auto;display:block;opacity:.9}
+  /* a marca do sistema é a principal; a do escritório fica menor, ao lado */
+  header img.logo-sistema{height:46px;width:auto;display:block}
+  @media(max-width:640px){ header img.logo-sistema{height:36px} header img.logo{display:none} header .divider{display:none} }
+  header .fallback{display:none;font-weight:700;font-size:16px;letter-spacing:.2px}
+  header .divider{width:1px;height:32px;background:rgba(255,255,255,.22)}
+  header .sys h1{font-size:15px;margin:0;font-weight:650;letter-spacing:-.1px}
+  header .sys .sub{font-size:11.5px;opacity:.82;margin-top:1px}
+  header .spacer{flex:1}
+  .chip{font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);padding:4px 11px;border-radius:20px}
+  .offline-pill{background:rgba(194,162,80,.28);border-color:var(--gold);color:#fff;margin-right:8px}
+  .wrap{max-width:1000px;margin:22px auto;padding:0 18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;margin-bottom:18px;box-shadow:var(--shadow)}
+  .card h2{font-size:14px;margin:0 0 15px;color:var(--ink);display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.1px}
+  .card h2 .n{width:26px;height:26px;border-radius:8px;color:#fff;display:grid;place-items:center;font-size:12.5px;font-weight:800;
+    background:linear-gradient(135deg,var(--navy),var(--navy2));box-shadow:0 3px 8px rgba(20,41,63,.3)}
+  label{display:block;font-size:12.5px;font-weight:600;color:var(--ink2);margin:0 0 5px}
+  .hint{font-size:12px;color:var(--muted2);font-weight:500}
+  input[type=text],input[type=search],input[type=number],input[type=date],select,textarea{
+    width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;color:var(--ink);transition:.13s}
+  input:hover,select:hover,textarea:hover{border-color:#ccd4e0}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy2);box-shadow:0 0 0 3.5px rgba(34,69,108,.15)}
+  input.good{border-color:var(--okln);background:#f5fdf9}
+  input.bad{border-color:var(--errln);background:#fff8f8}
+  textarea{min-height:74px;resize:vertical}
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}
+  .gcep{grid-template-columns:.75fr 1.9fr .6fr}
+  .g4{grid-template-columns:1.5fr 1fr 1fr .7fr}
+  .gorg{grid-template-columns:1fr 1.9fr .7fr 1.3fr}
+  /* (responsivo movido para o final do CSS para vencer a cascata) */
+  .row{margin-bottom:13px}
+  .cepwrap,.cpfwrap{position:relative}
+  .fldstat{font-size:12px;margin-top:4px;min-height:13px;font-weight:600}
+  .fldstat.ok{color:var(--ok)}.fldstat.bad{color:var(--err)}.fldstat.load{color:var(--muted)}.fldstat.warn{color:var(--warn)}
+  .socio{border:1px solid var(--line);border-radius:13px;padding:16px;margin-bottom:14px;background:linear-gradient(180deg,#fbfcfe,#fff);position:relative;box-shadow:0 1px 2px rgba(20,41,63,.03)}
+  .socio .tag{position:absolute;top:-10px;left:14px;background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;font-size:10.5px;font-weight:700;padding:2px 11px;border-radius:12px;letter-spacing:.3px}
+  .btn{border:none;border-radius:10px;padding:10px 16px;font:inherit;font-weight:650;cursor:pointer;transition:.14s;display:inline-flex;align-items:center;gap:7px}
+  .btn:active{transform:translateY(1px)}
+  .btn.p{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;box-shadow:0 5px 14px rgba(20,41,63,.26)}
+  .btn.p:hover{filter:brightness(1.08)}
+  .btn.g{background:var(--gold);color:var(--navy3)}.btn.g:hover{background:var(--gold2)}
+  .btn.o{background:#fff;color:var(--navy);border:1px solid #d7deea}.btn.o:hover{background:#f5f7fb}
+  .btn.s{background:#eef1f6;color:var(--ink2)}.btn.s:hover{background:#e5eaf1}
+  .btn.mini{padding:6px 11px;font-size:12px;border-radius:9px}
+  .btn.del{background:var(--errbg);color:var(--err)}
+  .btn.ok{background:var(--okbg);color:var(--ok);border:1px solid var(--okln)}
+  .selo-fim{margin-top:6px;display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;background:var(--okbg);color:var(--ok);border:1px solid var(--okln)}.btn.del:hover{background:#fbdad6}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  /* Anexos da solicitação */
+  .solta{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;font-size:12px;color:var(--muted);background:var(--line2);cursor:pointer;transition:.15s}
+  .solta:hover,.solta:focus{border-color:var(--navy2);color:var(--ink2);outline:none}
+  .solta.sobre{border-color:var(--gold);background:var(--warnbg);color:var(--ink)}
+  .anexos{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .anexo{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:12px}
+  .anexo .ic{font-size:16px;line-height:1}
+  .anexo .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .anexo .tm{color:var(--muted);font-size:11.5px;white-space:nowrap}
+  .anexo img.thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+  .anexo .barra{height:3px;background:var(--line);border-radius:2px;overflow:hidden;width:70px}
+  .anexo .barra i{display:block;height:100%;background:var(--navy2);width:0}
+  /* Solicitações — é a tela principal do comercial, quase sempre no celular. Por isso: cartão
+     com a situação em cor (dá para ler a fila de relance), filtro em botões com contagem (um
+     toque, em vez de abrir uma lista), alvos de toque maiores e o formulário tomando a tela. */
+  .sol-topo{display:flex;gap:8px;align-items:center}
+  .sol-topo input{flex:1;min-width:0}
+  .sol-chips{display:flex;gap:6px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
+  .sol-chips::-webkit-scrollbar{display:none}
+  .sol-chip{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--ink2);border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .sol-chip b{font-weight:800;margin-left:3px;color:var(--muted)}
+  .sol-chip.ativa{background:var(--navy);border-color:var(--navy);color:#fff}
+  .sol-chip.ativa b{color:var(--gold2)}
+  .sol-chip:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  #solicNuvem{display:block;margin-top:6px}
+  #solicNuvem:empty{display:none}
+  .sol{--c:var(--navy2);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px;background:#fff;padding:12px 13px;margin-bottom:10px;box-shadow:0 1px 2px rgba(20,41,63,.04)}
+  .sol.st-nova{--c:#1d5fa8}.sol.st-andamento{--c:#b8860b}.sol.st-cliente{--c:#c2570c}.sol.st-protocolada{--c:#6b3fa0}.sol.st-exigencia{--c:#b42318}.sol.st-concluida{--c:var(--ok)}
+  .sol.acabou{animation:valflash 1.15s ease-out}
+  .sol-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .sol-emp{font-size:14.5px;font-weight:750;color:var(--ink);line-height:1.3;word-break:break-word}
+  .sol-st{flex:0 0 auto;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:#e8f0fb;color:#1d5fa8;white-space:nowrap}
+  .sol.st-andamento .sol-st{background:#fdf6e6;color:#8a5f00}
+  .sol.st-cliente .sol-st{background:#fff0e5;color:#b04a06}
+  .sol.st-protocolada .sol-st{background:#f3edfb;color:#5d3591}
+  .sol.st-exigencia .sol-st{background:#fdecea;color:#a3221a}
+  .sol-exig{margin-top:8px;padding:7px 10px;border-radius:8px;background:#fdecea;border:1px solid #f4c7c3;color:#8a1c14;font-size:12.5px}
+  .exig-resumo{margin:4px 0 10px;padding:9px 12px;border-radius:10px;background:#fff7f6;border:1px solid #f4c7c3;font-size:12.5px;color:var(--ink2)}
+  .exig-resumo b{color:#8a1c14}
+  .sol.st-concluida .sol-st{background:var(--okbg);color:var(--ok)}
+  .sol-meta{font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center}
+  .sol-prazo{font-weight:650;color:var(--ink2)}
+  .sol-prazo.vence{color:var(--warn)}
+  .sol-prazo.vencido{color:var(--err)}
+  .sol-desc{font-size:13px;color:var(--ink2);margin-top:7px;white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+  .sol-desc.aberta{display:block;-webkit-line-clamp:unset}
+  .sol-recado{margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--warnbg);border:1px solid var(--warnln);color:#7c5406;font-size:12.5px}
+  .sol-contato{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:var(--ink2)}
+  .sol-contato>span{flex-basis:100%}
+  .sol-rodape{font-size:12px;color:var(--muted2);margin-top:6px}
+  .sol-anexos{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .sol-anexos a{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sol-anexos .ler{font-weight:650}
+  .sol-ligada{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-bottom:12px;padding:8px 12px;border-radius:10px;background:#f2f7ff;border:1px solid #cfe0f5;font-size:13px;color:var(--ink2)}
+  .sol-ligada b{color:var(--navy)}
+  .sol-ligada .btn{margin-left:auto}
+  .sol-acoes{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line2)}
+  .sol-acoes .btn,.sol-contato .btn,.sol-anexos .btn{min-height:36px;text-decoration:none}
+  .sol-acoes .sol-x{margin-left:auto}
+  .sol-vazio{text-align:center;color:var(--muted);padding:34px 10px;font-size:13px}
+  /* formulário: quando aberto, ocupa a tela no lugar da lista */
+  #solicModal.editando #solicTopo,#solicModal.editando #solicLista{display:none}
+  .sol-form-tit{font-size:15px;font-weight:750;color:var(--navy);margin:2px 0 12px}
+  .sol-grupo{font-size:11px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;padding-top:12px;border-top:1px solid var(--line2)}
+  .sol-atalhos{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .sol-anexar{display:flex;gap:8px;flex-wrap:wrap}
+  .sol-anexar .btn{flex:1 1 140px;justify-content:center;min-height:42px}
+  .sol-salvar{position:sticky;bottom:0;background:#fff;margin:14px -18px -14px;padding:10px 18px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap;z-index:2}
+  .sol-salvar .btn{min-height:44px}
+  .sol-salvar #btnSolicSalvar{flex:1;justify-content:center}
+  .sol-salvar .fldstat{flex-basis:100%;min-height:0;margin:0}
+  .sol-salvar .fldstat:empty{display:none}
+  /* texto de computador (arrastar, Ctrl+V) só onde há mouse */
+  @media(hover:none){ .so-mouse{display:none} }
+  @media(max-width:760px){
+    /* no celular a janela vira tela inteira, e o "+ Nova" flutua sempre à mão */
+    #solicModal{padding:0;align-items:stretch}
+    #solicModal>.modal{max-width:none;max-height:none;height:100%;border-radius:0}
+    #btnSolicNova{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:65;border-radius:999px;padding:14px 20px;font-size:14.5px;box-shadow:0 8px 24px rgba(20,41,63,.38)}
+    #solicLista{padding-bottom:84px}
+    .sol-topo input{font-size:16px}
+  }
+  /* Tela cheia do comercial: quem só lança solicitação não vê o gerador de atos. */
+  body.so-solic>header .head-nav,body.so-solic>header .head-item,body.so-solic .wrap{display:none!important}
+  /* O cabeçalho fica ACIMA da tela cheia e ela começa abaixo dele. Antes a tela cobria o cabeçalho
+     inteiro e o comercial perdia o menu ☰ — sem Configurações (onde fica o destino do "Avisar") e
+     sem "Sair". A altura vem medida em --alturaCab, porque o cabeçalho quebra em duas linhas no
+     celular e um valor fixo deixaria um pedaço da tela escondido. */
+  body.so-solic>header{z-index:60}
+  body.so-solic #solicModal{background:var(--bg);align-items:flex-start;padding:0}
+  body.so-solic #solicModal>.modal{max-width:980px;width:100%;height:calc(100vh - var(--alturaCab,66px));max-height:none;border-radius:0;margin:var(--alturaCab,66px) auto 0}
+  body.so-solic #btnSolicClose{display:none}
+  body.so-solic #wrapStatus,body.so-solic #wrapPend{display:none!important}
+  .checkline{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink2)}
+  .checkline input{width:auto;accent-color:var(--navy2)}
+  .val{margin-top:14px;border-radius:11px;padding:11px 13px;font-size:12.5px;border:1px solid;font-weight:500}
+  .val.ok{background:var(--okbg);border-color:var(--okln);color:#0b6e42}
+  .val.warn{background:var(--warnbg);border-color:var(--warnln);color:#7c5406}
+  .val ul{margin:6px 0 0;padding-left:18px}
+  .val{scroll-margin-top:88px;scroll-margin-bottom:96px}   /* folga p/ o header/ações sticky quando o site rola até a validação */
+  #previewCard{scroll-margin-top:84px}   /* folga p/ o header sticky quando o site rola até a prévia */
+  @keyframes valflash{0%{box-shadow:0 0 0 0 rgba(194,162,80,0);transform:translateY(4px)}12%{box-shadow:0 0 0 5px rgba(194,162,80,.38);transform:translateY(0)}100%{box-shadow:0 0 0 0 rgba(194,162,80,0);transform:translateY(0)}}
+  .val-flash{animation:valflash 1.15s ease-out}
+  @media (prefers-reduced-motion: reduce){ .val-flash{animation:none} }
+  input.revisar,select.revisar,textarea.revisar{border-color:var(--warnln)!important;background:#fffdf4;box-shadow:inset 3px 0 0 var(--warn)}
+  /* leitura de pouca confiança: laranja, acima do amarelo de "confira" — é o que conferir primeiro */
+  input.baixa-conf,select.baixa-conf,textarea.baixa-conf{border-color:#e07b00!important;background:#fff4e5!important;box-shadow:inset 4px 0 0 #e07b00,0 0 0 2px rgba(224,123,0,.15)!important}
+  .conf-lin.baixa{border-color:#f0b46a;background:#fffaf2}
+  .helpbtn{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--navy);color:#fff;font-size:11px;font-weight:800;cursor:pointer;margin-left:4px;vertical-align:middle;user-select:none}
+  /* ===== tela de carregamento ===== */
+  #bootLoad{position:fixed;inset:0;z-index:200;background:var(--navy);display:flex;align-items:center;justify-content:center;transition:opacity .35s ease,visibility .35s}
+  #bootLoad.pronto{opacity:0;visibility:hidden;pointer-events:none}
+  #bootLoad .bl-box{text-align:center;color:#fff;padding:20px}
+  #bootLoad .bl-spin{width:44px;height:44px;margin:0 auto 16px;border:3px solid rgba(255,255,255,.22);border-top-color:#fff;border-radius:50%;animation:blgira .9s linear infinite}
+  #bootLoad .bl-txt{font-size:15px;font-weight:600;letter-spacing:.01em}
+  #bootLoad .bl-sub{font-size:12.5px;opacity:.72;margin-top:4px;min-height:1.2em}
+  @keyframes blgira{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion: reduce){ #bootLoad .bl-spin{animation-duration:2.4s} }
+  body:has(#bootLoad:not(.pronto)){overflow:hidden}   /* não deixa rolar nem clicar atrás enquanto carrega */
+
+  .modal-bg{position:fixed;inset:0;background:rgba(15,25,40,.55);z-index:50;display:none;align-items:center;justify-content:center;padding:16px}
+  body:has(.modal-bg.open){overflow:hidden}   /* trava o scroll do fundo enquanto um modal está aberto (evita scroll bleed no mobile) */
+  .modal-bg.open{display:flex}
+  .modal{background:#fff;border-radius:14px;max-width:660px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .modal .mh{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);font-weight:700;color:var(--navy);position:sticky;top:0;background:#fff}
+  .modal .mb{padding:14px 18px;font-size:13px;line-height:1.55}
+  .modal .mb code{background:#eef1f6;padding:1px 6px;border-radius:5px;font-size:12px}
+  .modal .mb table{width:100%;border-collapse:collapse;margin:8px 0}
+  .modal .mb td{border-bottom:1px solid var(--line2);padding:7px 6px;vertical-align:top}
+  .modal .mb td:first-child{white-space:nowrap;font-weight:600;color:var(--navy);width:38%}
+  .conf-sec{margin:14px 0 4px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .conf-lin{margin-bottom:6px}
+  .conf-ctl{display:flex;gap:8px;align-items:flex-start;margin-top:5px}
+  .conf-ctl input,.conf-ctl textarea,.conf-ctl select{flex:1;min-width:0}
+  .conf-ctl .btn{white-space:nowrap}
+  #confTexto mark{background:#ffe58a;padding:0 1px;border-radius:2px}
+  .modal .x{cursor:pointer;border:none;background:#eef1f6;border-radius:8px;padding:5px 12px;font-weight:700;color:var(--ink2)}
+  .muted{color:var(--muted)}
+  .pill{display:inline-flex;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:20px;background:#eef2f7;color:var(--navy);margin-left:4px;align-items:center}
+  .typebar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .typebar .t{font:inherit;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;font-size:12.5px;cursor:pointer;font-weight:600;color:var(--ink2)}
+  .typebar .t:focus-visible,.modal:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .tipo-mob{display:none}
+  /* advocacia (registro na OAB): o que não existe lá some; o cartão do titular ganha a inscrição */
+  body.modo-sia .naosia{display:none!important}
+  body:not(.modo-sia) .so-sia{display:none!important}
+  .so-cel{display:none}
+  .typebar .t.active{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(20,41,63,.26)}
+  .typebar .t.soon{opacity:.5;cursor:not-allowed}
+  .actions{position:sticky;bottom:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1px solid var(--line);
+    border-radius:var(--r);padding:13px 16px;margin-bottom:16px;box-shadow:var(--shadow);display:flex;gap:10px;flex-wrap:wrap;align-items:center;z-index:20}
+  .status{font-size:12px;font-weight:600}
+  .secoes{flex-basis:100%;padding-bottom:9px;border-bottom:1px solid var(--line2)}
+  .secoes:empty{display:none}
+  .sec-lista{display:flex;flex-wrap:wrap;gap:6px}
+  .sec{font:inherit;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer}
+  .sec:hover{border-color:var(--navy)}
+  .sec.pend{background:var(--warnbg);border-color:var(--warnln);color:#7c5406}
+  .sec:focus-visible,.sec-resumo:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .sec-resumo{display:none}
+  #previewCard{padding:0;overflow:hidden}
+  .pv-head{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line2);font-weight:700;font-size:13px}
+  .pv-head .dot{width:8px;height:8px;border-radius:50%;background:var(--gold)}
+  #preview{background:#e9edf3;max-height:80vh;overflow:auto}
+  /* o docx-preview aplica hyphens:auto e o navegador hifeniza nomes/palavras longas na prévia — desligamos (o .docx e o PDF já não hifenizam) */
+  #preview, #preview *{ -webkit-hyphens:none!important; -ms-hyphens:none!important; hyphens:none!important }
+  #preview .empty{padding:64px 20px;text-align:center;color:var(--muted2);font-size:13px}
+  .foot{font-size:12px;color:var(--muted2);text-align:center;margin:8px 0 34px}
+  /* botão "voltar ao topo" — pequeno, sutil, aparece só ao rolar para baixo */
+  #btnTopo{position:fixed;right:18px;bottom:76px;z-index:45;width:42px;height:42px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:50%;background:var(--navy);color:#fff;font-size:20px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(20,41,63,.30);opacity:0;visibility:hidden;transform:translateY(10px);transition:opacity .22s ease,transform .22s ease,visibility .22s}
+  #btnTopo.show{opacity:.9;visibility:visible;transform:translateY(0)}
+  #btnTopo:hover{opacity:1;background:var(--navy2)}
+  #btnTopo:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  @media(max-width:760px){ #btnTopo{bottom:18px;right:14px} }
+  @media (prefers-reduced-motion: reduce){ #btnTopo{transition:opacity .15s} }
+  .docxprev-wrapper{background:#e9edf3!important;padding:22px 0!important}
+  .docxprev-wrapper>section.docxprev{box-shadow:0 6px 22px rgba(20,41,63,.16)!important;margin-bottom:18px!important}
+  @page{size:A4;margin:0}   /* zera só a margem/cabeçalho EXTRA do navegador; a margem de 2,5cm continua vindo do padding que o docx-preview já desenha na seção (mantém as laterais certas) */
+  @media print{
+    header,.form-cards,.actions,.pv-head,.foot,.typebar,#validacaoBox,#avisoRevisao{display:none!important}
+    body{background:#fff}.wrap{max-width:none;margin:0;padding:0}
+    #previewCard{border:none;box-shadow:none;border-radius:0;margin:0;padding:0}
+    #preview{max-height:none;overflow:visible;background:#fff;padding:0;margin:0}
+    .docxprev-wrapper{background:#fff!important;padding:0!important;margin:0!important}
+    .docxprev-wrapper>section.docxprev{box-shadow:none!important;margin:0!important}   /* mantém o padding de 2,5cm da seção = margens iguais ao .docx nos 4 lados (1ª página) */
+  }
+  @media(max-width:760px){
+    .g2,.g3,.g4,.gcep,.gorg{grid-template-columns:1fr}
+    .wrap{padding:0 12px;margin:14px auto}
+    header{padding:10px 14px;gap:10px;flex-wrap:wrap}
+    header img.logo{height:30px}
+    header .divider{display:none}
+    header .sys h1{font-size:14px}
+    .chip{display:none}
+    .card{padding:14px 15px;border-radius:13px}
+    .card h2{font-size:13.5px}
+    .typebar{flex-wrap:wrap}
+    .typebar .t{flex:1 1 auto;text-align:center}
+    /* no celular os 6 tipos + subtipos ocupavam meia tela: viram uma lista de escolha */
+    .form-cards .typebar{display:none!important}
+    .tipo-mob{display:block;margin-bottom:10px}
+    /* a barra de ações fica presa no rodapé também no celular, numa linha compacta — antes ficava
+       parada no fim do formulário, a quase dez telas de rolagem */
+    .actions{position:sticky!important;bottom:0;margin:0 -12px 12px;border-radius:14px 14px 0 0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));gap:6px;flex-wrap:wrap}
+    .actions .btn{flex:1 1 0;justify-content:center;padding:11px 6px;font-size:13px;min-width:0}
+    .actions #btnGerar{flex:1.7 1 0}
+    .actions .status{flex-basis:100%;text-align:center;order:3;font-size:11.5px}
+    .actions .status:empty{display:none}
+    .so-pc{display:none}
+    .so-cel{display:inline}
+    .secoes{padding-bottom:6px}
+    .sec-resumo{display:flex;justify-content:space-between;align-items:center;width:100%;font:inherit;font-size:12.5px;font-weight:600;background:none;border:0;color:var(--ink2);padding:2px;cursor:pointer}
+    .sec-resumo.pend{color:#7c5406}
+    .secoes .sec-lista{display:none}
+    .secoes.aberto .sec-lista{display:flex;margin-top:8px;max-height:40vh;overflow:auto}
+    .secoes:not(.aberto) .sec-resumo span{transform:none}
+    .secoes.aberto .sec-resumo span{display:inline-block;transform:rotate(180deg)}
+    #btnTopo{bottom:150px!important}
+    #preview{max-height:none}
+    input[type=text],input[type=search],input[type=number],input[type=date],select,textarea{font-size:16px}
+    .toast-wrap{top:10px;left:10px;right:10px;transform:none}
+    .toast{max-width:none}
+    #draftBanner{left:10px;right:10px;top:64px;flex-direction:column;align-items:stretch;gap:8px}
+  }
+  /* avisos flutuantes (toast) */
+  .toast-wrap{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+  .toast{pointer-events:auto;max-width:min(92vw,460px);background:var(--navy);color:#fff;border:1px solid rgba(255,255,255,.15);border-left:4px solid var(--gold);border-radius:10px;padding:11px 15px;font-size:13.5px;line-height:1.35;box-shadow:0 8px 26px rgba(20,41,63,.28);opacity:0;transform:translateY(-8px);transition:opacity .22s ease,transform .22s ease}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast.ok{border-left-color:var(--ok)}
+  .toast.err{border-left-color:var(--err)}
+  .toast.info{border-left-color:var(--gold2)}
+  /* banner de recuperação de rascunho */
+  #draftBanner{position:fixed;left:50%;transform:translateX(-50%);top:72px;z-index:70;display:none;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:12px;padding:11px 15px;box-shadow:0 10px 30px rgba(20,41,63,.22);max-width:min(94vw,560px)}
+  #draftBanner.show{display:flex}
+  #draftBanner .dbtxt{font-size:13px;color:var(--navy);line-height:1.35}
+  #draftBanner .btn{padding:7px 12px;font-size:12.5px}
+  /* botão engrenagem (configurações) no cabeçalho */
+  .head-install{background:var(--gold);border:1px solid var(--gold2);color:var(--navy3);font-weight:700;font-size:12.5px;padding:7px 12px;border-radius:9px;cursor:pointer;margin-right:10px;transition:filter .18s}
+  .head-install:hover{filter:brightness(1.06)}
+  .head-install:focus-visible{outline:2px solid #fff;outline-offset:2px}
+  .head-gear{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);color:#fff;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .18s;margin-right:10px;position:relative}
+  /* Portão de entrada */
+  #portao{position:fixed;inset:0;z-index:9000;background:linear-gradient(160deg,#14293f,#0b1a2a);display:flex;align-items:center;justify-content:center;padding:20px}
+  .pt-box{width:100%;max-width:360px;background:#fff;border-radius:14px;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+  .pt-logo{height:52px;width:auto;display:block;margin:0 auto 14px}
+  .pt-tit{font-size:17px;font-weight:700;color:var(--navy);text-align:center}
+  .pt-sub{font-size:12.5px;color:var(--muted);text-align:center;margin:4px 0 16px}
+  .pt-box label{display:block;font-size:12px;color:var(--muted);margin:10px 0 3px}
+  .pt-box input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
+  .pt-box .btn{width:100%;margin-top:16px;justify-content:center}
+  .pt-link{display:block;width:100%;margin-top:12px;padding:4px;background:none;border:0;font:inherit;font-size:12.5px;color:var(--navy);text-decoration:underline;cursor:pointer;text-align:center}
+  .pt-link:disabled{opacity:.55;cursor:default}
+  .pt-link:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:6px}
+  .pt-stat{font-size:12.5px;margin-top:10px;min-height:16px;text-align:center}
+  /* Espera: anel girando em volta do ícone do sistema */
+  #ptEspera{text-align:center;padding:34px 24px}
+  .pt-anel{position:relative;width:104px;height:104px;margin:0 auto}
+  .pt-anel img{position:absolute;inset:22px;width:60px;height:60px;object-fit:contain}
+  .pt-anel::before,.pt-anel::after{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid transparent}
+  .pt-anel::before{border-color:rgba(20,41,63,.10)}
+  .pt-anel::after{border-top-color:var(--gold);border-right-color:var(--gold);animation:ptGira 1s cubic-bezier(.55,.15,.45,.85) infinite}
+  @keyframes ptGira{to{transform:rotate(360deg)}}
+  /* sem movimento: o anel fica parado, mas continua visível como estado de espera */
+  @media(prefers-reduced-motion:reduce){ .pt-anel::after{animation:none;border-color:var(--gold) transparent transparent transparent} }
+  /* Painel de casos: rolagem lateral que não some */
+  .casos-rol{overflow-x:auto;overflow-y:hidden;padding-bottom:4px;scrollbar-gutter:stable}
+  .casos-rol::-webkit-scrollbar{height:11px}
+  .casos-rol::-webkit-scrollbar-track{background:#eef1f5;border-radius:6px}
+  .casos-rol::-webkit-scrollbar-thumb{background:#b9c2cd;border-radius:6px;border:2px solid #eef1f5}
+  .casos-rol::-webkit-scrollbar-thumb:hover{background:#8b97a6}
+  /* Abas das configurações */
+  .cfg-abas{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:-4px 0 14px;padding-bottom:0}
+  .cfg-aba{background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;font:inherit;font-size:13px;
+    color:var(--muted);cursor:pointer;border-radius:6px 6px 0 0}
+  .cfg-aba:hover{background:#eef1f5;color:#1b1f24}
+  .cfg-aba.ativa{color:var(--navy);font-weight:700;border-bottom-color:var(--navy)}
+  .cfg-aba:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+  /* Itens do cabeçalho: um clique, sempre à vista */
+  .head-nav{display:flex;gap:6px;align-items:center;margin-right:8px}
+  .head-item{position:relative;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);
+    color:#fff;border-radius:9px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer;transition:background .18s;white-space:nowrap}
+  .head-item:hover{background:rgba(255,255,255,.22)}
+  .head-item:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .head-item .badge{position:absolute;top:-6px;right:-6px;margin:0}
+  .so-mobile{display:none}
+  @media(max-width:900px){ .head-nav{display:none} .so-mobile{display:block} }
+  /* Menu do usuário */
+  .usermenu{position:relative}
+  .menu-pop{position:absolute;right:10px;top:40px;min-width:250px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;display:none;z-index:60}
+  .menu-pop.open{display:block}
+  .menu-pop button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:0;padding:9px 10px;border-radius:8px;font:inherit;font-size:13.5px;color:#1b1f24;cursor:pointer}
+  .menu-pop button:hover{background:#eef1f5}
+  .menu-sep{height:1px;background:var(--line);margin:5px 4px}
+  .menu-quem{padding:7px 10px 4px;font-size:12px;color:var(--muted);word-break:break-all}
+  .badge{background:var(--err);color:#fff;border-radius:999px;font-size:10.5px;line-height:1;padding:3px 6px;font-weight:700;margin-left:auto}
+  .head-gear .badge{position:absolute;top:-5px;right:-5px;margin:0}
+  .head-gear:hover{background:rgba(255,255,255,.24)}
+  .head-gear:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .fldstat.ok{color:var(--ok)} .fldstat.err{color:var(--err)}
+  .cfg-logo-prev{max-height:46px;max-width:180px;border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--navy);object-fit:contain}

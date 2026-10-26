@@ -17,7 +17,11 @@ Abra o arquivo `index.html` no navegador (Chrome/Edge/Firefox). Não precisa ins
 
 | Caminho          | O que é                                                        |
 |------------------|---------------------------------------------------------------|
-| `index.html`     | A aplicação inteira (HTML + CSS + JS embutidos)               |
+| `index.html`     | A estrutura da página (formulário, janelas)                    |
+| `css/app.css`    | O visual                                                       |
+| `js/app.js`      | O sistema (geradores de Ltda/EI, leitor de PDF, painel, solicitações) |
+| `js/*.js`        | Módulos à parte: nuvem, integração, S.A., cooperativa, advocacia (OAB), registro de erros |
+| `testes.html`    | A bateria de testes (abra com `?auto=1` para rodar sozinha; roda também no GitHub a cada envio) |
 | `lib/`           | Bibliotecas vendorizadas (docx, docx-preview, jszip, pdf.js, tesseract…) |
 | `assets/`        | Imagens (logo)                                                |
 | `.nojekyll`      | Faz o GitHub Pages servir os arquivos como estão              |

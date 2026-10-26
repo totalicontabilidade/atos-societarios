@@ -1377,7 +1377,9 @@
       reg("A página declara uma política de segurança", !!meta);
       var csp=meta?meta.getAttribute("content"):"";
       var conn=(csp.match(/connect-src([^;]*)/)||["",""])[1];
-      var fonte=await (await W.fetch("index.html?csp="+Date.now(),{cache:"no-store"})).text();
+      // o código saiu do index.html na v1.51 (js/app.js): procura nos dois
+      var fonte=await (await W.fetch("index.html?csp="+Date.now(),{cache:"no-store"})).text()
+               +await (await W.fetch("js/app.js?csp="+Date.now(),{cache:"no-store"})).text();
       /* Só conta o que é CONEXÃO (fetch/XHR). Abrir o WhatsApp ou o Gmail é NAVEGAÇÃO — sai da
          página, não busca dado de dentro dela, e connect-src não tem nada a ver com isso. */
       var usados=[]; var re=/fetch\(\s*["'`]https:\/\/([a-z0-9.-]+)/gi, m;
@@ -1787,10 +1789,12 @@
     try{
       var htmlApp=await (await fetch("index.html?x="+Date.now(),{cache:"no-store"})).text();
       var versao=(htmlApp.match(/<meta name="versao" content="([\d.]+)"/)||[])[1]||"";
-      var tags=htmlApp.match(/<script defer src="js\/[^"]+"><\/script>/g)||[];
+      // scripts do app (com ou sem defer) e a folha de estilo: todos com o ?v= da versão
+      var tags=(htmlApp.match(/<script (?:defer )?src="js\/[^"]+"><\/script>/g)||[]).concat(htmlApp.match(/<link rel="stylesheet" href="css\/[^"]+">/g)||[]);
       reg("Os scripts do app carregam com ?v=", tags.length>0 && tags.every(function(t){ return /\?v=[\d.]+/.test(t); }), tags.join(" "));
       reg("O ?v= é igual à versão do app (senão o navegador serve código velho)",
         !!versao && tags.every(function(t){ return t.indexOf("?v="+versao+'"')>0; }), "versão "+versao+" · "+tags.join(" "));
+      reg("O sistema e o visual moram fora do index.html", /src="js\/app\.js\?v=/.test(htmlApp) && /href="css\/app\.css\?v=/.test(htmlApp) && htmlApp.indexOf("window.TINA=(function")<0);
       var sw=await (await fetch("sw.js?x="+Date.now(),{cache:"no-store"})).text();
       reg("O service worker busca js/ pela rede primeiro", /\\\/js\\\/\[\^\/\]\+\\\.js\$|js\\\/\[\^/.test(sw) || /\/js\//.test(sw), "");
       reg("E o cache do service worker foi renomeado nesta versão", /const CACHE = "atos-shell-v\d+"/.test(sw), (sw.match(/atos-shell-v\d+/)||[""])[0]);
@@ -2572,10 +2576,49 @@
       reg("Limpar tira todas as marcas", D.querySelectorAll(".baixa-conf").length===0);
     }catch(e){ reg("Bateria da pouca confiança",false,String(e&&e.message||e).slice(0,120)); }
 
+    // ---------- 6g3. Sociedade individual de advocacia (registro na OAB) ----------
+    /* O texto de leitura abaixo é INVENTADO, no molde do ato antigo da OAB/SE (razão social entre
+       aspas, sede "na cidade de…", capital sem milhar, testemunhas e a certidão de registro). */
+    grupo("Advocacia (OAB)");
+    try{
+      var txSIA=function(){ return (D.getElementById("preview").innerText||""); };
+      modo("sia"); await espera(200);
+      reg("Aba Advocacia abre o ato constitutivo", $("cardSIA").style.display!=="none" && D.body.classList.contains("modo-sia"));
+      $("btnExemplo").click(); await espera(400);
+      var pSIA=await W.TINA.validar();
+      reg("Exemplo da advocacia passa na validação", pSIA.length===0, pSIA.join("; "));
+      await W.TINA.gerarPreview(); await espera(700);
+      var t1=txSIA();
+      reg("Ato constitutivo: título, fundamento e titular com a OAB", /ATO CONSTITUTIVO DE SOCIEDADE INDIVIDUAL DE ADVOCACIA/.test(t1) && /Provimento nº 170\/2016/.test(t1) && /\(OAB\/SE\) sob o nº 1234/.test(t1));
+      reg("Responsabilidade subsidiária e ilimitada e unipessoalidade", /subsidiária e ilimitadamente/.test(t1) && /não admitirá sócio/.test(t1) && /art\. 15, § 4º/.test(t1));
+      reg("Sem Junta, NIRE, ME/EPP nem nome fantasia", !/Junta Comercial|NIRE|Microempresa|nome fantasia/i.test(t1));
+      reg("Linhas para duas testemunhas", (t1.match(/CPF:/g)||[]).length===2 && /Testemunhas:/.test(t1));
+      reg("Campos da Ltda somem (fantasia, enquadramento)", $("fantasia").offsetParent===null && $("enquadramento").offsetParent===null);
+      val("razao","MARIA MODELO ADVOCACIA LTDA");
+      var pLtda=await W.TINA.validar("sóCampos");
+      reg("Denominação sem o sufixo da lei ou com LTDA é barrada", pLtda.some(function(m){ return /terminar em/.test(m); }) && pLtda.some(function(m){ return /sem “LTDA”/.test(m); }));
+      modo("sia_alt"); await espera(200); $("btnExemplo").click(); await espera(400);
+      await W.TINA.gerarPreview(); await espera(700);
+      var t2=txSIA(), iCons=t2.indexOf("CONSOLIDAÇÃO DO ATO CONSTITUTIVO");
+      reg("Alteração: registro na OAB e endereço registrado hoje no preâmbulo", /registrado no Conselho Seccional da Ordem dos Advogados do Brasil \(OAB\/SE\) sob o nº 100\/2020, livro B-40, fls\. 10, em 10\/02\/2020/.test(t2) && /com sede na Rua Antiga/.test(t2));
+      reg("Alteração: cláusula da sede com o “de → para”", /que estava na Rua Antiga[\s\S]*transfere-se para a Rua Modelo/.test(t2));
+      reg("Consolidado: sede alterada no futuro, o resto no presente", iCons>0 && /e terá sede na Rua Modelo/.test(t2.slice(iCons)) && /adota a denominação/.test(t2.slice(iCons)));
+      // leitura do molde antigo
+      var fxSIA="CONTRATO SOCIAL DA SOCIEDADE INDIVIDUAL DE ADVOCACIA JOÃO EXEMPLO DE SOUZA, brasileiro, maior, capaz, casado, inscrito na Ordem dos Advogados do Brasil, Seção do Estado de Sergipe, sob o n°. 9.876 e no CPF sob o n° 111.444.777-35, residente e domiciliado na Rua das Palmeiras, n° 50, Condomínio Modelo, Bloco A AP. 101, Centro, Aracaju, Estado Sergipe, CEP 49000-000, resolve constituir sociedade individual de advocacia, que se regerá pela Lei n° 8.906/94: CLÁUSULA PRIMEIRA RAZÃO SOCIAL 1. A Sociedade utilizará a razão social “JOÃO SOUZA SOCIEDADE INDIVIDUAL DE ADVOCACIA”. CLÁUSULA SEGUNDA SEDE 2. A Sociedade tem sede na cidade de Itabaiana, no Estado de Sergipe, na Rua Exemplo, 100, Bairro Centro, CEP: 49500-000. CLÁUSULA TERCEIRA OBJETO 3. A Sociedade tem como objeto o exercício da advocacia. CLÁUSULA QUINTA CAPITAL SOCIAL 5. O capital social, inteiramente subscrito e integralizado, é de R$ 2000,00 (dois mil reais). Itabaiana/SE, 05 de MARÇO de 2018. JOÃO EXEMPLO DE SOUZA OAB/SE 9.876 Testemunhas: Nome: Pedro Modelo Lima Identidade: 1234567 SSP/SE CPF: 529.982.247-25 Nome: Ana Teste Rocha Identidade: 7654321 SSP/SE CPF: 390.533.447-05 CERTIDÃO O Secretário-Geral da Ordem dos Advogados do Brasil – Seccional de Sergipe certifica que, o registro da Sociedade de Advogados JOÃO SOUZA SOCIEDADE INDIVIDUAL DE ADVOCACIA, protocolado sob nº 100/2018, livro A-5, fls. 40, registrado em 20/03/2018, sob nº 100/2018, no livro B-45, fls. 10/12, foi deferido pela Comissão.";
+      var parS=W.TINA._pdf.parseContratoTexto(fxSIA,"","","contrato.pdf"), dS=parS.d, sS=(dS.socios||[])[0]||{};
+      reg("Leitor reconhece o documento da OAB", dS.tipoOrig==="SIA");
+      reg("Leitor: denominação entre aspas e sede “na cidade de…”", dS.razao==="JOÃO SOUZA SOCIEDADE INDIVIDUAL DE ADVOCACIA" && (dS.sede||{}).mun==="Itabaiana" && (dS.sede||{}).log==="Rua Exemplo" && (dS.sede||{}).num==="100");
+      reg("Leitor: capital sem ponto de milhar", dS.capital===2000);
+      reg("Leitor: registro e data pela certidão", dS.nire==="100/2018, livro B-45, fls. 10/12" && dS.dataInicioOrig==="20/03/2018");
+      reg("Leitor: titular com a OAB, sem as testemunhas", (dS.socios||[]).length===1 && sS.nome==="JOÃO EXEMPLO DE SOUZA" && sS.oab==="9.876" && sS.oabUF==="SE" && sS.mun==="Aracaju");
+      W.TINA.limpar(); modo("ltda"); await espera(200);
+    }catch(e){ reg("Bateria da advocacia",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 6h. Índice das seções, exemplo e teclado ----------
     grupo("Índice das seções e teclado");
     try{
-      modo("alt"); await espera(150); W.TINA.limpar(); await ate(function(){ return D.querySelectorAll("#secoesIdx .sec").length>3; },5000);
+      // o índice se atualiza meio segundo depois da última mudança: espera ele refletir o formulário limpo
+      modo("alt"); await espera(150); W.TINA.limpar(); await espera(1100); await ate(function(){ return D.querySelectorAll("#secoesIdx .sec").length>3; },5000);
       reg("Índice lista as seções visíveis da alteração", D.querySelectorAll("#secoesIdx .sec").length>=6, D.querySelectorAll("#secoesIdx .sec").length+" seções");
       reg("Formulário vazio: seções com ⚠", D.querySelectorAll("#secoesIdx .sec.pend").length>=4);
       $("btnExemplo").click(); await espera(1100);
