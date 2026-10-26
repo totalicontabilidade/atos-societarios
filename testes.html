@@ -2467,6 +2467,60 @@
              reg("Painel mostra o botão de retomar",null,"pulado"); reg("Retoma com todos os dados preenchidos",null,"pulado"); }
     }catch(e){ reg("Bateria de trabalhos em espera",false,String(e&&e.message||e).slice(0,120)); }
 
+    // ---------- 6f. Solicitação ligada ao ato ----------
+    /* O anexo PDF da solicitação vai direto para o leitor, e o que acontece no ato move a situação
+       da solicitação. O "anexo" aqui é o PDF do próprio exemplo, servido por um endereço blob: do
+       quadro de teste — sem login, nada sai para a nuvem. */
+    grupo("Solicitação ligada ao ato");
+    try{
+      await recarregar();
+      var S=W.TINA._sol, solic=function(id){ return (JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").filter(function(x){ return x.id===id; })[0])||{}; };
+      ["tinaCasos","tinaSolic","tinaDraft"].forEach(function(k){ W.localStorage.removeItem(k); });
+      modo("alt"); await espera(160); $("btnExemplo").click(); await espera(260);
+      await W.TINA.gerarPreview(); var pdfAnexo=await W.TINA.gerarPdfBlob();
+      var cnpjEx=$("cnpj").value, razaoEx=$("razao").value;
+      W.TINA.limpar();
+      var agoraS=new Date().toISOString();
+      W.localStorage.setItem("tinaSolic",JSON.stringify([
+        {id:"STST1",empresa:"PEDIDO MODELO",cnpj:cnpjEx,tipo:"alt",status:"nova",criadoEm:agoraS,alteradoEm:agoraS,
+         anexos:[{nome:"contrato-modelo.pdf",tipo:"application/pdf",tamanho:pdfAnexo.size,url:W.URL.createObjectURL(pdfAnexo)},
+                 {nome:"foto.jpg",tipo:"image/jpeg",tamanho:10,url:"blob:nada"}]},
+        {id:"STST2",empresa:"ABERTURA MODELO",tipo:"const",status:"nova",criadoEm:agoraS,alteradoEm:agoraS,
+         anexos:[{nome:"rg.pdf",tipo:"application/pdf",tamanho:10,url:"blob:nada"}]}]));
+      $("btnSolic").click(); await espera(300);
+      reg("Anexo PDF de alteração ganha o botão “Ler este anexo”", D.querySelectorAll('[data-sol-ler="STST1"]').length===1);
+      reg("Sem botão em foto nem em ato sem leitor (abertura)", !D.querySelector('[data-sol-ler="STST2"]'));
+      D.querySelector('[data-sol-ler="STST1"]').click();
+      await ate(function(){ return /extraídos|lido|Falha/.test($("pdfStat").textContent); },30000);
+      reg("O anexo é lido no preenchimento rápido", $("razao").value===razaoEx && $("cnpj").value===cnpjEx, $("pdfStat").textContent);
+      reg("Ler marca a solicitação em andamento e liga ao ato", solic("STST1").status==="andamento" && S.solicLigada()==="STST1"
+          && $("solicLigadaBar").style.display!=="none");
+      W.TINA._sol.gerarEmail(); await espera(200); $("btnEmailCopiar").click(); await espera(200);
+      reg("E-mail de confirmação copiado → “Aguardando cliente”", solic("STST1").status==="cliente", solic("STST1").status);
+      $("btnEmailConfirmou").click(); await espera(250); $("gateNota").value="De acordo."; $("btnGateRegistrar").click(); await espera(300);
+      var casoS=(JSON.parse(W.localStorage.getItem("tinaCasos")||"[]").filter(function(c){ return c.id===S.casoAtual(); })[0])||{};
+      reg("Cliente confirmou → volta para “Em andamento”", solic("STST1").status==="andamento", solic("STST1").status);
+      reg("Caso e solicitação apontam um para o outro", casoS.solicId==="STST1" && solic("STST1").atoId===casoS.id);
+      if($("emailModal")) $("emailModal").classList.remove("open");
+      await S.abrirPreProtocolo(); await espera(200);
+      reg("Pré-protocolo oferece “Protocolei na Junta”", $("protoSolic").style.display!=="none");
+      $("btnProtocolei").click(); await espera(200);
+      reg("Protocolei → “Protocolada”", solic("STST1").status==="protocolada" && !!solic("STST1").protocoladaEm);
+      $("btnEmailCopiar").click(); await espera(200);
+      reg("O automático nunca volta uma protocolada", solic("STST1").status==="protocolada");
+      if($("protoModal")) $("protoModal").classList.remove("open");
+      $("btnDesligarSolic").click(); await espera(150);
+      reg("Desligar tira a ligação e não religa pelo CNPJ", S.solicLigada()==="" && S.solicDoAto()==="");
+      W.TINA.limpar(); val("razao","OUTRA EMPRESA NA TELA");
+      S.trabalharSolic("STST2",true);
+      reg("“Trabalhar” com outro ato na tela não liga a solicitação a ele", S.solicLigada()===null);
+      W.TINA.limpar(); $("cnpj").value=cnpjEx;
+      var abertaS=JSON.parse(W.localStorage.getItem("tinaSolic")); abertaS[0].status="andamento"; W.localStorage.setItem("tinaSolic",JSON.stringify(abertaS));
+      reg("Sem ligação, o CNPJ de uma solicitação em aberto liga sozinho", S.solicDoAto()==="STST1");
+      W.TINA.limpar();
+      if($("solicModal")) $("solicModal").classList.remove("open");
+    }catch(e){ reg("Bateria da solicitação ligada ao ato",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 7. Segurança ----------
     grupo("Segurança");
     await recarregar();

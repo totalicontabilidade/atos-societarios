@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.48" />
+<meta name="versao" content="1.49" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -135,6 +135,10 @@
   .sol-rodape{font-size:11.5px;color:var(--muted2);margin-top:6px}
   .sol-anexos{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .sol-anexos a{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sol-anexos .ler{font-weight:650}
+  .sol-ligada{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-bottom:12px;padding:8px 12px;border-radius:10px;background:#f2f7ff;border:1px solid #cfe0f5;font-size:13px;color:var(--ink2)}
+  .sol-ligada b{color:var(--navy)}
+  .sol-ligada .btn{margin-left:auto}
   .sol-acoes{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line2)}
   .sol-acoes .btn,.sol-contato .btn,.sol-anexos .btn{min-height:36px;text-decoration:none}
   .sol-acoes .sol-x{margin-left:auto}
@@ -421,6 +425,7 @@
 
 <div class="wrap">
   <div class="form-cards">
+    <div class="sol-ligada" id="solicLigadaBar" style="display:none"></div>
     <div class="card">
       <div class="typebar">
         <div class="t active" data-mode="ltda">Sociedade Limitada</div>
@@ -1058,6 +1063,10 @@
     <div class="mb">
       <div id="protoResumo" class="val"></div>
       <div id="protoLista" style="margin-top:12px"></div>
+      <div id="protoSolic" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line2)">
+        <button class="btn g mini" type="button" id="btnProtocolei">✓ Protocolei na Junta</button>
+        <span class="hint">— a solicitação passa para “Protocolada” e o comercial fica sabendo.</span>
+      </div>
     </div>
   </div>
 </div>
@@ -1365,13 +1374,13 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.48"></script>
-<script defer src="js/nuvem.js?v=1.48"></script>
-<script defer src="js/integracao.js?v=1.48"></script>
-<script defer src="js/modelos-coop.js?v=1.48"></script>
-<script defer src="js/gerador-coop.js?v=1.48"></script>
-<script defer src="js/modelos-sa.js?v=1.48"></script>
-<script defer src="js/gerador-sa.js?v=1.48"></script>
+<script defer src="js/nuvem-config.js?v=1.49"></script>
+<script defer src="js/nuvem.js?v=1.49"></script>
+<script defer src="js/integracao.js?v=1.49"></script>
+<script defer src="js/modelos-coop.js?v=1.49"></script>
+<script defer src="js/gerador-coop.js?v=1.49"></script>
+<script defer src="js/modelos-sa.js?v=1.49"></script>
+<script defer src="js/gerador-sa.js?v=1.49"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
@@ -3040,6 +3049,11 @@ window.TINA=(function(){
   let _blob=null, MODE="alt";
   function vazio(d){ return !d.razao && d.socios.every(s=>!s.nome); }
   function buildBlob(){let g; if(MODE.startsWith("sa_"))g=gerarSA(MODE); else if(MODE.startsWith("coop"))g=gerarCoop(MODE); else if(MODE.startsWith("dist"))g=gerarDistrato(MODE); else if(MODE==="transf_ei_ltda"||MODE==="transf_ei_slu")g=gerarTransfLtda(MODE); else if(MODE==="transf_ltda_ei")g=gerarTransfEI(MODE); else if(MODE.startsWith("ei"))g=gerarEI(MODE); else g=gerar(MODE); return window.docxLib.Packer.toBlob(g.doc).then(blob=>({blob,nomeArq:g.nomeArq}));}
+  /* Onde existe o preenchimento rápido: só nos atos que partem de um registro anterior, e só onde
+     o leitor entende o documento (contrato de Ltda/EI, cartão CNPJ, CCMEI — estatuto não). A tela
+     de solicitações pergunta a mesma coisa para saber se oferece "Ler" no anexo. */
+  function modoTemLeitor(m){ m=String(m||"");
+    return m.endsWith("alt") || m.startsWith("transf") || m.startsWith("dist") || m==="sa_transf_ltda"; }
   function switchMode(m){MODE=m;
     const isAlt=m.endsWith("alt"), isEI=m.startsWith("ei"), isTransf=m.startsWith("transf"), isDist=m.startsWith("dist");
     const isSA = m.startsWith("sa_"), saTransf=(m==="sa_transf_ltda"||m==="sa_transf_sa_ltda"), saAG=(m==="sa_age"||m==="sa_ago"), coopRef=(m==="coop_reforma");
@@ -3094,7 +3108,7 @@ window.TINA=(function(){
     document.querySelectorAll(".distonly").forEach(el=>el.style.display=isDist?"":"none");
     document.querySelectorAll(".disthide").forEach(el=>el.style.display=isDist?"none":"");
     if($("cardCapital"))$("cardCapital").style.display=(isDist||isCoop)?"none":"";
-    if($("cardRapido"))$("cardRapido").style.display=(showReg && m!=="sa_transf_sa_ltda" && !saAG && !coopRef)?"":"none";   // o leitor entende contrato de Ltda, não estatuto
+    if($("cardRapido"))$("cardRapido").style.display=modoTemLeitor(m)?"":"none";
     if($("cardRegistro"))$("cardRegistro").style.display=showReg?"":"none";
     if($("lblRegistro"))$("lblRegistro").textContent=(isTransf||saTransf)?"Origem da transformação (CNPJ mantido)":((isDist||saAG||coopRef)?"Registro na Junta":"Registro na Junta (alteração)");
     // campo "razão anterior": aparece em transformação (nome de origem) e em alteração (nome atual, quando muda a razão)
@@ -3583,6 +3597,7 @@ window.TINA=(function(){
     return itens;
   }
   async function abrirPreProtocolo(){
+    solicDoAto(); renderLigacao();   // mostra o "Protocolei na Junta" só quando há solicitação para avisar
     const itens=preProtocolo();
     const pend=await validar();
     if((pend||[]).length) itens.push({ok:false,tema:"Validação do preenchimento",detalhe:(pend||[]).slice(0,3).join("; ")});
@@ -3848,6 +3863,7 @@ window.TINA=(function(){
   }
   const SOLIC_ABERTAS=["nova","andamento","cliente","protocolada"];
   let _solicEditando=null;
+  let _solicLigada=null;   // a solicitação de onde veio o ato na tela (ver "Solicitação ligada ao ato")
   function lerSolic(){ try{ const a=JSON.parse(localStorage.getItem("tinaSolic")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
   function salvarSolic(l){ try{ localStorage.setItem("tinaSolic",JSON.stringify(l)); return true; }catch(e){ return false; } }
   function tiposAto(){ const t={alt:"Alteração Contratual (Ltda)",ei_alt:"Alteração de Empresário Individual"}; Object.keys(ATO_EMAIL).forEach(k=>t[k]=ATO_EMAIL[k]); return t; }
@@ -4110,7 +4126,7 @@ window.TINA=(function(){
      o cliente fala e o CNPJ digitado de ouvido — e uma vez no campo, esse dado tende a ficar. O
      ato tem de nascer da fonte: cartão CNPJ, contrato, CCMEI. Aqui o sistema só registra que o
      processo começou (é assim que o comercial acompanha) e recomenda começar agora. */
-  function trabalharSolic(id){
+  function trabalharSolic(id,calado){
     const l=lerSolic(); const i=l.findIndex(x=>x.id===id); if(i<0)return;
     const r=l[i]; const eraNova=(r.status==="nova");
     if(eraNova || !r.trabalhandoPor){
@@ -4119,9 +4135,118 @@ window.TINA=(function(){
       salvarSolic(l);
       if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",id,r);
     }
+    /* O ato que nascer daqui fica ligado a esta solicitação — mas só se o formulário estiver livre.
+       Com outro ato em andamento na tela, ligar agora penduraria a solicitação no ato errado; o
+       CNPJ resolve depois, quando o ato desta empresa for aberto. */
+    const livre=!draftTemConteudo(snapshotForm());
+    if(livre || _solicLigada===id) ligarSolic(id);
     renderSolic();
-    toast(( eraNova ? "Em andamento — o comercial já está vendo. " : "Já estava em andamento. " )
+    if(!calado) toast(( eraNova ? "Em andamento — o comercial já está vendo. " : "Já estava em andamento. " )
       +"Comece o ato pelo cartão CNPJ ou pelo contrato: a solicitação é o pedido, não a fonte dos dados.","ok");
+  }
+
+  /* ===== Solicitação ligada ao ato =====
+     A solicitação é o que o comercial acompanha; o ato é onde o trabalho acontece. Antes eram dois
+     controles soltos, e a situação da solicitação só andava se alguém lembrasse de voltar lá e
+     trocá-la à mão. Agora o ato sabe de qual solicitação veio, e o que acontece nele move a
+     solicitação sozinho: e-mail de confirmação enviado → "Aguardando cliente"; cliente confirmou →
+     "Em andamento"; protocolo na Junta → "Protocolada". Finalizar continua sendo à mão.
+
+     _solicLigada: null = ainda não se sabe; "" = desligada de propósito (não religa pelo CNPJ);
+     id = ligada. Vai no rascunho e no trabalho guardado, e o caso guarda o mesmo em solicId.
+     (A variável é declarada lá em cima, junto de _solicEditando.) */
+  function ligarSolic(id){ _solicLigada=id; renderLigacao(); salvarRascunhoDeb(); }
+  function desligarSolic(){
+    _solicLigada="";
+    const cs=lerCasos(), c=casoAtualId?cs.find(x=>x.id===casoAtualId):null;
+    if(c && c.solicId){ c.solicId=""; c.alteradoEm=new Date().toISOString(); salvarCasos(cs);
+      if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("atos",c.id,{solicId:"",alteradoEm:c.alteradoEm}); }
+    renderLigacao(); salvarRascunhoDeb();
+    toast("Este ato não está mais ligado à solicitação.","info");
+  }
+  /* De qual solicitação é o ato na tela. Sem ligação conhecida, procura pelo CNPJ: liga sozinho
+     quando há UMA solicitação em aberto da empresa — com duas ou mais, adivinhar seria pior. */
+  function solicDoAto(){
+    const existe=id=>!!id && lerSolic().some(x=>x.id===id);
+    if(_solicLigada!==null) return existe(_solicLigada)?_solicLigada:"";
+    const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null;
+    if(c && c.solicId!==undefined){ _solicLigada=c.solicId||""; return existe(_solicLigada)?_solicLigada:""; }
+    const dig=(($("cnpj")||{}).value||"").replace(/\W/g,"").toUpperCase();
+    if(dig.length<14) return "";
+    const abertas=lerSolic().filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0 && (x.cnpj||"").replace(/\W/g,"").toUpperCase()===dig);
+    if(abertas.length!==1) return "";
+    ligarSolic(abertas[0].id);
+    toast("Ato ligado à solicitação de "+(abertas[0].empresa||"esta empresa")+" (mesmo CNPJ).","info",5000);
+    return abertas[0].id;
+  }
+  // a ida e a volta: o caso guarda a solicitação, e a solicitação mostra o número do caso
+  function amarrarCaso(c){
+    const sid=solicDoAto(); if(!c) return;
+    if(_solicLigada!==null) c.solicId=sid;
+    if(!sid) return;
+    const l=lerSolic(), r=l.find(x=>x.id===sid);
+    if(r && r.atoId!==c.id){ r.atoId=c.id; r.alteradoEm=new Date().toISOString(); salvarSolic(l);
+      if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",r.id,{atoId:r.atoId,alteradoEm:r.alteradoEm});
+      renderSolic(); }
+  }
+  /* Move a solicitação ligada para "para", mas só a partir das situações em "de". Nunca mexe numa
+     finalizada e nunca volta uma protocolada: o automático só empurra o que está claramente atrás. */
+  function moverSolic(para,de){
+    const sid=solicDoAto(); if(!sid) return false;
+    const l=lerSolic(), r=l.find(x=>x.id===sid); if(!r || r.status===para || de.indexOf(r.status)<0) return false;
+    const antes=r.status;
+    r.status=para; r.alteradoEm=new Date().toISOString();
+    if(!r.trabalhandoPor){ r.trabalhandoPor=_meuEmail(); r.trabalhandoDesde=r.alteradoEm; }
+    if(para==="protocolada") r.protocoladaEm=r.alteradoEm;
+    salvarSolic(l);
+    if(window.Nuvem&&window.Nuvem.podeGravar()){
+      window.Nuvem.salvar("solicitacoes",r.id,{status:r.status,alteradoEm:r.alteradoEm,trabalhandoPor:r.trabalhandoPor,
+        trabalhandoDesde:r.trabalhandoDesde||"",protocoladaEm:r.protocoladaEm||""});
+      window.Nuvem.trilha("solicitacao.status",r.id,antes+"→"+para);
+    }
+    renderSolic(); renderLigacao();
+    toast("Solicitação de "+(r.empresa||"cliente")+": "+SOLIC_STATUS[para]+".","ok");
+    return true;
+  }
+  function renderLigacao(){
+    const bar=$("solicLigadaBar"), sid=(_solicLigada===null)?"":_solicLigada;
+    const r=sid?lerSolic().find(x=>x.id===sid):null;
+    if(bar){
+      if(!r){ bar.style.display="none"; bar.innerHTML=""; }
+      else{
+        bar.style.display="";
+        bar.innerHTML="🗂 <span>Ligado à solicitação de <b>"+escHtml(r.empresa||"(sem empresa)")+"</b></span>"
+          +'<span class="sol-st">'+escHtml(SOLIC_STATUS[r.status]||r.status||"")+"</span>"
+          +'<button type="button" class="btn o mini" id="btnDesligarSolic" title="O ato segue igual; só para de mover a situação desta solicitação">Desligar</button>';
+        const b=$("btnDesligarSolic"); if(b) b.addEventListener("click",desligarSolic);
+      }
+    }
+    const ps=$("protoSolic"); if(ps) ps.style.display=(r && ["nova","andamento","cliente"].indexOf(r.status)>=0)?"":"none";
+  }
+
+  /* "Ler este anexo": o comercial já anexou o contrato ou o cartão CNPJ na solicitação. Em vez de
+     baixar e escolher o arquivo de novo no campo do contrato, o anexo vai direto para o leitor.
+     Continua valendo a regra do "Trabalhar": o ato nasce do DOCUMENTO, não do que foi digitado
+     na solicitação — por isso nada da solicitação é copiado para o formulário. */
+  async function lerAnexoSolic(id,i){
+    const r=lerSolic().find(x=>x.id===id); const a=r&&(r.anexos||[])[i];
+    if(!a||!a.url){ toast("Anexo não encontrado.","warn"); return; }
+    if(draftTemConteudo(snapshotForm())
+       && !confirm("O formulário já está preenchido. Ler este anexo apaga o que está lá.\n\nPara não perder, cancele e use “Guardar e fazer outro”. Continuar mesmo assim?")) return;
+    toast("Baixando “"+(a.nome||"anexo")+"”…","info");
+    let blob;
+    try{ const resp=await fetch(a.url); if(!resp.ok) throw new Error("erro "+resp.status); blob=await resp.blob(); }
+    catch(e){ toast("Não foi possível baixar o anexo ("+((e&&e.message)||"falha")+"). Abra o anexo, salve o arquivo e escolha-o no campo “Contrato atual”.","err",9000); return; }
+    // a aba do ato pedido; sem leitor nela (pedido lançado com o tipo errado), a aba atual ou a alteração de Ltda
+    switchMode(modoTemLeitor(r.tipo)?r.tipo:(modoTemLeitor(MODE)?MODE:"alt"));
+    limpar(); aplicarPadroesForm();
+    trabalharSolic(id,true); ligarSolic(id);
+    const inp=$("pdfContrato");
+    try{ const dt=new DataTransfer(); dt.items.add(new File([blob],a.nome||"anexo.pdf",{type:"application/pdf"})); inp.files=dt.files; }
+    catch(e){ toast("Este navegador não aceitou o arquivo no campo. Escolha-o à mão em “Contrato atual”.","err",8000); return; }
+    if($("solicModal")) $("solicModal").classList.remove("open");
+    const card=$("cardRapido"); if(card&&card.scrollIntoView) card.scrollIntoView({behavior:"smooth",block:"start"});
+    await processarRapido();
   }
   /* Modo comercial: quem só lança solicitação não precisa ver — nem esbarrar em — o gerador de
      atos. A tela de solicitações deixa de ser uma janela sobre o sistema e passa a SER o sistema.
@@ -4200,7 +4325,7 @@ window.TINA=(function(){
     return '<div class="sol-contato"><span>👤 '+escHtml(nome||"Cliente")+(fone?" · "+escHtml(fone):"")+"</span>"+links+"</div>";
   }
   function renderSolic(){
-    statusNuvem();
+    statusNuvem(); renderLigacao();   // a situação pode ter mudado noutro computador
     const box=$("solicLista"); if(!box)return;
     const tot=lerSolic(); let l=tot;
     const f=($("solicFiltro")||{}).value||"abertas";
@@ -4235,13 +4360,19 @@ window.TINA=(function(){
         +(r.pendencia?'<div class="sol-recado"><b>Recado:</b> '+escHtml(r.pendencia)+"</div>":"")
         +(r.obs?'<div class="sol-desc" title="Toque para ver tudo">'+escHtml(r.obs)+"</div>":"")
         // o anexo aparece na própria lista: quem vai cadastrar abre o áudio ou a foto sem entrar em modo de edição
-        +((r.anexos||[]).length?'<div class="sol-anexos">'+r.anexos.map(a=>
+        +((r.anexos||[]).length?'<div class="sol-anexos">'+r.anexos.map((a,ai)=>
             '<a class="btn s mini" href="'+escHtml(a.url||"#")+'" target="_blank" rel="noopener noreferrer" title="'+escHtml(a.nome||"")+" · "+_tam(a.tamanho)+'">'
-            +_ICONE(a.tipo||"")+" "+escHtml((a.nome||"arquivo").slice(0,26))+"</a>").join("")+"</div>":"")
+            +_ICONE(a.tipo||"")+" "+escHtml((a.nome||"arquivo").slice(0,26))+"</a>"
+            // PDF de um ato que tem leitor: um toque e ele vai para o preenchimento rápido
+            +((!_modoComercial && a.url && /pdf/i.test(a.tipo||a.nome||"") && modoTemLeitor(r.tipo))
+              ?'<button type="button" class="btn p mini ler" data-sol-ler="'+escHtml(r.id)+'" data-anexo="'+ai+'" title="Abre o ato e lê este PDF no preenchimento rápido">⚡ Ler este anexo</button>':"")).join("")+"</div>":"")
         +_contatoSolic(r)
-        +((r.abertaPor||r.trabalhandoPor)?'<div class="sol-rodape">'
-            +(r.abertaPor?"aberta por "+escHtml(_quem(r.abertaPor))+(r.criadoEm?" em "+escHtml(_dataBR(r.criadoEm)):""):"")
-            +(r.trabalhandoPor?(r.abertaPor?" · ":"")+"em andamento com "+escHtml(_quem(r.trabalhandoPor))+(r.trabalhandoDesde?" desde "+escHtml(_dataBR(r.trabalhandoDesde)):""):"")+"</div>":"")
+        +((r.abertaPor||r.trabalhandoPor||r.atoId)?'<div class="sol-rodape">'+[
+            r.abertaPor?"aberta por "+escHtml(_quem(r.abertaPor))+(r.criadoEm?" em "+escHtml(_dataBR(r.criadoEm)):""):"",
+            r.trabalhandoPor?"em andamento com "+escHtml(_quem(r.trabalhandoPor))+(r.trabalhandoDesde?" desde "+escHtml(_dataBR(r.trabalhandoDesde)):""):"",
+            r.atoId?"ato #"+escHtml(r.atoId):"",
+            (r.protocoladaEm&&r.status==="protocolada")?"protocolada em "+escHtml(_dataBR(r.protocoladaEm)):""
+          ].filter(Boolean).join(" · ")+"</div>":"")
         +'<div class="sol-acoes">'
         // "Trabalhar" abre o gerador de atos — para quem só lança solicitação, é botão que não leva a lugar nenhum
         +(_modoComercial?"":'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'" title="Marca o processo como em andamento para o comercial acompanhar. Não preenche o formulário: os dados do ato vêm do cartão CNPJ ou do contrato.">Trabalhar</button>')
@@ -4255,6 +4386,7 @@ window.TINA=(function(){
         +"</div></div>";
     }).join("");
     box.querySelectorAll("[data-sol-abrir]").forEach(b=>b.addEventListener("click",()=>trabalharSolic(b.dataset.solAbrir)));
+    box.querySelectorAll("[data-sol-ler]").forEach(b=>b.addEventListener("click",()=>lerAnexoSolic(b.dataset.solLer,Number(b.dataset.anexo))));
     box.querySelectorAll("[data-sol-editar]").forEach(b=>b.addEventListener("click",()=>editarSolic(b.dataset.solEditar)));
     box.querySelectorAll("[data-sol-avisar]").forEach(b=>b.addEventListener("click",()=>avisarSolic(b.dataset.solAvisar)));
     box.querySelectorAll("[data-sol-excluir]").forEach(b=>b.addEventListener("click",()=>excluirSolic(b.dataset.solExcluir)));
@@ -4616,6 +4748,7 @@ window.TINA=(function(){
     let c=casoAtualId?cs.find(x=>x.id===casoAtualId):null, criou=false;
     if(c){ c.empresa=(d.razao||"").toUpperCase(); c.cnpj=d.cnpj||""; c.tipo=tipoAto(d); c.data=data; c.modo=MODE; c.alteradoEm=agora; }
     else { c={id:novoIdCaso(data),empresa:(d.razao||"").toUpperCase(),cnpj:d.cnpj||"",tipo:tipoAto(d),data:data,modo:MODE,criadoEm:Date.now(),alteradoEm:agora}; cs.push(c); casoAtualId=c.id; criou=true; }
+    amarrarCaso(c);
     salvarCasos(cs);
     /* Nuvem: o cadastro do ato vai junto com o TRABALHO INTEIRO (decisão do escritório) para
        permitir retomar de outro computador. É dado pessoal — por isso só a equipe logada lê,
@@ -4699,6 +4832,7 @@ window.TINA=(function(){
     if(window.Nuvem&&window.Nuvem.podeGravar()){ naNuvem=true; window.Nuvem.salvar("atos",c.id,c);
       window.Nuvem.trilha(via==="emergencia"?"ato.liberar.emergencia":"ato.confirmar",c.id,c.confirmadoEm||""); }
     if(!gravou&&!naNuvem) return {ok:false,motivo:"espaco"};
+    moverSolic("andamento",["cliente"]);   // o cliente respondeu: a bola volta para o escritório
     renderPainel();
     return {ok:true,caso:c,soNaNuvem:!gravou};
   }
@@ -5001,6 +5135,7 @@ window.TINA=(function(){
     $("socios").innerHTML="";$("numQuotas").value="";if($("s_cep_stat"))$("s_cep_stat").textContent="";const b=$("valCapital");if(b)b.style.display="none";
     if(umComponenteSo())socioCard();}  // modos de titular único: recria o card
   function limpar(){ limparCampos();
+    _solicLigada=null; renderLigacao();   // formulário zerado não é mais o ato daquela solicitação
     if($("cmdRapido"))$("cmdRapido").value="";
     if($("pdfContrato"))$("pdfContrato").value="";if($("pdfStat"))$("pdfStat").textContent="";if($("rapidoStat"))$("rapidoStat").textContent="";
     if($("avisoRevisao"))$("avisoRevisao").style.display="none";
@@ -6449,7 +6584,7 @@ window.TINA=(function(){
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
   const DRAFT_FIELDS=["razao","fantasia","foro","foroUF","atoUF","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","haveres","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros","advNome","advOab","advOabUf"];
   const DRAFT_CHECKS=["alt_foro","alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae","advIncluir","preservarClausulas"];
-  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
+  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig,solic:_solicLigada};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
   // passadas 24h sem uso, é descartado sozinho, para não ficar legível num computador compartilhado.
   const DRAFT_VALIDADE_MS=24*60*60*1000;
@@ -6586,6 +6721,7 @@ window.TINA=(function(){
     $("socios").innerHTML="";const arr=(o.socios&&o.socios.length)?o.socios:[undefined];arr.forEach(s=>socioCard(s));
     if($("filiais")){$("filiais").innerHTML=""; (o.filiais||[]).forEach(f=>filialCard(f));}
     _clausulasOrig=Array.isArray(o.clausulas)?o.clausulas:[]; mostrarPreservacao();
+    _solicLigada=(typeof o.solic==="string")?o.solic:null; renderLigacao();
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach((w,i)=>{const ck=["admNaoSocio","cl_conselho","alt_cessao"][i]; if($(w)&&$(ck))$(w).style.display=$(ck).checked?"":"none";});
     // trabalho guardado antes de existir a UF do foro/do ato: começa com a da sede, à vista para conferir
     _ufAtoManual=!!(o.fields&&o.fields.atoUF); completarUFs();
@@ -6640,7 +6776,7 @@ window.TINA=(function(){
 
   /* ===== Duplicar caso: novo ato para a mesma empresa (só metadados existem) ===== */
   function duplicarCaso(id){const c=lerCasos().find(x=>x.id===id);if(!c)return;
-    limparCampos();if(c.modo)switchMode(c.modo);
+    limparCampos();_solicLigada=null;renderLigacao();if(c.modo)switchMode(c.modo);
     if($("razao"))$("razao").value=c.empresa||"";if($("cnpj")){$("cnpj").value=fmtCnpj(c.cnpj||"");if(typeof cnpjLiveCheck==="function")cnpjLiveCheck();}
     aplicarPadroesForm();casoAtualId=null;salvarRascunho();
     if($("painelModal"))$("painelModal").classList.remove("open");
@@ -6760,6 +6896,7 @@ window.TINA=(function(){
     if($("btnComparar")) $("btnComparar").addEventListener("click",abrirComparacao);
     if($("btnProtoClose")) $("btnProtoClose").addEventListener("click",()=>$("protoModal").classList.remove("open"));
     if($("btnPreProto")) $("btnPreProto").addEventListener("click",abrirPreProtocolo);
+    if($("btnProtocolei")) $("btnProtocolei").addEventListener("click",()=>moverSolic("protocolada",["nova","andamento","cliente"]));
     /* A barra de atribuição só aparece quando há trecho selecionado dentro da caixa do texto.
        A seleção é guardada porque clicar no botão a desfaz. */
     if($("pdfTexto")){
@@ -6986,9 +7123,11 @@ window.TINA=(function(){
     if($("emailParalegal")) $("emailParalegal").addEventListener("input",regerarEmail);
     if($("emailRemetente")) $("emailRemetente").addEventListener("input",regerarEmail);
     if($("emailCorpo")) $("emailCorpo").addEventListener("input",()=>{_emailEditado=true;});
-    if($("btnEmailCopiar")) $("btnEmailCopiar").addEventListener("click",()=>copiar($("emailAssunto").value+"\n\n"+$("emailCorpo").value,"✓ Assunto + corpo copiados."));
-    if($("btnEmailCopiarCorpo")) $("btnEmailCopiarCorpo").addEventListener("click",()=>copiar($("emailCorpo").value,"✓ Corpo copiado."));
-    if($("btnEmailGmail")) $("btnEmailGmail").addEventListener("click",()=>{const u="https://mail.google.com/mail/?view=cm&fs=1&tf=1&su="+encodeURIComponent($("emailAssunto").value)+"&body="+encodeURIComponent($("emailCorpo").value);window.open(u,"_blank","noopener,noreferrer");if($("emailStat")){$("emailStat").style.color="var(--navy)";$("emailStat").textContent="Abrindo o Gmail — confira o remetente no campo \"De:\" antes de enviar.";}});
+    // copiar ou abrir o e-mail é o momento em que ele vai para o cliente: a solicitação passa a esperar a resposta
+    const emailSaiu=()=>moverSolic("cliente",["nova","andamento"]);
+    if($("btnEmailCopiar")) $("btnEmailCopiar").addEventListener("click",()=>{copiar($("emailAssunto").value+"\n\n"+$("emailCorpo").value,"✓ Assunto + corpo copiados.");emailSaiu();});
+    if($("btnEmailCopiarCorpo")) $("btnEmailCopiarCorpo").addEventListener("click",()=>{copiar($("emailCorpo").value,"✓ Corpo copiado.");emailSaiu();});
+    if($("btnEmailGmail")) $("btnEmailGmail").addEventListener("click",()=>{emailSaiu();const u="https://mail.google.com/mail/?view=cm&fs=1&tf=1&su="+encodeURIComponent($("emailAssunto").value)+"&body="+encodeURIComponent($("emailCorpo").value);window.open(u,"_blank","noopener,noreferrer");if($("emailStat")){$("emailStat").style.color="var(--navy)";$("emailStat").textContent="Abrindo o Gmail — confira o remetente no campo \"De:\" antes de enviar.";}});
     if($("btnEmailSalvarCaso")) $("btnEmailSalvarCaso").addEventListener("click",()=>{const c=registrarCaso(); gerarEmail(); if($("emailStat")){$("emailStat").style.color="var(--ok)";$("emailStat").textContent="✓ Caso salvo no painel — ID #"+c.id;}});
     if($("btnEmailLocalizar")) $("btnEmailLocalizar").addEventListener("click",()=>{localizarGmail(emailIdAtual); if($("emailStat")){$("emailStat").style.color="var(--navy)";$("emailStat").textContent="Abrindo o Gmail filtrado no ID #"+emailIdAtual+" — a resposta do cliente aparece aqui.";}});
     if($("btnEmailConfirmou")) $("btnEmailConfirmou").addEventListener("click",abrirGateSoRegistro);
@@ -7001,7 +7140,7 @@ window.TINA=(function(){
       const c=registrarCaso();                                  // garante o caso (e o ID) para pendurar o trabalho
       if(!salvarTrabalho(c.id)){ if($("gateStat")){$("gateStat").style.color="var(--err)";$("gateStat").textContent="Não foi possível guardar (armazenamento cheio). Exporte um backup e remova casos antigos.";} return; }
       _gateAcao=null; _fecharGate();
-      limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null;
+      limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; renderLigacao();
       toast("Ato guardado no caso #"+c.id+". Formulário livre para o próximo — retome pelo Painel de casos.","ok");
     });
     if($("btnGateRegistrar")) $("btnGateRegistrar").addEventListener("click",registrarConfirmacaoEmail);
@@ -7157,7 +7296,9 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto}};
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto},
+    _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
+      gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();
 </script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
