@@ -2695,6 +2695,122 @@ window.TINA=(function(){
      solicitação — uma mesma empresa pode voltar mais de uma vez. */
   const EXIG_MOTIVOS=["Cláusula obrigatória faltando","Qualificação de sócio ou representante","Nome empresarial","Objeto social / atividades",
     "Endereço / sede","Capital e quotas","Tempo verbal / consolidação","Assinatura ou documento faltando","Taxa / DARE","Outro"];
+  /* O PEDIDO, na língua do cliente. O comercial não sabe (nem precisa saber) se "mudar o endereço
+     e pôr a filha de sócia" é uma alteração contratual de Ltda ou de EI: marca o que o cliente quer,
+     e quem cadastra define o ato. Cada pedido traz a lista do que pedir ao cliente — é o que evita
+     a ida e volta de "Aguardando cliente". [chave, rótulo, ato sugerido] */
+  const PEDIDOS=[["abrir","Abrir empresa","const"],["endereco","Mudar endereço","alt"],["socios","Entrada ou saída de sócio","alt"],
+    ["atividades","Mudar atividades","alt"],["capital","Mudar capital","alt"],["nome","Mudar o nome","alt"],
+    ["transformar","Mudar o tipo (MEI/EI ↔ Ltda)","transf_ei_ltda"],["fechar","Fechar a empresa","dist_ltda"],
+    ["advocacia","Sociedade de advocacia (OAB)","sia_const"],["outro","Outro / não sei",""]];
+  const DOCS={contrato:"Último contrato social ou alteração (do MEI, o CCMEI)",pessoas:"RG ou CNH, CPF e comprovante de residência de quem entra (sócio ou titular)",
+    endereco:"Comprovante do endereço novo da empresa",iptu:"Inscrição do imóvel (IPTU) do endereço da empresa",atividades:"O que a empresa vai fazer (atividades)",
+    capital:"Valor do capital e a parte de cada sócio",fechar:"Data do encerramento e quem guarda os livros",oab:"Carteira da OAB do titular"};
+  const DOCS_CURTO={contrato:"último contrato",pessoas:"documentos de quem entra",endereco:"comprovante do endereço",iptu:"IPTU",atividades:"atividades",
+    capital:"capital e partes",fechar:"dados do encerramento",oab:"carteira da OAB"};
+  const DOCS_PEDIDO={abrir:["pessoas","endereco","iptu","atividades","capital"],endereco:["contrato","endereco","iptu"],socios:["contrato","pessoas","capital"],
+    atividades:["contrato","atividades"],capital:["contrato","capital"],nome:["contrato"],transformar:["contrato","pessoas","capital"],
+    fechar:["contrato","fechar"],advocacia:["pessoas","oab","endereco","capital"],outro:["contrato"]};
+  // pedido lançado antes desta tela (só com o ato): a lista sai do tipo de ato
+  function _docsDoAto(t){ t=String(t||""); if(!t) return []; if(t.startsWith("sia")) return DOCS_PEDIDO.advocacia; if(/const$/.test(t)) return DOCS_PEDIDO.abrir;
+    if(t.startsWith("dist")) return DOCS_PEDIDO.fechar; if(/transf/.test(t)) return DOCS_PEDIDO.transformar; return ["contrato"]; }
+  function docsDaSolic(r){ const ks=(Array.isArray(r.pedidos)&&r.pedidos.length)?r.pedidos:null, out=[];
+    (ks?[].concat(...ks.map(k=>DOCS_PEDIDO[k]||[])):_docsDoAto(r.tipo)).forEach(d=>{ if(out.indexOf(d)<0) out.push(d); }); return out; }
+  function pedidosTexto(r){ return (r.pedidos||[]).map(k=>(PEDIDOS.find(p=>p[0]===k)||[])[1]).filter(Boolean).join(", "); }
+  // ato sugerido pelo pedido: só quando todos os pedidos apontam para o mesmo; senão fica "a definir"
+  function atoDoPedido(ks){ const a=[...new Set((ks||[]).map(k=>(PEDIDOS.find(p=>p[0]===k)||[])[2]||""))]; return (a.length===1)?a[0]:""; }
+
+  /* LINHA DO TEMPO. Cada mudança de situação fica registrada com a data — é o que deixa o comercial
+     responder "em que pé está?" sem perguntar a ninguém. Solicitação antiga, de antes do histórico,
+     usa as datas que já existiam (abertura, início, protocolo, exigência, finalização). */
+  function passoSolic(r,status){
+    const h=Array.isArray(r.historico)?r.historico.slice():[], ult=h[h.length-1];
+    if(ult && ult.status===status) return;
+    h.push({status,em:new Date().toISOString(),por:_quem(_meuEmail())}); r.historico=h.slice(-40);
+  }
+  const PASSOS=[["nova","Aberta"],["andamento","Em andamento"],["cliente","Aguardando cliente"],["protocolada","Protocolada"],["exigencia","Exigência"],["concluida","Finalizada"]];
+  function _linhaTempo(r){
+    const q={}; (Array.isArray(r.historico)?r.historico:[]).forEach(p=>{ q[p.status]=p.em; });
+    if(!q.nova&&r.criadoEm) q.nova=r.criadoEm; if(!q.andamento&&r.trabalhandoDesde) q.andamento=r.trabalhandoDesde;
+    if(!q.protocolada&&r.protocoladaEm) q.protocolada=r.protocoladaEm; if(!q.exigencia&&(r.exigencias||[]).length) q.exigencia=r.exigencias.slice(-1)[0].em;
+    if(r.status==="concluida"&&r.finalizadoEm) q.concluida=r.finalizadoEm; else delete q.concluida;   // reaberta: o "finalizada" antigo não vale
+    const fio=["nova","andamento","protocolada","concluida"];
+    const atual=fio.indexOf(r.status==="cliente"?"andamento":(r.status==="exigencia"?"protocolada":r.status));
+    // a linha principal sempre aparece; "aguardando cliente" e "exigência" só quando aconteceram
+    return '<ol class="sol-tempo" aria-label="Linha do tempo">'+PASSOS.filter(([k])=>fio.indexOf(k)>=0||q[k]||r.status===k).map(([k,rot])=>{
+      const feito=!!q[k] || (fio.indexOf(k)>=0 && fio.indexOf(k)<=atual);
+      return '<li class="'+(r.status===k?"atual":(feito?"feito":""))+(k==="exigencia"?" exig":"")+'"><span>'+escHtml(rot)+"</span>"
+        +(q[k]?"<small>"+escHtml(_dataBR(q[k]).slice(0,5))+"</small>":"")+"</li>"; }).join("")+"</ol>";
+  }
+
+  /* RECADO E RESPOSTA. O recado é de quem cadastra para o comercial (campo "pendência"); a resposta
+     volta pelo próprio cartão, com texto e anexo, sem passar pela edição da solicitação inteira.
+     Recado pendente = há recado e nenhuma resposta depois que ele foi escrito. */
+  function recadoPendente(r){
+    if(!(r.pendencia||"").trim()) return false;
+    const ult=(r.respostas||[]).slice(-1)[0]; if(!ult) return true;
+    return !!(r.pendenciaEm && Date.parse(ult.em)<Date.parse(r.pendenciaEm));
+  }
+  // o que espera ação do comercial: o cliente precisa mandar algo, ou há recado sem resposta
+  function precisaDoComercial(r){ return SOLIC_ABERTAS.indexOf(r.status)>=0 && (r.status==="cliente" || recadoPendente(r)); }
+  let _respAberta=null;
+  async function enviarResposta(id){
+    const box=document.querySelector('[data-resp-box="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]'); if(!box) return;
+    const txt=(box.querySelector("textarea").value||"").trim(), arqs=Array.from(box.querySelector("input[type=file]").files||[]);
+    const st=box.querySelector(".fldstat");
+    if(!txt && !arqs.length){ st.className="fldstat bad"; st.textContent="Escreva a resposta ou anexe o documento."; return; }
+    if(arqs.length && !(window.Nuvem&&window.Nuvem.podeGravar())){ st.className="fldstat bad"; st.textContent="Entre com o seu login para anexar arquivos."; return; }
+    const novos=[];
+    for(const f of arqs){
+      st.className="fldstat load"; st.textContent="Enviando “"+f.name+"”…";
+      const r=await window.Nuvem.enviarAnexo("solicitacoes",id,f); if(!r.ok){ st.className="fldstat bad"; st.textContent="Não foi possível anexar “"+f.name+"”: "+(r.msg||"falha"); return; }
+      novos.push(r.anexo);
+    }
+    const l=lerSolic(), r=l.find(x=>x.id===id); if(!r) return;
+    const agora=new Date().toISOString();
+    r.respostas=(r.respostas||[]).concat([{txt,em:agora,por:_quem(_meuEmail()),anexos:novos.map(a=>a.nome)}]).slice(-30);
+    if(novos.length) r.anexos=(r.anexos||[]).concat(novos);
+    r.respostaNova=true;
+    // o cliente mandou o que faltava: a bola volta para quem cadastra
+    if(r.status==="cliente"){ r.status="andamento"; passoSolic(r,"andamento"); }
+    r.alteradoEm=agora; salvarSolic(l);
+    if(window.Nuvem&&window.Nuvem.podeGravar()){
+      window.Nuvem.salvar("solicitacoes",r.id,{respostas:r.respostas,respostaNova:true,anexos:r.anexos||[],status:r.status,historico:r.historico||[],alteradoEm:r.alteradoEm});
+      window.Nuvem.trilha("solicitacao.resposta",r.id,"");
+    }
+    _respAberta=null; renderSolic(); toast("Resposta enviada ao cadastro.","ok");
+  }
+  // quem cadastra marca que viu a resposta (o contador dele para de contar)
+  function respostaVista(id){
+    const l=lerSolic(), r=l.find(x=>x.id===id); if(!r||!r.respostaNova) return;
+    r.respostaNova=false; r.alteradoEm=new Date().toISOString(); salvarSolic(l);
+    if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",r.id,{respostaNova:false,alteradoEm:r.alteradoEm});
+    renderSolic();
+  }
+
+  /* MENSAGEM AO CLIENTE: o texto pronto para a situação, sem jargão — o comercial só confere e manda. */
+  function msgCliente(r){
+    const nome=(r.contato||"").trim().split(/\s+/)[0], emp=r.empresa||"a empresa", orgao=String(r.tipo||"").startsWith("sia")?"OAB":"Junta Comercial";
+    const oi=(nome?"Olá, "+nome+"!":"Olá!")+" ";
+    const falta=docsDaSolic(r).filter(d=>(r.docsOk||[]).indexOf(d)<0).map(d=>"• "+DOCS[d]);
+    const ex={
+      nova:"Recebemos o pedido de "+emp+" e já vamos começar.",
+      andamento:"O processo de "+emp+" está em andamento aqui no escritório.",
+      cliente:"Para seguirmos com o processo de "+emp+", precisamos de"+((r.pendencia||"").trim()?": "+r.pendencia.trim():(falta.length?":\n"+falta.join("\n"):" algumas informações suas.")),
+      protocolada:"O processo de "+emp+" foi protocolado na "+orgao+(r.protocoladaEm?" em "+_dataBR(r.protocoladaEm):"")+". Assim que for aprovado, avisamos.",
+      exigencia:"A "+orgao+" pediu um ajuste no processo de "+emp+". Já estamos cuidando disso"+((r.pendencia||"").trim()?" e precisamos de: "+r.pendencia.trim():"")+".",
+      concluida:"O processo de "+emp+" foi concluído"+(r.finalizadoEm?" em "+_dataBR(r.finalizadoEm):"")+"."
+    };
+    return oi+(ex[r.status]||ex.andamento)+(((CFG&&CFG.escritorio)||"").trim()?"\n\n"+CFG.escritorio.trim():"");
+  }
+  function avisarCliente(id){
+    const r=lerSolic().find(x=>x.id===id); if(!r) return;
+    const fone=(r.fone||"").trim(), txt=msgCliente(r);
+    if(/@/.test(fone)) window.location.href="mailto:"+encodeURIComponent(fone)+"?subject="+encodeURIComponent("Andamento — "+(r.empresa||""))+"&body="+encodeURIComponent(txt);
+    else if(fone.replace(/\D/g,"").length>=10) window.open("https://wa.me/"+telInternacional(fone)+"?text="+encodeURIComponent(txt),"_blank","noopener");
+    else { copiar(txt,"Mensagem copiada — o cliente não tem telefone nem e-mail no pedido."); }
+  }
+
   // finalizada há pouco continua à vista de quem pediu: é como o comercial fica sabendo que acabou
   const DIAS_RECEM_FINALIZADA=7;
   function _recemFinalizada(r){
@@ -2713,9 +2829,26 @@ window.TINA=(function(){
      aparecia vazio para ele. Agora quem monta a lista é uma função própria, chamada dos dois
      caminhos: o botão e a entrada direta do comercial. */
   function montarTiposAto(){
+    const ped=$("sPedidos");
+    if(ped && !ped.children.length){
+      ped.innerHTML=PEDIDOS.map(([k,rot])=>'<label class="checkline"><input type="checkbox" value="'+k+'"> '+escHtml(rot)+"</label>").join("");
+      ped.addEventListener("change",()=>renderDocsForm());
+    }
     const sel=$("sTipo"); if(!sel || sel.options.length) return;
     const t=tiposAto();
-    sel.innerHTML=Object.keys(t).map(k=>'<option value="'+k+'">'+escHtml(t[k])+"</option>").join("");
+    sel.innerHTML='<option value="">A definir</option>'+Object.keys(t).map(k=>'<option value="'+k+'">'+escHtml(t[k])+"</option>").join("");
+    sel.addEventListener("change",()=>renderDocsForm());
+  }
+  function pedidosMarcados(){ return [...document.querySelectorAll("#sPedidos input:checked")].map(i=>i.value); }
+  let _docsOkForm=[];
+  // a lista do que pedir ao cliente acompanha o pedido marcado (ou o ato, para quem cadastra)
+  function renderDocsForm(){
+    const box=$("sDocs"), w=$("wrapDocs"); if(!box||!w) return;
+    box.querySelectorAll("input:checked").forEach(i=>{ if(_docsOkForm.indexOf(i.value)<0) _docsOkForm.push(i.value); });
+    box.querySelectorAll("input:not(:checked)").forEach(i=>{ _docsOkForm=_docsOkForm.filter(x=>x!==i.value); });
+    const docs=docsDaSolic({pedidos:pedidosMarcados(),tipo:($("sTipo")||{}).value||""});
+    w.style.display=docs.length?"":"none";
+    box.innerHTML=docs.map(d=>'<label class="checkline"><input type="checkbox" value="'+d+'"'+(_docsOkForm.indexOf(d)>=0?" checked":"")+"> "+escHtml(DOCS[d])+"</label>").join("");
   }
   // os campos do motivo só aparecem com a situação "Em exigência" (e nunca para o comercial, que não muda a situação)
   function mostrarExig(){
@@ -2780,7 +2913,8 @@ window.TINA=(function(){
     if($("sDup"))$("sDup").style.display="none";
     if($("sStatus"))$("sStatus").value="nova";
     if($("sExigTxt"))$("sExigTxt").value=""; mostrarExig();
-    if($("sTipo"))$("sTipo").value="alt";
+    if($("sTipo"))$("sTipo").value=_modoComercial?"":"alt";
+    document.querySelectorAll("#sPedidos input").forEach(i=>{ i.checked=false; }); _docsOkForm=[]; renderDocsForm();
     if($("solicStat"))$("solicStat").textContent="";
     mostrarFormSolic("Nova solicitação");
     // no celular o foco abriria o teclado por cima do formulário antes de a pessoa ver os campos
@@ -2806,12 +2940,23 @@ window.TINA=(function(){
     const _statusAntes=(_solicEditando&&_solicEditando.status)||"";
     // o id do registro é o mesmo que já nomeou a pasta dos anexos no Storage
     const reg=_solicEditando||{id:_idSolicAtual(),criadoEm:new Date().toISOString()};
-    reg.empresa=emp; reg.cnpj=($("sCnpj").value||"").trim(); reg.tipo=$("sTipo").value;
+    const pedidos=pedidosMarcados();
+    if(_modoComercial && !pedidos.length){ st.className="fldstat bad"; st.textContent="Marque o que o cliente quer."; return; }
+    reg.empresa=emp; reg.cnpj=($("sCnpj").value||"").trim();
+    reg.pedidos=pedidos;
+    // o comercial não escolhe o ato: na edição fica o que o cadastro definiu; no pedido novo, o sugerido (ou "a definir")
+    reg.tipo=_modoComercial ? ((_solicEditando&&_solicEditando.tipo)||atoDoPedido(pedidos)) : $("sTipo").value;
+    renderDocsForm(); reg.docsOk=_docsOkForm.slice();
     reg.prazo=pz; reg.responsavel=($("sResp").value||"").trim();
     reg.contato=($("sContato").value||"").trim(); reg.fone=($("sFone").value||"").trim();
     // o comercial não mexe na situação: nova ao abrir, e a que já estava ao editar
     reg.status=_modoComercial ? ((_solicEditando&&_solicEditando.status)||"nova") : $("sStatus").value;
-    reg.obs=($("sObs").value||"").trim(); reg.pendencia=($("sPend").value||"").trim();
+    reg.obs=($("sObs").value||"").trim();
+    { const pend=($("sPend").value||"").trim();
+      if(pend && pend!==(reg.pendencia||"")) reg.pendenciaEm=new Date().toISOString();   // recado novo: espera outra resposta
+      reg.pendencia=pend; }
+    if(_eraNova || reg.status!==_statusAntes) passoSolic(reg,reg.status);
+    if(!_modoComercial) reg.respostaNova=false;   // quem cadastra abriu e salvou: já viu a resposta
     if(reg.status==="exigencia" && !_modoComercial){
       const cat=($("sExigCat")||{}).value||"", txt=(($("sExigTxt")||{}).value||"").trim();
       const hist=Array.isArray(reg.exigencias)?reg.exigencias.slice():[], ult=hist[hist.length-1];
@@ -2863,7 +3008,10 @@ window.TINA=(function(){
     const r=lerSolic().find(x=>x.id===id); if(!r)return;
     descartarAnexosSoltos();
     _solicEditando=r; _solicNovoId=null; _anexosDoBanco=Array.isArray(r.anexos)?r.anexos.slice():[];
-    $("sEmpresa").value=r.empresa||""; $("sCnpj").value=r.cnpj||""; $("sTipo").value=r.tipo||"alt";
+    montarTiposAto();
+    $("sEmpresa").value=r.empresa||""; $("sCnpj").value=r.cnpj||""; $("sTipo").value=r.tipo||"";
+    document.querySelectorAll("#sPedidos input").forEach(i=>{ i.checked=(r.pedidos||[]).indexOf(i.value)>=0; });
+    _docsOkForm=(r.docsOk||[]).slice(); renderDocsForm();
     $("sPrazo").value=r.prazo||""; $("sResp").value=r.responsavel||""; $("sContato").value=r.contato||"";
     $("sFone").value=r.fone||""; $("sStatus").value=r.status||"nova"; $("sObs").value=r.obs||""; if($("sPend"))$("sPend").value=r.pendencia||"";
     mostrarExig();
@@ -2989,7 +3137,7 @@ window.TINA=(function(){
     const l=lerSolic(); const i=l.findIndex(x=>x.id===id); if(i<0)return;
     const r=l[i]; const eraNova=(r.status==="nova");
     if(eraNova || !r.trabalhandoPor){
-      if(eraNova) r.status="andamento";
+      if(eraNova){ r.status="andamento"; passoSolic(r,"andamento"); }
       r.trabalhandoPor=_meuEmail(); r.trabalhandoDesde=new Date().toISOString(); r.alteradoEm=new Date().toISOString();
       salvarSolic(l);
       if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",id,r);
@@ -3057,10 +3205,11 @@ window.TINA=(function(){
     r.status=para; r.alteradoEm=new Date().toISOString();
     if(!r.trabalhandoPor){ r.trabalhandoPor=_meuEmail(); r.trabalhandoDesde=r.alteradoEm; }
     if(para==="protocolada") r.protocoladaEm=r.alteradoEm;
+    passoSolic(r,para);
     salvarSolic(l);
     if(window.Nuvem&&window.Nuvem.podeGravar()){
       window.Nuvem.salvar("solicitacoes",r.id,{status:r.status,alteradoEm:r.alteradoEm,trabalhandoPor:r.trabalhandoPor,
-        trabalhandoDesde:r.trabalhandoDesde||"",protocoladaEm:r.protocoladaEm||""});
+        trabalhandoDesde:r.trabalhandoDesde||"",protocoladaEm:r.protocoladaEm||"",historico:r.historico||[]});
       window.Nuvem.trilha("solicitacao.status",r.id,antes+"→"+para);
     }
     renderSolic(); renderLigacao();
@@ -3115,8 +3264,8 @@ window.TINA=(function(){
   }
   function reprotocolar(id){
     const l=lerSolic(), r=l.find(x=>x.id===id); if(!r) return;
-    r.status="protocolada"; r.protocoladaEm=r.alteradoEm=new Date().toISOString(); salvarSolic(l);
-    if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.salvar("solicitacoes",r.id,{status:r.status,protocoladaEm:r.protocoladaEm,alteradoEm:r.alteradoEm});
+    r.status="protocolada"; r.protocoladaEm=r.alteradoEm=new Date().toISOString(); passoSolic(r,"protocolada"); salvarSolic(l);
+    if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.salvar("solicitacoes",r.id,{status:r.status,protocoladaEm:r.protocoladaEm,alteradoEm:r.alteradoEm,historico:r.historico||[]});
       window.Nuvem.trilha("solicitacao.status",r.id,"exigencia→protocolada"); }
     renderSolic(); toast("Protocolada de novo: "+(r.empresa||"solicitação")+".","ok");
   }
@@ -3141,6 +3290,10 @@ window.TINA=(function(){
   function aplicarModoComercial(ligar){
     if(_modoComercial===!!ligar) return;
     _modoComercial=!!ligar;
+    const cm=$("solicMinhas");
+    if(cm && !cm.dataset.ligado){ cm.dataset.ligado="1";
+      try{ cm.checked=localStorage.getItem("tinaSoMinhas")!=="0"; }catch(e){}
+      cm.addEventListener("change",()=>{ try{ localStorage.setItem("tinaSoMinhas",cm.checked?"1":"0"); }catch(e){} renderSolic(); }); }
     document.body.classList.toggle("so-solic",_modoComercial);
     if(_modoComercial){ montarTiposAto(); medirCabecalho(); const m=$("solicModal"); if(m) m.classList.add("open"); marcarNovas(0); }
     renderSolic();   // a lista muda com o modo: "Trabalhar" abre o gerador e some para o comercial
@@ -3159,6 +3312,7 @@ window.TINA=(function(){
     } else {
       r.status="andamento"; delete r.finalizadoEm; delete r.finalizadoPor;
     }
+    passoSolic(r,r.status);
     r.alteradoEm=new Date().toISOString();
     salvarSolic(l);
     if(window.Nuvem&&window.Nuvem.podeGravar()){
@@ -3175,9 +3329,10 @@ window.TINA=(function(){
     ["protocolada","Protocoladas"],["exigencia","Em exigência"],["concluida","Finalizadas"],["todas","Todas"]];
   function renderChipsSolic(tot,f){
     const box=$("solicChips"); if(!box) return;
-    const n={abertas:tot.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0).length};
+    const n={abertas:tot.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0).length, precisa:tot.filter(precisaDaTela).length};
     Object.keys(SOLIC_STATUS).forEach(k=>n[k]=tot.filter(x=>x.status===k).length);
-    box.innerHTML=SOLIC_FILTROS.filter(([k])=>k===f||k==="abertas"||k==="todas"||n[k]).map(([k,t])=>
+    // o filtro "Precisa de você" vem primeiro, e só existe quando há o que fazer
+    box.innerHTML=[["precisa",_modoComercial?"Precisa de você":"Respostas novas"]].concat(SOLIC_FILTROS).filter(([k])=>k===f||k==="abertas"||k==="todas"||n[k]).map(([k,t])=>
       '<button type="button" class="sol-chip'+(k===f?" ativa":"")+'" data-f="'+k+'" aria-pressed="'+(k===f)+'">'
       +t+(k==="todas"?"":"<b>"+n[k]+"</b>")+"</button>").join("");
   }
@@ -3201,47 +3356,83 @@ window.TINA=(function(){
     let links="";
     if(/@/.test(fone)) links='<a class="btn o mini" href="mailto:'+escHtml(fone)+'">✉ E-mail</a>';
     else if(fone.replace(/\D/g,"").length>=10){ const t=escHtml(telInternacional(fone));
-      links='<a class="btn o mini" href="https://wa.me/'+t+'" target="_blank" rel="noopener noreferrer">💬 WhatsApp</a>'
-        +'<a class="btn o mini" href="tel:+'+t+'">📞 Ligar</a>'; }
-    return '<div class="sol-contato"><span>👤 '+escHtml(nome||"Cliente")+(fone?" · "+escHtml(fone):"")+"</span>"+links+"</div>";
+      links='<a class="btn o mini ic" href="https://wa.me/'+t+'" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" title="WhatsApp">💬</a>'
+        +'<a class="btn o mini ic" href="tel:+'+t+'" aria-label="Ligar" title="Ligar">📞</a>'; }
+    // uma linha só: nome, telefone e os dois atalhos (antes eram dois botões grandes numa linha própria)
+    return '<div class="sol-contato"><span style="flex-basis:auto;flex:1;min-width:0">👤 '+escHtml(nome||"Cliente")+(fone?" · "+escHtml(fone):"")+"</span>"+links+"</div>";
+  }
+  // o que pede ação de quem está olhando: para o comercial, recado e cliente; para quem cadastra, resposta nova
+  function precisaDaTela(r){ return _modoComercial ? precisaDoComercial(r) : !!r.respostaNova; }
+  // "Só as minhas" (comercial): o que ele mesmo abriu. Sem login não há como saber quem é, e mostra tudo.
+  function _soMinhas(){ const c=$("solicMinhas"); return !!(_modoComercial && c && c.checked && _meuEmail()); }
+  function atualizarBadgeSolic(){
+    let n=_novasSolic;
+    if(_modoComercial){ const eu=_meuEmail(); n=lerSolic().filter(r=>precisaDoComercial(r) && (!eu || !r.abertaPor || r.abertaPor===eu)).length; }
+    else n+=lerSolic().filter(r=>r.respostaNova).length;
+    ["menuBadge","solicBadge"].forEach(id=>{ const b=$(id); if(b){ b.textContent=String(n); b.style.display=n?"":"none"; } });
   }
   function renderSolic(){
     statusNuvem(); renderLigacao();   // a situação pode ter mudado noutro computador
+    atualizarBadgeSolic();
+    if($("wrapMinhas")) $("wrapMinhas").style.display=_meuEmail()?"":"none";   // sem login não há "minhas"
     const box=$("solicLista"); if(!box)return;
-    const tot=lerSolic(); let l=tot;
+    let tot=lerSolic();
+    if(_soMinhas()){ const eu=_meuEmail(); tot=tot.filter(x=>!x.abertaPor || x.abertaPor===eu); }
+    let l=tot;
     const f=($("solicFiltro")||{}).value||"abertas";
     renderChipsSolic(tot,f);
     // "Em aberto" inclui as finalizadas há pouco: sem isso o comercial nunca via o desfecho,
     // porque o padrão da tela esconde tudo o que já foi concluído
     if(f==="abertas") l=l.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0 || _recemFinalizada(x));
+    else if(f==="precisa") l=l.filter(precisaDaTela);
     else if(f!=="todas") l=l.filter(x=>x.status===f);
+    // o que precisa de ação vem antes, com um separador; a ordem dentro de cada grupo continua a de sempre
+    const prec=l.filter(precisaDaTela), resto=l.filter(x=>!precisaDaTela(x));
+    const separar=f==="abertas" && prec.length && resto.length;
+    l=prec.concat(resto);
     const T=tiposAto();
     // a busca olha também o pedido, o contato e o recado: o comercial lembra do "caso da filial", não do CNPJ
     const q=(($("solicBusca")||{}).value||"").toLowerCase().trim();
-    if(q) l=l.filter(x=>[x.empresa,x.cnpj,x.responsavel,x.obs,x.contato,x.fone,x.pendencia,T[x.tipo]]
+    if(q) l=l.filter(x=>[x.empresa,x.cnpj,x.responsavel,x.obs,x.contato,x.fone,x.pendencia,T[x.tipo],pedidosTexto(x)]
       .map(v=>String(v||"")).join(" ").toLowerCase().includes(q));
     if(!l.length){
       box.innerHTML='<div class="sol-vazio">'+(q?"Nada encontrado para “"+escHtml(q)+"”."
         :f==="abertas"?"Nenhuma solicitação em aberto.<br>Para lançar, use “+ Nova solicitação”."
+        :f==="precisa"?"Nada esperando por você agora."
         :"Nenhuma solicitação nesta situação.")+"</div>";
       return;
     }
     const hoje=new Date(); hoje.setHours(0,0,0,0);
-    box.innerHTML=((f==="exigencia"||f==="todas")?resumoExigencias(tot):"")+l.map(r=>{
-      const pz=_prazoSolic(r,hoje), st=SOLIC_STATUS[r.status]?r.status:"nova";
-      return '<div class="sol st-'+st+'" data-sol-id="'+escHtml(r.id)+'">'
+    // conta e separa DEPOIS da busca: o separador não pode anunciar cartões que a busca escondeu
+    l=l.filter(precisaDaTela).concat(l.filter(x=>!precisaDaTela(x)));
+    const nPrec=l.filter(precisaDaTela).length, comSep=separar && nPrec>0 && nPrec<l.length;
+    box.innerHTML=((f==="exigencia"||f==="todas")?resumoExigencias(tot):"")+l.map((r,ix)=>{
+      const pz=_prazoSolic(r,hoje), st=SOLIC_STATUS[r.status]?r.status:"nova", precisa=precisaDaTela(r);
+      const sep=!comSep?"":(ix===0?'<div class="sol-sep precisa">'+(_modoComercial?"Precisa de você":"Respostas novas")+" ("+nPrec+")</div>":(ix===nPrec?'<div class="sol-sep">Acompanhando</div>':""));
+      const faltam=docsDaSolic(r).filter(d=>(r.docsOk||[]).indexOf(d)<0);
+      const resp=(r.respostas||[]).slice(-1)[0];
+      const podeEditar=!_modoComercial || r.status==="nova";   // depois que o trabalho começou, o comercial fala pela resposta
+      return sep+'<div class="sol st-'+st+(precisa?" precisa":"")+'" data-sol-id="'+escHtml(r.id)+'">'
         +'<div class="sol-cab"><div class="sol-emp">'+escHtml(r.empresa||"(sem empresa)")+"</div>"
         +'<span class="sol-st">'+escHtml(SOLIC_STATUS[r.status]||r.status||"")+"</span></div>"
-        +'<div class="sol-meta"><span>'+escHtml(T[r.tipo]||r.tipo||"")+"</span>"
+        +'<div class="sol-meta"><span>'+escHtml(T[r.tipo]||(r.tipo?r.tipo:"ato a definir"))+"</span>"
           +(r.cnpj?"<span>"+escHtml(r.cnpj)+"</span>":"")
           +(r.responsavel?"<span>resp. "+escHtml(r.responsavel)+"</span>":"")
           +(pz?'<span class="sol-prazo '+pz.cls+'">'+escHtml(pz.txt)+"</span>":"")+"</div>"
+        +((r.pedidos||[]).length?'<div class="sol-pedido"><b>Pedido:</b> '+escHtml(pedidosTexto(r))+"</div>":"")
+        +_linhaTempo(r)
         +(r.status==="concluida"?'<div class="selo-fim">✓ Finalizada'+(r.finalizadoEm?" em "+escHtml(_dataBR(r.finalizadoEm)):"")+(r.finalizadoPor?" por "+escHtml(r.finalizadoPor):"")+"</div>":"")
         +(r.status==="exigencia"?(function(){ const u=(r.exigencias||[]).slice(-1)[0]||{};
             return '<div class="sol-exig"><b>⚠ Exigência'+(u.em?" de "+escHtml(_dataBR(u.em)):"")+(u.cat?" — "+escHtml(u.cat):"")+"</b>"+(u.txt?": "+escHtml(u.txt):"")
               +((r.exigencias||[]).length>1?' <span class="hint">('+r.exigencias.length+"ª exigência deste pedido)</span>":"")+"</div>"; })():"")
         // o recado é o que o comercial tem de resolver: vem antes da descrição, em destaque
         +(r.pendencia?'<div class="sol-recado"><b>Recado:</b> '+escHtml(r.pendencia)+"</div>":"")
+        +(resp?'<div class="sol-resp'+(r.respostaNova?" nova":"")+'"><b>💬 '+escHtml(resp.por||"Comercial")+":</b> "+escHtml(resp.txt||"(anexo)")
+            +((resp.anexos||[]).length?' <span class="hint">📎 '+escHtml(resp.anexos.join(", "))+"</span>":"")
+            +' <span class="hint">'+escHtml(_dataBR(resp.em))+"</span>"
+            +((!_modoComercial&&r.respostaNova)?' <button type="button" class="btn s mini" data-sol-visto="'+escHtml(r.id)+'">✓ Visto</button>':"")+"</div>":"")
+        +((SOLIC_ABERTAS.indexOf(r.status)>=0 && faltam.length)?'<div class="sol-faltam">📋 Falta: '+escHtml(faltam.map(d=>DOCS_CURTO[d]).join(", "))+"</div>"
+          :((SOLIC_ABERTAS.indexOf(r.status)>=0 && docsDaSolic(r).length && (r.docsOk||[]).length)?'<div class="sol-faltam ok">✓ Documentos completos</div>':""))
         +(r.obs?'<div class="sol-desc" title="Toque para ver tudo">'+escHtml(r.obs)+"</div>":"")
         // o anexo aparece na própria lista: quem vai cadastrar abre o áudio ou a foto sem entrar em modo de edição
         +((r.anexos||[]).length?'<div class="sol-anexos">'+r.anexos.map((a,ai)=>
@@ -3254,9 +3445,13 @@ window.TINA=(function(){
         +((r.abertaPor||r.trabalhandoPor||r.atoId)?'<div class="sol-rodape">'+[
             r.abertaPor?"aberta por "+escHtml(_quem(r.abertaPor))+(r.criadoEm?" em "+escHtml(_dataBR(r.criadoEm)):""):"",
             r.trabalhandoPor?"em andamento com "+escHtml(_quem(r.trabalhandoPor))+(r.trabalhandoDesde?" desde "+escHtml(_dataBR(r.trabalhandoDesde)):""):"",
-            r.atoId?"ato #"+escHtml(r.atoId):"",
-            (r.protocoladaEm&&r.status==="protocolada")?"protocolada em "+escHtml(_dataBR(r.protocoladaEm)):""
+            r.atoId?"ato #"+escHtml(r.atoId):""
           ].filter(Boolean).join(" · ")+"</div>":"")
+        // responder ao recado (ou mandar recado ao cadastro) sem abrir a edição inteira
+        +(_respAberta===r.id?'<div class="sol-responder" data-resp-box="'+escHtml(r.id)+'"><textarea placeholder="'+(recadoPendente(r)?"Responda ao recado — ex.: o cliente mandou o comprovante (em anexo)":"Mensagem para quem está cadastrando")+'"></textarea>'
+            +'<input type="file" multiple style="display:none"><div class="bar"><button type="button" class="btn o mini" data-resp-anexar>📎 Anexar</button>'
+            +'<button type="button" class="btn p mini" data-resp-enviar="'+escHtml(r.id)+'">Enviar</button><button type="button" class="btn s mini" data-resp-cancelar>Cancelar</button>'
+            +'<span class="fldstat"></span></div></div>':"")
         +'<div class="sol-acoes">'
         // "Trabalhar" abre o gerador de atos — para quem só lança solicitação, é botão que não leva a lugar nenhum
         +(_modoComercial?"":'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'" title="Marca o processo como em andamento para o comercial acompanhar. Não preenche o formulário: os dados do ato vêm do cartão CNPJ ou do contrato.">Trabalhar</button>')
@@ -3265,8 +3460,10 @@ window.TINA=(function(){
         // finalizar é ato de quem faz o cadastro; o comercial acompanha, não encerra
         +((!_modoComercial && r.status!=="concluida")?'<button class="btn ok mini" data-sol-fim="'+escHtml(r.id)+'" title="Marcar o processo como finalizado — quem abriu a solicitação passa a ver">✓ Finalizar</button>':"")
         +((!_modoComercial && r.status==="concluida")?'<button class="btn o mini" data-sol-reabrir="'+escHtml(r.id)+'" title="Voltar para “Em andamento”">↺ Reabrir</button>':"")
-        +'<button class="btn o mini" data-sol-editar="'+escHtml(r.id)+'">✎ Editar</button>'
-        +'<button class="btn o mini" data-sol-avisar="'+escHtml(r.id)+'" title="Manda a solicitação pronta por WhatsApp ou e-mail">'+(_modoComercial?"📣 Avisar cadastro":"📣 Avisar")+"</button>"
+        +((_modoComercial && SOLIC_ABERTAS.indexOf(r.status)>=0 && _respAberta!==r.id)?'<button class="btn '+(recadoPendente(r)?"p":"o")+' mini" data-sol-resp="'+escHtml(r.id)+'">💬 '+(recadoPendente(r)?"Responder":"Mensagem ao cadastro")+"</button>":"")
+        +(podeEditar?'<button class="btn o mini" data-sol-editar="'+escHtml(r.id)+'">✎ Editar</button>':"")
+        +((r.status!=="nova" && (r.fone||"").trim())?'<button class="btn o mini" data-sol-cliente="'+escHtml(r.id)+'" title="Abre o WhatsApp (ou o e-mail) do cliente com a mensagem desta situação pronta">📲 Avisar cliente</button>':"")
+        +((_modoComercial && r.status==="concluida")?"":'<button class="btn o mini" data-sol-avisar="'+escHtml(r.id)+'" title="Manda a solicitação pronta por WhatsApp ou e-mail">'+(_modoComercial?"📣 Avisar cadastro":"📣 Avisar")+"</button>")
         // o comercial só exclui o que ele mesmo abriu e ainda está "nova"; em andamento é trabalho de outro
         +((_modoComercial && !(r.status==="nova" && (!r.abertaPor || r.abertaPor===_meuEmail())))?"":'<button class="btn del mini sol-x" data-sol-excluir="'+escHtml(r.id)+'">Excluir</button>')
         +"</div></div>";
@@ -3276,6 +3473,17 @@ window.TINA=(function(){
     box.querySelectorAll("[data-sol-reproto]").forEach(b=>b.addEventListener("click",()=>reprotocolar(b.dataset.solReproto)));
     box.querySelectorAll("[data-sol-ler]").forEach(b=>b.addEventListener("click",()=>lerAnexoSolic(b.dataset.solLer,Number(b.dataset.anexo))));
     box.querySelectorAll("[data-sol-editar]").forEach(b=>b.addEventListener("click",()=>editarSolic(b.dataset.solEditar)));
+    box.querySelectorAll("[data-sol-resp]").forEach(b=>b.addEventListener("click",()=>{ _respAberta=b.dataset.solResp; renderSolic();
+      const t=document.querySelector('[data-resp-box] textarea'); if(t) t.focus(); }));
+    box.querySelectorAll("[data-resp-box]").forEach(rb=>{
+      const inp=rb.querySelector("input[type=file]"), st=rb.querySelector(".fldstat");
+      rb.querySelector("[data-resp-anexar]").addEventListener("click",()=>inp.click());
+      inp.addEventListener("change",()=>{ st.className="fldstat"; st.textContent=inp.files.length?("📎 "+[...inp.files].map(f=>f.name).join(", ")):""; });
+      rb.querySelector("[data-resp-enviar]").addEventListener("click",()=>enviarResposta(rb.dataset.respBox));
+      rb.querySelector("[data-resp-cancelar]").addEventListener("click",()=>{ _respAberta=null; renderSolic(); });
+    });
+    box.querySelectorAll("[data-sol-visto]").forEach(b=>b.addEventListener("click",()=>respostaVista(b.dataset.solVisto)));
+    box.querySelectorAll("[data-sol-cliente]").forEach(b=>b.addEventListener("click",()=>avisarCliente(b.dataset.solCliente)));
     box.querySelectorAll("[data-sol-avisar]").forEach(b=>b.addEventListener("click",()=>avisarSolic(b.dataset.solAvisar)));
     box.querySelectorAll("[data-sol-excluir]").forEach(b=>b.addEventListener("click",()=>excluirSolic(b.dataset.solExcluir)));
     box.querySelectorAll("[data-sol-fim]").forEach(b=>b.addEventListener("click",()=>finalizarSolic(b.dataset.solFim,true)));
@@ -3418,8 +3626,7 @@ window.TINA=(function(){
   let _pararAviso=null, _novasSolic=0;
   function marcarNovas(n){
     _novasSolic=Math.max(0,n);
-    [["menuBadge"],["solicBadge"]].forEach(([id])=>{ const b=$(id); if(!b)return;
-      b.textContent=String(_novasSolic); b.style.display=_novasSolic?"":"none"; });
+    atualizarBadgeSolic();
   }
   /* Espelho ao vivo das solicitações. Antes só a CRIAÇÃO chegava (ouvirNovos), e por isso o
      comercial nunca via o desfecho: quem faz o cadastro finalizava e do outro lado a tela
@@ -3429,7 +3636,8 @@ window.TINA=(function(){
   function ligarAvisoSolic(){
     if(_pararAviso||!(window.Nuvem&&window.Nuvem.ouvirColecao&&window.Nuvem.podeGravar())) return;
     _pararAviso=window.Nuvem.ouvirColecao("solicitacoes",(mudancas)=>{
-      let l=lerSolic(); let mudou=false, novas=0; const finalizadas=[];
+      let l=lerSolic(); let mudou=false, novas=0; const finalizadas=[], avisos=[];
+      const eu=_meuEmail(), meu=r=>!eu || !r.abertaPor || r.abertaPor===eu;
       mudancas.forEach(({saiu,item})=>{
         if(saiu){ if(l.some(x=>x.id===item.id)){ l=l.filter(x=>x.id!==item.id); mudou=true; } return; }
         const i=l.findIndex(x=>x.id===item.id);
@@ -3438,7 +3646,15 @@ window.TINA=(function(){
         else if(_maisNovo(item.alteradoEm,antes.alteradoEm)){
           const virouFim = item.status==="concluida" && antes.status!=="concluida";
           l[i]=item; mudou=true;
-          if(virouFim) finalizadas.push(item);
+          /* O comercial ficava sabendo só da finalização. Agora: toda mudança de situação do que ele
+             pediu, e o recado novo. Quem cadastra fica sabendo da resposta do comercial. */
+          if(_modoComercial && meu(item)){
+            if(item.status!==antes.status) avisos.push([(item.empresa||"Solicitação").slice(0,40)+": "+(SOLIC_STATUS[item.status]||item.status)
+              +(item.status==="cliente"&&item.pendencia?" — "+item.pendencia.slice(0,80):""), item.status==="concluida"?"ok":"info"]);
+            else if((item.pendencia||"")!==(antes.pendencia||"") && item.pendencia) avisos.push(["Recado em "+(item.empresa||"solicitação").slice(0,40)+": "+item.pendencia.slice(0,80),"info"]);
+          } else if(!_modoComercial && (item.respostas||[]).length>(antes.respostas||[]).length)
+            avisos.push(["💬 Resposta do comercial — "+(item.empresa||"solicitação").slice(0,40),"info"]);
+          if(virouFim && !_modoComercial) finalizadas.push(item);
         }
       });
       if(!mudou) return;
@@ -3446,6 +3662,8 @@ window.TINA=(function(){
       salvarSolic(l);
       if(novas){ marcarNovas(_novasSolic+novas); toast(novas===1?"Nova solicitação recebida.":(novas+" solicitações novas."),"info"); }
       finalizadas.forEach(r=>toast("✓ Finalizada: "+((r.empresa||"solicitação").slice(0,40))+(r.finalizadoPor?" — por "+r.finalizadoPor:""),"ok"));
+      avisos.forEach(([t,tipo])=>toast(t,tipo,6000));
+      atualizarBadgeSolic();
       if(document.getElementById("solicModal").classList.contains("open")) renderSolic();
     });
   }
@@ -3454,17 +3672,21 @@ window.TINA=(function(){
      credencial — coisa que não pode viver no navegador. O que dá para fazer com honestidade é
      deixar a mensagem pronta a um clique, no botão "Avisar" de cada solicitação. */
   function textoAviso(s){
-    const T=tiposAto();
-    return "Nova solicitação: "+(s.empresa||"")+(s.cnpj?" ("+s.cnpj+")":"")
-      +"\nAto: "+(T[s.tipo]||s.tipo||"")+(s.prazo?"\nPrazo: "+s.prazo:"")
-      +(s.responsavel?"\nResponsável: "+s.responsavel:"")+(s.obs?"\nObs.: "+s.obs:"");
+    const T=tiposAto(), ult=(s.respostas||[]).slice(-1)[0];
+    // só o pedido que acabou de nascer é "nova"; nos demais o título diz em que pé está
+    const cab=(s.status==="nova"||!s.status)?"Nova solicitação":("Solicitação — "+(SOLIC_STATUS[s.status]||s.status));
+    return cab+": "+(s.empresa||"")+(s.cnpj?" ("+s.cnpj+")":"")
+      +((s.pedidos||[]).length?"\nPedido: "+pedidosTexto(s):"")
+      +"\nAto: "+(T[s.tipo]||s.tipo||"a definir")+(s.prazo?"\nPrazo: "+s.prazo:"")
+      +(s.responsavel?"\nResponsável: "+s.responsavel:"")+(s.obs?"\nObs.: "+s.obs:"")
+      +(s.pendencia?"\nRecado: "+s.pendencia:"")+(ult?"\nResposta do comercial: "+(ult.txt||"(anexo)"):"");
   }
   function avisarSolic(id){
     const s=lerSolic().find(x=>x.id===id); if(!s)return;
     const fone=((CFG&&CFG.avisoWhats)||"").trim(), mail=((CFG&&CFG.avisoEmail)||"").trim();
     const txt=textoAviso(s);
     if(fone) window.open("https://wa.me/"+telInternacional(fone)+"?text="+encodeURIComponent(txt),"_blank","noopener");
-    else if(mail) window.location.href="mailto:"+encodeURIComponent(mail)+"?subject="+encodeURIComponent("Nova solicitação — "+(s.empresa||""))+"&body="+encodeURIComponent(txt);
+    else if(mail) window.location.href="mailto:"+encodeURIComponent(mail)+"?subject="+encodeURIComponent(txt.split(":")[0]+" — "+(s.empresa||""))+"&body="+encodeURIComponent(txt);
     else { abrirConfig(); toast("Informe o WhatsApp ou o e-mail de aviso em Configurações.","warn"); }
   }
   function idSolicitacao(d){const dp=(d.atoData||hojeBR()).split("/"); const ymd=dp.length===3?(dp[2]+String(dp[1]).padStart(2,"0")+String(dp[0]).padStart(2,"0")):"00000000";
@@ -6325,7 +6547,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();

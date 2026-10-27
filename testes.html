@@ -1523,7 +1523,7 @@
       reg("Comercial não vê o menu de atos", W.getComputedStyle(D.querySelector(".head-nav")).display==="none");
       reg("A tela de solicitações abre sozinha e não fecha", $("solicModal").classList.contains("open")
         && W.getComputedStyle($("btnSolicClose")).display==="none");
-      W.TINA._ux.novaSolic(); val("sEmpresa","OUTRA EXEMPLO"); $("btnSolicSalvar").click(); await espera(400);
+      W.TINA._ux.novaSolic(); val("sEmpresa","OUTRA EXEMPLO"); D.querySelector('#sPedidos input[value="outro"]').click(); $("btnSolicSalvar").click(); await espera(400);
       reg("Para o comercial não aparece “Trabalhar” (abriria o gerador)", !/Trabalhar/.test($("solicLista").innerHTML));
       W.TINA._ux.aplicarModoComercial(false); await espera(250);
       reg("Fora do modo comercial o sistema volta inteiro",
@@ -1609,6 +1609,7 @@
       $("btnSolicNova").click(); await espera(220);
       reg("Comercial não vê Situação nem Recado no formulário", W.getComputedStyle($("wrapStatus")).display==="none" && W.getComputedStyle($("wrapPend")).display==="none");
       val("sEmpresa","PADARIA EXEMPLO LTDA"); val("sCnpj","12.345.678/0001-95"); val("sObs","Abrir filial.");
+      D.querySelector('#sPedidos input[value="endereco"]').click();
       $("sStatus").value="concluida";   // mesmo que alguém force pelo DOM, o comercial não muda a situação
       $("btnSolicSalvar").click(); await espera(450);
       var a1=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
@@ -1618,7 +1619,7 @@
 
       // segunda solicitação com o MESMO CNPJ: aviso, sem bloqueio
       $("btnSolicNova").click(); await espera(220);
-      val("sEmpresa","PADARIA EXEMPLO LTDA"); val("sCnpj","12.345.678/0001-95"); await espera(120);
+      val("sEmpresa","PADARIA EXEMPLO LTDA"); val("sCnpj","12.345.678/0001-95"); D.querySelector('#sPedidos input[value="outro"]').click(); await espera(120);
       reg("CNPJ repetido: aviso aparece ao digitar", W.getComputedStyle($("sDup")).display!=="none" && /em aberto para este CNPJ/.test($("sDup").textContent));
       $("btnSolicSalvar").click(); await espera(450);
       reg("…mas não bloqueia: a segunda é salva", JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").length===2);
@@ -1640,14 +1641,64 @@
       W.TINA._ux.aplicarModoComercial(true); await espera(300);
       reg("Comercial vê o recado no cartão", /Recado: Falta o comprovante/.test($("solicLista").innerText));
       reg("Comercial não tem Excluir na solicitação em andamento", !D.querySelector('[data-sol-excluir="'+a1.id+'"]'));
-      var b3=D.querySelector('[data-sol-editar="'+a1.id+'"]'); if(b3) b3.click(); await espera(250);
-      val("sObs","Abrir filial. Cliente confirmou o endereço."); $("btnSolicSalvar").click(); await espera(450);
+      // com o trabalho começado, o comercial fala pela resposta (sem abrir a edição inteira)
+      reg("Comercial não edita a solicitação em andamento", !D.querySelector('[data-sol-editar="'+a1.id+'"]'));
+      var b3=D.querySelector('[data-sol-resp="'+a1.id+'"]'); if(b3) b3.click(); await espera(200);
+      var rb=D.querySelector('[data-resp-box="'+a1.id+'"]');
+      if(rb){ rb.querySelector("textarea").value="Cliente confirmou o endereço."; rb.querySelector("[data-resp-enviar]").click(); await espera(400); }
       var a3=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").find(function(x){return x.id===a1.id;})||{};
-      reg("Edição do comercial mantém a situação e o recado", a3.status==="andamento" && /comprovante/.test(a3.pendencia||""), a3.status);
+      reg("Resposta do comercial mantém a situação e o recado", a3.status==="andamento" && /comprovante/.test(a3.pendencia||"") && (a3.respostas||[]).length===1 && a3.respostaNova===true, a3.status);
       W.TINA._ux.aplicarModoComercial(false); await espera(200);
       W.Nuvem.estado=estB;
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de recado e permissões",false,String(e&&e.message||e).slice(0,130)); }
+
+    /* ---------- 6b4c2. Tela do comercial: o que precisa dele, resposta, pedido, documentos e mensagens ---------- */
+    grupo("Solicitações — tela do comercial");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      // espera o sistema terminar de abrir: a abertura decide o papel e desligaria o modo comercial ligado antes
+      try{ await ate(function(){ var b=D.getElementById("bootLoad"); return !b || b.classList.contains("pronto"); },8000); }catch(e){}
+      try{ await ate(function(){ return !!W.Nuvem.estado().verificado; },8000); }catch(e){}
+      await espera(500);
+      var U=W.TINA._ux, dd=function(n){ return new Date(Date.now()-n*86400000).toISOString(); };
+      var solC=function(id){ return JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").filter(function(x){ return x.id===id; })[0]||{}; };
+      W.localStorage.setItem("tinaSolic",JSON.stringify([
+        {id:"SC1",empresa:"ACOMPANHA MODELO LTDA",tipo:"alt",pedidos:["endereco","socios"],docsOk:["contrato"],status:"andamento",fone:"(79) 99999-0000",contato:"João",criadoEm:dd(3),alteradoEm:dd(2),historico:[{status:"nova",em:dd(3)},{status:"andamento",em:dd(2)}]},
+        {id:"SC2",empresa:"PRECISA MODELO LTDA",tipo:"const",status:"cliente",pendencia:"Falta o comprovante de endereço",pendenciaEm:dd(1),fone:"(79) 98888-0000",contato:"Ana",criadoEm:dd(5),alteradoEm:dd(1),historico:[{status:"nova",em:dd(5)},{status:"cliente",em:dd(1)}]},
+        {id:"SC3",empresa:"FIM MODELO LTDA",tipo:"alt",status:"concluida",finalizadoEm:dd(2),criadoEm:dd(9),alteradoEm:dd(2)}]));
+      U.aplicarModoComercial(true); U.renderSolic(); await espera(200);
+      reg("“Precisa de você” vem primeiro, com separador", D.querySelector("#solicLista .sol").dataset.solId==="SC2" && /precisa de você \(1\)/i.test($("solicLista").innerText));
+      reg("O contador do menu conta o que precisa do comercial", $("solicBadge").textContent==="1" && $("solicBadge").style.display!=="none");
+      reg("Filtro “Precisa de você” com contagem", /Precisa de você\s*1/.test($("solicChips").innerText));
+      reg("Linha do tempo no cartão, com as datas", /Aberta/.test(D.querySelector('[data-sol-id="SC1"] .sol-tempo').innerText) && D.querySelectorAll('[data-sol-id="SC1"] .sol-tempo li.feito').length>=1);
+      reg("Cartão diz o pedido e o que falta pedir ao cliente", /Pedido: Mudar endereço, Entrada ou saída de sócio/.test(D.querySelector('[data-sol-id="SC1"]').innerText) && /Falta: .*documentos de quem entra/.test(D.querySelector('[data-sol-id="SC1"] .sol-faltam').innerText) && !/último contrato/.test(D.querySelector('[data-sol-id="SC1"] .sol-faltam').innerText));
+      reg("Finalizada não tem Editar nem Avisar cadastro para o comercial", !D.querySelector('[data-sol-editar="SC3"]') && !D.querySelector('[data-sol-avisar="SC3"]'));
+      D.querySelector('[data-sol-resp="SC2"]').click(); await espera(150);
+      var rbC=D.querySelector('[data-resp-box="SC2"]'); rbC.querySelector("textarea").value="Comprovante enviado pelo cliente."; rbC.querySelector("[data-resp-enviar]").click(); await espera(400);
+      var c2=solC("SC2");
+      reg("Responder tira de “Aguardando cliente” e registra no histórico", c2.status==="andamento" && (c2.respostas||[]).length===1 && /andamento$/.test((c2.historico||[]).map(function(h){return h.status;}).join(">")));
+      reg("Respondido, sai do “Precisa de você”", !U.precisaDoComercial(c2) && $("solicBadge").style.display==="none");
+      reg("Mensagem ao cliente fala a língua do cliente", /protocolado na Junta Comercial em/.test(U.msgCliente({status:"protocolada",empresa:"X",contato:"Ana Souza",protocoladaEm:dd(1)})) && /^Olá, Ana!/.test(U.msgCliente({status:"protocolada",empresa:"X",contato:"Ana Souza"})));
+      reg("“Avisar cadastro” diz a situação real (não “Nova solicitação”)", /^Solicitação — Finalizada: FIM MODELO/.test(U.textoAviso(solC("SC3"))) && /^Nova solicitação/.test(U.textoAviso({status:"nova",empresa:"Y"})));
+      // formulário do comercial: pedido na língua do cliente, sem o campo técnico, com a lista de documentos
+      $("btnSolicNova").click(); await espera(200);
+      reg("Comercial não vê o campo técnico “Ato”", $("sTipo").offsetParent===null && D.querySelectorAll("#sPedidos input").length>=8);
+      val("sEmpresa","NOVO PEDIDO MODELO"); $("btnSolicSalvar").click(); await espera(150);
+      reg("Sem marcar o pedido, não salva", /Marque o que o cliente quer/.test($("solicStat").textContent));
+      D.querySelector('#sPedidos input[value="endereco"]').click(); await espera(80);
+      reg("Marcar o pedido mostra o que pedir ao cliente", D.querySelectorAll("#sDocs input").length===3);
+      D.querySelector('#sDocs input[value="contrato"]').click(); $("btnSolicSalvar").click(); await espera(400);
+      var nv=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]").filter(function(x){ return x.empresa==="NOVO PEDIDO MODELO"; })[0]||{};
+      reg("Pedido salvo com o ato sugerido e o documento recebido", nv.tipo==="alt" && (nv.pedidos||[]).join()==="endereco" && (nv.docsOk||[]).join()==="contrato" && (nv.historico||[])[0].status==="nova");
+      // quem cadastra: a resposta nova aparece primeiro e o "Visto" zera o contador
+      U.aplicarModoComercial(false); $("solicModal").classList.add("open"); U.renderSolic(); await espera(150);
+      reg("Para quem cadastra, a resposta nova vem primeiro e conta no menu", D.querySelector("#solicLista .sol").dataset.solId==="SC2" && $("solicBadge").textContent==="1");
+      D.querySelector('[data-sol-visto="SC2"]').click(); await espera(150);
+      reg("“Visto” zera o contador de respostas", $("solicBadge").style.display==="none" && solC("SC2").respostaNova===false);
+      $("solicModal").classList.remove("open");
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+    }catch(e){ reg("Bateria da tela do comercial",false,String(e&&e.message||e).slice(0,130)); }
 
     /* ---------- 6b4d. Solicitações no celular: formulário em tela cheia, filtros, contato ---------- */
     grupo("Solicitações — tela do celular");

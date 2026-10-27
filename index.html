@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.51" />
+<meta name="versao" content="1.52" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,7 +18,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="assets/icone-512.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icone-192.png" />
 <title>Atos Societários — Totali Soluções Contábeis</title>
-<link rel="stylesheet" href="css/app.css?v=1.51">
+<link rel="stylesheet" href="css/app.css?v=1.52">
 </head>
 <body>
 <!-- Tela de carregamento: as bibliotecas (docx, pdf.js, OCR) levam um instante e, sem sinal nenhum,
@@ -827,6 +827,7 @@
           <option value="andamento">Em andamento</option><option value="cliente">Aguardando cliente</option>
           <option value="protocolada">Protocoladas</option><option value="exigencia">Em exigência</option><option value="concluida">Finalizadas</option>
           <option value="todas">Todas</option></select>
+        <label class="checkline so-comercial" id="wrapMinhas"><input type="checkbox" id="solicMinhas" checked> Só as minhas</label>
         <span class="hint" id="solicNuvem"></span>
       </div>
       <div id="solicForm" style="display:none">
@@ -836,7 +837,10 @@
           <div><label for="sCnpj">CNPJ <span class="hint">— se tiver; o nome vem sozinho</span></label><input type="text" id="sCnpj" placeholder="00.000.000/0001-00" maxlength="18" inputmode="numeric" autocomplete="off"><div class="fldstat warn" id="sDup" style="display:none"></div></div>
           <div style="grid-column:span 2"><label for="sEmpresa">Empresa</label><input type="text" id="sEmpresa" autocomplete="off" autocapitalize="characters"></div>
         </div>
-        <div class="row"><label for="sTipo">Ato</label><select id="sTipo"></select></div>
+        <!-- o comercial descreve o pedido como o cliente fala; o ato (o nome técnico) quem cadastra define -->
+        <div class="row" id="wrapPedidos"><label>O que o cliente quer <span class="hint">— marque tudo o que ele pediu</span></label><div class="sol-pedidos" id="sPedidos"></div></div>
+        <div class="row" id="wrapTipo"><label for="sTipo">Ato</label><select id="sTipo"></select></div>
+        <div class="row" id="wrapDocs" style="display:none"><label>Peça ao cliente <span class="hint">— marque o que já chegou; o arquivo pode ir nos anexos logo abaixo</span></label><div class="sol-docs" id="sDocs"></div></div>
         <div class="row"><label for="sObs">Descrição <span class="hint">— o que o cliente pediu, com as suas palavras</span></label>
           <textarea id="sObs" rows="4" placeholder="Ex.: trocar o endereço da sede e incluir a filha como sócia com 20%. O cliente mandou o comprovante de endereço no anexo."></textarea></div>
         <!-- Anexo: o comercial recebe print, áudio e foto de documento pelo WhatsApp o dia inteiro.
@@ -1092,19 +1096,19 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.51"></script>
-<script defer src="js/nuvem.js?v=1.51"></script>
-<script defer src="js/integracao.js?v=1.51"></script>
-<script defer src="js/modelos-coop.js?v=1.51"></script>
-<script defer src="js/gerador-coop.js?v=1.51"></script>
-<script defer src="js/modelos-sa.js?v=1.51"></script>
-<script defer src="js/gerador-sa.js?v=1.51"></script>
-<script defer src="js/gerador-sia.js?v=1.51"></script>
+<script defer src="js/nuvem-config.js?v=1.52"></script>
+<script defer src="js/nuvem.js?v=1.52"></script>
+<script defer src="js/integracao.js?v=1.52"></script>
+<script defer src="js/modelos-coop.js?v=1.52"></script>
+<script defer src="js/gerador-coop.js?v=1.52"></script>
+<script defer src="js/modelos-sa.js?v=1.52"></script>
+<script defer src="js/gerador-sa.js?v=1.52"></script>
+<script defer src="js/gerador-sia.js?v=1.52"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
-<script src="js/erros.js?v=1.51"></script>
-<script src="js/app.js?v=1.51"></script>
+<script src="js/erros.js?v=1.52"></script>
+<script src="js/app.js?v=1.52"></script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
 <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 <div id="draftBanner">
