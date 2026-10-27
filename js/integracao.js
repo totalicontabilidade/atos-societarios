@@ -200,7 +200,7 @@ window.Integracao = (function () {
   var TIPOS = { alt: "Alteração contratual", abe: "Abertura", bai: "Baixa",
                 tra: "Transformação", out: "Outro" };
   var STATUS = { nova: "Nova", andamento: "Em andamento", cliente: "Aguardando cliente",
-                 protocolada: "Protocolada", concluida: "Finalizada" };
+                 protocolada: "Protocolada", exigencia: "Em exigência", concluida: "Finalizada" };
 
   /* DD/MM/AAAA vira aaaa-mm-dd. Sem expressão regular: a barra
      invertida some em edição automática e o separador deixa de ser
@@ -222,7 +222,11 @@ window.Integracao = (function () {
       empresa:     reg.empresa || "",
       cnpj:        reg.cnpj || "",
       tipo:        reg.tipo || "",
-      tipoNome:    TIPOS[reg.tipo] || "",
+      /* O nome do tipo vem PRONTO de quem chama (o sistema conhece os
+         seus atos; esta tabela de cinco códigos só sobra para quem não
+         mandar). E o pedido, na língua do cliente, quando houver. */
+      tipoNome:    reg.tipoNome || TIPOS[reg.tipo] || "",
+      pedido:      reg.pedidoTexto || "",
       prazo:       dataISO(reg.prazo),
       responsavel: reg.responsavel || "",
       contato:     reg.contato || "",

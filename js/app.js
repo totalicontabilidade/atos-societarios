@@ -2821,7 +2821,7 @@ window.TINA=(function(){
   const SOLIC_ABERTAS=["nova","andamento","cliente","protocolada","exigencia"];
   let _solicEditando=null;
   let _solicLigada=null;   // a solicitação de onde veio o ato na tela (ver "Solicitação ligada ao ato")
-  function lerSolic(){ try{ const a=JSON.parse(localStorage.getItem("tinaSolic")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+  function lerSolic(){ try{ const a=JSON.parse(localStorage.getItem("tinaSolic")||"[]"); return Array.isArray(a)?a.filter(x=>!_ehRegistroReservado(x)):[]; }catch(e){ return []; } }
   function salvarSolic(l){ try{ localStorage.setItem("tinaSolic",JSON.stringify(l)); return true; }catch(e){ return false; } }
   function tiposAto(){ const t={alt:"Alteração Contratual (Ltda)",ei_alt:"Alteração de Empresário Individual"}; Object.keys(ATO_EMAIL).forEach(k=>t[k]=ATO_EMAIL[k]); return t; }
   /* A lista de atos ficava presa em abrirSolic(), que só roda quando alguém clica no botão
@@ -2983,14 +2983,11 @@ window.TINA=(function(){
     /* AVISO PARA FORA. Sai depois de o registro estar guardado
        aqui: avisar primeiro e falhar na gravação deixaria o outro
        sistema sabendo de algo que não existe. */
-    if(window.Integracao&&Integracao.ligada()){
-      const _evento=_eraNova ? "solicitacao.criada"
-                   : (reg.status==="concluida"&&_statusAntes!=="concluida" ? "solicitacao.finalizada" : "");
-      // o formulário fecha ao salvar: recado escrito nele ninguém lê, por isso vai por toast
-      if(_evento) Integracao.avisar(_evento,reg).then(function(r){
-        if(!r.ok) toast("Salvo aqui. O aviso para o outro sistema n\u00e3o saiu e ficou guardado para tentar de novo.","warn",6000);
-      });
-    }
+    { const _evento=_eraNova ? "solicitacao.criada"
+                   : (reg.status==="concluida"&&_statusAntes!=="concluida" ? "solicitacao.finalizada"
+                   : (_statusAntes==="concluida"&&reg.status!=="concluida" ? "solicitacao.reaberta" : ""));
+      // o formulário fecha ao salvar: recado escrito nele ninguém lê, por isso o aviso de falha vai por toast
+      if(_evento) avisarIntegracao(_evento,reg); }
     if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",reg.id,reg).then(r=>{
       if(st) st.textContent = r.ok ? "Salvo aqui e na nuvem." : "Salvo aqui (nuvem: "+(r.msg||"indisponível")+").";
       if(!r.ok) toast("Salvo só neste aparelho — a nuvem não respondeu ("+(r.msg||"indisponível")+"). Tenta de novo sozinho.","warn",6000);
@@ -3119,6 +3116,7 @@ window.TINA=(function(){
     const n=(r.anexos||[]).length;
     if(!confirm("Excluir a solicitação de "+(r.empresa||"(sem empresa)")+"?"+(n?"\n\nOs "+n+" anexo(s) também serão apagados.":"")))return;
     salvarSolic(lerSolic().filter(x=>x.id!==id));
+    avisarIntegracao("solicitacao.excluida",r);   // a pendência do outro lado não pode ficar aberta para sempre
     if(window.Nuvem&&window.Nuvem.podeGravar()){
       // a lápide substitui o registro e leva junto a lista de anexos; o arquivo em si tem de sair à mão
       (r.anexos||[]).forEach(a=>{ if(a.caminho) window.Nuvem.excluirAnexo(a.caminho); });
@@ -3320,6 +3318,7 @@ window.TINA=(function(){
       window.Nuvem.salvar("solicitacoes",r.id,r,{substituir:true});
       window.Nuvem.trilha(fim?"solicitacao.finalizar":"solicitacao.reabrir",r.id,r.empresa?"":"");
     }
+    avisarIntegracao(fim?"solicitacao.finalizada":"solicitacao.reaberta",r);
     renderSolic();
     toast(fim?("✓ Finalizada: "+(r.empresa||"solicitação")):("↺ Reaberta: "+(r.empresa||"solicitação")),"ok");
   }
@@ -3498,6 +3497,8 @@ window.TINA=(function(){
     if(!(window.Nuvem&&window.Nuvem.podeGravar())) return Promise.resolve();
     return window.Nuvem.listar("solicitacoes",{limite:500}).then(r=>{
       if(!r.ok) return;
+      const cfg=r.itens.find(x=>x.id===ID_CFG_INTEGRA); if(cfg) aplicarIntegraNuvem(cfg);
+      r.itens=r.itens.filter(x=>!_ehRegistroReservado(x));
       let local=lerSolic(); const remoto={}; r.itens.forEach(x=>remoto[x.id]=x);
       let mudou=false;
       r.itens.forEach(rem=>{
@@ -3639,6 +3640,7 @@ window.TINA=(function(){
       let l=lerSolic(); let mudou=false, novas=0; const finalizadas=[], avisos=[];
       const eu=_meuEmail(), meu=r=>!eu || !r.abertaPor || r.abertaPor===eu;
       mudancas.forEach(({saiu,item})=>{
+        if(_ehRegistroReservado(item)){ if(!saiu && item.id===ID_CFG_INTEGRA) aplicarIntegraNuvem(item); return; }
         if(saiu){ if(l.some(x=>x.id===item.id)){ l=l.filter(x=>x.id!==item.id); mudou=true; } return; }
         const i=l.findIndex(x=>x.id===item.id);
         const antes=i>=0?l[i]:null;
@@ -3671,6 +3673,33 @@ window.TINA=(function(){
   /* Aviso fora do sistema. Enviar e-mail ou WhatsApp SOZINHO exigiria um servidor guardando
      credencial — coisa que não pode viver no navegador. O que dá para fazer com honestidade é
      deixar a mensagem pronta a um clique, no botão "Avisar" de cada solicitação. */
+  /* AVISO PARA FORA (integração). Um ponto só, chamado de todo lugar em que a solicitação nasce,
+     termina, volta ou some: antes só o salvar do formulário avisava, e o botão "Finalizar" — o
+     caminho de todo dia — deixava a pendência aberta do outro lado para sempre. Vai com o nome do
+     ato e o pedido prontos, que o outro sistema não tem como saber. */
+  function avisarIntegracao(evento,reg,calado){
+    if(!(window.Integracao&&Integracao.ligada()) || !reg) return Promise.resolve({ok:true,desligada:true});
+    const T=tiposAto();
+    const pac=Object.assign({},reg,{tipoNome:T[reg.tipo]||pedidosTexto(reg)||"Solicitação",pedidoTexto:pedidosTexto(reg)});
+    return Integracao.avisar(evento,pac).then(function(r){
+      if(!r.ok && !calado) toast("Salvo aqui. O aviso para o outro sistema n\u00e3o saiu e ficou guardado para tentar de novo.","warn",6000);
+      return r;
+    });
+  }
+  /* A CONFIGURAÇÃO DA INTEGRAÇÃO MORA NA NUVEM. Antes ficava só no navegador de quem configurou:
+     solicitação aberta noutro computador, ou pelo celular do comercial, não avisava ninguém — e
+     nada na tela dizia isso. Agora o administrador salva uma vez e todo navegador da equipe passa a
+     avisar. Fica num registro reservado da própria coleção de solicitações (não há regra nova a
+     publicar no Firebase), que as listas ignoram. */
+  const ID_CFG_INTEGRA="__integracao";
+  function _ehRegistroReservado(x){ return !!(x&&String(x.id||"").indexOf("__")===0); }   // declaração: lerSolic() roda antes desta linha
+  function aplicarIntegraNuvem(doc){
+    if(!doc||doc.excluido||!window.Integracao) return;
+    const atual=Integracao.config(), url=String(doc.url||""), seg=String(doc.segredo||"");
+    if(atual.url===url && (atual.segredo||"")===seg) return;
+    Integracao.salvarConfig({url,segredo:seg});
+    if(url) Integracao.tentarFila();
+  }
   function textoAviso(s){
     const T=tiposAto(), ult=(s.respostas||[]).slice(-1)[0];
     // só o pedido que acabou de nascer é "nova"; nos demais o título diz em que pé está
@@ -5790,8 +5819,20 @@ window.TINA=(function(){
        de uma integração não deve andar junto com o logotipo. */
     if(window.Integracao&&$("cfgIntegraUrl")){
       Integracao.salvarConfig({url:($("cfgIntegraUrl").value||"").trim(),
-                               segredo:($("cfgIntegraSegredo").value||"").trim()});}
+                               segredo:($("cfgIntegraSegredo").value||"").trim()});
+      salvarIntegraNuvem();}
     $("cfgStat").style.color="var(--ok)";$("cfgStat").textContent="✓ Salvo.";toast("Configurações salvas.","ok");}
+  /* Só o administrador grava a integração para a equipe (a tela de quem não é admin avisa). Com a
+     integração ligada, o que ficou preso na fila deste navegador tenta sair na hora. */
+  function salvarIntegraNuvem(){
+    if(!window.Integracao) return;
+    const c=Integracao.config(), est=(window.Nuvem&&window.Nuvem.estado())||{}, st=$("cfgIntegraNuvem");
+    if(!(window.Nuvem&&window.Nuvem.podeGravar())){ if(st) st.textContent="Sem login: vale só para este navegador."; return; }
+    if(!est.admin){ if(st) st.textContent="Só o administrador grava a integração para a equipe — aqui vale só para este navegador."; return; }
+    window.Nuvem.salvar("solicitacoes",ID_CFG_INTEGRA,{url:c.url||"",segredo:c.segredo||"",registroReservado:true,alteradoEm:new Date().toISOString()})
+      .then(r=>{ if(st) st.textContent=r.ok?"✓ Gravado na nuvem: vale para toda a equipe.":"Não gravou na nuvem ("+(r.msg||"falha")+")."; });
+    if(c.url) Integracao.tentarFila();
+  }
   function resetConfig(){CFG=cfgDefault();salvarCfg(CFG);aplicarCfg();abrirConfig();toast("Configurações restauradas ao padrão.","info");}
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */

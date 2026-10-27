@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.52" />
+<meta name="versao" content="1.53" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,7 +18,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="assets/icone-512.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icone-192.png" />
 <title>Atos Societários — Totali Soluções Contábeis</title>
-<link rel="stylesheet" href="css/app.css?v=1.52">
+<link rel="stylesheet" href="css/app.css?v=1.53">
 </head>
 <body>
 <!-- Tela de carregamento: as bibliotecas (docx, pdf.js, OCR) levam um instante e, sem sinal nenhum,
@@ -967,6 +967,7 @@
           <button type="button" class="btn" id="btnIntegraTestar">Testar agora</button>
           <button type="button" class="btn ghost" id="btnIntegraAbrir">Abrir o endereço</button>
           <span class="fldstat" id="cfgIntegraStat"></span>
+          <div class="hint" id="cfgIntegraNuvem" style="margin-top:4px"></div>
         </div>
         <div class="hint" style="margin-top:8px">
           Aviso que não sai — rede fora, endereço errado — fica guardado e é tentado de novo
@@ -1096,19 +1097,19 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.52"></script>
-<script defer src="js/nuvem.js?v=1.52"></script>
-<script defer src="js/integracao.js?v=1.52"></script>
-<script defer src="js/modelos-coop.js?v=1.52"></script>
-<script defer src="js/gerador-coop.js?v=1.52"></script>
-<script defer src="js/modelos-sa.js?v=1.52"></script>
-<script defer src="js/gerador-sa.js?v=1.52"></script>
-<script defer src="js/gerador-sia.js?v=1.52"></script>
+<script defer src="js/nuvem-config.js?v=1.53"></script>
+<script defer src="js/nuvem.js?v=1.53"></script>
+<script defer src="js/integracao.js?v=1.53"></script>
+<script defer src="js/modelos-coop.js?v=1.53"></script>
+<script defer src="js/gerador-coop.js?v=1.53"></script>
+<script defer src="js/modelos-sa.js?v=1.53"></script>
+<script defer src="js/gerador-sa.js?v=1.53"></script>
+<script defer src="js/gerador-sia.js?v=1.53"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
-<script src="js/erros.js?v=1.52"></script>
-<script src="js/app.js?v=1.52"></script>
+<script src="js/erros.js?v=1.53"></script>
+<script src="js/app.js?v=1.53"></script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
 <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 <div id="draftBanner">

@@ -1700,6 +1700,45 @@
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria da tela do comercial",false,String(e&&e.message||e).slice(0,130)); }
 
+    /* ---------- 6b4c3. Integração (aviso para outro sistema, ex.: o Hub) ---------- */
+    grupo("Solicitações — integração");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      try{ W.localStorage.removeItem("tinaSolic"); W.localStorage.removeItem("tinaIntegra"); W.localStorage.removeItem("tinaIntegraFila"); }catch(e){}
+      // o envio de verdade é trocado por um gravador: nada sai daqui
+      var enviados=[]; var avOrig=W.Integracao.avisar;
+      W.Integracao.avisar=function(ev,reg){ enviados.push({ev:ev,reg:reg}); return Promise.resolve({ok:true}); };
+      W.Integracao.salvarConfig({url:"https://exemplo.invalid/exec",segredo:"x"});
+      var evs=function(){ return enviados.map(function(e){ return e.ev; }).join(","); };
+      $("btnSolic").click(); await espera(250);
+      $("btnSolicNova").click(); await espera(200);
+      val("sEmpresa","INTEGRA MODELO LTDA"); $("sTipo").value="const";
+      D.querySelector('#sPedidos input[value="abrir"]').click();
+      $("btnSolicSalvar").click(); await espera(350);
+      var si=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
+      reg("Criar avisa “solicitacao.criada”, com o nome do ato e o pedido", evs()==="solicitacao.criada" && enviados[0].reg.tipoNome==="Constituição de Sociedade Limitada" && enviados[0].reg.pedidoTexto==="Abrir empresa", evs()+" · "+(enviados[0]&&enviados[0].reg.tipoNome));
+      D.querySelector('[data-sol-fim="'+si.id+'"]').click(); await espera(250);
+      reg("O botão Finalizar avisa “solicitacao.finalizada”", /solicitacao\.finalizada$/.test(evs()), evs());
+      D.querySelector('[data-sol-reabrir="'+si.id+'"]').click(); await espera(250);
+      reg("Reabrir avisa “solicitacao.reaberta”", /solicitacao\.reaberta$/.test(evs()), evs());
+      D.querySelector('[data-sol-excluir="'+si.id+'"]').click(); await espera(250);
+      reg("Excluir avisa “solicitacao.excluida”", /solicitacao\.excluida$/.test(evs()), evs());
+      // a configuração que vem da nuvem vale neste navegador, e o registro reservado não aparece na lista
+      W.Integracao.salvarConfig({});
+      var cfgNuvem={id:"__integracao",url:"https://exemplo.invalid/novo",segredo:"s2",registroReservado:true,alteradoEm:new Date().toISOString()};
+      W.localStorage.setItem("tinaSolic",JSON.stringify([cfgNuvem,{id:"SI9",empresa:"VISIVEL MODELO",status:"nova",criadoEm:new Date().toISOString(),alteradoEm:new Date().toISOString()}]));
+      W.TINA._ux.renderSolic(); await espera(100);
+      reg("Registro reservado da configuração não vira cartão", !D.querySelector('[data-sol-id="__integracao"]') && !!D.querySelector('[data-sol-id="SI9"]'));
+      W.Nuvem.podeGravar=function(){ return true; };
+      W.Nuvem.listar=function(){ return Promise.resolve({ok:true,itens:[cfgNuvem]}); };
+      W.Nuvem.salvar=function(){ return Promise.resolve({ok:true}); };
+      await W.TINA._ux.sincronizarSolic(); await espera(100);
+      reg("Configuração gravada na nuvem passa a valer neste navegador", W.Integracao.config().url==="https://exemplo.invalid/novo" && W.Integracao.config().segredo==="s2");
+      W.Integracao.avisar=avOrig; W.Integracao.salvarConfig({});
+      try{ W.localStorage.removeItem("tinaSolic"); W.localStorage.removeItem("tinaIntegra"); W.localStorage.removeItem("tinaIntegraFila"); }catch(e){}
+      $("solicModal").classList.remove("open");
+    }catch(e){ reg("Bateria da integração",false,String(e&&e.message||e).slice(0,130)); }
+
     /* ---------- 6b4d. Solicitações no celular: formulário em tela cheia, filtros, contato ---------- */
     grupo("Solicitações — tela do celular");
     try{
@@ -2672,7 +2711,8 @@
       modo("alt"); await espera(150); W.TINA.limpar(); await espera(1100); await ate(function(){ return D.querySelectorAll("#secoesIdx .sec").length>3; },5000);
       reg("Índice lista as seções visíveis da alteração", D.querySelectorAll("#secoesIdx .sec").length>=6, D.querySelectorAll("#secoesIdx .sec").length+" seções");
       reg("Formulário vazio: seções com ⚠", D.querySelectorAll("#secoesIdx .sec.pend").length>=4);
-      $("btnExemplo").click(); await espera(1100);
+      // espera o índice refletir o exemplo (com a janela escondida o relógio da página anda devagar)
+      $("btnExemplo").click(); try{ await ate(function(){ return D.querySelectorAll("#secoesIdx .sec.pend").length<=1; },8000); }catch(e){}
       var pendS=[].map.call(D.querySelectorAll("#secoesIdx .sec.pend"),function(b){ return b.textContent; });
       reg("Exemplo preenchido: só sobra o que falta de verdade", pendS.length<=1, pendS.join(", "));
       var perg=false; W.confirm=function(){ perg=true; return false; }; var razaoAntes=$("razao").value; $("btnExemplo").click(); semDialogos(W);
