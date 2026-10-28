@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.53" />
+<meta name="versao" content="1.54" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,7 +18,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="assets/icone-512.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icone-192.png" />
 <title>Atos Societários — Totali Soluções Contábeis</title>
-<link rel="stylesheet" href="css/app.css?v=1.53">
+<link rel="stylesheet" href="css/app.css?v=1.54">
 </head>
 <body>
 <!-- Tela de carregamento: as bibliotecas (docx, pdf.js, OCR) levam um instante e, sem sinal nenhum,
@@ -531,6 +531,7 @@
         <label class="checkline naotransf"><input type="checkbox" id="alt_nome"> Nome empresarial</label>
         <label class="checkline naosia"><input type="checkbox" id="alt_fantasia"> Nome fantasia</label>
         <label class="checkline"><input type="checkbox" id="alt_sede"> Sede / endereço</label>
+        <label class="checkline naosia"><input type="checkbox" id="alt_filiais"> Filiais <span class="hint">(endereço, abertura ou encerramento)</span></label>
         <label class="checkline"><input type="checkbox" id="alt_objeto"> Objeto social</label>
         <label class="checkline"><input type="checkbox" id="alt_capital"> Capital social</label>
         <label class="checkline ltdaonly naotransf"><input type="checkbox" id="alt_quadro"> Quadro societário</label>
@@ -602,6 +603,7 @@
         <tr><td>Razão social</td><td><code>razão social para NOVA RAZÃO SOCIAL</code></td></tr>
         <tr><td>Nome fantasia</td><td><code>fantasia para NOVO FANTASIA</code></td></tr>
         <tr><td>Endereço / sede</td><td><code>endereço para Rua X, 100, Bairro, Cidade/UF, 49000-000</code></td></tr>
+        <tr><td>Endereço de filial</td><td><code>endereço da filial de Lagarto para Rua X, 100, Centro, Lagarto/SE, 49400-000</code> <span class="hint">(aponte a filial pelo município, pela rua, pelo CNPJ ou pela ordem — <code>filial 2</code>. Também: <code>transferir a filial de Lagarto para …</code>. O endereço atual vai para "Endereço anterior" do cartão da filial e entra na cláusula de transferência; "Filiais" fica marcado em "O que muda")</span></td></tr>
         <tr><td>Trocar todo o objeto</td><td><code>objeto para: atividade 1; atividade 2; atividade 3</code> <span class="hint">(substitui tudo — tudo depois dos ":" vira a lista)</span></td></tr>
         <tr><td>Trocar todas as atividades</td><td><code>excluir todas as atividades; incluir atividades: atividade 1; atividade 2; atividade 3</code> <span class="hint">(limpa as atuais e insere a lista)</span></td></tr>
         <tr><td>Limpar as atividades</td><td><code>excluir todas as atividades</code></td></tr>
@@ -1097,19 +1099,19 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.53"></script>
-<script defer src="js/nuvem.js?v=1.53"></script>
-<script defer src="js/integracao.js?v=1.53"></script>
-<script defer src="js/modelos-coop.js?v=1.53"></script>
-<script defer src="js/gerador-coop.js?v=1.53"></script>
-<script defer src="js/modelos-sa.js?v=1.53"></script>
-<script defer src="js/gerador-sa.js?v=1.53"></script>
-<script defer src="js/gerador-sia.js?v=1.53"></script>
+<script defer src="js/nuvem-config.js?v=1.54"></script>
+<script defer src="js/nuvem.js?v=1.54"></script>
+<script defer src="js/integracao.js?v=1.54"></script>
+<script defer src="js/modelos-coop.js?v=1.54"></script>
+<script defer src="js/gerador-coop.js?v=1.54"></script>
+<script defer src="js/modelos-sa.js?v=1.54"></script>
+<script defer src="js/gerador-sa.js?v=1.54"></script>
+<script defer src="js/gerador-sia.js?v=1.54"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
-<script src="js/erros.js?v=1.53"></script>
-<script src="js/app.js?v=1.53"></script>
+<script src="js/erros.js?v=1.54"></script>
+<script src="js/app.js?v=1.54"></script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
 <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 <div id="draftBanner">

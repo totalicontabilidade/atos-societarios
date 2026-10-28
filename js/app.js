@@ -345,7 +345,7 @@ window.TINA=(function(){
   const semQuotasPorSocio=(m)=>{m=m||_m(); return ehFormEI(m)||m.startsWith("dist");};                      // não exibe quotas/capital por sócio
   const umComponenteSo=(m)=>{m=m||_m(); return ehFormEI(m)||m==="transf_ei_slu";};                          // um único componente (inclui SLU)
 
-  const ORD_PARAG=["Parágrafo primeiro. ","Parágrafo segundo. ","Parágrafo terceiro. ","Parágrafo quarto. ","Parágrafo quinto. ","Parágrafo sexto. "];
+  const ORD_PARAG=["Parágrafo primeiro. ","Parágrafo segundo. ","Parágrafo terceiro. ","Parágrafo quarto. ","Parágrafo quinto. ","Parágrafo sexto. ","Parágrafo sétimo. ","Parágrafo oitavo. ","Parágrafo nono. ","Parágrafo décimo. "];   // 10: sociedade com sete filiais já saiu com "Parágrafo VII." no meio dos ordinais
   // Numeração das cláusulas: array indexado que NUNCA devolve undefined — um "CLÁUSULA undefined"
   // num ato protocolado seria erro grave, e o nº de cláusulas cresce com as opcionais/filiais.
   const ROMANOS=(function(){
@@ -375,6 +375,9 @@ window.TINA=(function(){
       </div>
       <div class="grid g2 row">
         <div class="altonly" style="display:none"><label>CNPJ da filial <span class="hint">(só em alteração de filial já existente)</span></label><input type="text" data-g="cnpj" value="${escHtml(data.cnpj||'')}" placeholder="00.000.000/0002-00"></div>
+        <div class="altonly" style="display:none"><label>Endereço anterior <span class="hint">(só se esta filial muda de endereço neste ato — vai na cláusula)</span></label><input type="text" data-g="anterior" value="${escHtml(data.anterior||'')}" placeholder="Rua X, nº 10, Bairro, Cidade - UF, CEP: 00000-000"></div>
+      </div>
+      <div class="grid g2 row">
         <div style="display:flex;align-items:flex-end"><button class="btn del mini" type="button" data-rem>× Remover filial</button></div>
       </div>
       <div class="fldstat" data-g="cepstat"></div>`;
@@ -477,7 +480,7 @@ window.TINA=(function(){
 
   function coletar(){const socios=readSocios(),cap=Number($("capital").value)||0,vq=Number($("valorQuota").value)||0;
     const v=(id)=>{const e=$(id);return e?(e.value||"").trim():"";};
-    const CHG=new Set();["nome","fantasia","sede","objeto","capital","quadro","enquadramento","cessao","foro"].forEach(k=>{const e=$("alt_"+k);if(e&&e.checked)CHG.add(k);});
+    const CHG=new Set();["nome","fantasia","sede","filiais","objeto","capital","quadro","enquadramento","cessao","foro"].forEach(k=>{const e=$("alt_"+k);if(e&&e.checked)CHG.add(k);});
     // objeto e texto livre passam pela normalização aqui: mesmo digitado à mão, nenhum documento
     // sai com "não especificadas anteriormente" nem com código CNAE quando a opção está desligada
     return{razao:v("razao"),fantasia:v("fantasia"),enquadramento:$("enquadramento").value,foro:v("foro"),
@@ -525,6 +528,20 @@ window.TINA=(function(){
 
   function endLinha(e){let s="";if(e.log)s+=e.log;if(e.num)s+=", nº "+e.num;if(e.comp)s+=", "+e.comp;if(e.bairro)s+=", "+e.bairro;
     if(e.mun)s+=", "+e.mun;if(e.uf)s+=" - "+e.uf;if(e.cep)s+=", CEP: "+e.cep;return s;}
+  /* Deliberação sobre filiais na alteração. A filial com "endereço anterior" preenchido é a que
+     muda de endereço neste ato (é o que o comando "endereço da filial X para …" preenche):
+     cada uma vira uma cláusula de transferência, com o CNPJ quando houver. Sem nenhuma marcada,
+     a cláusula redefine a lista inteira (abertura/encerramento feitos à mão no formulário). */
+  function textoDelibFiliais(d,quem,isRetifica){
+    const fl=d.filiais||[], mov=fl.filter(f=>(f.anterior||"").trim());
+    if(mov.length) return mov.map(f=>quem+" "+(isRetifica?"retificar o endereço da filial":"transferir a filial")
+      +(f.cnpj?" inscrita no CNPJ sob o nº "+f.cnpj:"")+", situada na "+f.anterior.trim().replace(/[.;\s]+$/,"")
+      +", que"+(isRetifica?", corrigido o erro material,":"")+" passa a localizar-se na "+endLinha(f)+".");
+    if(!fl.length) return [quem+" extinguir as filiais da sociedade, que passa a exercer suas atividades somente na sede."];
+    return [quem+" "+(isRetifica?"retificar":"alterar")+" os estabelecimentos filiais, que passam a ser os seguintes: "
+      +fl.map((f,i)=>String.fromCharCode(97+i)+") "+endLinha(f)+(f.cnpj?", CNPJ "+f.cnpj:"")).join("; ")+"."];
+  }
+  const temaDelibFiliais=(d)=>(d.filiais||[]).some(f=>(f.anterior||"").trim())?" de endereço de filial":" das filiais";
   function gsex(s,masc,fem){return (s&&s.sexo==='F')?fem:masc;}
   function qualificacao(s){const g=(m,f)=>gsex(s,m,f);
     // endereço vazio precisa virar marcador visível: sem isto a qualificação saía "residente e
@@ -635,6 +652,10 @@ window.TINA=(function(){
        demais ficam no presente. Consolidado inteiro no presente é RECUSADO. Já tentei uniformizar
        no presente (parecia mais coerente) e está errado: não uniformizar de novo. */
     const fut=(k)=>isTransf?false:(isAlt?CH.has(k):true);
+    // filial que muda neste ato vai ao futuro; as demais seguem a cláusula da sede (quando nenhuma
+    // está marcada e "Filiais" foi assinalado, a lista inteira mudou e vai toda ao futuro)
+    const _temFilialMovida=(d.filiais||[]).some(f=>(f.anterior||"").trim());
+    const futFilial=(f)=>fut("sede")||(fut("filiais")&&(!_temFilialMovida||!!((f&&f.anterior)||"").trim()));
     const space=()=>new Paragraph({spacing:{after:120,line:240,lineRule:AUTO}});
     const resolvem=(pluralSig?"Os sócios resolvem":gSoleSig("O sócio resolve","A sócia resolve"));   // quem delibera é quem assina
     const ordExt=["Primeira","Segunda","Terceira","Quarta","Quinta","Sexta","Sétima","Oitava","Nona","Décima","Décima Primeira","Décima Segunda","Décima Terceira"];
@@ -663,6 +684,7 @@ window.TINA=(function(){
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolvem+" "+av+" o nome empresarial da sociedade, "+pass+" "+razaoUP+" LTDA.");
       if(CH.has("fantasia")) delib((isRetifica?"Da retificação do":"Do")+" título do estabelecimento",d.fantasia?(resolvem+" "+(isRetifica?("retificar o título de estabelecimento (nome fantasia), "+pass+" "+fantUP):("adotar como título de estabelecimento (nome fantasia) a expressão "+fantUP))+"."):(resolvem+" suprimir o nome fantasia da sociedade."));
       if(CH.has("sede")) delib(tmud+" da sede",resolvem+" "+(isRetifica?"retificar a sede da sociedade, que, corrigido o erro material, passa a localizar-se na":"transferir a sede da sociedade, que passa a localizar-se na")+" "+endLinha(d.sede)+".");
+      if(CH.has("filiais")) textoDelibFiliais(d,resolvem,isRetifica).forEach(t=>delib(tmud+temaDelibFiliais(d),t));
       if(CH.has("objeto")) delib(tmud+" do objeto social",resolvem+" "+av+" o objeto social, "+pass+" o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
       if(CH.has("capital")){
         // com o capital anterior informado, segue a redação do modelo JUCESE ("que era de … passa a ser de …")
@@ -805,10 +827,10 @@ window.TINA=(function(){
     // DAS FILIAIS (art. 1.000 do CC) — só quando houver; cada filial vira um parágrafo, como no modelo JUCESE
     if(d.filiais&&d.filiais.length){
       abre("DAS FILIAIS");
-      pushC(corpo("Sem prejuízo da possibilidade de abrir ou fechar filial, ou qualquer dependência, mediante alteração contratual, na forma da lei, a sociedade "+(fut("sede")?"atuará":"atua")+" também no(s) seguinte(s) estabelecimento(s):"));
+      pushC(corpo("Sem prejuízo da possibilidade de abrir ou fechar filial, ou qualquer dependência, mediante alteração contratual, na forma da lei, a sociedade "+((fut("sede")||fut("filiais"))?"atuará":"atua")+" também no(s) seguinte(s) estabelecimento(s):"));
       d.filiais.forEach((f,i)=>{
         const at=(f.objeto||"").trim()||d.objeto||"[ATIVIDADES]";
-        pushC(paragN("Em estabelecimento eleito como Filial situado na "+endLinha(f)+(f.cnpj?", inscrita no CNPJ sob o nº "+f.cnpj:"")+", no qual "+(fut("sede")?"serão exercidas":"são exercidas")+" as atividades de "+at+"."
+        pushC(paragN("Em estabelecimento eleito como Filial situado na "+endLinha(f)+(f.cnpj?", inscrita no CNPJ sob o nº "+f.cnpj:"")+", no qual "+(futFilial(f)?"serão exercidas":"são exercidas")+" as atividades de "+at+"."
           +(Number(f.capital)>0?" O destaque do capital para esta filial é de "+reais(Number(f.capital))+" ("+extensoReais(Number(f.capital))+").":""), ORD_PARAG[i]||("Parágrafo "+ROMANOS[i]+". ")));
       });
     }
@@ -1013,6 +1035,10 @@ window.TINA=(function(){
        demais ficam no presente. Consolidado inteiro no presente é RECUSADO. Já tentei uniformizar
        no presente (parecia mais coerente) e está errado: não uniformizar de novo. */
     const fut=(k)=>isTransf?false:(isAlt?CH.has(k):true);
+    // filial que muda neste ato vai ao futuro; as demais seguem a cláusula da sede (quando nenhuma
+    // está marcada e "Filiais" foi assinalado, a lista inteira mudou e vai toda ao futuro)
+    const _temFilialMovida=(d.filiais||[]).some(f=>(f.anterior||"").trim());
+    const futFilial=(f)=>fut("sede")||(fut("filiais")&&(!_temFilialMovida||!!((f&&f.anterior)||"").trim()));
     const space=()=>new Paragraph({spacing:{after:120,line:240,lineRule:AUTO}});
     const roman=ROMANOS; let ri=0; const nx=()=>roman[ri++];
     const ordExt=["Primeira","Segunda","Terceira","Quarta","Quinta","Sexta","Sétima","Oitava","Nona","Décima"];
@@ -1030,6 +1056,7 @@ window.TINA=(function(){
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolve+" "+av+" o nome empresarial, "+pass+" "+nomeUP+".");
       if(CH.has("fantasia")) delib((isRetifica?"Da retificação do":"Do")+" título do estabelecimento", d.fantasia?resolve+" "+(isRetifica?"retificar o nome fantasia, "+pass:"adotar como nome fantasia a expressão")+" "+fantUP+".":resolve+" suprimir o nome fantasia.");
       if(CH.has("sede")) delib(tmud+" da sede",resolve+" "+(isRetifica?"retificar a sede, que, corrigido o erro material, passa a localizar-se na":"transferir a sede, que passa a localizar-se na")+" "+endLinha(d.sede)+".");
+      if(CH.has("filiais")) textoDelibFiliais(d,resolve,isRetifica).forEach(t=>delib(tmud+temaDelibFiliais(d),t));
       if(CH.has("objeto")) delib(tmud+" do objeto",resolve+" "+av+" o objeto, "+pass+" o exercício das seguintes atividades econômicas: "+(d.objeto||"[OBJETO]")+".");
       if(CH.has("capital")) delib(tmud+" do capital", d.capitalAnterior>0
         ? ("O capital destacado, que era de "+reais(d.capitalAnterior)+" ("+extensoReais(d.capitalAnterior)+"), "+(isRetifica?"por erro material passa a constar":"passa a ser")+" de "+reais(d.capital)+" ("+extensoReais(d.capital)+"), integralizado "+formaIntegr(d,"em moeda corrente do País")+".")
@@ -1058,10 +1085,10 @@ window.TINA=(function(){
     // DAS FILIAIS (art. 969 do CC) — só quando houver
     if(d.filiais&&d.filiais.length){
       ch.push(heading(nx(),"DAS FILIAIS"));
-      ch.push(corpo("Sem prejuízo da possibilidade de abrir ou fechar filial, ou qualquer dependência, mediante alteração deste ato, na forma da lei, o Empresário Individual "+(fut("sede")?"atuará":"atua")+" também no(s) seguinte(s) estabelecimento(s):"));
+      ch.push(corpo("Sem prejuízo da possibilidade de abrir ou fechar filial, ou qualquer dependência, mediante alteração deste ato, na forma da lei, o Empresário Individual "+((fut("sede")||fut("filiais"))?"atuará":"atua")+" também no(s) seguinte(s) estabelecimento(s):"));
       d.filiais.forEach((f,i)=>{
         const at=(f.objeto||"").trim()||d.objeto||"[ATIVIDADES]";
-        ch.push(P([T(ORD_PARAG[i]||("Parágrafo "+ROMANOS[i]+". "),{bold:true}),...R("Em estabelecimento eleito como Filial situado na "+endLinha(f)+(f.cnpj?", inscrita no CNPJ sob o nº "+f.cnpj:"")+", no qual "+(fut("sede")?"serão exercidas":"são exercidas")+" as atividades de "+at+"."
+        ch.push(P([T(ORD_PARAG[i]||("Parágrafo "+ROMANOS[i]+". "),{bold:true}),...R("Em estabelecimento eleito como Filial situado na "+endLinha(f)+(f.cnpj?", inscrita no CNPJ sob o nº "+f.cnpj:"")+", no qual "+(futFilial(f)?"serão exercidas":"são exercidas")+" as atividades de "+at+"."
           +(Number(f.capital)>0?" O destaque do capital para esta filial é de "+reais(Number(f.capital))+" ("+extensoReais(Number(f.capital))+").":""))],JUST,SP15));
       });
     }
@@ -2144,6 +2171,8 @@ window.TINA=(function(){
     const _so=x=>(x||"").normalize("NFD").replace(/[^a-z0-9]/gi,"").toLowerCase();
     if((isAlt||isTransf) && (d.sedeAnterior||"").trim() && !(d.changed&&d.changed.has("sede")) && _so(d.sedeAnterior)!==_so(endLinha(d.sede)))
       w.push("O endereço ANTERIOR está preenchido e é diferente do atual, mas \"Sede / endereço\" não está marcado em \"O que muda\" — marque para a mudança sair no contrato (no futuro) e no e-mail.");
+    if((isAlt||isTransf) && (d.filiais||[]).some(f=>(f.anterior||"").trim()) && !(d.changed&&d.changed.has("filiais")))
+      w.push("Há filial com \"Endereço anterior\" preenchido, mas \"Filiais\" não está marcado em \"O que muda\" — marque para a transferência da filial sair no ato e no e-mail.");
     const ini=_parseBR(d.dataInicioOrig); if(ini&&ato&&ini>ato&&(isAlt||isTransf||isDist))w.push("Início das atividades ("+d.dataInicioOrig+") é posterior à data do ato ("+d.atoData+").");
     if(isDist){const enc=_parseBR(d.dataEncerramento); if(enc&&ini&&enc<ini)w.push("Encerramento das operações anterior ao início das atividades."); if(enc&&ato&&enc>ato)w.push("Encerramento das operações posterior à data do ato.");}
     return w;}
@@ -3730,6 +3759,7 @@ window.TINA=(function(){
     if(CH.has("fantasia")) L.push(dp("NOME FANTASIA", (va&&va.fantasia)||"", d.fantasia||"(supressão do nome fantasia)"));
     // sem o endereço lido do PDF, vale o "Endereço ANTERIOR" digitado (o mesmo que vai no preâmbulo)
     if(CH.has("sede")) L.push(dp("ENDEREÇO DA SEDE", (va&&va.sede&&(va.sede.log||va.sede.cep))?endLinha(va.sede):(d.sedeAnterior||"").trim(), endLinha(d.sede)));
+    if(CH.has("filiais")) (d.filiais||[]).filter(f=>(f.anterior||"").trim()).forEach(f=>L.push(dp("ENDEREÇO DA FILIAL"+(f.cnpj?" "+f.cnpj:(f.mun?" DE "+f.mun.toUpperCase():"")), f.anterior.trim(), endLinha(f))));
     if(CH.has("objeto")) L.push(dp("OBJETO SOCIAL (ATIVIDADES)", (va&&va.objeto)||"", d.objeto||""));
     if(CH.has("capital")){
       // na transformação, o "de" é o acervo do EI quando o capital da sociedade é maior que ele
@@ -4425,6 +4455,12 @@ window.TINA=(function(){
   function parseEndereco(str){
     const e={}; str=(str||"").replace(/\s+/g," ").replace(/^\s*(?:.*?\bendere[çc]o:?\s*|sede\s+(?:na|à|no|em)\s+|n[oa]\s*\(?\s*[oa]?\s*\)?\s*:\s*|(?:n[ao]|à|ao|em)\s+)/i,"").trim();  // tira conector "no(a):"/"na:"/"na "/"no "/"à "/"em " solto no início (o /i faz [^A-Z] excluir minúsculas, então o conector escapa dos regexes de sócio/sede)
     let m;
+    /* "(na) cidade de MUN, estado de Sergipe, (na) LOGRADOURO…": município e estado POR EXTENSO antes do
+       logradouro — redação da cláusula de sede e de cada filial ("Tem filial na cidade de X, estado de
+       Sergipe, na Rua Y…"). Sem isto o logradouro saía "cidade de X" e o município ficava vazio. */
+    if(m=str.match(/^(?:na\s+)?cidade\s+de\s+([A-Za-zÀ-ú .']{2,40}?)\s*,\s*(?:no\s+)?estado\s+d[eo]\s+([A-Za-zÀ-ú ]{2,30}?)\s*,\s*/i)){
+      e.mun=m[1].trim(); const nm=m[2].trim().toUpperCase(); e.uf=UFMAP[nm]||(nm.length===2?nm:"");
+      str=str.slice(m[0].length).replace(/^(?:na|no|à|em)\s+/i,"").trim(); }
     // formato "(na) cidade de MUN - UF, na LOGRADOURO…" (cidade vem primeiro): extrai MUN/UF e remove esse trecho
     if(m=str.match(/(?:na\s+)?cidade de\s+([A-Za-zÀ-ú .']+?)\s*[-–\/]\s*([A-Z]{2})\b/i)){ if(!e.mun)e.mun=m[1].trim(); if(!e.uf)e.uf=m[2].toUpperCase(); str=str.replace(m[0],"").replace(/^[\s,]*(?:na|no|à|em)\s+/i,"").replace(/^[\s,]+/,"").trim(); }
     if(m=str.match(/CEP[:\s]*([\d.\- ]{8,13})/i)){const dd=m[1].replace(/\D/g,"");if(dd.length>=8)e.cep=dd.slice(0,5)+"-"+dd.slice(5,8);}
@@ -4446,7 +4482,7 @@ window.TINA=(function(){
         else{const mu=clean.find(p=>/[-–\/]\s*[A-Z]{2}\b(?![A-Za-z])/.test(p));if(mu){const g=mu.match(/(.+?)\s*[-–\/]\s*([A-Z]{2})\b/);if(g){e.uf=g[2];if(!e.mun)e.mun=g[1].trim();}}}}
       if(!e.mun&&ufi>0)e.mun=clean[ufi-1].replace(/\s*-\s*SEDE\s*$/i,"").trim();
       if(!e.log&&clean[0]&&!/^\d/.test(clean[0])&&!/^n[º°o.]/i.test(clean[0]))e.log=clean[0].trim();
-      if(!e.bairro){const numIdx=clean.findIndex(p=>/^n[º°o.]/i.test(p)||/^\d+[A-Za-z]?$/.test(p));const munIdx=e.mun?clean.findIndex(p=>p.toUpperCase().includes(e.mun.toUpperCase())):-1;const stop=munIdx>=0?munIdx:(ufi>=0?ufi:clean.length);
+      if(!e.bairro){const numIdx=clean.findIndex(p=>/^n[º°o.]/i.test(p)||/^\d+[A-Za-z]?$/.test(p));const _M=(e.mun||"").toUpperCase();const munIdx=_M?clean.findIndex(p=>{const u=p.toUpperCase().replace(/\s*-\s*SEDE\s*$/,"").replace(/^(?:EM|NA\s+CIDADE\s+DE|NO\s+MUNIC[ÍI]PIO\s+DE)\s+/,"").trim();return u.startsWith(_M)&&/^[\s\-–\/]*(?:[A-Z]{2})?$/.test(u.slice(_M.length));}):-1;const stop=munIdx>=0?munIdx:(ufi>=0?ufi:clean.length);
         for(let i=(numIdx>=0?numIdx+1:1);i<stop;i++){const p=clean[i];if(/^[A-Z]{2}$/.test(p)||/^\d/.test(p))continue;if(/^(?:sala|bloco|apto?|apartamento|andar|loja|quadra|lote|conjunto|conj|galp|sobreloja|casa|km|sl|condom[íi]nio|cond|edif[íi]cio|fundos|t[ée]rreo|anexo)(?![A-Za-zÀ-ú])/i.test(p))continue;const pc=p.replace(/\s*-\s*SEDE\s*$/i,"").replace(/^bairro\s+/i,"").trim();if(pc&&pc.toUpperCase()!==(e.log||"").toUpperCase()){e.bairro=pc;break;}}}
     }
     if(e.mun) e.mun=e.mun.replace(/^(?:em|na cidade de|no munic[íi]pio de)\s+/i,"").trim();   // "…, Bairro Centro, em Itabaiana/SE": o "em" é conector, não parte da cidade
@@ -4900,6 +4936,10 @@ window.TINA=(function(){
   function temasExtras(tema,texto){
     const ex=[];
     if(tema==="nome" && /(?:\b(?:ter[áa]|tem|possui)\s+(?:a\s+)?(?:sua\s+)?(?:sede|matriz)\b|\bsede\s+(?:na|no|em|à)\s)/i.test(String(texto).slice(0,700))) ex.push("sede");
+    /* "Cláusula 4ª - A sociedade tem sua sede … ; a) Tem filial na cidade de …": a lista de filiais
+       dentro da cláusula da sede. Sem reconhecê-la, mudar a sede (ou uma filial) reescrevia a
+       cláusula só com a sede — e todas as filiais sumiam do consolidado. */
+    if((tema==="sede"||tema==="nome") && /\b(?:tem|ter[áa]|possui|mant[ée]m)\s+(?:(?:a|uma|as)\s+)?filia(?:l|is)\b|\bfilia(?:l|is)\s+(?:situad|localizad|com\s+sede)/i.test(String(texto))) ex.push("filiais");
     return ex;
   }
   /* Tabela de quotas dentro de uma cláusula lida do PDF. O pdf.js devolve a tabela "achatada":
@@ -4966,7 +5006,7 @@ window.TINA=(function(){
         r("\\b(sede(?:\\s+(?:social|da\\s+sociedade|da\\s+empresa))*)\\s+será"+F,"$1 é"),
         r("\\bficará(?=\\s+(?:situada|localizada|estabelecida|sediada))","fica"),
         r("\\bserá(?=\\s+(?:situada|localizada|estabelecida|sediada))","é"),ATIV],
-      filiais:[r("\\batuará"+F,"atua",true),ATIV],
+      filiais:[r("\\batuará"+F,"atua",true),r("\\bTer[áa](?=\\s+filia)","Tem",true),r("\\bter[áa](?=\\s+filia)","tem",true),ATIV],
       objeto:[r("\\bterá(?=\\s+(?:por|como)\\s+objeto)","tem"),r("\\bterá(?=\\s+o\\s+seguinte\\s+objeto)","tem"),
         r("\\b(objeto(?:\\s+social)?(?:\\s+da\\s+sociedade)?)\\s+será"+F,"$1 é"),ATIV],
       prazo:[r("\\biniciará(?=\\s+(?:as\\s+)?(?:suas\\s+)?atividades)","iniciou"),
@@ -5548,6 +5588,63 @@ window.TINA=(function(){
     const segs=corpo.split(/[;\n]+/).map(s=>s.trim()).filter(Boolean);
     for(const s of segs){
       let m;
+      /* Endereço da FILIAL. Não existia: "endereço da filial de Lagarto para …" não casava com
+         nada e o retorno era "Nenhum comando reconhecido". A filial é apontada pelo município,
+         pela rua, pelo CNPJ ou pela ordem ("filial 2"); o endereço atual do cartão vai para
+         "Endereço anterior" (é ele que entra na cláusula de transferência) e "Filiais" fica
+         marcado em "O que muda". Tem de vir antes do comando da sede e do sócio.
+         Aceita: "endereço da filial de Lagarto para …", "mudar o endereço da filial Lagarto: …",
+         "transferir a filial de Lagarto para …", "filial 2, novo endereço: …", "filial 2 mudou para …". */
+      {
+        const ORDN="(?:(?:a|o)\\s+)?(\\d{1,2}\\s*[ªa°º]?|primeira|segunda|terceira|quarta|quinta|sexta|s[ée]tima|oitava|nona|d[ée]cima)\\s+";
+        const rx=[
+          new RegExp("^(?:(?:mud\\w+|alter\\w+|troc\\w+|atualiz\\w+|transfer\\w+)\\s+(?:d[eoa]\\s+|o\\s+|a\\s+)?)?(?:nov[oa]\\s+)?endere[çc]o\\s+d[ae]\\s+(?:"+ORDN+")?filial(?:\\s+(.+?))?\\s*(?:\\bpara\\b\\s*:?|:)\\s*(.+)$","i"),
+          new RegExp("^(?:transfer\\w+|mud\\w+)\\s+(?:a\\s+)?(?:"+ORDN+")?filial(?:\\s+(.+?))?\\s+para\\s*:?\\s*(.+)$","i"),
+          new RegExp("^(?:"+ORDN+")?filial(?:\\s+(.+?))?[\\s,]+(?:(?:(?:mud\\w+|alter\\w+|troc\\w+|transfer\\w+)\\s+(?:d[eoa]\\s+|o\\s+)?)?(?:nov[oa]\\s+)?endere[çc]o|mud\\w+(?:-se)?)\\s*(?:\\bpara\\b\\s*:?|:)\\s*(.+)$","i")
+        ];
+        let mf=null; for(const r of rx){ if((mf=s.match(r))) break; }
+        if(mf){
+          const ordRef=(mf[1]||"").trim(), ref=(mf[2]||"").replace(/[,.:;]+$/,"").trim(), novo=mf[3]||"";
+          const chave=x=>semAcento(String(x||"")).toLowerCase().replace(/\s+/g," ").trim();
+          const cards=[...document.querySelectorAll(".filial")];
+          const g=(c,f)=>String(((c.querySelector('[data-g="'+f+'"]')||{}).value)||"").trim();
+          let achados=[];
+          if(!cards.length){ applied.push("⚠ não há filial no formulário para mudar o endereço — leia o contrato (ou adicione a filial) antes"); continue; }
+          const ORD={primeira:1,segunda:2,terceira:3,quarta:4,quinta:5,sexta:6,setima:7,oitava:8,nona:9,decima:10};
+          const refN=chave(ordRef||ref).replace(/\s*[ªa°º]$/,"");
+          const dig=ref.replace(/\D/g,"");
+          if(/^\d{1,2}$/.test(refN)||ORD[refN]){ const n=ORD[refN]||parseInt(refN,10); achados=cards[n-1]?[cards[n-1]]:[]; }
+          else if(dig.length===14) achados=cards.filter(c=>g(c,"cnpj").replace(/\D/g,"")===dig);
+          else {
+            const q=chave(ref).replace(/^(?:situad[ao]\s+|localizad[ao]\s+)?(?:de|da|do|em|na|no|cnpj)\s+/,"").trim();
+            if(!q){ applied.push("⚠ diga qual filial muda de endereço: o município, a rua, o CNPJ ou a ordem (“filial 2”)"); continue; }
+            achados=cards.filter(c=>chave(g(c,"mun"))===q);
+            if(!achados.length) achados=cards.filter(c=>chave(g(c,"mun")).indexOf(q)>=0);
+            if(!achados.length) achados=cards.filter(c=>{ const lg=chave(g(c,"log")), lgn=chave(g(c,"log")+" "+g(c,"num")), ba=chave(g(c,"bairro"));
+              return (lg&&(lg.indexOf(q)>=0||q.indexOf(lg)>=0))||(lgn&&q.indexOf(lgn)>=0)||(ba&&ba===q); });
+          }
+          if(achados.length!==1){
+            applied.push(achados.length?("⚠ mais de uma filial casa com “"+(ordRef||ref)+"” — diga a rua ou o CNPJ da filial"):("⚠ filial não encontrada: “"+(ordRef||ref)+"” — diga o município, a rua, o CNPJ ou a ordem (“filial 2”)"));
+            continue; }
+          const card=achados[0], e=parseEnderecoComando(novo);
+          if(!e.log&&!e.mun&&!e.cep){ applied.push("⚠ não consegui separar o novo endereço da filial. Escreva assim: Rua X, nº 10, Bairro, Cidade/UF, CEP 00000-000"); continue; }
+          const q2=f=>card.querySelector('[data-g="'+f+'"]');
+          const munAntes=g(card,"mun");
+          // o endereço de hoje vira "anterior" (só se ainda não há um — é o que entra na cláusula)
+          const atual=endLinha({log:g(card,"log"),num:g(card,"num"),comp:g(card,"comp"),bairro:g(card,"bairro"),mun:g(card,"mun"),uf:g(card,"uf"),cep:g(card,"cep")});
+          if(q2("anterior")&&!g(card,"anterior")&&atual.replace(/[\s,;-]/g,"")){ q2("anterior").value=atual; q2("anterior").classList.add("revisar"); }
+          // o novo SUBSTITUI o antigo por inteiro: nada do endereço lido do contrato fica misturado
+          ["cep","log","num","comp","bairro","mun"].forEach(f=>{ const el=q2(f); if(el){ el.value=f==="cep"&&e.cep?fmtCep(e.cep):(e[f]||""); el.classList.add("revisar"); } });
+          if(q2("uf")){ q2("uf").value=e.uf||(e.cep?"":g(card,"uf")); q2("uf").classList.add("revisar"); }
+          // com CEP, a busca do próprio cartão completa logradouro/bairro vazios e confere município/UF
+          if(e.cep&&q2("cep")) q2("cep").dispatchEvent(new Event("blur"));
+          chk("alt_filiais");
+          const faltam=[!e.log&&!e.cep&&"logradouro",!e.num&&"número",!e.mun&&!e.cep&&"município"].filter(Boolean);
+          applied.push("filial "+(munAntes||g(card,"cnpj")||ordRef||ref)+" → "+(e.log||"(pelo CEP)")+(e.num?", nº "+e.num:"")+(e.mun?" — "+e.mun:"")+(e.uf?"/"+e.uf:"")
+            +" (endereço anterior guardado para a cláusula)"+(faltam.length?" · faltou: "+faltam.join(", "):""));
+          continue;
+        }
+      }
       /* Endereço do SÓCIO (não da sede). Manual de LTDA, Seção IV, nota: mudança de dados pessoais do
          sócio (nome civil, endereço, estado civil) "pode ser realizada no preâmbulo, sendo desnecessário
          que conste em cláusulas específicas". Então só troca o endereço no cartão do sócio — que é o que
@@ -5837,7 +5934,7 @@ window.TINA=(function(){
 
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
   const DRAFT_FIELDS=["razao","fantasia","foro","foroUF","atoUF","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","haveres","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros","advNome","advOab","advOabUf","siaEmail","siaFone","siaRamo","siaIntegr","siaIntegrAte","siaImped","siaImpedTxt"];
-  const DRAFT_CHECKS=["alt_foro","alt_nome","alt_fantasia","alt_sede","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae","advIncluir","preservarClausulas","siaTestemunhas"];
+  const DRAFT_CHECKS=["alt_foro","alt_nome","alt_fantasia","alt_sede","alt_filiais","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae","advIncluir","preservarClausulas","siaTestemunhas"];
   function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig,solic:_solicLigada};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
   // passadas 24h sem uso, é descartado sozinho, para não ficar legível num computador compartilhado.

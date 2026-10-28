@@ -2303,6 +2303,69 @@
     }catch(e){ reg("Bateria da transformação — o que muda",false,String(e&&e.message||e).slice(0,130)); }
 
     /* ---------- 6b3b. "para:" escrito junto nos comandos ---------- */
+    /* ---------- Filial: leitura e mudança de endereço ----------
+       Caso real (v1.54): "endereço da filial de X para …" não era comando nenhum ("Nenhum comando
+       reconhecido"), e a redação "sede e foro na cidade de X, estado de Sergipe, Rua Y" fazia o
+       logradouro sair "cidade de X" com o município vazio — na sede e em cada filial lida. */
+    grupo("Filial — endereço");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(220);
+      var tf="ALTERAÇÃO E CONSOLIDAÇÃO DO CONTRATO SOCIAL DE EXEMPLO COMERCIO LTDA, inscrita no CNPJ sob o nº 11.222.333/0001-81. "
+        +"JOAO EXEMPLO SOUZA, brasileiro, solteiro, empresário, portador do CPF sob o n.º 529.982.247-25, residente e domiciliado na Rua Um, nº 10, Centro, Aracaju/SE, CEP: 49000-400; resolve: "
+        +"CONTRATO SOCIAL CONSOLIDADO "
+        +"Cláusula 1ª - A sociedade gira sob o nome empresarial EXEMPLO COMERCIO LTDA. "
+        +"Cláusula 2ª - A sociedade tem sua sede e foro na cidade de Aracaju, estado de Sergipe, Praça Dois, nº 55, Centro, CEP: 49000-000; "
+        +"a) Tem filial na cidade de Lagarto, estado de Sergipe, na Rua da Filial, nº 265, Sala A, Bairro Norte, CEP: 49400-000; "
+        +"b) Terá filial na cidade de Itabaiana, estado de Sergipe, na Avenida Nova, nº 48, Centro, CEP: 49500-000. "
+        +"Cláusula 3ª - A sociedade tem como objeto social a exploração no ramo de comércio varejista de exemplo. "
+        +"Cláusula 4ª - O prazo de duração da sociedade é por tempo indeterminado. "
+        +"Cláusula 5ª - O capital social é de R$ 10.000,00, dividido em 10.000 quotas de R$ 1,00. "
+        +"Cláusula 6ª - A sociedade tem como administrador o sócio JOAO EXEMPLO SOUZA. "
+        +"Cláusula 7ª - Os lucros serão distribuídos na proporção das quotas. "
+        +"Cláusula 8ª - As divergências sociais serão reguladas pela lei, eleito o foro de Aracaju/SE. "
+        +"E por estarem justos, assinam.";
+      var pf=W.TINA._pdf.parseContratoTexto(tf,"","","");
+      var dF=(pf&&pf.d)||{};
+      reg("Sede em “na cidade de X, estado de Sergipe, Logradouro” sai com logradouro e município certos",
+        (dF.sede||{}).log==="Praça Dois" && (dF.sede||{}).mun==="Aracaju" && (dF.sede||{}).uf==="SE", JSON.stringify(dF.sede||{}));
+      var fl=dF.filiais||[];
+      reg("Filiais “Tem/Terá filial na cidade de X, estado de Sergipe, na Rua Y” são lidas com município",
+        fl.length===2 && fl[0].log==="Rua da Filial" && fl[0].mun==="Lagarto" && fl[1].log==="Avenida Nova" && fl[1].mun==="Itabaiana",
+        JSON.stringify(fl.map(function(f){ return [f.log,f.mun,f.bairro]; })));
+      var cSede=(dF.clausulasOrig||[]).filter(function(c){ return c.tema==="sede"; })[0];
+      reg("Cláusula da sede que lista as filiais conta como sede E filiais (senão elas sumiriam do consolidado)",
+        !!cSede && (cSede.extras||[]).indexOf("filiais")>=0, JSON.stringify((cSede||{}).extras||[]));
+      W.TINA._pdf.aplicarDadosContrato(pf); await espera(400);
+      var apF1=W.TINA._cmd.parseComandos("endereço da filial de Lagarto para Rua Nova, 200, Bairro Sul, Lagarto/SE, 49400-000");
+      await espera(400);
+      var cards=[].slice.call(D.querySelectorAll(".filial"));
+      var gF=function(c,f){ var e=c?c.querySelector('[data-g="'+f+'"]'):null; return e?e.value:""; };
+      reg("“endereço da filial de X para …” é reconhecido", apF1.length===1 && /^filial Lagarto/.test(apF1[0]), apF1.join(" | "));
+      reg("O cartão da filial recebe o endereço novo", cards.length===2 && gF(cards[0],"log")==="Rua Nova" && gF(cards[0],"num")==="200" && gF(cards[0],"mun")==="Lagarto",
+        cards.length?[gF(cards[0],"log"),gF(cards[0],"num"),gF(cards[0],"mun")].join(" · "):"sem cartão");
+      reg("E guarda o endereço atual como “anterior”", /Rua da Filial, nº 265/.test(gF(cards[0],"anterior")), gF(cards[0],"anterior"));
+      reg("A outra filial não é tocada", cards.length===2 && gF(cards[1],"log")==="Avenida Nova" && !gF(cards[1],"anterior"), gF(cards[1],"log"));
+      reg("“Filiais” fica marcado em “O que muda”", !!($("alt_filiais")&&$("alt_filiais").checked));
+      reg("A sede não foi mexida pelo comando da filial", ($("s_log")||{}).value==="Praça Dois" && !($("alt_sede")||{}).checked, ($("s_log")||{}).value);
+      var apF2=W.TINA._cmd.parseComandos("endereço da filial de Estância para Rua X, 1, Centro, Estância/SE");
+      reg("Filial inexistente: avisa, não inventa", apF2.length===1 && /⚠ filial não encontrada/.test(apF2[0]), apF2.join(" | "));
+      var apF3=W.TINA._cmd.parseComandos("filial 2 mudou para Rua Dois, 20, Centro, Itabaiana/SE, 49500-000");
+      await espera(300);
+      reg("“filial 2 mudou para …” aponta pela ordem", apF3.length===1 && /^filial Itabaiana/.test(apF3[0]) && gF(cards[1],"log")==="Rua Dois", apF3.join(" | ")+" · "+gF(cards[1],"log"));
+      val("atoData","10/03/2026");
+      await W.TINA.gerarPreview(); await espera(1200);
+      var tx=texto();
+      var iT=tx.indexOf("endereço de filial");
+      reg("Sai a cláusula de transferência da filial, com o endereço anterior e o novo",
+        /Da alteração de endereço de filial\.\s*O sócio resolve transferir a filial, situada na Rua da Filial, nº 265[^]*?passa a localizar-se na Rua Nova, nº 200/.test(tx), iT>=0?tx.slice(iT,iT+220):"não achei a cláusula");
+      reg("O consolidado mantém a sede no presente e as duas filiais",
+        /tem sua sede no seguinte endereço: Praça Dois/.test(tx) && /Filial situado na Rua Nova, nº 200/.test(tx) && /Filial situado na Rua Dois, nº 20/.test(tx),
+        (tx.match(/Filial situado na [^,]+/g)||[]).join(" | "));
+      reg("A filial que mudou vai ao futuro no consolidado", /Rua Nova, nº 200[^.]*?no qual serão exercidas/.test(tx), "");
+      reg("Sem cláusula de sede duplicada", (tx.match(/sua sede no seguinte endereço/g)||[]).length===1, (tx.match(/sua sede no seguinte endereço/g)||[]).length+" ocorrência(s)");
+    }catch(e){ reg("Bateria de filial — endereço",false,String(e&&e.message||e).slice(0,130)); }
+
     grupo("Comandos com dois-pontos");
     try{
       await recarregar(); $=function(id){ return D.getElementById(id); };
