@@ -2359,12 +2359,80 @@
       var iT=tx.indexOf("endereço de filial");
       reg("Sai a cláusula de transferência da filial, com o endereço anterior e o novo",
         /Da alteração de endereço de filial\.\s*O sócio resolve transferir a filial, situada na Rua da Filial, nº 265[^]*?passa a localizar-se na Rua Nova, nº 200/.test(tx), iT>=0?tx.slice(iT,iT+220):"não achei a cláusula");
-      reg("O consolidado mantém a sede no presente e as duas filiais",
-        /tem sua sede no seguinte endereço: Praça Dois/.test(tx) && /Filial situado na Rua Nova, nº 200/.test(tx) && /Filial situado na Rua Dois, nº 20/.test(tx),
-        (tx.match(/Filial situado na [^,]+/g)||[]).join(" | "));
-      reg("A filial que mudou vai ao futuro no consolidado", /Rua Nova, nº 200[^.]*?no qual serão exercidas/.test(tx), "");
-      reg("Sem cláusula de sede duplicada", (tx.match(/sua sede no seguinte endereço/g)||[]).length===1, (tx.match(/sua sede no seguinte endereço/g)||[]).length+" ocorrência(s)");
+      // só a filial muda: a cláusula do cliente é mantida e corrigida item a item (não trocada pelo modelo)
+      reg("O consolidado mantém a sede no presente, na redação do cliente, e as duas filiais",
+        /tem sua sede e foro na cidade de Aracaju, estado de Sergipe, Praça Dois/.test(tx) && /na Rua Nova, nº 200, Sul, CEP: 49400-000/.test(tx) && /na Rua Dois, nº 20, Centro, CEP: 49500-000/.test(tx),
+        (tx.match(/[ab]\) [^;.]+/g)||[]).join(" | ").slice(0,300));
+      reg("A filial que mudou vai ao futuro no consolidado (“Terá filial”)", /a\) Terá filial na cidade de Lagarto, estado de Sergipe, na Rua Nova, nº 200/.test(tx) && /b\) Terá filial na cidade de Itabaiana, estado de Sergipe, na Rua Dois, nº 20/.test(tx), "");
+      reg("Sem cláusula de sede duplicada nem no modelo do sistema", (tx.match(/sua sede e foro na cidade de Aracaju/g)||[]).length===1 && !/sua sede no seguinte endereço/.test(tx) && !/Em estabelecimento eleito como Filial/.test(tx), (tx.match(/sua sede e foro/g)||[]).length+" ocorrência(s)");
     }catch(e){ reg("Bateria de filial — endereço",false,String(e&&e.message||e).slice(0,130)); }
+
+    /* ---------- Leitura: menor assistida, quotas "Nome Percentual Quotas Valor", tabela de
+       estabelecimentos, data de início x abertura de filial, e a cláusula de filiais remendada ----------
+       Caso real (v1.55): a mesma pessoa era sócio E genitor assistente — o leitor apagava o sócio
+       majoritário e deixava a mãe (não sócia); nenhuma quota era lida; o início das atividades vinha
+       da abertura de uma filial; e a cláusula da sede com as filiais saía no modelo do sistema, com o
+       objeto repetido em cada filial e as duas tabelas do capital achatadas em texto. */
+    grupo("Leitura — menor assistida e filiais");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(220);
+      var tm="5ª ALTERAÇÃO AO CONTRATO SOCIAL DA SOCIEDADE EMPRESÁRIA EXEMPLO COMERCIO LTDA "
+        +"JOAO EXEMPLO SOUZA, Brasileiro, natural de Aracaju/SE, Casado sob Regime de Comunhão Parcial de Bens, nascido em 01/02/1980, Empresário, portador do CPF sob o nº 529.982.247-25, RG nº 1234567 expedido pela SSP/SE, residente e domiciliado na Rua Um, nº 10, Bairro Centro, Aracaju/SE, CEP: 49000-400; "
+        +"ANA EXEMPLO SOUZA, Brasileira, Solteira, Menor, natural de Aracaju/SE, Estudante, nascida em 12/11/2009, portadora do CPF sob o nº 111.444.777-35, RG sob nº 7654321 expedido pela SSP/SE, residente e domiciliada Rua Um, nº 10, Bairro Centro, Aracaju/SE, CEP: 49000-400, neste ato assistida por seu genitor JOAO EXEMPLO SOUZA, Brasileiro, Empresário, natural de Aracaju/SE, casado em Regime de Comunhão Parcial de Bens, nascido em 01/02/1980, portador do CPF sob o nº 529.982.247-25, RG nº 1234567 expedido pela SSP/SE, residente e domiciliado na Rua Um, nº 10, Bairro Centro, Aracaju/SE, CEP: 49000- 400 e sua genitora MARIA EXEMPLO SOUZA, Brasileira, Empresária, natural de Aracaju/SE, casada em Regime de Comunhão Parcial de Bens, nascida em 03/04/1982, portadora do CPF sob o nº 390.533.447-05, RG nº 2468135 expedido pela SSP/SE, residente e domiciliada Rua Um, nº 10, Bairro Centro, Aracaju/SE, CEP: 49000-400; "
+        +"Únicos sócios da empresa EXEMPLO COMERCIO LTDA com sede e foro na cidade de Aracaju, estado de Sergipe, Avenida Dois, nº 55, Centro, CEP: 49000-001 inscrita no CNPJ nº 11.222.333/0001-81 e NIRE nº 28.200.305.461, resolvem alterar o seu contrato social de acordo com as cláusulas que seguem abaixo: "
+        +"Cláusula I- Fica aberto o estabelecimento filial situado na Avenida Nova, nº 48, Centro, CEP: 49500-000, Itabaiana/SE, com início das atividades em 15/08/2026, ao qual fica destacado o montante de R$ 10.000,00 (dez mil reais) do capital social; "
+        +"Em virtude da alteração empreendida, consolida-se o contrato social, conforme abaixo: CONTRATO SOCIAL CONSOLIDADO DA SOCIEDADE LIMITADA EXEMPLO COMERCIO LTDA "
+        +"Cláusula 1ª - A sociedade gira sob o nome empresarial EXEMPLO COMERCIO LTDA. "
+        +"Cláusula 2ª - A sociedade tem sua sede e foro na cidade de Aracaju, estado de Sergipe, Avenida Dois, nº 55, Centro, CEP: 49000-001; a) Tem filial na cidade de Lagarto, estado de Sergipe, na Rua da Filial, nº 265, Sala A, Centro, CEP: 49.400-000; b) Terá filial na cidade de Itabaiana, estado de Sergipe, na Avenida Nova, nº 48, Centro, CEP: 49.500-000. "
+        +"Cláusula 3ª - A sociedade pode a qualquer tempo, instalar, manter e extinguir filiais, mediante alteração contratual assinada por todos os sócios. "
+        +"Cláusula 4ª - A sociedade tem como objeto social a exploração no ramo de Comércio varejista de exemplo; Serviços de teste. "
+        +"Cláusula 5ª - O prazo de duração da sociedade é por tempo indeterminado e suas atividades iniciarão em 20/03/2003. "
+        +"Cláusula 6ª - O capital social é de R$ 20.000,00 (vinte mil reais), dividido em 20.000 (vinte mil) quotas, no valor nominal de R$ 1,00 (um real) cada uma, totalmente integralizadas em moeda corrente do País. Nome Percentual Quotas Valor R$ ANA EXEMPLO SOUZA 1,00% 200 200,00 JOAO EXEMPLO SOUZA 99,00% 19.800 19.800,00 Total 100% 20.000 20.000,00 ESTABELECIMENTO QUOTAS VALOR R$ MATRIZ 10.000 R$ 10.000,00 FILIAL LAGARTO 5.000 R$ 5.000,00 FILIAL ITABAIANA 5.000 R$ 5.000,00 TOTAL 20.000 R$ 20.000,00 "
+        +"Cláusula 7ª - A sociedade tem como administrador o sócio JOAO EXEMPLO SOUZA. "
+        +"Cláusula 8ª - Os lucros serão distribuídos na proporção das quotas. "
+        +"Cláusula 9ª - As divergências sociais serão reguladas pela lei, eleito o foro de Aracaju/SE. "
+        +"E por estarem assim justos e contratados assinam o presente instrumento. ARACAJU/SE, 10 de agosto de 2026. JOAO EXEMPLO SOUZA Sócio Administrador ANA EXEMPLO SOUZA Assistida por seu genitor JOAO EXEMPLO SOUZA";
+      var pm=W.TINA._pdf.parseContratoTexto(tm,"","","5 ALTERACAO.pdf");
+      var dM=(pm&&pm.d)||{}, sM=dM.socios||[];
+      reg("Sócio que também é genitor assistente continua sócio", sM.some(function(x){ return x.nome==="JOAO EXEMPLO SOUZA"; }), sM.map(function(x){return x.nome;}).join(" | "));
+      reg("Genitora que só assiste NÃO vira sócia", !sM.some(function(x){ return /MARIA/.test(x.nome||""); }), sM.map(function(x){return x.nome;}).join(" | "));
+      var menor=sM.filter(function(x){ return x.nome==="ANA EXEMPLO SOUZA"; })[0]||{};
+      reg("A menor recebe a assistência: genitor, vínculo e a qualificação dos dois pais",
+        menor.temProc===true && menor.procTipo==="assistido" && menor.procVinculo==="seu genitor" && menor.procNome==="JOAO EXEMPLO SOUZA" && /e sua genitora MARIA EXEMPLO SOUZA, Brasileira/.test(menor.procQualif||"") && /49000-400 e sua/.test(menor.procQualif||""),
+        JSON.stringify({tipo:menor.procTipo,vinc:menor.procVinculo,nome:menor.procNome,qual:String(menor.procQualif||"").slice(0,80)}));
+      reg("Quotas lidas da tabela “Nome Percentual Quotas Valor”", menor.quotas===200 && (sM.filter(function(x){return x.nome==="JOAO EXEMPLO SOUZA";})[0]||{}).quotas===19800,
+        sM.map(function(x){return x.nome+"="+x.quotas;}).join(" | "));
+      reg("Só o sócio designado administra (a menor não)", (sM.filter(function(x){return x.nome==="JOAO EXEMPLO SOUZA";})[0]||{}).administrador===true && menor.administrador===false, "");
+      reg("Início das atividades é o da sociedade, não o da abertura da filial", dM.dataInicioOrig==="20/03/2003", String(dM.dataInicioOrig));
+      reg("Sede lida certa com “cidade de X, estado de Sergipe, Avenida…”", (dM.sede||{}).log==="Avenida Dois" && (dM.sede||{}).mun==="Aracaju", JSON.stringify(dM.sede||{}));
+      reg("As duas filiais são lidas", (dM.filiais||[]).length===2, JSON.stringify((dM.filiais||[]).map(function(f){return f.mun;})));
+      W.TINA._pdf.aplicarDadosContrato(pm); await espera(400);
+      var apM=W.TINA._cmd.parseComandos("Alterar endereço da filial de Lagarto para Rua Nova da Filial, 184, Térreo, Centro, 49400000");
+      await espera(600);
+      var cM=D.querySelector(".filial"), gM=function(f){ var e=cM?cM.querySelector('[data-g="'+f+'"]'):null; return e?e.value:""; };
+      reg("“Alterar endereço da filial de X para …, Térreo, Centro, CEP” — Térreo é complemento e Centro é bairro",
+        apM.length===1 && /^filial Lagarto/.test(apM[0]) && gM("log")==="Rua Nova da Filial" && gM("num")==="184" && gM("comp")==="Térreo" && gM("bairro")==="Centro" && /Rua da Filial, nº 265/.test(gM("anterior")),
+        [gM("log"),gM("num"),gM("comp"),gM("bairro"),gM("mun")].join(" · ")+" | "+apM.join(" | "));
+      val("atoData","10/03/2026");
+      await W.TINA.gerarPreview(); await espera(1500);
+      var tx=texto();
+      reg("Preâmbulo: a menor sai “assistida por seu genitor NOME, qualificação … e sua genitora NOME, …”",
+        /ANA EXEMPLO SOUZA, brasileira[^]*?neste ato assistida por seu genitor JOAO EXEMPLO SOUZA, Brasileiro, Empresário[^]*?e sua genitora MARIA EXEMPLO SOUZA, Brasileira/.test(tx), "");
+      reg("Preâmbulo: a genitora não aparece como sócia", !/^MARIA EXEMPLO SOUZA, brasileira/m.test(tx), "");
+      reg("Cláusula da sede remendada no estilo do contrato: só a filial transferida muda e vai ao futuro",
+        /a\) Terá filial na cidade de Lagarto, estado de Sergipe, na Rua Nova da Filial, nº 184, Térreo, Centro, CEP: 49400-000; b\) Tem filial na cidade de Itabaiana/.test(tx), (tx.match(/a\) [^;]+; b\) [^.]+/)||[""])[0].slice(0,200));
+      reg("A cláusula não é trocada pelo modelo (sem “Em estabelecimento eleito como Filial”)", !/Em estabelecimento eleito como Filial/.test(tx), "");
+      reg("O objeto social aparece uma vez só no consolidado", (tx.match(/Comércio varejista de exemplo/g)||[]).length===1, (tx.match(/Comércio varejista de exemplo/g)||[]).length+" vez(es)");
+      var tx1=tx.replace(/\n/g," ");
+      reg("As duas tabelas do capital voltam a ser tabelas (sócios e estabelecimentos)",
+        /Sócio\s+Quotas\s+Valor \(R\$\)\s+Percentual/.test(tx1) && /ESTABELECIMENTO\s+QUOTAS\s+VALOR R\$\s+MATRIZ\s+10\.000\s+R\$ 10\.000,00/.test(tx1) && !/Nome Percentual Quotas Valor R\$ ANA/.test(tx1),
+        tx1.slice(tx1.indexOf("ESTABELECIMENTO"), tx1.indexOf("ESTABELECIMENTO")+80));
+      reg("Assinaturas: um bloco da menor por assistente", /ANA EXEMPLO SOUZA\s+Sócia\s+Assistida por seu genitor JOAO EXEMPLO SOUZA[^]*?ANA EXEMPLO SOUZA\s+Sócia\s+Assistida por sua genitora MARIA EXEMPLO SOUZA/.test(tx), "");
+      reg("Assinaturas: só o administrador designado assina como administrador", /JOAO EXEMPLO SOUZA\s+Sócio\/Administrador/.test(tx) && !/ANA EXEMPLO SOUZA\s+Sócia\/Administradora/.test(tx), "");
+      var fM=await W.TINA.validar();
+      reg("Validação sem pendência", fM.length===0, fM.join(" | "));
+    }catch(e){ reg("Bateria de leitura — menor assistida e filiais",false,String(e&&e.message||e).slice(0,130)); }
 
     grupo("Comandos com dois-pontos");
     try{
