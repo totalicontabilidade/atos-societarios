@@ -2512,6 +2512,13 @@
       var rgs=["RG nº 0123456 SSP/SE","RG nº O123456 SSP/SE","RG: O.123.456 SSP/SE","RG nº 0 123456 SSP/SE","RG sob o nº 0123456 SSP/SE","Carteira de Identidade nº 0.123.456 SSP/SE"].map(rgDe);
       reg("RG que começa com zero não perde o zero (texto, OCR com “O”, zero separado, com pontos)", rgs.every(function(x){ return x==="0123456"; }) && rgDe("RG nº 1234567 SSP/SE")==="1234567", rgs.join(" | "));
       reg("Leitura sem o “O” do OCR não inventa zero em RG que não começa com zero", rgDe("identidade nº 12.345 SSP/SE")==="12345", rgDe("identidade nº 12.345 SSP/SE"));
+      var CR=W.TINA._pdf.corrigirRedacaoMantida;
+      reg("Texto mantido: “dá direita a um voto” vira “dá direito a um voto”", CR("formajuridica","cada cota possuída dá direita a um voto nas deliberações.",[])==="cada cota possuída dá direito a um voto nas deliberações.", "");
+      var dsp="A Administradora declara, sob as penas da lei, de que não está impedido de exercer a administração da sociedade.";
+      reg("Desimpedimento mantido concorda com quem administra (um homem)", CR("desimpedimento",dsp,[{sexo:"M"}])==="O Administrador declara, sob as penas da lei, que não está impedido de exercer a administração da sociedade.", CR("desimpedimento",dsp,[{sexo:"M"}]));
+      reg("Desimpedimento mantido: uma mulher e dois administradores", CR("desimpedimento",dsp,[{sexo:"F"}])==="A Administradora declara, sob as penas da lei, que não está impedida de exercer a administração da sociedade."
+        && CR("desimpedimento",dsp,[{sexo:"M"},{sexo:"F"}])==="Os Administradores declaram, sob as penas da lei, que não estão impedidos de exercer a administração da sociedade.", CR("desimpedimento",dsp,[{sexo:"M"},{sexo:"F"}]));
+      reg("Cláusula 8 mantida: “suas atividades iniciarão em 20/03/2003” vai ao passado", W.TINA._pdf.aoPresente("prazo","O prazo é indeterminado e suas atividades iniciarão em 20/03/2003.").texto==="O prazo é indeterminado e suas atividades iniciaram em 20/03/2003.", W.TINA._pdf.aoPresente("prazo","O prazo é indeterminado e suas atividades iniciarão em 20/03/2003.").texto);
       reg("Aviso quando a menor assistida completa 18 anos perto da data do ato (ou já completou)",
         avM.some(function(x){return /completa 18 anos em 12\/11\/2027/.test(x);}) && avM2.some(function(x){return /já tinha 18 anos/.test(x);}), avM.concat(avM2).join(" | ").slice(0,200));
     }catch(e){ reg("Bateria de leitura — menor assistida e filiais",false,String(e&&e.message||e).slice(0,130)); }

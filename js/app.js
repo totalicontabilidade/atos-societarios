@@ -955,6 +955,10 @@ window.TINA=(function(){
           const txtAd=adapta(cl.texto), eireliMudou=txtAd!==cl0.texto;   // cl0: inclui a frase da EIRELI tirada acima
           let tp=aoPresente(cl.tema,txtAd);
           (cl.extras||[]).forEach(e=>{ const t2=aoPresente(e,tp.texto); tp={texto:t2.texto,mudou:tp.mudou||t2.mudou}; });   // cláusula de vários assuntos: o verbo de cada um volta ao presente
+          // redação: erro de digitação conhecido e a declaração de desimpedimento concordando com quem administra
+          const admsRed=admins.concat(d.admNaoSocio&&(d.admnsNome||"").trim()?[{sexo:""}]:[]);
+          let txRed=corrigirRedacaoMantida(cl.tema,tp.texto,admsRed); (cl.extras||[]).forEach(e=>{ txRed=corrigirRedacaoMantida(e,txRed,admsRed); });
+          const redMudou=txRed!==tp.texto; if(redMudou) tp={texto:txRed,mudou:tp.mudou};
           const tq=cl.tema==="capital"?separarTabelaQuotas(rejuntarNomeTabela(tp.texto,(d.socios||[]).map(s=>s.nome))):null;
           if(tq){
             partirItens(tq.antes).forEach((pt,k)=>ch.push(k===0?P([T(rot,{bold:true}),...R(pt)],JUST,SP15):P(R(pt),JUST,SP15)));   // "a) Um imóvel…" na sua linha
@@ -963,7 +967,7 @@ window.TINA=(function(){
             if(tq.estab){ ch.push(tabelaSimples(X,tq.estab.cab,tq.estab.rows,tq.estab.total)); ch.push(gap()); }
             if(tq.depois) partirItens(tq.depois).forEach(pt=>ch.push(P(R(pt),JUST,SP15)));
           } else partirItens(tp.texto).forEach((pt,k)=>ch.push(k===0?P([T(rot,{bold:true}),...R(pt)],JUST,SP15):P(R(pt),JUST,SP15)));   // lista "a) … b) …" volta a ter um item por linha
-          _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:"",situacao:"mantida",tema:cl.tema,antes:cl0.texto,tempo:tp.mudou,eireli:eireliMudou,depois:(tp.mudou||eireliMudou)?tp.texto:""});
+          _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:"",situacao:"mantida",tema:cl.tema,antes:cl0.texto,tempo:tp.mudou,eireli:eireliMudou,redacao:redMudou,depois:(tp.mudou||eireliMudou||redMudou)?tp.texto:""});
         }
       });
       // cláusula obrigatória ausente no contrato enviado entra ao final (só acrescenta, nunca troca)
@@ -2664,14 +2668,15 @@ window.TINA=(function(){
       +", "+c("reescrita")+" reescrita(s) por este ato"
       +(c("acrescentada")?(", "+c("acrescentada")+" acrescentada(s) por serem obrigatórias"):"")
       +(c("retirada")?(". "+c("retirada")+" cláusula(s) do contrato anterior retirada(s) por serem próprias de EIRELI"):"")
-      +(_comparacao.some(x=>x.eireli)?(". Em "+_comparacao.filter(x=>x.eireli).length+" cláusula(s) mantida(s) a linguagem de EIRELI foi trocada (“titular” → “sócio”)"):"")+".";
+      +(_comparacao.some(x=>x.eireli)?(". Em "+_comparacao.filter(x=>x.eireli).length+" cláusula(s) mantida(s) a linguagem de EIRELI foi trocada (“titular” → “sócio”)"):"")
+      +(_comparacao.some(x=>x.redacao)?(". Em "+_comparacao.filter(x=>x.redacao).length+" cláusula(s) mantida(s) a redação foi corrigida (erro de digitação ou concordância com quem administra)"):"")+".";
     box.innerHTML=_comparacao.map(x=>{
       const [rot,cor]=SIT[x.situacao]||["",""];
-      const mostraDif=x.tempo||x.eireli;
+      const mostraDif=x.tempo||x.eireli||x.redacao;
       return '<div class="caso" style="padding:7px 9px">'
         +'<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
         +"<b>"+(x.situacao==="retirada"?"Cláusula retirada":"Cláusula "+x.n+"ª")+(x.titulo?" — "+escHtml(x.titulo.replace(/^D[AEOU]S?\s+/,"").replace(/^DECLARAÇÃO DE\s+/,"")):"")+"</b>"
-        +'<span class="hint" style="color:'+cor+'">'+rot+(x.tempo?" · verbo no presente":"")+(x.eireli?" · sem a linguagem de EIRELI":"")+(x.rotuloOrig?" · era a "+escHtml(x.rotuloOrig):"")+"</span></div>"
+        +'<span class="hint" style="color:'+cor+'">'+rot+(x.tempo?" · verbo no presente":"")+(x.eireli?" · sem a linguagem de EIRELI":"")+(x.redacao?" · redação corrigida":"")+(x.rotuloOrig?" · era a "+escHtml(x.rotuloOrig):"")+"</span></div>"
         +(mostraDif?'<div class="hint" style="margin-top:4px"><b>Como saiu:</b> '+escHtml(x.depois.slice(0,240))+(x.depois.length>240?"…":"")+'</div><div class="hint" style="margin-top:2px"><b>Como estava:</b> '+escHtml(x.antes.slice(0,240))+(x.antes.length>240?"…":"")+"</div>":"")
         +(x.antes&&!mostraDif?'<div class="hint" style="margin-top:4px">'+(x.situacao==="reescrita"?"<b>Texto anterior:</b> ":"")+escHtml(x.antes.slice(0,240))+(x.antes.length>240?"…":"")+"</div>":"")
         +"</div>";
@@ -5199,7 +5204,10 @@ window.TINA=(function(){
       filiais:[r("\\batuará"+F,"atua",true),r("\\bTer[áa](?=\\s+filia)","Tem",true),r("\\bter[áa](?=\\s+filia)","tem",true),ATIV],
       objeto:[r("\\bterá(?=\\s+(?:por|como)\\s+objeto)","tem"),r("\\bterá(?=\\s+o\\s+seguinte\\s+objeto)","tem"),
         r("\\b(objeto(?:\\s+social)?(?:\\s+da\\s+sociedade)?)\\s+será"+F,"$1 é"),ATIV],
+      // "suas atividades iniciarão em 25/09/2001": a data já passou — o verbo vai ao passado, como em "iniciou"
       prazo:[r("\\biniciará(?=\\s+(?:as\\s+)?(?:suas\\s+)?atividades)","iniciou"),
+        r("\\b(atividades)\\s+iniciar[ãa]o(?=\\s+em\\s+\\d)","$1 iniciaram"),r("\\b(atividades)\\s+ter[ãa]o\\s+in[íi]cio(?=\\s+em\\s+\\d)","$1 tiveram início"),
+        r("\\bter[áa]\\s+in[íi]cio(?=\\s+em\\s+\\d)","teve início"),
         r("\\b(prazo(?:\\s+de\\s+dura[çc][ãa]o)?(?:\\s+da\\s+sociedade)?)\\s+será"+F,"$1 é"),
         r("\\bterá(?=\\s+(?:prazo|dura[çc][ãa]o))","tem")],
       // "será integralizado até…" é obrigação futura de verdade: só troca o "será de R$…"
@@ -5215,6 +5223,28 @@ window.TINA=(function(){
       enquadramento:[r("\\bse\\s+enquadrará"+F,"se enquadra")]
     };
   })();
+  /* Redação da cláusula MANTIDA: o texto do cliente fica, mas erros que a Junta pode apontar são
+     corrigidos — (1) erro de digitação conhecido ("dá direita a um voto"); (2) a declaração de
+     desimpedimento concorda com quem administra de fato ("A Administradora declara… não está
+     impedido", com um administrador homem, vira "O Administrador declara… não está impedido") e
+     perde o "de que" depois de "declara" (o verbo pede "declara que"). */
+  function corrigirRedacaoMantida(tema,txt,admins){
+    let s=String(txt||"");
+    s=s.replace(/\bd([áa])\s+direita\s+a(?=\s)/g,"d$1 direito a");
+    if(tema==="desimpedimento" && admins && admins.length){
+      const pl=admins.length>1, fem=admins.every(a=>a&&a.sexo==="F");
+      s=s.replace(/(^|[.;]\s+)(?:O|A|Os|As)\s+((?:s[óo]ci[oa]s?[\s-]+)?)(administrador(?:a|es|as)?)(\s+)(declaram?)\b/i,(m,ini,soc,adm,esp)=>{
+        const Cap=/^A/.test(adm)?(x=>x.charAt(0).toUpperCase()+x.slice(1)):(x=>x);
+        const art=pl?(fem?"As":"Os"):(fem?"A":"O");
+        const liga=/-\s*$/.test(soc)?"-":" ";   // "sócio-administrador" ou "sócio administrador", como estava
+        const socN=soc?(pl?(fem?"sócias":"sócios"):(fem?"sócia":"sócio"))+liga:"";
+        const admN=Cap(pl?(fem?"administradoras":"administradores"):(fem?"administradora":"administrador"));
+        return ini+art+" "+socN+admN+esp+(pl?"declaram":"declara"); });
+      s=s.replace(/\bn[ãa]o\s+est(?:[áa]|[ãa]o)\s+impedid[oa]s?\b/i,"não "+(pl?"estão impedid"+(fem?"as":"os"):"está impedid"+(fem?"a":"o")));
+      s=s.replace(/(declaram?,?\s+sob\s+as\s+penas\s+da\s+lei,?\s+)de\s+que\b/i,"$1que");
+    }
+    return s;
+  }
   function aoPresente(tema,txt){
     const s=String(txt||""), regras=TEMPO_PRESENTE[tema];
     if(!regras) return {texto:s,mudou:false};
@@ -6961,7 +6991,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,corrigirRedacaoMantida,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();
