@@ -594,7 +594,7 @@ window.TINA=(function(){
     const out=[]; let ini=0; cortes.forEach(c=>{ const p=s.slice(ini,c).trim(); if(p) out.push(p); ini=c; }); out.push(s.slice(ini).trim());
     return out.filter(Boolean);
   }
-  // "AVENIDA LOURIVAL BATISTA" digitado no comando → "Avenida Lourival Batista", como o contrato escreve
+  // "AVENIDA DAS FLORES" digitado no comando → "Avenida das Flores", como o contrato escreve
   function caixaTitulo(x){
     const s=String(x||""); if(!s||/[a-zà-ú]/.test(s)) return s;   // já tem minúscula: fica como o usuário escreveu
     return s.toLowerCase().replace(/(^|[\s\-(/])([a-zà-ú])/g,(m,a,b)=>a+b.toUpperCase())
