@@ -2480,9 +2480,9 @@
         /ANA EXEMPLO SOUZA, brasileira[^]*?neste ato assistida por seu genitor JOAO EXEMPLO SOUZA, Brasileiro, Empresário[^]*?e sua genitora MARIA EXEMPLO SOUZA, Brasileira/.test(tx), "");
       reg("Preâmbulo: a genitora não aparece como sócia", !/^MARIA EXEMPLO SOUZA, brasileira/m.test(tx), "");
       reg("Cláusula da sede remendada no estilo do contrato: só a filial transferida muda e vai ao futuro",
-        /a\) Terá filial na cidade de Lagarto, estado de Sergipe, na Rua Nova da Filial, nº 184, Térreo, Centro, CEP: 49400-000;\s+b\) Tem filial na cidade de Itabaiana/.test(tx), (tx.match(/a\) [^;]+;\s+b\) [^.]+/)||[""])[0].slice(0,200));
+        /a\) Terá filial na cidade de Lagarto, estado de Sergipe, na Rua Nova da Filial, nº 184, Térreo, Centro, CEP: 49\.400-000;\s+b\) Tem filial na cidade de Itabaiana/.test(tx), (tx.match(/a\) [^;]+;\s+b\) [^.]+/)||[""])[0].slice(0,200));
       reg("Cada filial da cláusula sai em parágrafo próprio, como no contrato",
-        /CEP: 49000-001;\s*\n\s*a\) Terá filial/.test(tx) && /49400-000;\s*\n\s*b\) Tem filial/.test(tx), (tx.match(/49000-001;[\s\S]{0,40}/)||[""])[0]);
+        /CEP: 49000-001;\s*\n\s*a\) Terá filial/.test(tx) && /49\.400-000;\s*\n\s*b\) Tem filial/.test(tx), (tx.match(/49000-001;[\s\S]{0,40}/)||[""])[0]);
       reg("A cláusula não é trocada pelo modelo (sem “Em estabelecimento eleito como Filial”)", !/Em estabelecimento eleito como Filial/.test(tx), "");
       reg("O objeto social aparece uma vez só no consolidado", (tx.match(/Comércio varejista de exemplo/g)||[]).length===1, (tx.match(/Comércio varejista de exemplo/g)||[]).length+" vez(es)");
       var tx1=tx.replace(/\n/g," ");
@@ -2499,6 +2499,14 @@
         && W.TINA._pdf.partirItens("conforme a alínea a) do artigo").length===1, "");
       var avM=W.TINA._ux.checarConsistencia({socios:[{nome:"ANA EXEMPLO SOUZA",nascimento:"12/11/2009",temProc:true,procTipo:"assistido"}],atoData:"01/11/2027"});
       var avM2=W.TINA._ux.checarConsistencia({socios:[{nome:"ANA EXEMPLO SOUZA",nascimento:"12/11/2009",temProc:true,procTipo:"assistido"}],atoData:"20/11/2027"});
+      var tPJ="3ª ALTERAÇÃO AO CONTRATO SOCIAL DA EXEMPLO COMERCIO LTDA. HOLDING EXEMPLO LTDA, sociedade empresária limitada, inscrita no CNPJ sob o nº 11.444.777/0001-61, com sede na Rua A, nº 1, Centro, Aracaju/SE, CEP: 49000-000, registrada na JUCESE sob NIRE 28200111117, neste ato representada por seu administrador JOAO EXEMPLO SOUZA, brasileiro, casado, empresário, CPF 529.982.247-25, residente na Rua B, nº 2, Centro, Aracaju/SE, CEP 49000-001; MARIA EXEMPLO SOUZA, brasileira, solteira, empresária, nascida em 01/01/1980, CPF 390.533.447-05, residente na Rua C, nº 3, Centro, Aracaju/SE, CEP 49000-002; únicos sócios da sociedade EXEMPLO COMERCIO LTDA, com sede na Avenida Dois, nº 55, Centro, Aracaju/SE, CEP 49000-003, inscrita no CNPJ sob o nº 11.222.333/0001-81 e NIRE nº 28.200.999.991, resolvem alterar o contrato social.";
+      var pPJ=(W.TINA._pdf.parseContratoTexto(tPJ,"","","3 ALTERACAO.pdf")||{}).d||{};
+      reg("NIRE e CNPJ são os da sociedade, não os da sócia empresa qualificada antes", pPJ.nire==="28200999991" && pPJ.cnpj==="11.222.333/0001-81", pPJ.nire+" · "+pPJ.cnpj);
+      var tCo="1ª ALTERAÇÃO AO CONTRATO SOCIAL DA EXEMPLO COMERCIO LTDA JOAO EXEMPLO SOUZA, Brasileiro, Solteiro, Empresário, nascido em 01/02/1980, portador do CPF sob o nº 529.982.247-25, residente e domiciliado na Rua Um, nº 10 – Condomínio Residencial Exemplo, Bairro Centro, Aracaju/SE, CEP: 49000-400; MARIA EXEMPLO SOUZA, Brasileira, Solteira, Empresária, nascida em 03/04/1982, portadora do CPF sob o nº 390.533.447-05, residente e domiciliada na Rua Dois, nº 20, Centro, Aracaju/SE, CEP: 49000-500; Únicos sócios da empresa EXEMPLO COMERCIO LTDA com sede na Avenida Dois, nº 55, Centro, Aracaju/SE, CEP: 49000-001 inscrita no CNPJ nº 11.222.333/0001-81 e NIRE nº 28.200.999.991, resolvem alterar o seu contrato social.";
+      var sCo=(((W.TINA._pdf.parseContratoTexto(tCo,"","","1 ALTERACAO.pdf")||{}).d||{}).socios||[]).filter(function(x){ return x.nome==="JOAO EXEMPLO SOUZA"; })[0]||{};
+      reg("Complemento depois de travessão (“nº 10 – Condomínio X, Bairro Y”) é lido", sCo.comp==="Condomínio Residencial Exemplo" && sCo.num==="10", JSON.stringify({comp:sCo.comp,num:sCo.num,bairro:sCo.bairro}));
+      var cq=W.TINA._pdf.concordarQualif("Brasileira, nascido em 01/01/1980, portador do CPF, residente e domiciliada Rua Um, nº 1");
+      reg("Qualificação lida: “domiciliada Rua” ganha o “na”; os particípios acompanham o gênero", cq==="Brasileira, nascida em 01/01/1980, portadora do CPF, residente e domiciliada na Rua Um, nº 1", cq);
       reg("Aviso quando a menor assistida completa 18 anos perto da data do ato (ou já completou)",
         avM.some(function(x){return /completa 18 anos em 12\/11\/2027/.test(x);}) && avM2.some(function(x){return /já tinha 18 anos/.test(x);}), avM.concat(avM2).join(" | ").slice(0,200));
     }catch(e){ reg("Bateria de leitura — menor assistida e filiais",false,String(e&&e.message||e).slice(0,130)); }

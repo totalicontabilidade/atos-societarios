@@ -604,7 +604,10 @@ window.TINA=(function(){
   /* A qualificação copiada do contrato carrega o erro dele ("Brasileira, …, nascido em …, portador do
      CPF"): quando o gênero está claro pela nacionalidade no começo, os particípios acompanham. */
   function concordarQualif(q){
-    const s=String(q||""), fem=/^\s*brasileira\b/i.test(s), masc=/^\s*brasileiro\b/i.test(s);
+    // "residente e domiciliada Rua X" → "… na Rua X" (a preposição faltando no contrato)
+    let s=String(q||"").replace(/(residente\s+e\s+domiciliad[oa])\s+(?=(?:Rua|Avenida|Av\.|Travessa|Pra[çc]a|Rodovia|Alameda|Estrada)\b)/g,"$1 na ")
+      .replace(/(residente\s+e\s+domiciliad[oa])\s+(?=(?:Povoado|Loteamento|Conjunto|Condom[íi]nio|S[íi]tio)\b)/g,"$1 no ");
+    const fem=/^\s*brasileira\b/i.test(s), masc=/^\s*brasileiro\b/i.test(s);
     if(fem) return s.replace(/\b(nascid|portad|domiciliad|inscrit|registrad|naturalizad)(o|or)\b/g,(m,r,f)=>r+(f==="or"?"ora":"a"));
     if(masc) return s.replace(/\b(nascid|domiciliad|inscrit|registrad|naturalizad)a\b/g,"$1o").replace(/\bportadora\b/g,"portador");
     return s;
@@ -615,7 +618,7 @@ window.TINA=(function(){
     const mov=(d.filiais||[]).filter(f=>(f.anterior||"").trim()); if(!mov.length) return null;
     const NOME_UF={}; Object.keys(UFMAP).forEach(k=>{ if(!NOME_UF[UFMAP[k]]) NOME_UF[UFMAP[k]]=k.toLowerCase().replace(/(^|\s)(\S)/g,(m,a,b)=>a+b.toUpperCase()).replace(/\s(De|Do)\s/g,x=>x.toLowerCase()); });
     const dig=x=>String(x||"").replace(/\D/g,"");
-    for(const f of mov){
+    for(let f of mov){
       const ant=parseEndereco(f.anterior), cepAnt=dig(ant.cep); let pos=-1;
       if(cepAnt.length===8){ const m=new RegExp(cepAnt.slice(0,2)+"\\.?\\s?"+cepAnt.slice(2,5)+"\\s*-?\\s*"+cepAnt.slice(5)).exec(txt); if(m) pos=m.index; }
       if(pos<0 && ant.log){ const i=txt.toUpperCase().indexOf(String(ant.log).toUpperCase()); if(i>=0) pos=i; }
@@ -628,6 +631,8 @@ window.TINA=(function(){
       const fimRe=/[;.](?=\s|$)/g; fimRe.lastIndex=pos; const mf=fimRe.exec(txt); const fimItem=mf?mf.index:txt.length;
       const item=txt.slice(iniItem,fimItem);
       const ufNome=NOME_UF[(f.uf||"").toUpperCase()]||f.uf||"";
+      // CEP no estilo da cláusula: se as outras filiais escrevem "49.680-000", a transferida também
+      const cepD=dig(f.cep); if(cepD.length===8 && /\b\d{2}\.\d{3}\s*-\s*\d{3}\b/.test(txt)) f=Object.assign({},f,{cep:cepD.slice(0,2)+"."+cepD.slice(2,5)+"-"+cepD.slice(5)});
       const novoEnd=/cidade\s+de\s+[^,]+,\s*estado\s+d[eo]/i.test(item)
         ? "na cidade de "+(f.mun||"[MUNICÍPIO]")+", estado de "+ufNome+", na "+[f.log,f.num&&("nº "+f.num),f.comp,f.bairro].filter(Boolean).join(", ")+", CEP: "+(f.cep||"")
         : "na "+endLinha(f);
@@ -4644,7 +4649,8 @@ window.TINA=(function(){
     if(!e.num){ if(m=str.match(/,\s*(\d{1,6}[A-Za-z]?)\s*[,;]/))e.num=m[1]; else if(/\bs\/?n[º°.]?\b/i.test(str))e.num="s/n"; }  // número solto entre vírgulas ou "s/n"
     // "Condomínio …" faltava aqui: o complemento era lido como nada e sumia do endereço no documento
     if(!e.comp){const CKW="(?:sala|bloco|apto?|apartamento|andar|loja|quadra|lote|conjunto|conj|galp[ãa]o|sobreloja|casa|km|sl|edif[íi]cio|pavimento|torre|box|sobrado|condom[íi]nio|cond|fundos|t[ée]rreo|anexo)";
-      const cm=str.match(new RegExp(",\\s*("+CKW+"\\b\\.?[^,;]*(?:,\\s*"+CKW+"\\b\\.?[^,;]*)*)\\s*(?:,|;|$)","i")); if(cm)e.comp=cm[1].replace(/\s+/g," ").replace(/[,;\s]+$/,"").trim();}  // complemento — pode ter VÁRIAS partes: "Quadra 20, Lote 16"; "Sala 2, Bloco B"
+      // separado por vírgula ou por travessão ("nº 201 – Condomínio Residencial X, Bairro Y")
+      const cm=str.match(new RegExp("(?:,|\\s[–—-])\\s*("+CKW+"\\b\\.?[^,;]*(?:,\\s*"+CKW+"\\b\\.?[^,;]*)*)\\s*(?:,|;|$)","i")); if(cm)e.comp=cm[1].replace(/\s+/g," ").replace(/[,;\s]+$/,"").trim();}  // complemento — pode ter VÁRIAS partes: "Quadra 20, Lote 16"; "Sala 2, Bloco B"
     if(m=str.match(/^(.+?)(?:,|\s+n[º°o.]{1,3}\s*\d)/))e.log=m[1].replace(/^[,\s]+|[,\s]+$/g,"").trim();
     if(!e.uf||!e.mun||!e.bairro||!e.log){
       const parts=str.split(",").map(p=>p.trim()).filter(Boolean);
@@ -5352,8 +5358,13 @@ window.TINA=(function(){
     extra=(extra||"").replace(/\s+/g," ");          // OCR das páginas-imagem (corpo da cópia autenticada)
     auth=(auth||"").replace(/\s+/g," ");            // OCR do rodapé = carimbo oficial da Junta (NIRE/CNPJ definitivos)
     const d={}, inc=new Set();
-    d.nire=acharNIRE(auth)||acharNIRE(t)||acharNIRE(extra);   // carimbo da Junta tem prioridade (ex.: NIRE do estado de destino)
-    d.cnpj=acharCNPJ(t)||acharCNPJ(auth)||acharCNPJ(extra);
+    /* NIRE e CNPJ da SOCIEDADE, não de uma sócia empresa: a sócia PJ é qualificada antes, no
+       preâmbulo, com CNPJ e NIRE dela — e o primeiro número do texto era o dela. Procura primeiro no
+       trecho em que a sociedade se descreve ("únicos sócios da sociedade X, com sede…, CNPJ…, NIRE…");
+       sem esse trecho, vale o texto inteiro, como antes. */
+    const trSoc=(()=>{ const m=/(?:^|[^A-Za-zÀ-ú])[úu]nic[oa]s?\s+(?:s[óo]ci[oa]s?|componentes?|quotistas?|cotistas?)(?![A-Za-zÀ-ú])/i.exec(t); return m?t.slice(m.index,m.index+900):""; })();   // \b não vê o "ú" como letra
+    d.nire=acharNIRE(auth)||acharNIRE(trSoc)||acharNIRE(t)||acharNIRE(extra);   // carimbo da Junta tem prioridade (ex.: NIRE do estado de destino)
+    d.cnpj=acharCNPJ(trSoc)||acharCNPJ(t)||acharCNPJ(auth)||acharCNPJ(extra);
     let raz=m1(t,/nome empresarial:?\s+([^\n]+?)\s+LTDA\b/i);
     if(!raz) raz=m1(t,/(?:denomina[çc][ãa]o social|gira sob a denomina[çc][ãa]o(?: social)?)\s*([^\n]+?)\s+LTDA\b/i);
     if(!raz) raz=m1(t,/sociedade (?:empres[áa]ria )?limitada\s+([A-ZÀ-Ú][A-ZÀ-Ú0-9 .&'\-]{2,60}?)\s+LTDA\b/i);  // "…SOCIEDADE LIMITADA RAZÃO LTDA" (distrato REGIN)
