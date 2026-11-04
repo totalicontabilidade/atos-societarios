@@ -830,7 +830,8 @@ window.TINA=(function(){
          • cláusula cujo tema NÃO muda neste ato  → sai idêntica à do contrato;
          • cláusula cujo tema muda                → recebe a redação nova, no mesmo lugar;
          • cláusula obrigatória que falte         → é acrescentada no fim.
-       Nada é removido, nunca. */
+       Nada é removido — com uma exceção, exigida pela Junta: a cláusula que só existe em
+       EIRELI (declaração de não possuir outra EIRELI), quando o contrato anterior era de EIRELI. */
     const emitirCorpo=()=>{
       _comparacao=[];   // relatório do que foi mantido, reescrito e acrescentado (comparador antes/depois)
       const orig=(isAlt && d.preservar && Array.isArray(d.clausulasOrig) && d.clausulasOrig.length>=5) ? d.clausulasOrig : null;
@@ -845,7 +846,18 @@ window.TINA=(function(){
         || (tm==="capital" && CH.has("quadro"))
         || (tm==="nome" && CH.has("fantasia"))
         || (tm==="sede" && CH.has("filiais"));
-      orig.forEach(cl=>{
+      /* Contrato anterior de EIRELI: a cláusula que só existe em EIRELI sai, e "titular" vira
+         "sócio" no texto mantido (exigência da Junta, ver deEIRELIparaLTDA). */
+      const daEIRELI=orig.some(c=>c.eireli || RE_EIRELI.test(c.texto||""));
+      const sexoUnico=((d.socios||[]).length===1 && d.socios[0].sexo)||"";
+      const adapta=(t)=>daEIRELI?deEIRELIparaLTDA(t,d.razao,sexoUnico):t;
+      orig.forEach(cl0=>{
+        let cl=cl0;
+        if(daEIRELI){
+          const sem=semDeclaracaoEIRELI(cl.texto);
+          if(!sem){ _comparacao.push({n:0,rotuloOrig:cl.rotulo,titulo:"",situacao:"retirada",tema:cl.tema,antes:cl.texto}); return; }
+          if(sem!==cl.texto) cl=Object.assign({},cl,{texto:sem});
+        }
         const b=cl.tema?porTema.get(cl.tema):null;
         /* Cláusula de vários assuntos ("DO NOME EMPRESARIAL, DA SEDE…"): se qualquer um muda, ela
            sai reescrita com um bloco para cada assunto — nenhum fica com o texto antigo. */
@@ -856,7 +868,7 @@ window.TINA=(function(){
           if(remendo){
             usados.add(cl.tema); usados.add("filiais"); (cl.extras||[]).forEach(e=>usados.add(e));
             const rot=rotulo();
-            ch.push(P([T(rot,{bold:true}),...R(remendo)],JUST,SP15));
+            ch.push(P([T(rot,{bold:true}),...R(adapta(remendo))],JUST,SP15));
             _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:"",situacao:"reescrita",tema:cl.tema,antes:cl.texto});
             return;
           }
@@ -879,7 +891,8 @@ window.TINA=(function(){
           /* Regra da Junta: cláusula que este ato NÃO altera fica no presente. Se o contrato
              enviado a trazia no futuro (foi alterada no ato anterior), só o verbo volta ao
              presente — o resto do texto do cliente não é tocado. */
-          let tp=aoPresente(cl.tema,cl.texto);
+          const txtAd=adapta(cl.texto), eireliMudou=txtAd!==cl0.texto;   // cl0: inclui a frase da EIRELI tirada acima
+          let tp=aoPresente(cl.tema,txtAd);
           (cl.extras||[]).forEach(e=>{ const t2=aoPresente(e,tp.texto); tp={texto:t2.texto,mudou:tp.mudou||t2.mudou}; });   // cláusula de vários assuntos: o verbo de cada um volta ao presente
           const tq=cl.tema==="capital"?separarTabelaQuotas(rejuntarNomeTabela(tp.texto,(d.socios||[]).map(s=>s.nome))):null;
           if(tq){
@@ -889,7 +902,7 @@ window.TINA=(function(){
             if(tq.estab){ ch.push(tabelaSimples(X,tq.estab.cab,tq.estab.rows,tq.estab.total)); ch.push(gap()); }
             if(tq.depois) ch.push(P(R(tq.depois),JUST,SP15));
           } else ch.push(P([T(rot,{bold:true}),...R(tp.texto)],JUST,SP15));
-          _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:"",situacao:"mantida",tema:cl.tema,antes:cl.texto,tempo:tp.mudou,depois:tp.mudou?tp.texto:""});
+          _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:"",situacao:"mantida",tema:cl.tema,antes:cl0.texto,tempo:tp.mudou,eireli:eireliMudou,depois:(tp.mudou||eireliMudou)?tp.texto:""});
         }
       });
       // cláusula obrigatória ausente no contrato enviado entra ao final (só acrescenta, nunca troca)
@@ -2570,24 +2583,27 @@ window.TINA=(function(){
      mantido com o texto do cliente, o que foi reescrito por este ato e o que precisou ser
      acrescentado. Preenchido pelo próprio gerador, então reflete o documento de verdade. */
   let _comparacao=[];
-  const SIT={mantida:["mantida","var(--ok)"],reescrita:["reescrita por este ato","var(--warn)"],acrescentada:["acrescentada (obrigatória, faltava)","var(--navy)"]};
+  const SIT={mantida:["mantida","var(--ok)"],reescrita:["reescrita por este ato","var(--warn)"],acrescentada:["acrescentada (obrigatória, faltava)","var(--navy)"],retirada:["retirada (só valia para EIRELI)","var(--err)"]};
   function abrirComparacao(){
     const box=$("compLista"), res=$("compResumo"); if(!box) return;
     const c=n=>_comparacao.filter(x=>x.situacao===n).length;
     res.className="val ok";
-    res.innerHTML="<b>"+_comparacao.length+" cláusulas</b> no documento gerado: "
+    res.innerHTML="<b>"+(_comparacao.length-c("retirada"))+" cláusulas</b> no documento gerado: "
       +c("mantida")+" com o texto do contrato enviado"
       +(_comparacao.some(x=>x.tempo)?" (em "+_comparacao.filter(x=>x.tempo).length+" delas o verbo voltou ao presente, porque este ato não as altera)":"")
       +", "+c("reescrita")+" reescrita(s) por este ato"
-      +(c("acrescentada")?(", "+c("acrescentada")+" acrescentada(s) por serem obrigatórias"):"")+".";
+      +(c("acrescentada")?(", "+c("acrescentada")+" acrescentada(s) por serem obrigatórias"):"")
+      +(c("retirada")?(". "+c("retirada")+" cláusula(s) do contrato anterior retirada(s) por serem próprias de EIRELI"):"")
+      +(_comparacao.some(x=>x.eireli)?(". Em "+_comparacao.filter(x=>x.eireli).length+" cláusula(s) mantida(s) a linguagem de EIRELI foi trocada (“titular” → “sócio”)"):"")+".";
     box.innerHTML=_comparacao.map(x=>{
       const [rot,cor]=SIT[x.situacao]||["",""];
+      const mostraDif=x.tempo||x.eireli;
       return '<div class="caso" style="padding:7px 9px">'
         +'<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
-        +"<b>Cláusula "+x.n+"ª"+(x.titulo?" — "+escHtml(x.titulo.replace(/^D[AEOU]S?\s+/,"").replace(/^DECLARAÇÃO DE\s+/,"")):"")+"</b>"
-        +'<span class="hint" style="color:'+cor+'">'+rot+(x.tempo?" · verbo no presente":"")+(x.rotuloOrig?" · era a "+escHtml(x.rotuloOrig):"")+"</span></div>"
-        +(x.tempo?'<div class="hint" style="margin-top:4px"><b>Como saiu:</b> '+escHtml(x.depois.slice(0,240))+(x.depois.length>240?"…":"")+'</div><div class="hint" style="margin-top:2px"><b>Como estava:</b> '+escHtml(x.antes.slice(0,240))+(x.antes.length>240?"…":"")+"</div>":"")
-        +(x.antes&&!x.tempo?'<div class="hint" style="margin-top:4px">'+(x.situacao==="reescrita"?"<b>Texto anterior:</b> ":"")+escHtml(x.antes.slice(0,240))+(x.antes.length>240?"…":"")+"</div>":"")
+        +"<b>"+(x.situacao==="retirada"?"Cláusula retirada":"Cláusula "+x.n+"ª")+(x.titulo?" — "+escHtml(x.titulo.replace(/^D[AEOU]S?\s+/,"").replace(/^DECLARAÇÃO DE\s+/,"")):"")+"</b>"
+        +'<span class="hint" style="color:'+cor+'">'+rot+(x.tempo?" · verbo no presente":"")+(x.eireli?" · sem a linguagem de EIRELI":"")+(x.rotuloOrig?" · era a "+escHtml(x.rotuloOrig):"")+"</span></div>"
+        +(mostraDif?'<div class="hint" style="margin-top:4px"><b>Como saiu:</b> '+escHtml(x.depois.slice(0,240))+(x.depois.length>240?"…":"")+'</div><div class="hint" style="margin-top:2px"><b>Como estava:</b> '+escHtml(x.antes.slice(0,240))+(x.antes.length>240?"…":"")+"</div>":"")
+        +(x.antes&&!mostraDif?'<div class="hint" style="margin-top:4px">'+(x.situacao==="reescrita"?"<b>Texto anterior:</b> ":"")+escHtml(x.antes.slice(0,240))+(x.antes.length>240?"…":"")+"</div>":"")
         +"</div>";
     }).join("");
     $("compModal").classList.add("open");
@@ -5132,6 +5148,43 @@ window.TINA=(function(){
     const texto=caput+resto;
     return {texto:texto,mudou:texto!==s};
   }
+  /* ===== Contrato de EIRELI levado a uma alteração de LTDA =====
+     A EIRELI virou sociedade limitada (Lei 14.195/2021, art. 41), mas o texto do contrato
+     continua de EIRELI. Na alteração, as cláusulas que o ato não mexe saem com o texto do
+     cliente — e a Junta de Sergipe recusou o ato por isso: "substituir em todo o ato a palavra
+     TITULAR por SÓCIO" e "retirar a cláusula oitava, pois é específica para EIRELI" (a
+     declaração de não possuir outra EIRELI, art. 980-A, § 2º, do CC revogado). Aqui ficam as
+     duas correções; o resto do texto do cliente não é tocado. */
+  const RE_EIRELI=/\bEIRELI\b|empresa\s+individual\s+de\s+responsabilidade\s+limitada|\b980-A\b/i;
+  // a frase que só existe em EIRELI: "declara … não possuir … nenhuma outra empresa nos moldes de EIRELI"
+  const RE_DECL_EIRELI=/(?:n[ãa]o\s+(?:possu|particip|figur|ter\b|det[ée]m|[ée]\s+titular)|nenhuma\s+outra|outra\s+(?:empresa|EIRELI|pessoa\s+jur))[\s\S]{0,200}?(?:\bEIRELI\b|empresa\s+individual\s+de\s+responsabilidade\s+limitada|980-A)/i;
+  /* Tira da cláusula as frases da declaração de EIRELI. Devolve "" quando a cláusula era só
+     isso (então ela sai do consolidado) e o texto sem a frase quando a declaração vinha junto
+     de outra coisa (o desimpedimento, por exemplo). */
+  function semDeclaracaoEIRELI(txt){
+    const s=String(txt||"");
+    if(!RE_DECL_EIRELI.test(s)) return s;
+    const frases=s.split(/(?<=[.;])\s+(?=[A-ZÀ-Ú“"])/);
+    const fica=frases.filter(f=>!RE_DECL_EIRELI.test(f)).join(" ").trim();
+    // sobrou só o título ("DA DECLARAÇÃO.") ou nada: a cláusula inteira era da EIRELI
+    return fica.replace(/^D[AEOU]S?\s+[A-ZÀ-Ú ,]{3,80}[.:]?\s*/,"").trim().length<30 ? "" : fica;
+  }
+  /* "titular" → "sócio"/"sócia" (com a caixa e o gênero do original) e "X EIRELI" → "X LTDA".
+     "titularidade" não é a palavra "titular" e fica. */
+  function deEIRELIparaLTDA(txt,razao,sexo){
+    let s=String(txt||"");
+    s=s.replace(/\b(titular)(es)?\b/gi,(m,w,pl,ofs,all)=>{
+      const antes=all.slice(Math.max(0,ofs-8),ofs);
+      const fem=/\b(?:a|da|à|na|pela|sua|esta|essa)\s+$/i.test(antes) || (!/\b(?:o|do|ao|no|pelo|seu|este|esse)\s+$/i.test(antes) && sexo==="F");
+      let r=(fem?"sócia":"sócio")+(pl?"s":"");
+      if(w===w.toUpperCase()) r=r.toUpperCase(); else if(w[0]===w[0].toUpperCase()) r=r[0].toUpperCase()+r.slice(1);
+      return r;
+    });
+    const rz=String(razao||"").trim();
+    if(rz) s=s.replace(new RegExp(rz.replace(/[.*+?^${}()|[\]\\]/g,"\\$&").replace(/\s+/g,"\\s+")+"\\s*[-–]?\\s*EIRELI\\b","gi"),rz.toUpperCase()+" LTDA");
+    s=s.replace(/([A-ZÀ-Ú])\s*[-–]?\s*\bEIRELI\b/g,"$1 LTDA");
+    return s;
+  }
   /* ===== Procedência da leitura =====
      Para cada campo, guarda o TRECHO do documento de onde o valor saiu. Em vez de instrumentar
      cada uma das dezenas de expressões, procura o valor já lido dentro do texto original — o
@@ -5289,6 +5342,7 @@ window.TINA=(function(){
        virou sede da empresa. Havendo a cláusula, ela é a fonte; o documento inteiro só serve de
        reserva para contratos cuja estrutura o leitor não reconheceu. */
     d.clausulasOrig=extrairClausulas(tOriginal);   // cláusulas do contrato enviado, no texto original — para não trocar nem retirar nenhuma
+    if(d.tipoOrig==="EIRELI") d.clausulasOrig.forEach(c=>{ c.eireli=true; });   // marca que segue no rascunho: o gerador adapta o texto de EIRELI
     d._txtOrig=tOriginal;                          // guardado só para montar a procedência depois da leitura
     const claus={}; (d.clausulasOrig||[]).forEach(c=>{ if(c.tema && !claus[c.tema]) claus[c.tema]=c.texto; (c.extras||[]).forEach(e=>{ if(!claus[e]) claus[e]=c.texto; }); });
     const ultimaEm=(txt,re)=>{ let m,last; const r=new RegExp(re.source,re.flags.includes("g")?re.flags:re.flags+"g"); while((m=r.exec(txt||"")))last=m[1]; return last||""; };
@@ -5941,7 +5995,7 @@ window.TINA=(function(){
           avisosDoc.push('<b>Documento de sociedade individual de advocacia</b> (registro na OAB, não na Junta). <button type="button" class="btn o mini" id="btnIrSIA">Abrir na aba Advocacia (OAB)</button>');
         if(par&&par.d&&par.d.tipoOrig==="SIA" && MODE.startsWith("sia"))
           avisosDoc.push("<b>Sociedade individual de advocacia.</b> Lido do documento: denominação, titular e inscrição na OAB"+((par.d.nire)?", registro na OAB e data do registro (da certidão)":"")+". Confira e preencha o <b>e-mail e o telefone</b> da sociedade, que o modelo novo da OAB/SE pede.");
-        if(par&&par.d&&par.d.tipoOrig==="EIRELI") avisosDoc.push("<b>Documento de EIRELI.</b> A EIRELI foi extinta pela Lei 14.195/2021: as que existiam viraram sociedades limitadas unipessoais (SLU). O titular foi lido como <b>sócio único</b> (uma quota) e a razão social entrou <b>sem o sufixo “EIRELI”</b>. Confira com a Junta se este ato deve ajustar o nome empresarial para terminar em <b>LTDA</b>; se deve, marque “Nome empresarial” em “O que muda”.");
+        if(par&&par.d&&par.d.tipoOrig==="EIRELI") avisosDoc.push("<b>Documento de EIRELI.</b> A EIRELI foi extinta pela Lei 14.195/2021: as que existiam viraram sociedades limitadas unipessoais (SLU). O titular foi lido como <b>sócio único</b> (uma quota) e a razão social entrou <b>sem o sufixo “EIRELI”</b>. Confira com a Junta se este ato deve ajustar o nome empresarial para terminar em <b>LTDA</b>; se deve, marque “Nome empresarial” em “O que muda”. No consolidado, as cláusulas mantidas saem com <b>“sócio” no lugar de “titular”</b> e a cláusula própria de EIRELI (declaração de não possuir outra EIRELI) é <b>retirada</b>, como a Junta exige — confira no comparador antes/depois.");
         const faltantes=_procedencia.filter(p=>!p.valor).length;
         avisosDoc.push('<button type="button" class="btn o mini" id="btnVerProc">Conferir a leitura</button>'
           +' <span class="hint">'+(_procedencia.length-faltantes)+" de "+_procedencia.length+" campos lidos"
@@ -6820,7 +6874,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();

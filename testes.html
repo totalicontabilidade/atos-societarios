@@ -1366,6 +1366,58 @@
       D.getElementById("procModal").classList.remove("open");
     }catch(e){ reg("Bateria de EIRELI e Conferência editável",false,String(e&&e.message||e).slice(0,160)); }
 
+    /* ---------- 6b5a. Alteração de LTDA a partir de contrato de EIRELI ----------
+       Caso real (v1.56): a 3ª alteração de uma ex-EIRELI foi recusada pela Junta — "substituir em
+       todo o ato a palavra TITULAR por SÓCIO" e "retirar a cláusula oitava, pois é específica para
+       EIRELI". As cláusulas mantidas saíam com o texto de EIRELI do contrato anterior. */
+    grupo("Alteração de ex-EIRELI");
+    try{
+      var P2=W.TINA._pdf;
+      reg("Declaração de EIRELI sozinha na cláusula: a cláusula sai inteira",
+        P2.semDeclaracaoEIRELI("O titular JOAO EXEMPLO SOUZA declara, sob as penas da Lei, não possuir ou ter sob sua titularidade nenhuma outra empresa nos moldes de EIRELI, em qualquer parte do território nacional.")==="");
+      var mix=P2.semDeclaracaoEIRELI("DA DECLARAÇÃO. O administrador declara, sob as penas da lei, não estar impedido de exercer a administração da sociedade. Declara ainda não figurar em nenhuma outra empresa individual de responsabilidade limitada.");
+      reg("Declaração de EIRELI junto do desimpedimento: só a frase da EIRELI sai",
+        /não estar impedido/.test(mix) && !/responsabilidade limitada/i.test(mix), mix);
+      reg("Cláusula sem declaração de EIRELI não muda", P2.semDeclaracaoEIRELI("A sociedade gira sob o nome empresarial EXEMPLO EIRELI.")==="A sociedade gira sob o nome empresarial EXEMPLO EIRELI.");
+      var tr=P2.deEIRELIparaLTDA("A administração será exercida por seu titular JOAO, e o Titular declara. TITULAR. Sob sua titularidade.","EXEMPLO","M");
+      reg("“titular” vira “sócio” na caixa do original e “titularidade” fica", tr==="A administração será exercida por seu sócio JOAO, e o Sócio declara. SÓCIO. Sob sua titularidade.", tr);
+      reg("Feminino pelo artigo (“a titular”) e pelo sexo da sócia",
+        P2.deEIRELIparaLTDA("pela titular MARIA","X","M")==="pela sócia MARIA" && P2.deEIRELIparaLTDA("Titular MARIA declara","X","F")==="Sócia MARIA declara");
+      reg("“EXEMPLO COMERCIO – EIRELI” vira “EXEMPLO COMERCIO LTDA”", P2.deEIRELIparaLTDA("gira sob o nome EXEMPLO COMERCIO – EIRELI.","Exemplo Comercio","M")==="gira sob o nome EXEMPLO COMERCIO LTDA.");
+
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      P2=W.TINA._pdf;
+      // tE: o contrato de EIRELI fictício da bateria anterior (cláusula 5ª "seu titular", 7ª declaração de EIRELI)
+      P2.aplicarDadosContrato(P2.parseContratoTexto(tE,"","","SEGUNDA ALTERAÇÃO CONTRATUAL.pdf"));
+      await espera(700);
+      val("s_log","Rua NOVA da Sede"); mark("alt_sede",true);
+      val("sedeAnterior","Rua Nova, nº 321, Centro, Itabaiana - SE, CEP: 49000-111");
+      await W.TINA.gerarPreview(); await espera(1300);
+      var tx=texto(), cx=tx.slice(tx.search(/CONTRATO SOCIAL CONSOLIDADO/i));
+      reg("Nenhum “titular” no ato inteiro", !/\btitular(es)?\b/i.test(tx), (tx.match(/.{0,50}\btitular\b.{0,30}/i)||[""])[0]);
+      reg("A administração mantida diz “seu sócio”", /isoladamente por seu sócio JOAO EXEMPLO SOUZA/.test(cx), (cx.match(/administração da empresa.{0,70}/)||[""])[0]);
+      reg("A cláusula da declaração de EIRELI saiu do consolidado", !/nos moldes de EIRELI|outra empresa/i.test(cx));
+      reg("O desimpedimento continua", /não estar impedido de exercer a administração/.test(cx));
+      reg("Nenhum “EIRELI” no ato", !/EIRELI/.test(tx), (tx.match(/.{0,40}EIRELI.{0,20}/)||[""])[0]);
+      var cmpE=P2.comparacao()||[];
+      reg("O comparador registra 1 cláusula retirada e a administração adaptada",
+        cmpE.filter(function(x){return x.situacao==="retirada";}).length===1 && cmpE.some(function(x){return x.eireli && x.tema==="administracao";}),
+        cmpE.map(function(x){return x.situacao+(x.eireli?"*":"");}).join(","));
+      var nums=(cx.match(/Cláusula \d+ª/g)||[]).map(function(s){return parseInt(s.replace(/\D/g,""),10);});
+      reg("A numeração do consolidado segue sem buraco", nums.length>=7 && nums.every(function(n,i){return n===i+1;}), nums.join(","));
+
+      // contrato que NÃO é de EIRELI: “titular de quotas” fica como está
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      modo("alt"); await espera(200);
+      W.TINA._pdf.aplicarDadosContrato(W.TINA._pdf.parseContratoTexto(tV.replace("pelo sócio JOAO EXEMPLO SOUZA","pelo sócio JOAO EXEMPLO SOUZA, titular de 6.000 quotas"),"","",""));
+      await espera(700);
+      val("s_log","Rua NOVA da Sede"); mark("alt_sede",true);
+      val("sedeAnterior","Rua da Empresa, nº 55, Centro, Aracaju - SE, CEP: 49000-000");
+      await W.TINA.gerarPreview(); await espera(1300);
+      reg("Contrato de LTDA comum: “titular de quotas” não é trocado", /titular de 6\.000 quotas/.test(texto()));
+    }catch(e){ reg("Bateria de alteração de ex-EIRELI",false,String(e&&e.message||e).slice(0,160)); }
+
     /* ---------- 6b5b. CSP x endereços realmente usados ----------
        Esta bateria nasceu de um bug caro: a consulta de CNPJ e o Firebase foram adicionados sem
        abrir os endereços na política de segurança da página, e ficaram bloqueados em silêncio por
