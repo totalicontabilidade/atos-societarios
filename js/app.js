@@ -270,13 +270,25 @@ window.TINA=(function(){
         </div>
         <div class="grid g3 row">
           <div><label>CPF</label><input type="text" data-f="procCpf" value="${escHtml(data.procCpf||'')}" placeholder="000.000.000-00" maxlength="14"></div>
-          <div style="grid-column:span 2"><label>Qualificação <span class="hint">(sai no preâmbulo depois do nome; com dois genitores, escreva "…, CEP: … e sua genitora NOME, brasileira, …")</span></label><input type="text" data-f="procQualif" value="${escHtml(data.procQualif||'')}" placeholder="brasileiro, casado, empresário, nascido em …, CPF …, residente em …"></div>
+          <div style="grid-column:span 2"><label>Qualificação <span class="hint">(sai no preâmbulo depois do nome)</span></label><input type="text" data-f="procQualif" value="${escHtml(data.procQualif||'')}" placeholder="brasileiro, casado, empresário, nascido em …, CPF …, residente em …"></div>
+        </div>
+        <!-- Menor assistido pelos DOIS genitores: o segundo tem campos próprios (antes ia escondido
+             dentro da qualificação do primeiro e o cartão mostrava um só). -->
+        <div class="hint" style="margin-top:6px">Segundo genitor/assistente <span class="hint">(deixe em branco se for um só)</span></div>
+        <div class="grid g3 row">
+          <div><label>Vínculo</label><input type="text" data-f="proc2Vinculo" value="${escHtml(data.proc2Vinculo||'')}" placeholder="sua genitora"></div>
+          <div><label>Nome completo</label><input type="text" data-f="proc2Nome" value="${escHtml(data.proc2Nome||'')}"></div>
+          <div><label>CPF</label><input type="text" data-f="proc2Cpf" value="${escHtml(data.proc2Cpf||'')}" placeholder="000.000.000-00" maxlength="14"></div>
+        </div>
+        <div class="grid g3 row">
+          <div style="grid-column:span 3"><label>Qualificação do segundo</label><input type="text" data-f="proc2Qualif" value="${escHtml(data.proc2Qualif||'')}" placeholder="brasileira, casada, empresária, nascida em …, CPF …, residente em …"></div>
         </div>
       </div>`;
     $("socios").appendChild(div); rotularCard(div);
     const q=(f)=>div.querySelector("[data-f="+f+"]");
     if(q("temProc")) q("temProc").addEventListener("change",function(){const w=div.querySelector(".procwrap"); if(w)w.style.display=this.checked?"":"none";});
     if(q("procCpf")) q("procCpf").addEventListener("input",function(){this.value=fmtCpf(this.value);});
+    if(q("proc2Cpf")) q("proc2Cpf").addEventListener("input",function(){this.value=fmtCpf(this.value);});
     attachData(q("nascimento"),null);
     q("quotas").addEventListener("input",recalc);
     attachCep(q("cep"),div.querySelector("[data-f=cepstat]"),{log:q("log"),bairro:q("bairro"),mun:q("mun"),uf:q("uf")});
@@ -551,6 +563,11 @@ window.TINA=(function(){
     if(!(s&&s.temProc&&(s.procNome||"").trim())||s.tipoPessoa==="PJ") return [];
     if((s.procTipo||"procurador")==="procurador") return [];
     const out=[{vinculo:((s.procVinculo||"").trim().replace(/[,.;\s]+$/,"")||(s.procTipo==="representado"?"seu representante legal":"seu assistente")),nome:(s.procNome||"").trim().toUpperCase()}];
+    if((s.proc2Nome||"").trim()){
+      out.push({vinculo:((s.proc2Vinculo||"").trim().replace(/[,.;\s]+$/,"")||(s.procTipo==="representado"?"seu representante legal":"seu assistente")),nome:s.proc2Nome.trim().toUpperCase()});
+      return out;
+    }
+    // trabalhos guardados antes da v1.57: o segundo genitor vinha dentro da qualificação do primeiro
     const m=/\be\s+((?:seus?|suas?)\s+(?:pai|m[ãa]e|genitor[a]?|tutor[a]?|curador[a]?|respons[áa]vel))\s+([A-ZÀ-Ú][A-ZÀ-Ú .'\-]{4,60}?)\s*,/.exec(s.procQualif||"");
     if(m) out.push({vinculo:m[1].replace(/\s+/g," "),nome:m[2].replace(/\s+/g," ").trim().toUpperCase()});
     return out;
@@ -561,6 +578,37 @@ window.TINA=(function(){
      ("na cidade de X, estado de Sergipe, na Rua…" ou "na Rua…, Cidade/UF, CEP"), e o verbo desse item
      vai ao futuro ("Terá filial"); o resto da cláusula volta ao presente e fica como está.
      Devolve null quando não acha o endereço antigo — aí o gerador cai no modelo, como antes. */
+  /* O PDF entrega a cláusula achatada: "…CEP: 49500-001; a) Tem filial …; b) Tem filial …". No
+     contrato cada item fica na sua linha — então o texto é partido antes de "a)", "b)"… quando a
+     lista começa em "a)" e tem ao menos dois itens em sequência. Devolve [texto] se não houver lista. */
+  function partirItens(txt){
+    const s=String(txt||""), re=/(?:^|[;:.,]\s+|\s{2,})([a-z])\)\s/g; let cortes=[]; let m, esp="a", aposFrase=false;
+    while((m=re.exec(s))){ if(m[1]!==esp) continue; if(esp==="a") aposFrase=/^[.:]\s/.test(m[0]); cortes.push(m.index+m[0].indexOf(m[1]+")")); esp=String.fromCharCode(esp.charCodeAt(0)+1); }
+    // um item só ("…bem imóvel. a) Um imóvel medindo…") também tem linha própria, se vier depois de ponto ou dois-pontos
+    if(cortes.length<2 && !(cortes.length===1 && aposFrase)) cortes=[];
+    // "Parágrafo único - …" / "Parágrafo primeiro." depois de ponto: no contrato começa linha nova
+    const rp=/\.\s+(Par[áa]grafo\s+(?:[úu]nico|primeiro|segundo|terceiro|quarto|quinto|sexto|\d{1,2}\s*[ºo°]?)\b|§\s*\d)/g; let mp;
+    while((mp=rp.exec(s))) cortes.push(mp.index+mp[0].indexOf(mp[1]));
+    if(!cortes.length) return [s];
+    cortes.sort((a,b)=>a-b);
+    const out=[]; let ini=0; cortes.forEach(c=>{ const p=s.slice(ini,c).trim(); if(p) out.push(p); ini=c; }); out.push(s.slice(ini).trim());
+    return out.filter(Boolean);
+  }
+  // "AVENIDA LOURIVAL BATISTA" digitado no comando → "Avenida Lourival Batista", como o contrato escreve
+  function caixaTitulo(x){
+    const s=String(x||""); if(!s||/[a-zà-ú]/.test(s)) return s;   // já tem minúscula: fica como o usuário escreveu
+    return s.toLowerCase().replace(/(^|[\s\-(/])([a-zà-ú])/g,(m,a,b)=>a+b.toUpperCase())
+      .replace(/\s(D[aeo]s?|E|Em|Na|No)(?=\s)/g,w=>w.toLowerCase())
+      .replace(/\b(Ii|Iii|Iv|Vi|Vii|Viii|Ix|Xi|Xii)\b/g,w=>w.toUpperCase());
+  }
+  /* A qualificação copiada do contrato carrega o erro dele ("Brasileira, …, nascido em …, portador do
+     CPF"): quando o gênero está claro pela nacionalidade no começo, os particípios acompanham. */
+  function concordarQualif(q){
+    const s=String(q||""), fem=/^\s*brasileira\b/i.test(s), masc=/^\s*brasileiro\b/i.test(s);
+    if(fem) return s.replace(/\b(nascid|portad|domiciliad|inscrit|registrad|naturalizad)(o|or)\b/g,(m,r,f)=>r+(f==="or"?"ora":"a"));
+    if(masc) return s.replace(/\b(nascid|domiciliad|inscrit|registrad|naturalizad)a\b/g,"$1o").replace(/\bportadora\b/g,"portador");
+    return s;
+  }
   function remendarFiliaisTexto(cl,d){
     let txt=String((cl&&cl.texto)||""); if(!txt) return null;
     let tp=aoPresente(cl.tema,txt); (cl.extras||[]).forEach(e=>{ tp=aoPresente(e,tp.texto); }); txt=tp.texto;
@@ -657,6 +705,14 @@ window.TINA=(function(){
       const qual=(s.procQualif||"").trim().replace(/[;.\s]+$/,""), cpfD=(s.procCpf||"").replace(/\D/g,"");
       if(cpfD && qual.replace(/\D/g,"").indexOf(cpfD)<0) pr+=", CPF nº "+s.procCpf.trim();   // sem "portador": o gênero não é informado; e não repete o CPF que já está na qualificação
       if(qual) pr+=", "+qual;
+      // segundo genitor/assistente: "… e sua genitora NOME, qualificação…"
+      if((s.proc2Nome||"").trim()){
+        const v2=(s.proc2Vinculo||"").trim().replace(/[,.;\s]+$/,"")||(tipo==="representado"?"seu representante legal":g("seu assistente","sua assistente"));
+        const q2=(s.proc2Qualif||"").trim().replace(/[;.\s]+$/,""), c2=(s.proc2Cpf||"").replace(/\D/g,"");
+        pr+=" e "+v2+" "+s.proc2Nome.trim().toUpperCase();
+        if(c2 && q2.replace(/\D/g,"").indexOf(c2)<0) pr+=", CPF nº "+s.proc2Cpf.trim();
+        if(q2) pr+=", "+q2;
+      }
       p.push(pr);
     }
     return p.join(", ")+";";}
@@ -868,7 +924,7 @@ window.TINA=(function(){
           if(remendo){
             usados.add(cl.tema); usados.add("filiais"); (cl.extras||[]).forEach(e=>usados.add(e));
             const rot=rotulo();
-            ch.push(P([T(rot,{bold:true}),...R(adapta(remendo))],JUST,SP15));
+            partirItens(adapta(remendo)).forEach((pt,k)=>ch.push(k===0?P([T(rot,{bold:true}),...R(pt)],JUST,SP15):P(R(pt),JUST,SP15)));   // cada filial na sua linha, como no contrato
             _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:"",situacao:"reescrita",tema:cl.tema,antes:cl.texto});
             return;
           }
@@ -896,12 +952,12 @@ window.TINA=(function(){
           (cl.extras||[]).forEach(e=>{ const t2=aoPresente(e,tp.texto); tp={texto:t2.texto,mudou:tp.mudou||t2.mudou}; });   // cláusula de vários assuntos: o verbo de cada um volta ao presente
           const tq=cl.tema==="capital"?separarTabelaQuotas(rejuntarNomeTabela(tp.texto,(d.socios||[]).map(s=>s.nome))):null;
           if(tq){
-            ch.push(P([T(rot,{bold:true}),...R(tq.antes)],JUST,SP15));
+            partirItens(tq.antes).forEach((pt,k)=>ch.push(k===0?P([T(rot,{bold:true}),...R(pt)],JUST,SP15):P(R(pt),JUST,SP15)));   // "a) Um imóvel…" na sua linha
             ch.push(tabelaQuotas(dFica,X)); ch.push(gap());
             // segunda tabela da cláusula (capital destacado por estabelecimento): volta a ser tabela também
             if(tq.estab){ ch.push(tabelaSimples(X,tq.estab.cab,tq.estab.rows,tq.estab.total)); ch.push(gap()); }
-            if(tq.depois) ch.push(P(R(tq.depois),JUST,SP15));
-          } else ch.push(P([T(rot,{bold:true}),...R(tp.texto)],JUST,SP15));
+            if(tq.depois) partirItens(tq.depois).forEach(pt=>ch.push(P(R(pt),JUST,SP15)));
+          } else partirItens(tp.texto).forEach((pt,k)=>ch.push(k===0?P([T(rot,{bold:true}),...R(pt)],JUST,SP15):P(R(pt),JUST,SP15)));   // lista "a) … b) …" volta a ter um item por linha
           _comparacao.push({n:n,rotuloOrig:cl.rotulo,titulo:"",situacao:"mantida",tema:cl.tema,antes:cl0.texto,tempo:tp.mudou,eireli:eireliMudou,depois:(tp.mudou||eireliMudou)?tp.texto:""});
         }
       });
@@ -2260,6 +2316,15 @@ window.TINA=(function(){
     (d.socios||[]).forEach((so,i)=>{ if(so.tipoPessoa==="PJ")return;
       const rot=(isEI?"Titular":"Sócio "+(i+1))+(so.nome?" ("+so.nome+")":"");
       const nasc=_parseBR(so.nascimento); if(nasc&&ato&&nasc>=ato)w.push(rot+": nascimento posterior à data do ato — verifique.");
+      /* Menor assistido/representado: aos 18 anos assina sozinho (art. 5º do CC). Se já fez 18 na
+         data do ato, a assistência não cabe; se faz logo depois, a data de assinatura decide. */
+      if(nasc&&ato&&so.temProc&&(so.procTipo==="assistido"||so.procTipo==="representado")){
+        const maior=new Date(nasc.getFullYear()+18,nasc.getMonth(),nasc.getDate());
+        const fmt=x=>String(x.getDate()).padStart(2,"0")+"/"+String(x.getMonth()+1).padStart(2,"0")+"/"+x.getFullYear();
+        const dias=Math.round((maior-ato)/86400000);
+        if(dias<=0) w.push(rot+": já tinha 18 anos na data do ato ("+fmt(maior)+") — assina sozinho(a); tire a assistência/representação do cartão.");
+        else if(dias<=60) w.push(rot+": completa 18 anos em "+fmt(maior)+". Se o ato for assinado a partir dessa data, assina sozinho(a) e a assistência sai do ato — confirme a data da assinatura.");
+      }
       const uf=cepUF(so.cep); if(uf&&so.uf&&uf!==so.uf)w.push(rot+": o CEP "+so.cep+" costuma ser de "+uf+", mas a UF marcada é "+so.uf+".");
     });
     const s=d.sede||{}; const sedeUF=cepUF(s.cep); if(sedeUF&&s.uf&&sedeUF!==s.uf)w.push("Sede: o CEP "+s.cep+" costuma ser de "+sedeUF+", mas a UF marcada é "+s.uf+".");
@@ -5611,8 +5676,14 @@ window.TINA=(function(){
           if(!alvo||alvo.temProc) return;
           const k=sp.texto.indexOf(sp.nome); let qual=k>=0?sp.texto.slice(k+sp.nome.length):"";
           qual=qual.replace(/^\s*,\s*/,"").replace(/\s+/g," ").replace(/\s+-\s*(\d{3})\b/g,"-$1").replace(/(\d)-\s+(\d{3})\b/g,"$1-$2").replace(/[;,\s]+$/,"").trim();
+          /* Os dois genitores: "… CEP: … e sua genitora NOME, qualificação…". O segundo ganha campos
+             próprios no cartão; antes ficava dentro da qualificação do primeiro e o cartão mostrava um só. */
+          let seg=null; const m2=/\s+e\s+((?:seus?|suas?)\s+(?:pai|m[ãa]e|genitor[a]?|tutor[a]?|curador[a]?|respons[áa]vel))\s+([A-ZÀ-Ú][A-ZÀ-Ú .'\-]{4,60}?)\s*,\s*/.exec(qual);
+          if(m2){ const q2=qual.slice(m2.index+m2[0].length).replace(/[;,\s]+$/,"").trim(); const c2=q2.match(/\d{3}\.?\d{3}\.?\d{3}\s*-?\s*\d{2}\b/);
+            seg={proc2Vinculo:m2[1].replace(/\s+/g," "),proc2Nome:limparNome(m2[2].replace(/\s+/g," ").trim(),d.razao)||m2[2].replace(/\s+/g," ").trim(),proc2Cpf:c2?fmtCpf(c2[0].replace(/\D/g,"")):"",proc2Qualif:concordarQualif(q2)};
+            qual=qual.slice(0,m2.index).replace(/[;,\s]+$/,"").trim(); }
           const cpfM=qual.match(/\d{3}\.?\d{3}\.?\d{3}\s*-?\s*\d{2}\b/);
-          Object.assign(alvo,{temProc:true,procTipo:sp.tipo,procVinculo:sp.vinculo,procNome:limparNome(sp.nome,d.razao)||sp.nome,procCpf:cpfM?fmtCpf(cpfM[0].replace(/\D/g,"")):"",procQualif:qual}); }); } }
+          Object.assign(alvo,{temProc:true,procTipo:sp.tipo,procVinculo:sp.vinculo,procNome:limparNome(sp.nome,d.razao)||sp.nome,procCpf:cpfM?fmtCpf(cpfM[0].replace(/\D/g,"")):"",procQualif:concordarQualif(qual)},seg||{}); }); } }
     /* Administração: só o trecho da ATRIBUIÇÃO (para antes de "sendo/vedado/não/O sócio/."), não o
        parágrafo inteiro — senão pega quem "NÃO exercerá administração".
        A lista de verbos precisa cobrir as redações reais da Junta: sem "permanece a cargo" e
@@ -5818,7 +5889,7 @@ window.TINA=(function(){
           // sem município/UF no comando (quem dá o CEP não repete a cidade), ficam os de hoje até a busca do CEP responder —
           // mudança dentro da mesma cidade é o caso comum, e sem internet o cartão não pode ficar sem município
           const munNovo=e.mun||(e.cep?munAntes:""), ufNovo=e.uf||g(card,"uf");
-          ["cep","log","num","comp","bairro","mun"].forEach(f=>{ const el=q2(f); if(el){ el.value=f==="cep"&&e.cep?fmtCep(e.cep):(f==="mun"?munNovo:(e[f]||"")); el.classList.add("revisar"); } });
+          ["cep","log","num","comp","bairro","mun"].forEach(f=>{ const el=q2(f); if(el){ el.value=f==="cep"&&e.cep?fmtCep(e.cep):(f==="mun"?munNovo:(["log","bairro","comp"].indexOf(f)>=0?caixaTitulo(e[f]||""):(e[f]||""))); el.classList.add("revisar"); } });
           if(q2("uf")){ q2("uf").value=ufNovo; q2("uf").classList.add("revisar"); }
           // com CEP, a busca do cartão confere município/UF; e, como na sede, o endereço oficial do CEP
           // prevalece sobre o digitado (logradouro e bairro só quando o CEP os traz — CEP geral de cidade pequena não traz)
@@ -5829,7 +5900,7 @@ window.TINA=(function(){
               if(typeof salvarRascunhoDeb==="function") salvarRascunhoDeb(); }).catch(()=>{}); }
           chk("alt_filiais");
           const faltam=[!e.log&&!e.cep&&"logradouro",!e.num&&"número",!e.mun&&!e.cep&&"município"].filter(Boolean);
-          applied.push("filial "+(munAntes||g(card,"cnpj")||ordRef||ref)+" → "+(e.log||"(pelo CEP)")+(e.num?", nº "+e.num:"")+(e.mun?" — "+e.mun:"")+(e.uf?"/"+e.uf:"")
+          applied.push("filial "+(munAntes||g(card,"cnpj")||ordRef||ref)+" → "+(caixaTitulo(e.log)||"(pelo CEP)")+(e.num?", nº "+e.num:"")+(e.mun?" — "+e.mun:"")+(e.uf?"/"+e.uf:"")
             +" (endereço anterior guardado para a cláusula)"+(faltam.length?" · faltou: "+faltam.join(", "):""));
           continue;
         }
@@ -6874,7 +6945,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();

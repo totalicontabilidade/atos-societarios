@@ -2450,9 +2450,12 @@
       reg("Sócio que também é genitor assistente continua sócio", sM.some(function(x){ return x.nome==="JOAO EXEMPLO SOUZA"; }), sM.map(function(x){return x.nome;}).join(" | "));
       reg("Genitora que só assiste NÃO vira sócia", !sM.some(function(x){ return /MARIA/.test(x.nome||""); }), sM.map(function(x){return x.nome;}).join(" | "));
       var menor=sM.filter(function(x){ return x.nome==="ANA EXEMPLO SOUZA"; })[0]||{};
-      reg("A menor recebe a assistência: genitor, vínculo e a qualificação dos dois pais",
-        menor.temProc===true && menor.procTipo==="assistido" && menor.procVinculo==="seu genitor" && menor.procNome==="JOAO EXEMPLO SOUZA" && /e sua genitora MARIA EXEMPLO SOUZA, Brasileira/.test(menor.procQualif||"") && /49000-400 e sua/.test(menor.procQualif||""),
-        JSON.stringify({tipo:menor.procTipo,vinc:menor.procVinculo,nome:menor.procNome,qual:String(menor.procQualif||"").slice(0,80)}));
+      reg("A menor recebe a assistência: genitor, vínculo e qualificação",
+        menor.temProc===true && menor.procTipo==="assistido" && menor.procVinculo==="seu genitor" && menor.procNome==="JOAO EXEMPLO SOUZA" && /^Brasileiro, Empresário/.test(menor.procQualif||"") && /49000-400$/.test(menor.procQualif||"") && !/MARIA/.test(menor.procQualif||""),
+        JSON.stringify({tipo:menor.procTipo,vinc:menor.procVinculo,nome:menor.procNome,qual:String(menor.procQualif||"").slice(-60)}));
+      reg("O segundo genitor ganha campos próprios (vínculo, nome, CPF e qualificação)",
+        menor.proc2Vinculo==="sua genitora" && menor.proc2Nome==="MARIA EXEMPLO SOUZA" && menor.proc2Cpf==="390.533.447-05" && /^Brasileira, Empresária/.test(menor.proc2Qualif||"") && /49000-400$/.test(menor.proc2Qualif||""),
+        JSON.stringify({v:menor.proc2Vinculo,n:menor.proc2Nome,c:menor.proc2Cpf,q:String(menor.proc2Qualif||"").slice(0,40)}));
       reg("Quotas lidas da tabela “Nome Percentual Quotas Valor”", menor.quotas===200 && (sM.filter(function(x){return x.nome==="JOAO EXEMPLO SOUZA";})[0]||{}).quotas===19800,
         sM.map(function(x){return x.nome+"="+x.quotas;}).join(" | "));
       reg("Só o sócio designado administra (a menor não)", (sM.filter(function(x){return x.nome==="JOAO EXEMPLO SOUZA";})[0]||{}).administrador===true && menor.administrador===false, "");
@@ -2460,6 +2463,10 @@
       reg("Sede lida certa com “cidade de X, estado de Sergipe, Avenida…”", (dM.sede||{}).log==="Avenida Dois" && (dM.sede||{}).mun==="Aracaju", JSON.stringify(dM.sede||{}));
       reg("As duas filiais são lidas", (dM.filiais||[]).length===2, JSON.stringify((dM.filiais||[]).map(function(f){return f.mun;})));
       W.TINA._pdf.aplicarDadosContrato(pm); await espera(400);
+      var cardMenor=[].slice.call(D.querySelectorAll("#socios .socio")).filter(function(c){ var e=c.querySelector('[data-f="nome"]'); return e&&e.value==="ANA EXEMPLO SOUZA"; })[0];
+      var vMenor=function(f){ var e=cardMenor?cardMenor.querySelector('[data-f="'+f+'"]'):null; return e?e.value:""; };
+      reg("O cartão da menor mostra os dois genitores", vMenor("procNome")==="JOAO EXEMPLO SOUZA" && vMenor("proc2Nome")==="MARIA EXEMPLO SOUZA" && vMenor("proc2Cpf")==="390.533.447-05",
+        [vMenor("procNome"),vMenor("proc2Nome"),vMenor("proc2Cpf")].join(" | "));
       var apM=W.TINA._cmd.parseComandos("Alterar endereço da filial de Lagarto para Rua Nova da Filial, 184, Térreo, Centro, 49400000");
       await espera(600);
       var cM=D.querySelector(".filial"), gM=function(f){ var e=cM?cM.querySelector('[data-g="'+f+'"]'):null; return e?e.value:""; };
@@ -2473,7 +2480,9 @@
         /ANA EXEMPLO SOUZA, brasileira[^]*?neste ato assistida por seu genitor JOAO EXEMPLO SOUZA, Brasileiro, Empresário[^]*?e sua genitora MARIA EXEMPLO SOUZA, Brasileira/.test(tx), "");
       reg("Preâmbulo: a genitora não aparece como sócia", !/^MARIA EXEMPLO SOUZA, brasileira/m.test(tx), "");
       reg("Cláusula da sede remendada no estilo do contrato: só a filial transferida muda e vai ao futuro",
-        /a\) Terá filial na cidade de Lagarto, estado de Sergipe, na Rua Nova da Filial, nº 184, Térreo, Centro, CEP: 49400-000; b\) Tem filial na cidade de Itabaiana/.test(tx), (tx.match(/a\) [^;]+; b\) [^.]+/)||[""])[0].slice(0,200));
+        /a\) Terá filial na cidade de Lagarto, estado de Sergipe, na Rua Nova da Filial, nº 184, Térreo, Centro, CEP: 49400-000;\s+b\) Tem filial na cidade de Itabaiana/.test(tx), (tx.match(/a\) [^;]+;\s+b\) [^.]+/)||[""])[0].slice(0,200));
+      reg("Cada filial da cláusula sai em parágrafo próprio, como no contrato",
+        /CEP: 49000-001;\s*\n\s*a\) Terá filial/.test(tx) && /49400-000;\s*\n\s*b\) Tem filial/.test(tx), (tx.match(/49000-001;[\s\S]{0,40}/)||[""])[0]);
       reg("A cláusula não é trocada pelo modelo (sem “Em estabelecimento eleito como Filial”)", !/Em estabelecimento eleito como Filial/.test(tx), "");
       reg("O objeto social aparece uma vez só no consolidado", (tx.match(/Comércio varejista de exemplo/g)||[]).length===1, (tx.match(/Comércio varejista de exemplo/g)||[]).length+" vez(es)");
       var tx1=tx.replace(/\n/g," ");
@@ -2484,6 +2493,14 @@
       reg("Assinaturas: só o administrador designado assina como administrador", /JOAO EXEMPLO SOUZA\s+Sócio\/Administrador/.test(tx) && !/ANA EXEMPLO SOUZA\s+Sócia\/Administradora/.test(tx), "");
       var fM=await W.TINA.validar();
       reg("Validação sem pendência", fM.length===0, fM.join(" | "));
+      reg("Cláusula com “Parágrafo único” e item único “a)” depois de ponto: cada um na sua linha",
+        JSON.stringify(W.TINA._pdf.partirItens("Texto da cláusula. Parágrafo único - Outro texto."))===JSON.stringify(["Texto da cláusula.","Parágrafo único - Outro texto."])
+        && W.TINA._pdf.partirItens("capital representado por bem imóvel. a) Um imóvel medindo 10m.").length===2
+        && W.TINA._pdf.partirItens("conforme a alínea a) do artigo").length===1, "");
+      var avM=W.TINA._ux.checarConsistencia({socios:[{nome:"ANA EXEMPLO SOUZA",nascimento:"12/11/2009",temProc:true,procTipo:"assistido"}],atoData:"01/11/2027"});
+      var avM2=W.TINA._ux.checarConsistencia({socios:[{nome:"ANA EXEMPLO SOUZA",nascimento:"12/11/2009",temProc:true,procTipo:"assistido"}],atoData:"20/11/2027"});
+      reg("Aviso quando a menor assistida completa 18 anos perto da data do ato (ou já completou)",
+        avM.some(function(x){return /completa 18 anos em 12\/11\/2027/.test(x);}) && avM2.some(function(x){return /já tinha 18 anos/.test(x);}), avM.concat(avM2).join(" | ").slice(0,200));
     }catch(e){ reg("Bateria de leitura — menor assistida e filiais",false,String(e&&e.message||e).slice(0,130)); }
 
     grupo("Comandos com dois-pontos");
