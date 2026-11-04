@@ -2507,6 +2507,11 @@
       reg("Complemento depois de travessão (“nº 10 – Condomínio X, Bairro Y”) é lido", sCo.comp==="Condomínio Residencial Exemplo" && sCo.num==="10", JSON.stringify({comp:sCo.comp,num:sCo.num,bairro:sCo.bairro}));
       var cq=W.TINA._pdf.concordarQualif("Brasileira, nascido em 01/01/1980, portador do CPF, residente e domiciliada Rua Um, nº 1");
       reg("Qualificação lida: “domiciliada Rua” ganha o “na”; os particípios acompanham o gênero", cq==="Brasileira, nascida em 01/01/1980, portadora do CPF, residente e domiciliada na Rua Um, nº 1", cq);
+      var rgDe=function(f){ var tt="1ª ALTERAÇÃO AO CONTRATO SOCIAL DA EXEMPLO COMERCIO LTDA JOAO EXEMPLO SOUZA, Brasileiro, Solteiro, Empresário, nascido em 01/02/1980, portador do CPF sob o nº 529.982.247-25, "+f+", residente e domiciliado na Rua Um, nº 10, Bairro Centro, Aracaju/SE, CEP: 49000-400; Único sócio da empresa EXEMPLO COMERCIO LTDA com sede na Avenida Dois, nº 55, Centro, Aracaju/SE, CEP: 49000-001 inscrita no CNPJ nº 11.222.333/0001-81, resolve alterar.";
+        return ((((W.TINA._pdf.parseContratoTexto(tt,"","","1 ALTERACAO.pdf")||{}).d||{}).socios||[])[0]||{}).rg; };
+      var rgs=["RG nº 0123456 SSP/SE","RG nº O123456 SSP/SE","RG: O.123.456 SSP/SE","RG nº 0 123456 SSP/SE","RG sob o nº 0123456 SSP/SE","Carteira de Identidade nº 0.123.456 SSP/SE"].map(rgDe);
+      reg("RG que começa com zero não perde o zero (texto, OCR com “O”, zero separado, com pontos)", rgs.every(function(x){ return x==="0123456"; }) && rgDe("RG nº 1234567 SSP/SE")==="1234567", rgs.join(" | "));
+      reg("Leitura sem o “O” do OCR não inventa zero em RG que não começa com zero", rgDe("identidade nº 12.345 SSP/SE")==="12345", rgDe("identidade nº 12.345 SSP/SE"));
       reg("Aviso quando a menor assistida completa 18 anos perto da data do ato (ou já completou)",
         avM.some(function(x){return /completa 18 anos em 12\/11\/2027/.test(x);}) && avM2.some(function(x){return /já tinha 18 anos/.test(x);}), avM.concat(avM2).join(" | ").slice(0,200));
     }catch(e){ reg("Bateria de leitura — menor assistida e filiais",false,String(e&&e.message||e).slice(0,130)); }

@@ -2768,7 +2768,7 @@ window.TINA=(function(){
     else if(f==="cpf"){ const dg=txt.replace(/\D/g,""); if(txt&&dg.length!==11) return "O CPF precisa ter 11 dígitos."; put("cpf",txt?fmtCpf(dg):"","input"); }
     else if(f==="nascimento"){ const m=txt.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})/);
       if(txt&&!m) return "Não achei uma data (DD/MM/AAAA)."; put("nascimento",m?String(m[1]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[3]:"","input"); }
-    else if(f==="rg"){ put("rg",txt.replace(/^(?:RG|CIN|identidade)[^\d]*/i,"").replace(/[^\dA-Za-z.\-]/g,"")); }
+    else if(f==="rg"){ put("rg",normRG(txt.replace(/^(?:RG|CIN|identidade)[\s\S]*?(?=[Oo]?[\d])/i,"")).replace(/[^\dA-Za-z]/g,"")); }   // sem comer o zero do começo (nem o "O" que o OCR põe no lugar dele)
     else if(f==="estadoCivil"){ if(!put("estadoCivil",txt,"change")) return "Escolha um dos estados civis da lista."; }
     else if(f==="pjCnpj"){ const v=(txt.match(/[\dA-Za-z]{2}[.\s]?[\dA-Za-z]{3}[.\s]?[\dA-Za-z]{3}[\/\s]?[\dA-Za-z]{4}[-\s]?\d{2}/)||[])[0];
       if(txt&&!v) return "Não achei um CNPJ nesse texto."; put("pjCnpj",v?fmtCnpj(v):"","input"); }
@@ -4682,6 +4682,8 @@ window.TINA=(function(){
     const m=t.match(/\bNIRE\b[^0-9]{0,14}((?:\d[.\-\/ ]?){9,13})/i);
     return m? m[1].replace(/[^\d]/g,"") : "";
   }
+  // RG lido: "O" grudado nos dígitos é zero lido errado pelo OCR; espaço, ponto e hífen saem — o zero do começo fica
+  function normRG(x){ return String(x||"").trim().replace(/^[Oo](?=[\d.\s])/,"0").replace(/[.\-\s]/g,""); }
   function parseSocioQualif(seg){
     const s={}; seg=(seg||"").replace(/\s+/g," ").trim();
     // corta o que vem ANTES da nacionalidade (nome/razão colada) — os demais campos ficam depois de "brasileiro(a)"
@@ -4713,7 +4715,10 @@ window.TINA=(function(){
     /* A sigla tem de estar SOLTA, não dentro de outra palavra: com a flag `i`, "RG" casava o "rg" de
        "Sergipe" — e em "…Junta Comercial do Estado de Sergipe sob NIRE 28.200…" o NIRE da empresa
        virava o RG do sócio. \b não serve aqui (letra acentuada não conta como letra em JS). */
-    const rg=seg.match(/(?<![A-Za-zÀ-ú])(?:RG|CIN|C\.\s?I\.?|R\.\s?G\.?|carteira de identidade|identidade)(?![A-Za-zÀ-ú])[^\d]{0,25}([\d][\d.\-]{3,})/i); if(rg)s.rg=rg[1].replace(/[.\-]/g,"");
+    const rg=seg.match(/(?<![A-Za-zÀ-ú])(?:RG|CIN|C\.\s?I\.?|R\.\s?G\.?|carteira de identidade|identidade)(?![A-Za-zÀ-ú])[^\d]{0,25}?((?:[Oo](?=[\d.]))?(?:\d{1,2}\s(?=\d{3}))?\d[\d.\-]{3,}|[Oo]\.(?=\d)[\d.\-]{3,})/i); if(rg)s.rg=normRG(rg[1]);
+    /* O zero do começo do RG não pode sumir: o OCR lê "0123456" como "O123456" e a regra antiga
+       pulava a letra, guardando "123456"; e quando o PDF separa o zero ("0 123456") o RG nem era lido.
+       O pulo antes do número agora é preguiçoso e aceita o "O" grudado nos dígitos como zero. */
     if(!s.rg){const est=seg.match(/\b(?:RNM|RNE|CIE|RG estrangeiro|c[ée]dula de identidade de estrangeiro|passaporte)\b[^A-Za-z0-9]{0,15}(?:n[º°o.]?\s*)?([A-Z]?-?\d[\dA-Za-z.\-\/]{3,})/i); if(est)s.rg=est[1].replace(/\./g,"").trim();}  // documento de estrangeiro (RNM/RNE/passaporte) é alfanumérico
     /* Órgão emissor do RG: o que vem logo depois do número do RG. Procurar a sigla no trecho inteiro
        pegava o DETRAN da CNH ("CNH nº … DETRAN/SE … RG nº … SSP/SE") e o RG saía com o órgão errado. */
