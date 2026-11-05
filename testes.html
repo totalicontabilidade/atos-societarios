@@ -202,6 +202,56 @@
       $("gateModal").classList.remove("open");
     } else { reg("Libera após registrar a confirmação",null,"pulado"); reg("Confirmação vence ao acrescentar cláusula depois",null,"pulado"); }
 
+    // v1.63: o card próprio da S.A./advocacia também vence a confirmação (antes ficava fora do hash)
+    try{
+      var cG=W.confirm; W.confirm=function(){ return true; };
+      modo("sa_age"); await espera(260); $("btnExemplo").click(); await espera(600);
+      $("btnBaixar").click(); await espera(500);
+      if($("gateModal").classList.contains("open")){
+        val("gateData","13/08/2026"); val("gateContato","Contato"); val("gateNota","De acordo");
+        $("btnGateRegistrar").click(); await espera(700);
+        val("saHonorarios","99999"); $("btnBaixar").click(); await espera(700);
+        reg("S.A.: mudar os honorários depois do “de acordo” pede confirmação nova", $("gateModal").classList.contains("open"));
+        $("gateModal").classList.remove("open");
+      } else reg("S.A.: mudar os honorários depois do “de acordo” pede confirmação nova",null,"portão não abriu");
+      modo("sia_const"); await espera(260); $("btnExemplo").click(); await espera(600);
+      $("btnBaixar").click(); await espera(500);
+      if($("gateModal").classList.contains("open")){
+        val("gateData","13/08/2026"); val("gateContato","Contato"); val("gateNota","De acordo");
+        $("btnGateRegistrar").click(); await espera(700);
+        val("siaImped","sim"); val("siaImpedTxt","servidor municipal"); $("btnBaixar").click(); await espera(700);
+        reg("Advocacia: mudar o impedimento depois do “de acordo” pede confirmação nova", $("gateModal").classList.contains("open"));
+        $("gateModal").classList.remove("open");
+      } else reg("Advocacia: mudar o impedimento depois do “de acordo” pede confirmação nova",null,"portão não abriu");
+      W.confirm=cG;
+    }catch(e){ reg("Portão da S.A./advocacia",false,String(e&&e.message||e).slice(0,120)); }
+
+    // v1.63: o rascunho guarda os cards da S.A. e da cooperativa (antes voltavam em branco)
+    try{
+      var cR=W.confirm; W.confirm=function(){ return true; };
+      modo("sa_age"); await espera(260); $("btnExemplo").click(); await espera(600);
+      val("saHora","14:30"); mark("age_capital"); val("saCapitalAnterior","50000"); val("razao",$("razao").value);
+      await espera(1000);
+      var dr={}; try{ dr=JSON.parse(W.localStorage.getItem("tinaDraft")||"{}"); }catch(e){}
+      reg("Rascunho guarda o card da S.A. (hora, mesa, deliberações)",
+        dr.fields && dr.fields.saHora==="14:30" && dr.fields.saPresMesa && dr.checks && dr.checks.age_capital===true && dr.fields.saCapitalAnterior==="50000",
+        dr.fields?("hora="+dr.fields.saHora+" mesa="+dr.fields.saPresMesa):"sem rascunho");
+      modo("coop_const"); await espera(260); $("btnExemplo").click(); await espera(800);
+      val("coopArea","o Município de Lagarto"); val("razao",$("razao").value); await espera(1000);
+      try{ dr=JSON.parse(W.localStorage.getItem("tinaDraft")||"{}"); }catch(e){ dr={}; }
+      reg("Rascunho guarda o card da cooperativa (área, mesa)", dr.fields && dr.fields.coopArea==="o Município de Lagarto" && !!dr.fields.coopPresMesa,
+        dr.fields?("área="+dr.fields.coopArea+" mesa="+dr.fields.coopPresMesa):"sem rascunho");
+      // Limpar desmarca também "Filiais" em "O que muda"
+      modo("alt"); await espera(200); mark("alt_filiais"); $("btnLimpar").click(); await espera(400);
+      reg("“Limpar” desmarca “Filiais” em “O que muda”", !$("alt_filiais").checked);
+      // o exemplo de Ltda sai com a data de hoje (a data fixa já nascia com o aviso dos 30 dias)
+      $("btnExemplo").click(); await espera(400);
+      var hj=new Date(), hjBR=String(hj.getDate()).padStart(2,"0")+"/"+String(hj.getMonth()+1).padStart(2,"0")+"/"+hj.getFullYear();
+      reg("Exemplo da alteração Ltda usa a data de hoje", $("atoData").value===hjBR, $("atoData").value);
+      $("btnLimpar").click(); await espera(300);
+      W.confirm=cR;
+    }catch(e){ reg("Rascunho da S.A./cooperativa",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 6. Parsers ----------
     grupo("Preenchimento rápido");
     modo("alt"); await espera(160);

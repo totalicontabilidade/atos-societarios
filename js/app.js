@@ -3190,6 +3190,15 @@ window.TINA=(function(){
       else { ult.cat=cat; ult.txt=txt; }
       reg.exigencias=hist;
     }
+    /* Mudar a situação pela lista do formulário vale o mesmo que pelos botões. Sem a data, a
+       solicitação finalizada por aqui sumia na hora do "Em aberto" do comercial (que mostra as
+       finalizadas dos últimos 7 dias), o selo saía sem data e a mensagem ao cliente sem o dia do protocolo. */
+    const _reaberta=(_statusAntes==="concluida" && reg.status!=="concluida");
+    if(reg.status!==_statusAntes){
+      if(reg.status==="concluida"){ reg.finalizadoEm=new Date().toISOString(); reg.finalizadoPor=(_meuEmail()||"").split("@")[0]||""; }
+      else if(_reaberta){ delete reg.finalizadoEm; delete reg.finalizadoPor; }
+      if(reg.status==="protocolada") reg.protocoladaEm=new Date().toISOString();
+    }
     if(!_solicEditando) reg.abertaPor=_meuEmail();
     const dup=solicDuplicada(reg.cnpj,reg.id);
     if(dup) toast("Atenção: já existe solicitação em aberto para este CNPJ — "+(dup.empresa||"")+" ("+(SOLIC_STATUS[dup.status]||dup.status)+"). Salva mesmo assim.","warn",6000);
@@ -3213,7 +3222,8 @@ window.TINA=(function(){
                    : (_statusAntes==="concluida"&&reg.status!=="concluida" ? "solicitacao.reaberta" : ""));
       // o formulário fecha ao salvar: recado escrito nele ninguém lê, por isso o aviso de falha vai por toast
       if(_evento) avisarIntegracao(_evento,reg); }
-    if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",reg.id,reg).then(r=>{
+    // reaberta: sem merge, senão a nuvem manteria o "finalizada em" apagado aqui (igual ao botão Reabrir)
+    if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",reg.id,reg,_reaberta?{substituir:true}:undefined).then(r=>{
       if(st) st.textContent = r.ok ? "Salvo aqui e na nuvem." : "Salvo aqui (nuvem: "+(r.msg||"indisponível")+").";
       if(!r.ok) toast("Salvo só neste aparelho — a nuvem não respondeu ("+(r.msg||"indisponível")+"). Tenta de novo sozinho.","warn",6000);
     });
@@ -3593,7 +3603,9 @@ window.TINA=(function(){
     let n=_novasSolic;
     if(_modoComercial){ const eu=_meuEmail(); n=lerSolic().filter(r=>precisaDoComercial(r) && (!eu || !r.abertaPor || r.abertaPor===eu)).length; }
     else n+=lerSolic().filter(r=>r.respostaNova).length;
-    ["menuBadge","solicBadge"].forEach(id=>{ const b=$(id); if(b){ b.textContent=String(n); b.style.display=n?"":"none"; } });
+    /* No modo comercial a lista já está aberta em tela cheia e a conta aparece no "Precisa de você":
+       o número no ☰ apontava para um menu que não leva a nada disso. */
+    ["menuBadge","solicBadge"].forEach(id=>{ const b=$(id); if(b){ b.textContent=String(n); b.style.display=(n && !(_modoComercial && id==="menuBadge"))?"":"none"; } });
   }
   function renderSolic(){
     statusNuvem(); renderLigacao();   // a situação pode ter mudado noutro computador
@@ -4142,7 +4154,18 @@ window.TINA=(function(){
       d.admNaoSocio?1:0,d.admnsNome,d.admnsQualif,
       d.clRegencia?1:0,d.clConselho?1:0,d.clExclusao?1:0,d.conselhoMembros,
       d.socioRetira,d.socioRetiraSexo,d.sedeAnterior,JSON.stringify(d.filiais||[]),chg,soc]
+      .concat(_hashProprio(d))
       .map(x=>x==null?"":String(x)).join("§"));
+  }
+  /* S.A., cooperativa e advocacia têm card próprio (mesa, diretoria, honorários, deliberações,
+     impedimento…) e campos próprios no cartão do sócio (cargo, integralização, OAB). Sem isto, mudar
+     qualquer um deles depois do "de acordo" do cliente não pedia confirmação nova. Só entra nesses
+     modos — nos demais o hash fica igual ao de antes, e os casos já confirmados seguem valendo. */
+  function _hashProprio(d){
+    const md=MODE||"", sa=md.startsWith("sa_"), coop=md.startsWith("coop"), sia=md.startsWith("sia");
+    if(!sa&&!coop&&!sia) return [];
+    return [JSON.stringify({ sa:sa?d.sa:null, coop:coop?d.coop:null, sia:sia?d.sia:null,
+      soc:(d.socios||[]).map(s=>[s.cargo||"",s.integr||"",s.oab||"",s.oabUF||"",s.retirante?1:0].join("|")) })];
   }
   let _gateAcao=null, _gateHash="";
   // executa `acao` só se o caso atual já estiver confirmado com o conteúdo intacto; senão abre o portão
@@ -4407,7 +4430,7 @@ window.TINA=(function(){
     $("razao").value="COMERCIAL MODELO";$("fantasia").value="Loja Modelo";$("enquadramento").value="ME";$("foro").value="Aracaju";
     $("objeto").value="Comércio varejista de artigos diversos; Prestação de serviços de consultoria empresarial";
     $("s_cep").value="49000-000";$("s_log").value="Rua Exemplo";$("s_num").value="100";$("s_bairro").value="Centro";$("s_mun").value="Aracaju";$("s_uf").value="SE";
-    $("capital").value="10000";$("valorQuota").value="1.00";$("atoCidade").value="Aracaju";$("atoData").value="15/12/2025";
+    $("capital").value="10000";$("valorQuota").value="1.00";$("atoCidade").value="Aracaju";$("atoData").value=hojeBR();   /* era 15/12/2025 fixo: passado o prazo, o exemplo já nascia com o aviso dos 30 dias */
     socioCard({nome:"João da Silva Santos",cpf:"111.444.777-35",sexo:"M",nacionalidade:"brasileiro",estadoCivil:"solteiro",profissao:"empresário",nascimento:"10/05/1990",naturalCidade:"Aracaju",naturalUF:"SE",rg:"1234567",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"100",bairro:"Centro",mun:"Aracaju",uf:"SE",quotas:6000,administrador:true});
     socioCard({nome:"Maria de Souza Lima",cpf:"529.982.247-25",sexo:"F",nacionalidade:"brasileiro",estadoCivil:"casado",regime:"comunhão parcial de bens",profissao:"administradora",nascimento:"22/03/1988",naturalCidade:"Aracaju",naturalUF:"SE",rg:"7654321",orgao:"SSP",orgaoUF:"SE",cep:"49000-000",log:"Rua Exemplo",num:"100",comp:"ap. 2",bairro:"Centro",mun:"Aracaju",uf:"SE",quotas:4000,administrador:true});
     $("cnpj").value="12.345.678/0001-95";$("nire").value="28200123456";$("numAlteracao").value="3";$("dataInicioOrig").value="10/05/2015";
@@ -4510,7 +4533,7 @@ window.TINA=(function(){
     _emailEditado=false; emailIdAtual="";
     document.querySelectorAll(".revisar").forEach(e=>e.classList.remove("revisar"));
     document.querySelectorAll(".baixa-conf").forEach(e=>{ e.classList.remove("baixa-conf"); if(e.dataset.tituloBaixa){ e.removeAttribute("title"); delete e.dataset.tituloBaixa; } });
-    ["nome","fantasia","sede","objeto","capital","quadro","enquadramento","foro"].forEach(k=>{if($("alt_"+k))$("alt_"+k).checked=false;});
+    ["nome","fantasia","sede","filiais","objeto","capital","quadro","enquadramento","foro"].forEach(k=>{if($("alt_"+k))$("alt_"+k).checked=false;});
     if($("altRetifica"))$("altRetifica").checked=false; if($("retificaRef"))$("retificaRef").value=""; if($("wrapRetifica"))$("wrapRetifica").style.display="none";
     $("valorQuota").value="1.00";$("enquadramento").value=(MODE.startsWith("sa_")&&MODE!=="sa_transf_sa_ltda")?"DEMAIS":"ME";$("modoAdm").value="ISOLADAMENTE e/ou CONJUNTAMENTE";if($("integralizacao"))$("integralizacao").value="moeda";if($("socioRetiraSexo"))$("socioRetiraSexo").value="M";
     $("socios").innerHTML="";$("numQuotas").value="";if($("s_cep_stat"))$("s_cep_stat").textContent="";const b=$("valCapital");if(b)b.style.display="none";
@@ -6134,6 +6157,19 @@ window.TINA=(function(){
     }
     return applied;
   }
+  /* Aplicar o preenchimento rápido ZERA o formulário e lê tudo de novo. Quem já corrigiu campos à
+     mão (ou na Conferência da leitura) perdia essas correções sem aviso ao clicar outra vez. Agora o
+     botão pergunta — mas só quando há algo mexido desde a última leitura; reaplicar logo em seguida,
+     sem ter tocado em nada, continua direto. As chamadas internas (Ler este anexo, troca de aba da
+     advocacia) não passam por aqui: nelas o usuário já pediu a leitura nova. */
+  let _formAposRapido=null;
+  function _assinaturaForm(){ const o=snapshotForm(); return JSON.stringify([o.mode,o.fields,o.checks,o.socios,o.filiais]); }
+  function aplicarRapidoComAviso(){
+    const f=$("pdfContrato").files&&$("pdfContrato").files[0], cmd=$("cmdRapido").value.trim();
+    if((f||cmd) && draftTemConteudo(snapshotForm()) && _assinaturaForm()!==_formAposRapido
+       && !confirm("Aplicar o preenchimento rápido apaga os campos do formulário e lê tudo de novo.\n\nAs correções feitas à mão desde a última leitura se perdem. Continuar?")) return;
+    return processarRapido();
+  }
   async function processarRapido(){
     const stat=$("rapidoStat");stat.style.color="var(--muted)";stat.textContent="Processando…";
     let houvePDF=false, avisosDoc=[], nomeDoc="";
@@ -6198,6 +6234,7 @@ window.TINA=(function(){
         toast("Aba trocada para Transformação → EI → Ltda. O preenchimento foi mantido.","ok");
         const c=$("cardRapido")||$("status"); if(c&&c.scrollIntoView)c.scrollIntoView({behavior:"smooth",block:"center"}); });}
     else{av.style.display="none";}
+    _formAposRapido=_assinaturaForm();   // o ponto de partida: o que mudar daqui em diante é correção de alguém
   }
 
   /* ===== Avisos (toast) ===== */
@@ -6292,6 +6329,15 @@ window.TINA=(function(){
   /* ===== Auto-save do formulário (rascunho, só neste navegador) ===== */
   const DRAFT_FIELDS=["razao","fantasia","foro","foroUF","atoUF","objeto","s_cep","s_log","s_num","s_comp","s_bairro","s_mun","s_uf","capital","capitalAnterior","valorQuota","numQuotas","enquadramento","modoAdm","integralizacao","atoCidade","atoData","cnpj","nire","numAlteracao","dataInicioOrig","razaoAnterior","sedeAnterior","socioRetira","socioRetiraSexo","acervo","dataEncerramento","guardiaoLivros","haveres","clausulasExtra","retificaRef","admnsNome","admnsQualif","cedNome","cessNome","cedQuotas","cedValor","conselhoMembros","advNome","advOab","advOabUf","siaEmail","siaFone","siaRamo","siaIntegr","siaIntegrAte","siaImped","siaImpedTxt"];
   const DRAFT_CHECKS=["alt_foro","alt_nome","alt_fantasia","alt_sede","alt_filiais","alt_objeto","alt_capital","alt_quadro","alt_enquadramento","altRetifica","alt_cessao","cedRetira","admNaoSocio","cl_regencia","cl_conselho","cl_exclusao","objComCnae","advIncluir","preservarClausulas","siaTestemunhas"];
+  /* S.A., cooperativa e advocacia: os campos dos cards próprios entram no rascunho, no "Guardar e
+     fazer outro" e no "Retomar". Antes ficavam de fora da lista acima e o trabalho voltava sem eles
+     (mesa, honorários, deliberações da AGE, o que muda no estatuto…). A lista sai do próprio card,
+     para que um campo novo num desses cards não precise ser lembrado aqui. */
+  ["cardSA","cardCoop","cardCoopReforma","cardSIA"].forEach(cid=>{ const c=$(cid); if(!c) return;
+    c.querySelectorAll("input[id],select[id],textarea[id]").forEach(el=>{ if(el.type==="file") return;
+      const lista=(el.type==="checkbox")?DRAFT_CHECKS:DRAFT_FIELDS; if(lista.indexOf(el.id)<0) lista.push(el.id); }); });
+  // a mesa da assembleia é escolhida entre os sócios: as opções só existem depois que os cartões voltam
+  const CAMPOS_MESA=["saPresMesa","saSecMesa","coopPresMesa","coopSecMesa"];
   function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig,solic:_solicLigada};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
   // passadas 24h sem uso, é descartado sozinho, para não ficar legível num computador compartilhado.
@@ -6428,6 +6474,12 @@ window.TINA=(function(){
     DRAFT_CHECKS.forEach(id=>{if($(id)&&o.checks&&(id in o.checks))$(id).checked=!!o.checks[id];});
     $("socios").innerHTML="";const arr=(o.socios&&o.socios.length)?o.socios:[undefined];arr.forEach(s=>socioCard(s));
     if($("filiais")){$("filiais").innerHTML=""; (o.filiais||[]).forEach(f=>filialCard(f));}
+    // com os sócios de volta, as listas da mesa ganham as opções; aí sim o valor guardado pega
+    const md=MODE||"";
+    const uiProprio=()=>{ if(md.startsWith("sa_")) atualizarSaUI(); if(md.startsWith("coop")) atualizarCoopUI(); if(md.startsWith("sia")) atualizarSiaUI(); };
+    uiProprio();
+    CAMPOS_MESA.forEach(id=>{ if($(id)&&o.fields&&o.fields[id]) $(id).value=o.fields[id]; });
+    uiProprio();
     _clausulasOrig=Array.isArray(o.clausulas)?o.clausulas:[]; mostrarPreservacao();
     _solicLigada=(typeof o.solic==="string")?o.solic:null; renderLigacao();
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach((w,i)=>{const ck=["admNaoSocio","cl_conselho","alt_cessao"][i]; if($(w)&&$(ck))$(w).style.display=$(ck).checked?"":"none";});
@@ -6769,7 +6821,9 @@ window.TINA=(function(){
         const semAdm=$("equipeSemAdmin"); if(semAdm) semAdm.style.display=e.admin?"none":"";
         const abaEq=$("cfgAbaEquipe"); if(abaEq) abaEq.style.display=e.configurado?"":"none";
         if(e.admin && window.__renderEquipe) window.__renderEquipe();
-        if(e.daEquipe){ sincronizarSolic(); sincronizarAtos(); ligarAvisoSolic(); ligarEspelhoAtos(); window.__enviarErros(); }
+        /* O comercial não abre o gerador nem o painel de casos: não há por que trazer para o celular
+           dele os atos guardados, que levam CPF, RG e endereço dos sócios. */
+        if(e.daEquipe){ sincronizarSolic(); if(!e.soSolicitacoes){ sincronizarAtos(); ligarEspelhoAtos(); } ligarAvisoSolic(); window.__enviarErros(); }
       });
       // Equipe — visível só para administrador
       const renderEquipe=async()=>{
@@ -6821,7 +6875,7 @@ window.TINA=(function(){
     if($("advIncluir")) $("advIncluir").addEventListener("change",function(){ this.dataset.tocado="1"; if($("wrapAdvCampos"))$("wrapAdvCampos").style.display=this.checked?"":"none"; });
     if($("enquadramento")) $("enquadramento").addEventListener("change",atualizarVistoAdvogado);
     // workerSrc é definido junto com o carregamento da lib (ESM ou fallback) — nada a fazer aqui
-    if($("btnRapido")) $("btnRapido").addEventListener("click",processarRapido);
+    if($("btnRapido")) $("btnRapido").addEventListener("click",aplicarRapidoComAviso);
     if($("btnValidar")) $("btnValidar").addEventListener("click",acaoValidar);
     if($("btnHelpRapido")) $("btnHelpRapido").addEventListener("click",()=>$("helpRapido").classList.add("open"));
     if($("btnHelpClose")) $("btnHelpClose").addEventListener("click",()=>$("helpRapido").classList.remove("open"));

@@ -152,6 +152,8 @@
   }
   /* Tela cheia do comercial: quem só lança solicitação não vê o gerador de atos. */
   body.so-solic>header .head-nav,body.so-solic>header .head-item,body.so-solic .wrap{display:none!important}
+  /* no celular o ☰ repete o cabeçalho (Painel de casos, E-mail) — que não é do comercial */
+  body.so-solic .so-mobile{display:none!important}
   /* O cabeçalho fica ACIMA da tela cheia e ela começa abaixo dele. Antes a tela cobria o cabeçalho
      inteiro e o comercial perdia o menu ☰ — sem Configurações (onde fica o destino do "Avisar") e
      sem "Sair". A altura vem medida em --alturaCab, porque o cabeçalho quebra em duas linhas no
