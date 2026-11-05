@@ -260,7 +260,11 @@ window.TINA=(function(){
         <label class="checkline ltdaonly"><input type="checkbox" data-f="administrador" ${(data.administrador===false||(data.tipoPessoa==='PJ'&&data.administrador===undefined))?'':'checked'}> <span class="lblAdm">É administrador</span> <span class="hint pjonly" style="display:none">— administrador é sempre pessoa natural: marcar aqui designa o <b>representante</b> da sócia</span></label>
         <label class="checkline alt-transfei" style="display:none"><input type="checkbox" data-f="retirante" ${data.retirante?'checked':''}> <span class="altonly"><b>Retira-se</b> nesta alteração <span class="hint">— continua qualificado no preâmbulo e assina o ato; sai do quadro e do consolidado</span></span><span class="transfeionly"><b>Titular retirante</b> <span class="hint">— transfere a empresa ao próximo sócio da lista (modelo da Junta com transferência de titularidade); é qualificado e assina a parte 1, mas não entra na sociedade</span></span></label>
         <label class="checkline pfonly"><input type="checkbox" data-f="temProc" ${data.temProc?'checked':''}> Representado ou assistido por terceiro <span class="hint">(procurador, genitor de menor, tutor)</span></label>
+        <label class="checkline pfonly altonly" style="display:none"><input type="checkbox" data-f="maioridade" ${data.maioridade?'checked':''}> Atingiu a maioridade <span class="hint">— completou 18 anos: assina sozinho(a), sem a assistência dos pais, e o ato registra a maioridade numa cláusula</span></label>
         <button class="btn del mini" type="button" onclick="TINA.removeSocio(${idx})">Remover</button>
+      </div>
+      <div class="maiorwrap altonly" style="display:${data.maioridade?'':'none'}">
+        <div class="grid g3 row"><div style="grid-column:span 3"><label>Era assistido(a)/representado(a) por <span class="hint">(sai na cláusula da maioridade — ex.: seu genitor NOME e sua genitora NOME)</span></label><input type="text" data-f="exAssist" value="${escHtml(data.exAssist||'')}"></div></div>
       </div>
       <div class="procwrap" style="display:${data.temProc?'':'none'}">
         <div class="grid g3 row">
@@ -287,6 +291,7 @@ window.TINA=(function(){
     $("socios").appendChild(div); rotularCard(div);
     const q=(f)=>div.querySelector("[data-f="+f+"]");
     if(q("temProc")) q("temProc").addEventListener("change",function(){const w=div.querySelector(".procwrap"); if(w)w.style.display=this.checked?"":"none";});
+    if(q("maioridade")) q("maioridade").addEventListener("change",function(){const w=div.querySelector(".maiorwrap"); if(w)w.style.display=this.checked?"":"none";});
     if(q("procCpf")) q("procCpf").addEventListener("input",function(){this.value=fmtCpf(this.value);});
     if(q("proc2Cpf")) q("proc2Cpf").addEventListener("input",function(){this.value=fmtCpf(this.value);});
     attachData(q("nascimento"),null);
@@ -335,7 +340,7 @@ window.TINA=(function(){
     if(ehFormEI()){div.querySelectorAll(".ltdaonly").forEach(e=>e.style.display="none");const tg=div.querySelector(".tag");if(tg)tg.textContent="Titular";const pt=div.querySelector(".pjtoggle");if(pt)pt.style.display="none";}
     // quem revela .altonly é o switchMode; um card criado com o app JÁ em "Alteração" nasceria com a
     // caixa de retirada escondida até o usuário trocar de aba e voltar
-    if(typeof MODE!=="undefined" && MODE==="alt") div.querySelectorAll(".altonly").forEach(e=>e.style.display="");
+    if(typeof MODE!=="undefined" && MODE==="alt") div.querySelectorAll(".altonly").forEach(e=>{ e.style.display=(e.classList.contains("maiorwrap")&&!(q("maioridade")&&q("maioridade").checked))?"none":""; });
     if(typeof MODE!=="undefined" && (MODE==="alt"||MODE==="transf_ei_ltda"||MODE==="transf_ei_slu")) div.querySelectorAll(".alt-transfei").forEach(e=>e.style.display="");
     if(typeof MODE!=="undefined" && (MODE==="transf_ei_ltda"||MODE==="transf_ei_slu")) div.querySelectorAll(".transfeionly").forEach(e=>e.style.display="");
     if(typeof MODE!=="undefined" && MODE.startsWith("coop")){ div.querySelectorAll(".cooponly").forEach(e=>e.style.display=""); if(data.cargo){ const sc=div.querySelector('[data-f="cargo"]'); if(sc) sc.value=data.cargo; } }
@@ -497,6 +502,7 @@ window.TINA=(function(){
   function coletar(){const socios=readSocios(),cap=Number($("capital").value)||0,vq=Number($("valorQuota").value)||0;
     const v=(id)=>{const e=$(id);return e?(e.value||"").trim():"";};
     const CHG=new Set();["nome","fantasia","sede","filiais","objeto","capital","quadro","enquadramento","cessao","foro"].forEach(k=>{const e=$("alt_"+k);if(e&&e.checked)CHG.add(k);});
+    if([...document.querySelectorAll(".socio:not(.filial):not(.guardado) [data-f=maioridade]")].some(c=>c.checked)) CHG.add("maioridade");   // sócio que completou 18 anos neste ato
     // objeto e texto livre passam pela normalização aqui: mesmo digitado à mão, nenhum documento
     // sai com "não especificadas anteriormente" nem com código CNAE quando a opção está desligada
     return{razao:v("razao"),fantasia:v("fantasia"),enquadramento:$("enquadramento").value,foro:v("foro"),
@@ -548,6 +554,23 @@ window.TINA=(function(){
      muda de endereço neste ato (é o que o comando "endereço da filial X para …" preenche):
      cada uma vira uma cláusula de transferência, com o CNPJ quando houver. Sem nenhuma marcada,
      a cláusula redefine a lista inteira (abertura/encerramento feitos à mão no formulário). */
+  /* Sócio que completou 18 anos entre um ato e outro. Pela IN DREI 81/2020 (Manual de Ltda, item
+     3.1 da Seção I e 3.1 da Seção II; art. 1.690 do CC) a assistência dos pais dura "até completarem a
+     maioridade": no ato seguinte ele é qualificado sem ela e assina sozinho — não há ato próprio nem
+     cláusula obrigatória. A cláusula abaixo só REGISTRA o fato, para o analista da Junta ver por que
+     quem antes assinava assistido agora assina só (a data de nascimento no preâmbulo prova a idade). */
+  function dataMaioridade(nasc){ const n=_parseBR(nasc); return n?new Date(n.getFullYear()+18,n.getMonth(),n.getDate()):null; }
+  function fmtDataBR(x){ return x?String(x.getDate()).padStart(2,"0")+"/"+String(x.getMonth()+1).padStart(2,"0")+"/"+x.getFullYear():""; }
+  function textoDelibMaioridade(d,quem){
+    const sujeito=String(quem||"Os sócios resolvem").replace(/\s+resolvem?$/,""), plural=!/resolve$/.test(String(quem||"resolvem"));
+    return (d.socios||[]).filter(s=>s.maioridade&&s.tipoPessoa!=="PJ").map(s=>{
+      const g=(m,f)=>gsex(s,m,f), NOME=(s.nome||"[NOME]").toUpperCase(), m18=dataMaioridade(s.nascimento);
+      const ex=(s.exAssist||"").trim().replace(/[.;\s]+$/,"");
+      return sujeito+(plural?" registram que ":" registra que ")+g("o sócio","a sócia")+" "+NOME+(s.nascimento?", "+g("nascido","nascida")+" em "+s.nascimento:"")
+        +", completou dezoito anos"+(m18?" em "+fmtDataBR(m18):"")+" e, plenamente capaz para os atos da vida civil (art. 5º do Código Civil), passa a exercer pessoalmente os direitos e deveres de "+g("sócio","sócia")
+        +", cessando a "+(s.procTipo==="representado"?"representação":"assistência")+(ex?" de "+ex:" até então exigida")+" que constava do contrato social.";
+    });
+  }
   function textoDelibFiliais(d,quem,isRetifica){
     const fl=d.filiais||[], mov=fl.filter(f=>(f.anterior||"").trim());
     if(mov.length) return mov.map(f=>quem+" "+(isRetifica?"retificar o endereço da filial":"transferir a filial")
@@ -813,6 +836,7 @@ window.TINA=(function(){
       ch.push(P(R((pluralSig?"Os sócios":gSoleSig("O sócio","A sócia"))+" acima qualificad"+(pluralSig?"os":gSoleSig("o","a"))+", únic"+(pluralSig?"os componentes":gSoleSig("o componente","a componente"))+" da sociedade empresária limitada "+nomeCabUP+" LTDA, com sede à "+sedeCabL+", inscrita no CNPJ sob o nº "+(d.cnpj||"[CNPJ]")+(d.nire?", com NIRE "+d.nire:"")+", com seus atos constitutivos arquivados na "+_junta()+", resolve"+(pluralSig?"m":"")+" promover "+(isRetifica?("a presente rerratificação, nos termos dos arts. 117 e 118 da Instrução Normativa DREI nº 81, de 2020, para correção de erro material do ato arquivado ("+(d.retificaRef||"[informe o nº e a data do arquivamento retificado]")+"),"):("a presente "+(d.numAlteracao?d.numAlteracao+"ª ":"")+"alteração contratual,"))+" mediante as cláusulas e condições seguintes:"),JUST,SP15));
       const tmud=isRetifica?"Da retificação":"Da alteração", av=isRetifica?"retificar":"alterar", pass=isRetifica?"que por erro material passa a constar":"que passa a ser";
       let dci=0;const delib=(tema,texto)=>ch.push(P([T("Cláusula "+ordExt[dci++]+" – "+tema+". ",{bold:true}),...R(texto)],JUST,SP15));
+      if(CH.has("maioridade")){ const sm=(d.socios||[]).filter(s=>s.maioridade&&s.tipoPessoa!=="PJ"); textoDelibMaioridade(d,resolvem).forEach((t,i)=>delib("Da maioridade "+gsex(sm[i],"do sócio","da sócia"),t)); }
       if(CH.has("nome")) delib(tmud+" do nome empresarial",resolvem+" "+av+" o nome empresarial da sociedade, "+pass+" "+razaoUP+" LTDA.");
       if(CH.has("fantasia")) delib((isRetifica?"Da retificação do":"Do")+" título do estabelecimento",d.fantasia?(resolvem+" "+(isRetifica?("retificar o título de estabelecimento (nome fantasia), "+pass+" "+fantUP):("adotar como título de estabelecimento (nome fantasia) a expressão "+fantUP))+"."):(resolvem+" suprimir o nome fantasia da sociedade."));
       if(CH.has("sede")) delib(tmud+" da sede",resolvem+" "+(isRetifica?"retificar a sede da sociedade, que, corrigido o erro material, passa a localizar-se na":"transferir a sede da sociedade, que passa a localizar-se na")+" "+endLinha(d.sede)+".");
@@ -2327,12 +2351,19 @@ window.TINA=(function(){
       const nasc=_parseBR(so.nascimento); if(nasc&&ato&&nasc>=ato)w.push(rot+": nascimento posterior à data do ato — verifique.");
       /* Menor assistido/representado: aos 18 anos assina sozinho (art. 5º do CC). Se já fez 18 na
          data do ato, a assistência não cabe; se faz logo depois, a data de assinatura decide. */
-      if(nasc&&ato&&so.temProc&&(so.procTipo==="assistido"||so.procTipo==="representado")){
-        const maior=new Date(nasc.getFullYear()+18,nasc.getMonth(),nasc.getDate());
-        const fmt=x=>String(x.getDate()).padStart(2,"0")+"/"+String(x.getMonth()+1).padStart(2,"0")+"/"+x.getFullYear();
+      const maior=dataMaioridade(so.nascimento);
+      if(maior&&ato&&so.temProc&&(so.procTipo==="assistido"||so.procTipo==="representado")){
         const dias=Math.round((maior-ato)/86400000);
-        if(dias<=0) w.push(rot+": já tinha 18 anos na data do ato ("+fmt(maior)+") — assina sozinho(a); tire a assistência/representação do cartão.");
-        else if(dias<=60) w.push(rot+": completa 18 anos em "+fmt(maior)+". Se o ato for assinado a partir dessa data, assina sozinho(a) e a assistência sai do ato — confirme a data da assinatura.");
+        if(dias<=0) w.push(rot+": já tinha 18 anos na data do ato ("+fmtDataBR(maior)+") — assina sozinho(a). Use o comando «maioridade de "+(so.nome||"NOME")+"» no preenchimento rápido, ou marque «Atingiu a maioridade» no cartão e desmarque a assistência.");
+        else if(dias<=60) w.push(rot+": completa 18 anos em "+fmtDataBR(maior)+". Se o ato for assinado a partir dessa data, assina sozinho(a) e a assistência sai do ato («maioridade de "+(so.nome||"NOME")+"» no preenchimento rápido) — confirme a data da assinatura.");
+      }
+      if(so.maioridade){
+        if(maior&&ato&&ato<maior) w.push(rot+": marcado «Atingiu a maioridade», mas na data do ato ("+fmtDataBR(ato)+") ainda não tem 18 anos (faz em "+fmtDataBR(maior)+") — date o ato de "+fmtDataBR(maior)+" em diante ou mantenha a assistência.");
+        if(!maior) w.push(rot+": marcado «Atingiu a maioridade» sem data de nascimento — informe a data (o preâmbulo e a cláusula precisam dela).");
+        if(so.temProc) w.push(rot+": marcado «Atingiu a maioridade» e ainda «Representado ou assistido» — desmarque a assistência para assinar sozinho(a).");
+        // cláusula do contrato enviado que ainda fala do sócio menor ("assistida por seu genitor", "a sócia menor…")
+        const nm=(so.nome||"").trim().toUpperCase();
+        (_clausulasOrig||[]).forEach(c=>{ const tx=String((c&&c.texto)||""); if(nm&&tx.toUpperCase().includes(nm)&&/\bmenor\b|\bassistid[oa]\b|\brepresentad[oa]\s+por\s+(?:seus?|suas?)\b|\bincapaz\b/i.test(tx)) w.push(rot+": a cláusula "+(c.rotulo||c.n||"")+" do contrato enviado ainda fala da condição de menor/assistência — revise-a (o sistema mantém o texto do cliente)."); });
       }
       const uf=cepUF(so.cep); if(uf&&so.uf&&uf!==so.uf)w.push(rot+": o CEP "+so.cep+" costuma ser de "+uf+", mas a UF marcada é "+so.uf+".");
     });
@@ -3942,6 +3973,7 @@ window.TINA=(function(){
     // sem o endereço lido do PDF, vale o "Endereço ANTERIOR" digitado (o mesmo que vai no preâmbulo)
     if(CH.has("sede")) L.push(dp("ENDEREÇO DA SEDE", (va&&va.sede&&(va.sede.log||va.sede.cep))?endLinha(va.sede):(d.sedeAnterior||"").trim(), endLinha(d.sede)));
     if(CH.has("filiais")) (d.filiais||[]).filter(f=>(f.anterior||"").trim()).forEach(f=>L.push(dp("ENDEREÇO DA FILIAL"+(f.cnpj?" "+f.cnpj:(f.mun?" DE "+f.mun.toUpperCase():"")), f.anterior.trim(), endLinha(f))));
+    if(CH.has("maioridade")) (d.socios||[]).filter(s=>s.maioridade).forEach(s=>L.push("▸ MAIORIDADE DE SÓCIO: "+(s.nome||"").toUpperCase()+" completou 18 anos e passa a assinar sozinho(a)"+((s.exAssist||"").trim()?", sem a assistência de "+s.exAssist.trim():"")));
     if(CH.has("objeto")) L.push(dp("OBJETO SOCIAL (ATIVIDADES)", (va&&va.objeto)||"", d.objeto||""));
     if(CH.has("capital")){
       // na transformação, o "de" é o acervo do EI quando o capital da sociedade é maior que ele
@@ -4116,7 +4148,7 @@ window.TINA=(function(){
   function _hashStr(s){let h=5381;for(let i=0;i<s.length;i++)h=((h*33)^s.charCodeAt(i))>>>0;return h.toString(36);}
   // hash do CONTEÚDO que o cliente aprova — se qualquer campo relevante mudar depois, a confirmação "vence"
   function hashConfirmacao(d){
-    const soc=(d.socios||[]).map(s=>[(s.nome||"").trim().toUpperCase(),s.cpf||"",s.tipoPessoa||"PF",s.quotas||0,s.administrador?1:0,s.pjRep||"",s.pjCnpj||""].join("|")).join("~");
+    const soc=(d.socios||[]).map(s=>[(s.nome||"").trim().toUpperCase(),s.cpf||"",s.tipoPessoa||"PF",s.quotas||0,s.administrador?1:0,s.pjRep||"",s.pjCnpj||""].join("|")+(s.temProc?"|P:"+(s.procNome||"")+"/"+(s.proc2Nome||""):"")+(s.maioridade?"|M":"")).join("~");
     const chg=d.changed?[...d.changed].sort().join(","):"";
     return _hashStr([MODE,d.razao,d.fantasia,d.cnpj,d.nire,d.numAlteracao,d.capital,d.capitalAnterior,d.numQuotas,d.valorQuota,d.objeto,
       JSON.stringify(d.sede),d.enquadramento,d.modoAdm,d.integralizacao,d.atoData,d.atoCidade,d.foro,d.foroUF,d.atoUF,
@@ -5886,6 +5918,43 @@ window.TINA=(function(){
     const segs=corpo.split(/[;\n]+/).map(s=>s.trim()).filter(Boolean);
     for(const s of segs){
       let m;
+      /* Sócio que completou 18 anos: "maioridade de NOME", "NOME completou 18 anos", "NOME atingiu a
+         maioridade", "NOME assina sozinha", "retirar a assistência de NOME", "NOME não é mais menor".
+         Tira a assistência/representação do cartão (preâmbulo e assinatura), guarda quem assistia para
+         a cláusula que registra a maioridade e marca "Atingiu a maioridade". */
+      {
+        const rx=[/^(?:registrar\s+)?(?:a\s+)?maioridade\s+(?:civil\s+)?(?:d[eoa]\s+)?(?:s[óo]ci[oa]\s+)?(.+)$/i,
+          /^(?:s[óo]ci[oa]\s+)?(.+?)\s+(?:atingiu|completou|alcan[çc]ou|fez|chegou\s+[àa])\s+(?:a\s+)?(?:maioridade|18\s*anos|dezoito\s+anos)/i,
+          /^(?:s[óo]ci[oa]\s+)?(.+?)\s+(?:assina|passa\s+a\s+assinar|assinar[áa])\s+sozinh[oa]/i,
+          /^(?:retirar|tirar|remover|cessar|encerrar)\s+(?:a\s+)?(?:assist[êe]ncia|representa[çc][ãa]o)\s+(?:d[eoa]\s+)?(?:s[óo]ci[oa]\s+)?(.+)$/i,
+          /^(?:s[óo]ci[oa]\s+)?(.+?)\s+n[ãa]o\s+[ée]\s+mais\s+(?:menor|assistid[oa]|representad[oa])/i];
+        let mm=null; for(const r of rx){ if((mm=s.match(r))) break; }
+        if(mm){
+          const chave=x=>semAcento(String(x||"")).toLowerCase().replace(/\s+/g," ").trim();
+          const ref=mm[1].replace(/[,.:;]+$/,"").replace(/^(?:a|o)\s+/i,"").trim(), alvo=chave(ref), alvoCpf=ref.replace(/\D/g,"");
+          const cards=[...document.querySelectorAll(".socio:not(.filial):not(.guardado)")];
+          const g=(c,f)=>{ const e=c.querySelector("[data-f="+f+"]"); return e?(e.type==="checkbox"?e.checked:String(e.value||"").trim()):""; };
+          const achados=cards.filter(c=>{ const nm=chave(g(c,"nome")), cpf=String(g(c,"cpf")).replace(/\D/g,""); return (alvoCpf.length===11&&cpf===alvoCpf)||(alvo&&nm.includes(alvo)); });
+          if(achados.length!==1){ applied.push((achados.length?"⚠ mais de um sócio com “":"⚠ sócio não encontrado para a maioridade: “")+ref+(achados.length?"” — escreva o nome completo":"” — leia o contrato ou confira o nome")); continue; }
+          const card=achados[0], q=f=>card.querySelector("[data-f="+f+"]"), nome=g(card,"nome");
+          if(g(card,"tipoPJ")){ applied.push("⚠ "+nome+" é pessoa jurídica — maioridade só vale para sócio pessoa física"); continue; }
+          // quem assistia, para a cláusula: "seu genitor NOME e sua genitora NOME"
+          const partes=[]; if(g(card,"temProc")&&g(card,"procNome")) partes.push(((g(card,"procVinculo")||(g(card,"procTipo")==="representado"?"seu representante legal":"seu assistente"))+" "+g(card,"procNome").toUpperCase()).trim());
+          if(g(card,"temProc")&&g(card,"proc2Nome")) partes.push(((g(card,"proc2Vinculo")||"")+" "+g(card,"proc2Nome").toUpperCase()).trim());
+          const ex=partes.join(" e ");
+          if(q("maioridade")){ q("maioridade").checked=true; q("maioridade").dispatchEvent(new Event("change",{bubbles:true})); }
+          if(q("exAssist")&&ex){ q("exAssist").value=ex; q("exAssist").classList.add("revisar"); }
+          if(q("temProc")&&q("temProc").checked){ q("temProc").checked=false; q("temProc").dispatchEvent(new Event("change",{bubbles:true})); }
+          ["procNome","procCpf","procQualif","procVinculo","proc2Nome","proc2Cpf","proc2Qualif","proc2Vinculo"].forEach(f=>{ if(q(f)) q(f).value=""; });
+          if(q("procTipo")) q("procTipo").value="procurador";
+          card.classList.add("revisar");
+          const m18=dataMaioridade(g(card,"nascimento")), ato=_parseBR(($("atoData")||{}).value||"");
+          let aviso=""; if(m18&&ato&&ato<m18) aviso=" · ⚠ na data do ato ("+fmtDataBR(ato)+") ainda não terá 18 anos (faz em "+fmtDataBR(m18)+") — o ato precisa ser datado de "+fmtDataBR(m18)+" em diante";
+          else if(!m18) aviso=" · ⚠ sem data de nascimento no cartão — confira se já completou 18 anos";
+          applied.push("maioridade de "+nome+(m18?" (18 anos em "+fmtDataBR(m18)+")":"")+": assina sozinh"+(g(card,"sexo")==="F"?"a":"o")+(ex?", sem a assistência de "+ex:"")+"; a cláusula registra a maioridade"+aviso);
+          continue;
+        }
+      }
       /* Endereço da FILIAL. Não existia: "endereço da filial de Lagarto para …" não casava com
          nada e o retorno era "Nenhum comando reconhecido". A filial é apontada pelo município,
          pela rua, pelo CNPJ ou pela ordem ("filial 2"); o endereço atual do cartão vai para
@@ -6991,7 +7060,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,corrigirRedacaoMantida,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,corrigirRedacaoMantida,textoDelibMaioridade,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();

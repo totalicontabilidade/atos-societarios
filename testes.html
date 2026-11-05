@@ -2521,6 +2521,26 @@
       reg("Cláusula 8 mantida: “suas atividades iniciarão em 20/03/2003” vai ao passado", W.TINA._pdf.aoPresente("prazo","O prazo é indeterminado e suas atividades iniciarão em 20/03/2003.").texto==="O prazo é indeterminado e suas atividades iniciaram em 20/03/2003.", W.TINA._pdf.aoPresente("prazo","O prazo é indeterminado e suas atividades iniciarão em 20/03/2003.").texto);
       reg("Aviso quando a menor assistida completa 18 anos perto da data do ato (ou já completou)",
         avM.some(function(x){return /completa 18 anos em 12\/11\/2027/.test(x);}) && avM2.some(function(x){return /já tinha 18 anos/.test(x);}), avM.concat(avM2).join(" | ").slice(0,200));
+      /* A menor completou 18 anos: o comando tira a assistência (preâmbulo e assinatura), guarda quem
+         assistia e o ato ganha a cláusula que registra a maioridade. Pela IN DREI 81 não há ato próprio. */
+      var apMa=W.TINA._cmd.parseComandos("maioridade de ANA EXEMPLO SOUZA"); await espera(300);
+      var cMa=[].slice.call(D.querySelectorAll("#socios .socio")).filter(function(c){ var e=c.querySelector('[data-f="nome"]'); return e&&e.value==="ANA EXEMPLO SOUZA"; })[0];
+      var vMa=function(f){ var e=cMa?cMa.querySelector('[data-f="'+f+'"]'):null; return e?(e.type==="checkbox"?e.checked:e.value):null; };
+      reg("Comando «maioridade de NOME»: marca a maioridade, tira a assistência e guarda quem assistia",
+        apMa.length===1 && /^maioridade de ANA EXEMPLO SOUZA \(18 anos em 12\/11\/2027\)/.test(apMa[0]) && vMa("maioridade")===true && vMa("temProc")===false && vMa("procNome")==="" && vMa("exAssist")==="seu genitor JOAO EXEMPLO SOUZA e sua genitora MARIA EXEMPLO SOUZA",
+        apMa.join(" | ")+" · "+vMa("exAssist"));
+      reg("O comando avisa quando a data do ato é anterior aos 18 anos", /ainda não terá 18 anos \(faz em 12\/11\/2027\)/.test(apMa[0]||""), apMa[0]);
+      var fMa0=await W.TINA.validar();
+      reg("Consistência: maioridade marcada com o ato datado antes dos 18 anos", (fMa0.consist||[]).some(function(x){ return /marcado «Atingiu a maioridade», mas na data do ato/.test(x); }), (fMa0.consist||[]).join(" | ").slice(0,200));
+      val("atoData","15/11/2027");
+      await W.TINA.gerarPreview(); await espera(1500);
+      var txMa=texto(), fMa=await W.TINA.validar();
+      reg("Preâmbulo sem a assistência e sem a genitora", /ANA EXEMPLO SOUZA, brasileira[^;]*49000-400;/.test(txMa) && !/assistida por/.test(txMa) && !/MARIA EXEMPLO SOUZA/.test(txMa.slice(0, txMa.indexOf("Cláusula Primeira"))), "");
+      reg("Cláusula «Da maioridade da sócia» registra os 18 anos e quem assistia",
+        /Cláusula Primeira – Da maioridade da sócia\. Os sócios registram que a sócia ANA EXEMPLO SOUZA, nascida em 12\/11\/2009, completou dezoito anos em 12\/11\/2027 e, plenamente capaz[^]*?cessando a assistência de seu genitor JOAO EXEMPLO SOUZA e sua genitora MARIA EXEMPLO SOUZA que constava do contrato social\./.test(txMa),
+        (txMa.match(/Cláusula Primeira[^\n]{0,200}/)||[""])[0]);
+      reg("Assinatura: a sócia assina sozinha, um bloco só, sem «Assistida por»", (txMa.match(/ANA EXEMPLO SOUZA\s+Sócia/g)||[]).length===1 && !/Assistida por/.test(txMa) && !/MARIA EXEMPLO SOUZA/.test(txMa.slice(txMa.lastIndexOf("Cláusula 9ª"))), "");
+      reg("Validação e consistência sem pendência com o ato datado após os 18 anos", fMa.length===0 && !(fMa.consist||[]).some(function(x){ return /18 anos|maioridade/.test(x); }), fMa.join(" | ")+" · "+(fMa.consist||[]).join(" | "));
     }catch(e){ reg("Bateria de leitura — menor assistida e filiais",false,String(e&&e.message||e).slice(0,130)); }
 
     grupo("Comandos com dois-pontos");

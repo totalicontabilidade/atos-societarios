@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.60" />
+<meta name="versao" content="1.61" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,7 +18,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="assets/icone-512.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icone-192.png" />
 <title>Atos Societários — Totali Soluções Contábeis</title>
-<link rel="stylesheet" href="css/app.css?v=1.60">
+<link rel="stylesheet" href="css/app.css?v=1.61">
 </head>
 <body>
 <!-- Tela de carregamento: as bibliotecas (docx, pdf.js, OCR) levam um instante e, sem sinal nenhum,
@@ -614,6 +614,7 @@
         <tr><td>Foro</td><td><code>foro para Itabaiana</code> <span class="hint">(se a sede muda de município, o foro já acompanha sozinho quando era o da própria sede)</span></td></tr>
         <tr><td>Incluir sócio</td><td><code>incluir sócio MARIA SOUZA LIMA, CPF 111.444.777-35</code></td></tr>
         <tr><td>Excluir sócio</td><td><code>excluir sócio JOÃO DA COSTA</code></td></tr>
+        <tr><td>Sócio que completou 18 anos</td><td><code>maioridade de MARIA SOUZA LIMA</code> · <code>MARIA SOUZA LIMA completou 18 anos</code> <span class="hint">(tira a assistência dos pais do preâmbulo e da assinatura, guarda quem assistia e o ato ganha a cláusula "Da maioridade de sócio". Pela IN DREI 81 não há ato próprio: a data do ato precisa ser igual ou posterior ao aniversário de 18 anos, e a sócia assina sozinha)</span></td></tr>
         <tr><td>Endereço do sócio</td><td><code>endereço do sócio JOÃO DA COSTA para Rua X, 100, Centro, Aracaju/SE, 49000-000</code> <span class="hint">(também: <code>sócio JOÃO mudou para …</code>. Só atualiza a qualificação no preâmbulo — sem cláusula, como permite o Manual da Junta)</span></td></tr>
       </table>
       <p style="margin-top:12px"><b>Exemplo completo:</b><br>
@@ -1099,19 +1100,19 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.60"></script>
-<script defer src="js/nuvem.js?v=1.60"></script>
-<script defer src="js/integracao.js?v=1.60"></script>
-<script defer src="js/modelos-coop.js?v=1.60"></script>
-<script defer src="js/gerador-coop.js?v=1.60"></script>
-<script defer src="js/modelos-sa.js?v=1.60"></script>
-<script defer src="js/gerador-sa.js?v=1.60"></script>
-<script defer src="js/gerador-sia.js?v=1.60"></script>
+<script defer src="js/nuvem-config.js?v=1.61"></script>
+<script defer src="js/nuvem.js?v=1.61"></script>
+<script defer src="js/integracao.js?v=1.61"></script>
+<script defer src="js/modelos-coop.js?v=1.61"></script>
+<script defer src="js/gerador-coop.js?v=1.61"></script>
+<script defer src="js/modelos-sa.js?v=1.61"></script>
+<script defer src="js/gerador-sa.js?v=1.61"></script>
+<script defer src="js/gerador-sia.js?v=1.61"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
-<script src="js/erros.js?v=1.60"></script>
-<script src="js/app.js?v=1.60"></script>
+<script src="js/erros.js?v=1.61"></script>
+<script src="js/app.js?v=1.61"></script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
 <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 <div id="draftBanner">
