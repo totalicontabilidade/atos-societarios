@@ -200,7 +200,8 @@ window.Integracao = (function () {
   var TIPOS = { alt: "Alteração contratual", abe: "Abertura", bai: "Baixa",
                 tra: "Transformação", out: "Outro" };
   var STATUS = { nova: "Nova", andamento: "Em andamento", cliente: "Aguardando cliente",
-                 protocolada: "Protocolada", exigencia: "Em exigência", concluida: "Finalizada" };
+                 protocolada: "Protocolada", exigencia: "Em exigência", concluida: "Finalizada",
+                 cancelada: "Cancelada" };
 
   /* DD/MM/AAAA vira aaaa-mm-dd. Sem expressão regular: a barra
      invertida some em edição automática e o separador deixa de ser

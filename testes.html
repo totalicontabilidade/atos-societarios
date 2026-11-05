@@ -230,17 +230,28 @@
     try{
       var cR=W.confirm; W.confirm=function(){ return true; };
       modo("sa_age"); await espera(260); $("btnExemplo").click(); await espera(600);
-      val("saHora","14:30"); mark("age_capital"); val("saCapitalAnterior","50000"); val("razao",$("razao").value);
-      await espera(1000);
-      var dr={}; try{ dr=JSON.parse(W.localStorage.getItem("tinaDraft")||"{}"); }catch(e){}
-      reg("Rascunho guarda o card da S.A. (hora, mesa, deliberações)",
-        dr.fields && dr.fields.saHora==="14:30" && dr.fields.saPresMesa && dr.checks && dr.checks.age_capital===true && dr.fields.saCapitalAnterior==="50000",
-        dr.fields?("hora="+dr.fields.saHora+" mesa="+dr.fields.saPresMesa):"sem rascunho");
+      val("saHora","14:30"); mark("age_capital"); val("saCapitalAnterior","50000");
+      /* Direto na cópia do formulário (a mesma que o rascunho, o "Guardar e fazer outro" e o
+         "Retomar" usam): esperar o salvamento automático falha com o painel do navegador escondido,
+         porque o Chrome atrasa os relógios da aba. Ida e volta: copia, limpa, restaura. */
+      var dr=W.TINA._ux.snapshotForm(), presSA=$("saPresMesa").value;
+      reg("A cópia do formulário leva o card da S.A. (hora, mesa, deliberações)",
+        dr.fields && dr.fields.saHora==="14:30" && !!dr.fields.saPresMesa && dr.checks && dr.checks.age_capital===true && dr.fields.saCapitalAnterior==="50000",
+        dr.fields?("hora="+dr.fields.saHora+" mesa="+dr.fields.saPresMesa):"sem cópia");
+      $("btnLimpar").click(); await espera(400);
+      W.TINA._ux.restaurarForm(dr); await espera(400);
+      reg("E volta inteira ao retomar, com a mesa escolhida e o bloco do aumento à vista",
+        $("saHora").value==="14:30" && $("saPresMesa").value===presSA && !!presSA && $("age_capital").checked && $("wrapAgeCapital").style.display!=="none",
+        "hora="+$("saHora").value+" mesa="+$("saPresMesa").value);
       modo("coop_const"); await espera(260); $("btnExemplo").click(); await espera(800);
-      val("coopArea","o Município de Lagarto"); val("razao",$("razao").value); await espera(1000);
-      try{ dr=JSON.parse(W.localStorage.getItem("tinaDraft")||"{}"); }catch(e){ dr={}; }
-      reg("Rascunho guarda o card da cooperativa (área, mesa)", dr.fields && dr.fields.coopArea==="o Município de Lagarto" && !!dr.fields.coopPresMesa,
-        dr.fields?("área="+dr.fields.coopArea+" mesa="+dr.fields.coopPresMesa):"sem rascunho");
+      val("coopArea","o Município de Lagarto");
+      dr=W.TINA._ux.snapshotForm(); var presC=$("coopPresMesa").value;
+      reg("A cópia do formulário leva o card da cooperativa (área, mesa)", dr.fields && dr.fields.coopArea==="o Município de Lagarto" && !!dr.fields.coopPresMesa,
+        dr.fields?("área="+dr.fields.coopArea+" mesa="+dr.fields.coopPresMesa):"sem cópia");
+      $("btnLimpar").click(); await espera(400);
+      W.TINA._ux.restaurarForm(dr); await espera(400);
+      reg("E a cooperativa volta inteira ao retomar", $("coopArea").value==="o Município de Lagarto" && $("coopPresMesa").value===presC && !!presC,
+        "área="+$("coopArea").value+" mesa="+$("coopPresMesa").value);
       // Limpar desmarca também "Filiais" em "O que muda"
       modo("alt"); await espera(200); mark("alt_filiais"); $("btnLimpar").click(); await espera(400);
       reg("“Limpar” desmarca “Filiais” em “O que muda”", !$("alt_filiais").checked);
@@ -1686,6 +1697,73 @@
       W.Nuvem.estado=est0;
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de finalizar solicitação",false,String(e&&e.message||e).slice(0,130)); }
+
+    /* ---------- v1.64: cancelar (cliente desistiu), Protocolei sem solicitação, OAB e pré-protocolo antes do e-mail ---------- */
+    grupo("Solicitações — cancelar e protocolo");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      try{ W.localStorage.removeItem("tinaSolic"); W.localStorage.removeItem("tinaCasos"); }catch(e){}
+      var nc={};
+      W.Nuvem.podeGravar=function(){ return true; };
+      W.Nuvem.listar=function(){ return Promise.resolve({ok:true,itens:[]}); };
+      W.Nuvem.salvar=function(c,id,d,o){ nc[c+"/"+id]=(o&&o.substituir)?Object.assign({id:id},d):Object.assign({},nc[c+"/"+id]||{},d,{id:id}); return Promise.resolve({ok:true,id:id}); };
+      W.Nuvem.trilha=function(){ return Promise.resolve({ok:true}); };
+      var estC=W.Nuvem.estado;
+      W.Nuvem.estado=function(){ return Object.assign({},estC(),{email:"cadastro@exemplo.com",uid:"U1",daEquipe:true}); };
+      semDialogos(W);
+
+      $("btnSolic").click(); await espera(300);
+      $("btnSolicNova").click(); await espera(220);
+      val("sEmpresa","EXEMPLO DESISTIU LTDA"); val("sObs","Cliente pediu e depois desistiu.");
+      $("btnSolicSalvar").click(); await espera(450);
+      reg("Quem faz o cadastro tem o botão Cancelar", !!D.querySelector("[data-sol-cancelar]"));
+      D.querySelector("[data-sol-cancelar]").click(); await espera(350);
+      var sc=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
+      reg("Cancelar encerra como “Cancelada”, com quando e por quem", sc.status==="cancelada" && !!sc.finalizadoEm && sc.finalizadoPor==="cadastro", sc.status+" · "+sc.finalizadoPor);
+      reg("O cartão mostra o selo de cancelada (não o de finalizada)", /✕ Cancelada/.test($("solicLista").innerText) && !/✓ Finalizada/.test($("solicLista").innerText));
+      reg("Cancelada há pouco continua à vista em “Em aberto”, como a finalizada", $("solicLista").innerText.indexOf("EXEMPLO DESISTIU")>=0);
+      reg("Cancelada oferece Reabrir, e não Finalizar nem Cancelar", !!D.querySelector("[data-sol-reabrir]") && !D.querySelector("[data-sol-fim]") && !D.querySelector("[data-sol-cancelar]"));
+      reg("Há filtro “Canceladas” com a contagem", /Canceladas\s*1/.test(($("solicChips")||{}).innerText||""), ($("solicChips")||{}).innerText);
+      D.querySelector("[data-sol-reabrir]").click(); await espera(350);
+      sc=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
+      reg("Reabrir a cancelada volta para em andamento e limpa o registro", sc.status==="andamento" && !sc.finalizadoEm, sc.status);
+      // pela lista de situação do formulário
+      D.querySelector("[data-sol-editar]") && D.querySelector("[data-sol-editar]").click(); await espera(250);
+      if($("sStatus")){ $("sStatus").value="cancelada"; $("btnSolicSalvar").click(); await espera(400); }
+      sc=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
+      reg("Cancelar pela lista de situação também grava a data", sc.status==="cancelada" && !!sc.finalizadoEm, sc.status);
+      $("btnSolicClose").click(); await espera(200);
+      try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
+
+      // Protocolei sem solicitação ligada: o protocolo fica no caso
+      modo("alt"); await espera(200); $("btnExemplo").click(); await espera(500);
+      $("btnPainel").click(); await espera(300); $("btnSalvarCaso").click(); await espera(400); $("btnPainelClose").click(); await espera(200);
+      await W.TINA.gerarPreview(); await espera(2600);
+      $("btnPreProto").click(); await espera(700);
+      reg("Ato sem solicitação também tem “Protocolei na Junta”", $("protoSolic").style.display!=="none" && /Protocolei na Junta/.test($("btnProtocolei").textContent), $("btnProtocolei").textContent);
+      $("btnProtocolei").click(); await espera(400);
+      var cp=(JSON.parse(W.localStorage.getItem("tinaCasos")||"[]")||[]).filter(function(c){ return c.protocoladoEm; });
+      reg("E o protocolo fica registrado no caso (Painel de casos), também na nuvem", cp.length===1 && Object.keys(nc).some(function(k){ return /^atos\//.test(k) && nc[k].protocoladoEm; }));
+      reg("Depois de registrado, o botão some", $("protoSolic").style.display==="none");
+      $("btnProtoClose").click(); await espera(200);
+      $("btnPainel").click(); await espera(300);
+      reg("O painel mostra a data do protocolo", /protocolado \d{2}\/\d{2}\/\d{4}/.test($("painelLista").innerText));
+      $("btnPainelClose").click(); await espera(200);
+
+      // pré-protocolo antes de mandar ao cliente
+      $("btnEmail").click(); await espera(500);
+      reg("O e-mail de confirmação mostra o pré-protocolo antes de mandar ao cliente", $("emailPrePro").style.display!=="none" && /pré-protocolo/i.test($("emailPrePro").innerText), ($("emailPrePro").innerText||"").slice(0,90));
+      $("btnEmailClose").click(); await espera(200);
+
+      // advocacia: o registro é na OAB
+      modo("sia_const"); await espera(260); $("btnExemplo").click(); await espera(600);
+      await W.TINA.gerarPreview(); await espera(2200);
+      $("btnPreProto").click(); await espera(600);
+      reg("Na advocacia o botão diz “Protocolei na OAB”", /Protocolei na OAB/.test($("btnProtocolei").textContent), $("btnProtocolei").textContent);
+      $("btnProtoClose").click(); await espera(200);
+      W.Nuvem.estado=estC;
+      try{ W.localStorage.removeItem("tinaCasos"); }catch(e){}
+    }catch(e){ reg("Bateria de cancelar e protocolo",false,String(e&&e.message||e).slice(0,130)); }
 
     /* ---------- 6b4b. Solicitações: recado do cadastro, autoria, permissões do comercial e CNPJ repetido ---------- */
     grupo("Solicitações — recado e permissões");

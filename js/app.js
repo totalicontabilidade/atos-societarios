@@ -2914,7 +2914,11 @@ window.TINA=(function(){
   /* ===== Solicitações (fila de trabalho da equipe) =====
      Guarda no navegador e, quando há login na nuvem, também no Firestore. O local é a
      fonte do dia a dia; a nuvem é o registro compartilhado. Nunca depende da rede. */
-  const SOLIC_STATUS={nova:"Nova",andamento:"Em andamento",cliente:"Aguardando cliente",protocolada:"Protocolada",exigencia:"Em exigência",concluida:"Finalizada"};
+  const SOLIC_STATUS={nova:"Nova",andamento:"Em andamento",cliente:"Aguardando cliente",protocolada:"Protocolada",exigencia:"Em exigência",concluida:"Finalizada",cancelada:"Cancelada"};
+  /* "Cancelada" é o fim de quem DESISTIU. Antes o único fim era "Finalizada", e a mensagem ao cliente
+     dizia "o processo foi concluído" para quem tinha desistido. As duas encerram do mesmo jeito
+     (data, quem, 7 dias à vista do comercial, aviso de saída ao Hub); muda só o nome e o texto. */
+  const SOLIC_FIM=["concluida","cancelada"];
   /* Exigência da Junta: a categoria é o que permite contar o que mais volta (e virar conferência no
      pré-protocolo); o texto livre guarda o que ela pediu de fato. Cada exigência fica no histórico da
      solicitação — uma mesma empresa pode voltar mais de uma vez. */
@@ -2953,12 +2957,13 @@ window.TINA=(function(){
     if(ult && ult.status===status) return;
     h.push({status,em:new Date().toISOString(),por:_quem(_meuEmail())}); r.historico=h.slice(-40);
   }
-  const PASSOS=[["nova","Aberta"],["andamento","Em andamento"],["cliente","Aguardando cliente"],["protocolada","Protocolada"],["exigencia","Exigência"],["concluida","Finalizada"]];
+  const PASSOS=[["nova","Aberta"],["andamento","Em andamento"],["cliente","Aguardando cliente"],["protocolada","Protocolada"],["exigencia","Exigência"],["concluida","Finalizada"],["cancelada","Cancelada"]];
   function _linhaTempo(r){
     const q={}; (Array.isArray(r.historico)?r.historico:[]).forEach(p=>{ q[p.status]=p.em; });
     if(!q.nova&&r.criadoEm) q.nova=r.criadoEm; if(!q.andamento&&r.trabalhandoDesde) q.andamento=r.trabalhandoDesde;
     if(!q.protocolada&&r.protocoladaEm) q.protocolada=r.protocoladaEm; if(!q.exigencia&&(r.exigencias||[]).length) q.exigencia=r.exigencias.slice(-1)[0].em;
     if(r.status==="concluida"&&r.finalizadoEm) q.concluida=r.finalizadoEm; else delete q.concluida;   // reaberta: o "finalizada" antigo não vale
+    if(r.status==="cancelada"&&r.finalizadoEm) q.cancelada=r.finalizadoEm; else if(r.status!=="cancelada") delete q.cancelada;
     const fio=["nova","andamento","protocolada","concluida"];
     const atual=fio.indexOf(r.status==="cliente"?"andamento":(r.status==="exigencia"?"protocolada":r.status));
     // a linha principal sempre aparece; "aguardando cliente" e "exigência" só quando aconteceram
@@ -3024,7 +3029,8 @@ window.TINA=(function(){
       cliente:"Para seguirmos com o processo de "+emp+", precisamos de"+((r.pendencia||"").trim()?": "+r.pendencia.trim():(falta.length?":\n"+falta.join("\n"):" algumas informações suas.")),
       protocolada:"O processo de "+emp+" foi protocolado na "+orgao+(r.protocoladaEm?" em "+_dataBR(r.protocoladaEm):"")+". Assim que for aprovado, avisamos.",
       exigencia:"A "+orgao+" pediu um ajuste no processo de "+emp+". Já estamos cuidando disso"+((r.pendencia||"").trim()?" e precisamos de: "+r.pendencia.trim():"")+".",
-      concluida:"O processo de "+emp+" foi concluído"+(r.finalizadoEm?" em "+_dataBR(r.finalizadoEm):"")+"."
+      concluida:"O processo de "+emp+" foi concluído"+(r.finalizadoEm?" em "+_dataBR(r.finalizadoEm):"")+".",
+      cancelada:"Conforme combinado, o processo de "+emp+" foi cancelado"+(r.finalizadoEm?" em "+_dataBR(r.finalizadoEm):"")+". Se quiser retomar, é só nos chamar."
     };
     return oi+(ex[r.status]||ex.andamento)+(((CFG&&CFG.escritorio)||"").trim()?"\n\n"+CFG.escritorio.trim():"");
   }
@@ -3039,7 +3045,7 @@ window.TINA=(function(){
   // finalizada há pouco continua à vista de quem pediu: é como o comercial fica sabendo que acabou
   const DIAS_RECEM_FINALIZADA=7;
   function _recemFinalizada(r){
-    if(!r || r.status!=="concluida" || !r.finalizadoEm) return false;
+    if(!r || SOLIC_FIM.indexOf(r.status)<0 || !r.finalizadoEm) return false;
     const t=Date.parse(r.finalizadoEm); if(isNaN(t)) return false;
     return (Date.now()-t) < DIAS_RECEM_FINALIZADA*86400000;
   }
@@ -3193,9 +3199,9 @@ window.TINA=(function(){
     /* Mudar a situação pela lista do formulário vale o mesmo que pelos botões. Sem a data, a
        solicitação finalizada por aqui sumia na hora do "Em aberto" do comercial (que mostra as
        finalizadas dos últimos 7 dias), o selo saía sem data e a mensagem ao cliente sem o dia do protocolo. */
-    const _reaberta=(_statusAntes==="concluida" && reg.status!=="concluida");
+    const _reaberta=(SOLIC_FIM.indexOf(_statusAntes)>=0 && SOLIC_FIM.indexOf(reg.status)<0);
     if(reg.status!==_statusAntes){
-      if(reg.status==="concluida"){ reg.finalizadoEm=new Date().toISOString(); reg.finalizadoPor=(_meuEmail()||"").split("@")[0]||""; }
+      if(SOLIC_FIM.indexOf(reg.status)>=0){ reg.finalizadoEm=new Date().toISOString(); reg.finalizadoPor=(_meuEmail()||"").split("@")[0]||""; }
       else if(_reaberta){ delete reg.finalizadoEm; delete reg.finalizadoPor; }
       if(reg.status==="protocolada") reg.protocoladaEm=new Date().toISOString();
     }
@@ -3218,8 +3224,8 @@ window.TINA=(function(){
        aqui: avisar primeiro e falhar na gravação deixaria o outro
        sistema sabendo de algo que não existe. */
     { const _evento=_eraNova ? "solicitacao.criada"
-                   : (reg.status==="concluida"&&_statusAntes!=="concluida" ? "solicitacao.finalizada"
-                   : (_statusAntes==="concluida"&&reg.status!=="concluida" ? "solicitacao.reaberta" : ""));
+                   : (SOLIC_FIM.indexOf(reg.status)>=0&&SOLIC_FIM.indexOf(_statusAntes)<0 ? "solicitacao.finalizada"   // cancelada também: o Hub fecha a pendência (o pacote leva a situação)
+                   : (_reaberta ? "solicitacao.reaberta" : ""));
       // o formulário fecha ao salvar: recado escrito nele ninguém lê, por isso o aviso de falha vai por toast
       if(_evento) avisarIntegracao(_evento,reg); }
     // reaberta: sem merge, senão a nuvem manteria o "finalizada em" apagado aqui (igual ao botão Reabrir)
@@ -3449,6 +3455,18 @@ window.TINA=(function(){
     toast("Solicitação de "+(r.empresa||"cliente")+": "+SOLIC_STATUS[para]+".","ok");
     return true;
   }
+  // a data do protocolo fica também no caso: é o que o painel mostra, com ou sem solicitação
+  function protocolei(){
+    const sid=solicDoAto();
+    const cs=lerCasos(), c=casoAtualId?cs.find(x=>x.id===casoAtualId):null;
+    if(c){ c.protocoladoEm=hojeBR(); c.protocoladoPor=_quem(_meuEmail()); c.alteradoEm=new Date().toISOString(); salvarCasos(cs);
+      if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.salvar("atos",c.id,{protocoladoEm:c.protocoladoEm,protocoladoPor:c.protocoladoPor,alteradoEm:c.alteradoEm});
+        window.Nuvem.trilha("ato.protocolar",c.id,""); }
+      renderPainel(); }
+    const moveu=sid ? moverSolic("protocolada",["nova","andamento","cliente","exigencia"]) : false;
+    if(!moveu) toast(c ? ("Protocolo registrado no Painel de casos em "+c.protocoladoEm+".") : "Salve o caso (Painel de casos) para registrar o protocolo.", c?"ok":"warn");
+    renderLigacao();
+  }
   function renderLigacao(){
     const bar=$("solicLigadaBar"), sid=(_solicLigada===null)?"":_solicLigada;
     const r=sid?lerSolic().find(x=>x.id===sid):null;
@@ -3462,7 +3480,16 @@ window.TINA=(function(){
         const b=$("btnDesligarSolic"); if(b) b.addEventListener("click",desligarSolic);
       }
     }
-    const ps=$("protoSolic"); if(ps) ps.style.display=(r && ["nova","andamento","cliente","exigencia"].indexOf(r.status)>=0)?"":"none";
+    /* "Protocolei" vale para TODO ato. Antes só aparecia com solicitação ligada, e o ato aberto direto
+       no gerador nunca ficava registrado como protocolado. Sem solicitação, a data vai para o caso
+       (Painel de casos). Na advocacia o registro é na OAB, não na Junta. */
+    const ps=$("protoSolic");
+    if(ps){ const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null;
+      ps.style.display=(r ? ["nova","andamento","cliente","exigencia"].indexOf(r.status)>=0 : !!(c && !c.protocoladoEm))?"":"none";
+      const orgao=(MODE||"").startsWith("sia")?"OAB":"Junta";
+      if($("btnProtocolei")) $("btnProtocolei").textContent="✓ Protocolei na "+orgao;
+      if($("protoSolicHint")) $("protoSolicHint").textContent=r ? "— a solicitação passa para “Protocolada” e o comercial fica sabendo."
+        : "— fica registrado no Painel de casos, com a data de hoje."; }
   }
 
   /* "Ler este anexo": o comercial já anexou o contrato ou o cartão CNPJ na solicitação. Em vez de
@@ -3538,8 +3565,10 @@ window.TINA=(function(){
   function finalizarSolic(id,fim){
     const l=lerSolic(); const i=l.findIndex(x=>x.id===id); if(i<0) return;
     const r=l[i];
+    const cancela=(fim==="cancelar");
+    if(cancela && !confirm("Cancelar a solicitação de "+(r.empresa||"cliente")+"? Use quando o cliente desistiu: ela sai das abertas como “Cancelada”, não como finalizada. Dá para reabrir depois.")) return;
     if(fim){
-      r.status="concluida";
+      r.status=cancela?"cancelada":"concluida";
       r.finalizadoEm=new Date().toISOString();
       r.finalizadoPor=((window.Nuvem&&window.Nuvem.estado().email)||"").split("@")[0]||"";
     } else {
@@ -3551,16 +3580,16 @@ window.TINA=(function(){
     if(window.Nuvem&&window.Nuvem.podeGravar()){
       // sem merge: reabrir precisa APAGAR os campos de finalização da nuvem, e mesclar os manteria
       window.Nuvem.salvar("solicitacoes",r.id,r,{substituir:true});
-      window.Nuvem.trilha(fim?"solicitacao.finalizar":"solicitacao.reabrir",r.id,r.empresa?"":"");
+      window.Nuvem.trilha(cancela?"solicitacao.cancelar":(fim?"solicitacao.finalizar":"solicitacao.reabrir"),r.id,r.empresa?"":"");
     }
     avisarIntegracao(fim?"solicitacao.finalizada":"solicitacao.reaberta",r);
     renderSolic();
-    toast(fim?("✓ Finalizada: "+(r.empresa||"solicitação")):("↺ Reaberta: "+(r.empresa||"solicitação")),"ok");
+    toast(cancela?("✕ Cancelada: "+(r.empresa||"solicitação")):(fim?("✓ Finalizada: "+(r.empresa||"solicitação")):("↺ Reaberta: "+(r.empresa||"solicitação"))),"ok");
   }
   /* Filtro em botões com a contagem de cada situação. A situação sem nenhuma solicitação não
      ganha botão (é ruído numa faixa que já não cabe inteira no celular), a não ser a escolhida. */
   const SOLIC_FILTROS=[["abertas","Em aberto"],["nova","Novas"],["andamento","Em andamento"],["cliente","Aguardando cliente"],
-    ["protocolada","Protocoladas"],["exigencia","Em exigência"],["concluida","Finalizadas"],["todas","Todas"]];
+    ["protocolada","Protocoladas"],["exigencia","Em exigência"],["concluida","Finalizadas"],["cancelada","Canceladas"],["todas","Todas"]];
   function renderChipsSolic(tot,f){
     const box=$("solicChips"); if(!box) return;
     const n={abertas:tot.filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0).length, precisa:tot.filter(precisaDaTela).length};
@@ -3657,6 +3686,7 @@ window.TINA=(function(){
           +(pz?'<span class="sol-prazo '+pz.cls+'">'+escHtml(pz.txt)+"</span>":"")+"</div>"
         +((r.pedidos||[]).length?'<div class="sol-pedido"><b>Pedido:</b> '+escHtml(pedidosTexto(r))+"</div>":"")
         +_linhaTempo(r)
+        +(r.status==="cancelada"?'<div class="selo-fim selo-cancel">✕ Cancelada'+(r.finalizadoEm?" em "+escHtml(_dataBR(r.finalizadoEm)):"")+(r.finalizadoPor?" por "+escHtml(r.finalizadoPor):"")+"</div>":"")
         +(r.status==="concluida"?'<div class="selo-fim">✓ Finalizada'+(r.finalizadoEm?" em "+escHtml(_dataBR(r.finalizadoEm)):"")+(r.finalizadoPor?" por "+escHtml(r.finalizadoPor):"")+"</div>":"")
         +(r.status==="exigencia"?(function(){ const u=(r.exigencias||[]).slice(-1)[0]||{};
             return '<div class="sol-exig"><b>⚠ Exigência'+(u.em?" de "+escHtml(_dataBR(u.em)):"")+(u.cat?" — "+escHtml(u.cat):"")+"</b>"+(u.txt?": "+escHtml(u.txt):"")
@@ -3694,12 +3724,13 @@ window.TINA=(function(){
         +((!_modoComercial && r.status==="protocolada")?'<button class="btn o mini" data-sol-exig="'+escHtml(r.id)+'" title="A Junta devolveu com exigência: registra o motivo">⚠ Exigência</button>':"")
         +((!_modoComercial && r.status==="exigencia")?'<button class="btn o mini" data-sol-reproto="'+escHtml(r.id)+'" title="Exigência cumprida e ato protocolado de novo">↻ Protocolei de novo</button>':"")
         // finalizar é ato de quem faz o cadastro; o comercial acompanha, não encerra
-        +((!_modoComercial && r.status!=="concluida")?'<button class="btn ok mini" data-sol-fim="'+escHtml(r.id)+'" title="Marcar o processo como finalizado — quem abriu a solicitação passa a ver">✓ Finalizar</button>':"")
-        +((!_modoComercial && r.status==="concluida")?'<button class="btn o mini" data-sol-reabrir="'+escHtml(r.id)+'" title="Voltar para “Em andamento”">↺ Reabrir</button>':"")
+        +((!_modoComercial && SOLIC_FIM.indexOf(r.status)<0)?'<button class="btn ok mini" data-sol-fim="'+escHtml(r.id)+'" title="Marcar o processo como finalizado — quem abriu a solicitação passa a ver">✓ Finalizar</button>':"")
+        +((!_modoComercial && SOLIC_FIM.indexOf(r.status)<0)?'<button class="btn o mini" data-sol-cancelar="'+escHtml(r.id)+'" title="O cliente desistiu: encerra como “Cancelada”, sem dizer que o processo foi concluído">✕ Cancelar</button>':"")
+        +((!_modoComercial && SOLIC_FIM.indexOf(r.status)>=0)?'<button class="btn o mini" data-sol-reabrir="'+escHtml(r.id)+'" title="Voltar para “Em andamento”">↺ Reabrir</button>':"")
         +((_modoComercial && SOLIC_ABERTAS.indexOf(r.status)>=0 && _respAberta!==r.id)?'<button class="btn '+(recadoPendente(r)?"p":"o")+' mini" data-sol-resp="'+escHtml(r.id)+'">💬 '+(recadoPendente(r)?"Responder":"Mensagem ao cadastro")+"</button>":"")
         +(podeEditar?'<button class="btn o mini" data-sol-editar="'+escHtml(r.id)+'">✎ Editar</button>':"")
         +((r.status!=="nova" && (r.fone||"").trim())?'<button class="btn o mini" data-sol-cliente="'+escHtml(r.id)+'" title="Abre o WhatsApp (ou o e-mail) do cliente com a mensagem desta situação pronta">📲 Avisar cliente</button>':"")
-        +((_modoComercial && r.status==="concluida")?"":'<button class="btn o mini" data-sol-avisar="'+escHtml(r.id)+'" title="Manda a solicitação pronta por WhatsApp ou e-mail">'+(_modoComercial?"📣 Avisar cadastro":"📣 Avisar")+"</button>")
+        +((_modoComercial && SOLIC_FIM.indexOf(r.status)>=0)?"":'<button class="btn o mini" data-sol-avisar="'+escHtml(r.id)+'" title="Manda a solicitação pronta por WhatsApp ou e-mail">'+(_modoComercial?"📣 Avisar cadastro":"📣 Avisar")+"</button>")
         // o comercial só exclui o que ele mesmo abriu e ainda está "nova"; em andamento é trabalho de outro
         +((_modoComercial && !(r.status==="nova" && (!r.abertaPor || r.abertaPor===_meuEmail())))?"":'<button class="btn del mini sol-x" data-sol-excluir="'+escHtml(r.id)+'">Excluir</button>')
         +"</div></div>";
@@ -3724,6 +3755,7 @@ window.TINA=(function(){
     box.querySelectorAll("[data-sol-excluir]").forEach(b=>b.addEventListener("click",()=>excluirSolic(b.dataset.solExcluir)));
     box.querySelectorAll("[data-sol-fim]").forEach(b=>b.addEventListener("click",()=>finalizarSolic(b.dataset.solFim,true)));
     box.querySelectorAll("[data-sol-reabrir]").forEach(b=>b.addEventListener("click",()=>finalizarSolic(b.dataset.solReabrir,false)));
+    box.querySelectorAll("[data-sol-cancelar]").forEach(b=>b.addEventListener("click",()=>finalizarSolic(b.dataset.solCancelar,"cancelar")));
     // descrição longa vem cortada em 4 linhas; um toque abre inteira
     box.querySelectorAll(".sol-desc").forEach(d=>d.addEventListener("click",()=>d.classList.toggle("aberta")));
   }
@@ -3883,7 +3915,7 @@ window.TINA=(function(){
         const antes=i>=0?l[i]:null;
         if(!antes){ l.unshift(item); mudou=true; if(item.status==="nova"&&!_meuLancamento(item)) novas++; }
         else if(_maisNovo(item.alteradoEm,antes.alteradoEm)){
-          const virouFim = item.status==="concluida" && antes.status!=="concluida";
+          const virouFim = SOLIC_FIM.indexOf(item.status)>=0 && SOLIC_FIM.indexOf(antes.status)<0;
           l[i]=item; mudou=true;
           /* O comercial ficava sabendo só da finalização. Agora: toda mudança de situação do que ele
              pediu, e o recado novo. Quem cadastra fica sabendo da resposta do comercial. */
@@ -3900,7 +3932,7 @@ window.TINA=(function(){
       l.sort((a,b)=>String(b.alteradoEm||"").localeCompare(String(a.alteradoEm||"")));
       salvarSolic(l);
       if(novas){ marcarNovas(_novasSolic+novas); toast(novas===1?"Nova solicitação recebida.":(novas+" solicitações novas."),"info"); }
-      finalizadas.forEach(r=>toast("✓ Finalizada: "+((r.empresa||"solicitação").slice(0,40))+(r.finalizadoPor?" — por "+r.finalizadoPor:""),"ok"));
+      finalizadas.forEach(r=>toast((r.status==="cancelada"?"✕ Cancelada: ":"✓ Finalizada: ")+((r.empresa||"solicitação").slice(0,40))+(r.finalizadoPor?" — por "+r.finalizadoPor:""),"ok"));
       avisos.forEach(([t,tipo])=>toast(t,tipo,6000));
       atualizarBadgeSolic();
       if(document.getElementById("solicModal").classList.contains("open")) renderSolic();
@@ -4053,7 +4085,25 @@ window.TINA=(function(){
     b+=SEP+"\n\nID da solicitação: #"+id+"\n(Por favor, mantenha este código no assunto da sua resposta para facilitar o controle.)\n\nEm caso de dúvidas, fico à disposição.\n\nAtenciosamente,\n\n\n"+paralegal+"\nParalegal — "+(CFG.escritorio||"Totali Contabilidade")+"\n"+remetente;
     $("emailAssunto").value="[CONFIRMAÇÃO] "+ato+" — "+razUP+" — ID #"+id;
     $("emailCorpo").value=b;
+    avisoPreProtocoloEmail();
     $("emailModal").classList.add("open");
+  }
+  /* O pré-protocolo confere o TEXTO do documento (cláusulas obrigatórias, campos vazios, CNAE,
+     assinaturas, visto…). Ele ficava só no fim, junto do "Protocolei" — mas erro pego ali, depois
+     do "de acordo" e da assinatura, obriga a refazer as duas coisas. Ao abrir o e-mail de
+     confirmação, as mesmas conferências aparecem como aviso (não travam nada). A da confirmação do
+     cliente fica de fora: é justamente o que este e-mail vai buscar. */
+  function avisoPreProtocoloEmail(){
+    const box=$("emailPrePro"); if(!box) return;
+    let itens=[]; try{ itens=preProtocolo().filter(i=>i.tema!=="Confirmação do cliente registrada"); }catch(e){ box.style.display="none"; return; }
+    const ruins=itens.filter(i=>!i.ok);
+    if(!ruins.length){ box.className="val ok"; box.innerHTML="✓ <b>Pré-protocolo sem pendências</b> no texto do documento (última prévia gerada)."; }
+    else{ box.className="val warn";
+      box.innerHTML="⚠ <b>Antes de mandar ao cliente:</b> o pré-protocolo achou "+ruins.length+" ponto(s) no documento — "
+        +escHtml(ruins.slice(0,3).map(i=>i.tema).join("; "))+(ruins.length>3?"…":"")
+        +'. <button type="button" class="btn o mini" id="btnEmailPrePro">Ver o pré-protocolo</button>';
+      const bt=$("btnEmailPrePro"); if(bt) bt.addEventListener("click",abrirPreProtocolo); }
+    box.style.display="";
   }
   function copiar(txt,msg){ const done=(ok)=>{if($("emailStat")){const bom=(ok!==false);$("emailStat").style.color=bom?"var(--ok)":"var(--err)";$("emailStat").textContent=bom?msg:"Não foi possível copiar — selecione o texto e use Ctrl+C.";}};
     if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,()=>fallbackCopy(txt,done));} else fallbackCopy(txt,done);}
@@ -4289,7 +4339,7 @@ window.TINA=(function(){
         "<td style='text-align:center;white-space:nowrap'>"+(c.confirmado
           ?("<button type='button' class='btn s mini' data-just style='padding:2px 8px;color:"+(c.confirmadoVia==="emergencia"?"var(--warn)":"var(--ok)")+";font-weight:600' title='Ver o registro da confirmação'>"
              +(c.confirmadoVia==="emergencia"?"⚠ ":"✓ ")+escHtml(c.confirmadoEm||"")+" 🔎</button>")
-          :"<span class='hint'>⏳ pendente</span>")+"</td>"+
+          :"<span class='hint'>⏳ pendente</span>")+(c.protocoladoEm?"<br><span class='hint' style='color:var(--ok);font-weight:600'>📮 protocolado "+escHtml(c.protocoladoEm)+"</span>":"")+"</td>"+
         "<td style='white-space:nowrap'>"
           +(temTrabalho(c.id)?"<button class='btn p mini' data-abrir title='Retomar este ato com todos os dados preenchidos'>▸ Retomar</button> ":"")
           +"<button class='btn s mini' data-dup title='Iniciar um novo ato para esta empresa'>⧉ Duplicar</button> <button class='btn o mini' data-loc title='Localizar a resposta deste caso no seu Gmail'>🔎 Gmail</button> <button class='btn del mini' data-del title='Remover'>×</button></td></tr>").join("")+"</table></div>"+
@@ -6527,6 +6577,7 @@ window.TINA=(function(){
         if(c.confirmado===true){ o.confirmado=true; o.confirmHash=txt(c.confirmHash,20);
           o.confirmadoEm=dataOK(txt(c.confirmadoEm,10)); o.confirmadoVia=(c.confirmadoVia==="emergencia")?"emergencia":"email";
           o.confirmadoPor=txt(c.confirmadoPor,120); o.confirmadoNota=txt(c.confirmadoNota,2000); o.confirmadoTs=Number(c.confirmadoTs)||0; }
+        if(dataOK(txt(c.protocoladoEm,10))){ o.protocoladoEm=txt(c.protocoladoEm,10); o.protocoladoPor=txt(c.protocoladoPor,60); }
         return o;};
       const porId={};lerCasos().forEach(c=>{if(c&&c.id)porId[c.id]=c;});let add=0,ruins=0;
       novos.slice(0,5000).forEach(raw=>{const c=sanear(raw); if(!c){ruins++;return;} if(!porId[c.id]){porId[c.id]=c;add++;}});
@@ -6662,7 +6713,7 @@ window.TINA=(function(){
     if($("btnComparar")) $("btnComparar").addEventListener("click",abrirComparacao);
     if($("btnProtoClose")) $("btnProtoClose").addEventListener("click",()=>$("protoModal").classList.remove("open"));
     if($("btnPreProto")) $("btnPreProto").addEventListener("click",abrirPreProtocolo);
-    if($("btnProtocolei")) $("btnProtocolei").addEventListener("click",()=>moverSolic("protocolada",["nova","andamento","cliente","exigencia"]));
+    if($("btnProtocolei")) $("btnProtocolei").addEventListener("click",protocolei);
     /* A barra de atribuição só aparece quando há trecho selecionado dentro da caixa do texto.
        A seleção é guardada porque clicar no botão a desfaz. */
     if($("pdfTexto")){
