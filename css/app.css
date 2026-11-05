@@ -399,3 +399,118 @@
   .head-gear:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   .fldstat.ok{color:var(--ok)} .fldstat.err{color:var(--err)}
   .cfg-logo-prev{max-height:46px;max-width:180px;border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--navy);object-fit:contain}
+
+  /* ================= v1.65 — o ato como processo ================= */
+  body.so-solic .so-cad{display:none!important}
+  /* Lista de processos como página (tela inicial). Ela COBRE o gerador em vez de escondê-lo: o
+     formulário continua montado por baixo, com o ato em andamento intacto. */
+  body.na-fila{overflow:hidden}
+  body.na-fila>header{z-index:60}
+  body.na-fila #solicModal{background:var(--bg);align-items:flex-start;padding:0}
+  body.na-fila #solicModal>.modal{max-width:1100px;width:100%;height:calc(100vh - var(--alturaCab,66px));max-height:none;border-radius:0;margin:var(--alturaCab,66px) auto 0;box-shadow:none;border:0}
+  body.na-fila #btnSolicClose{display:none}
+  body.na-fila #btnSolic{background:#fff;color:var(--navy)}
+  .sol-topo{flex-wrap:wrap}
+  .fila-mais{position:relative}
+  .fila-mais>summary{list-style:none;cursor:pointer}
+  .fila-mais>summary::-webkit-details-marker{display:none}
+  .menu-mais{position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:5px;z-index:8;min-width:230px}
+  .menu-mais button{display:flex;gap:8px;align-items:center;width:100%;text-align:left;background:none;border:0;border-radius:7px;padding:8px 10px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;min-height:0}
+  .menu-mais button:hover{background:var(--line2)}
+  /* cartão da solicitação: um botão principal à vista, o resto no ⋯ */
+  .sol-mais{position:relative;margin-left:auto}
+  .sol-mais>summary{list-style:none;cursor:pointer;min-height:36px;min-width:40px;justify-content:center}
+  .sol-mais>summary::-webkit-details-marker{display:none}
+  .sol-mais .menu-mais{top:calc(100% + 4px);bottom:auto}
+  .sol-mais .menu-mais .btn{background:none;border:0;box-shadow:none;width:100%;justify-content:flex-start;font-weight:600;min-height:34px;color:var(--ink2)}
+  .sol-mais .menu-mais .btn:hover{background:var(--line2)}
+  .sol-mais .menu-mais .btn.del{color:var(--err)}
+  /* conversa: recados e respostas numa linha do tempo só */
+  .sol-conversa{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+  .sol-conversa .sol-recado,.sol-conversa .sol-resp{margin-top:0}
+  .sol-conv-mais{align-self:flex-start;background:none;border:0;color:var(--navy2);font:inherit;font-size:12px;font-weight:650;cursor:pointer;padding:0}
+  .sol-conv-antigas{display:flex;flex-direction:column;gap:6px}
+  .sol-conv-antigas[hidden]{display:none}
+  /* atos abertos sem solicitação (antes só no Painel de casos) */
+  .fila-atos{margin-top:18px}
+  .fila-atos h3{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+  .fila-ato{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-left:4px solid var(--navy2);border-radius:12px;padding:10px 12px;background:#fff;margin-bottom:8px}
+  .fila-ato .fa-emp{font-weight:700;color:var(--ink)}
+  .fila-ato .fa-sub{font-size:12.5px;color:var(--muted)}
+  .fila-ato .fa-txt{flex:1 1 260px}
+  .fila-ato .btn{min-height:36px}
+
+  /* cabeçalho do processo e etapas */
+  .proc-cab{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px 16px 10px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .pc-linha{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .pc-tit{font-size:15px;min-width:0}
+  .pc-tit b{color:var(--navy)}
+  .proc-cab .sol-ligada{margin:10px 0 0}
+  .etapas{display:flex;gap:0;margin-top:10px;overflow-x:auto;counter-reset:et;scrollbar-width:thin}
+  .etapa{flex:1 1 0;min-width:132px;position:relative;text-align:left;background:#fff;border:1px solid var(--line);border-right:0;padding:8px 10px 8px 38px;font:inherit;cursor:pointer;color:var(--ink2)}
+  .etapa:first-child{border-radius:11px 0 0 11px}
+  .etapa:last-child{border-radius:0 11px 11px 0;border-right:1px solid var(--line)}
+  .etapa::before{counter-increment:et;content:counter(et);position:absolute;left:9px;top:50%;transform:translateY(-50%);width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11.5px;font-weight:800;background:var(--line);color:var(--muted)}
+  .etapa.f::before{content:"✓";background:var(--ok);color:#fff}
+  .etapa.a::before{background:var(--gold);color:#fff}
+  .etapa.x::before{content:"!";background:var(--err);color:#fff}
+  .etapa.on{background:#f5f8fd;box-shadow:inset 0 -3px 0 var(--navy)}
+  .etapa b{display:block;font-size:12.5px;color:var(--ink);line-height:1.25}
+  .etapa span{display:block;font-size:11.5px;color:var(--muted);line-height:1.3;margin-top:1px}
+  .etapa:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+  /* fora da etapa 2, o formulário sai de cena; a prévia fica também na conferência */
+  body[data-etapa-atual]:not([data-etapa-atual="2"]) .form-cards,
+  body[data-etapa-atual]:not([data-etapa-atual="2"]) .actions,
+  body[data-etapa-atual]:not([data-etapa-atual="2"]) #validacaoBox{display:none!important}
+  body[data-etapa-atual="1"] #previewCard,body[data-etapa-atual="4"] #previewCard,body[data-etapa-atual="5"] #previewCard,body[data-etapa-atual="6"] #previewCard{display:none!important}
+  body[data-etapa-atual="3"] #protoSolic{display:none!important}
+  body[data-etapa-atual="4"] #btnGateEmail{display:none!important}
+  .etapa-painel{margin-bottom:16px}
+  .etapa-painel .modal-hosp{min-width:0}
+  .et-duas{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  .et-duas>.card{margin-bottom:0}
+  .et-nav{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0 4px}
+  .et-nav .esp{flex:1}
+  .et-ok{background:var(--okbg);border:1px solid var(--okln);color:var(--ok);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;margin-bottom:10px}
+  .et-av{background:var(--warnbg);border:1px solid var(--warnln);color:#7c5406;border-radius:10px;padding:8px 12px;font-size:13px;margin-bottom:10px}
+  .et-h4{font-weight:700;color:var(--navy);margin:0 0 8px;font-size:13.5px}
+  @media(max-width:900px){ .et-duas{grid-template-columns:1fr} }
+
+  /* tipo de ato: "Preencher exemplo" e "Limpar" na mesma linha do ato */
+  .sub-linha{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:flex-start}
+  .sub-linha>.typebar{flex:1 1 auto;margin-bottom:0}
+  .sub-linha>.sub-acoes{margin:2px 0 0 auto}
+
+  /* cartões de sócio e de filial recolhíveis: uma linha-resumo; os campos continuam todos lá */
+  .rec-linha{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;cursor:pointer;margin:-4px -4px 10px;padding:6px 8px;border-radius:9px;user-select:none}
+  .rec-linha:hover{background:#f2f6fb}
+  .rec-linha:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+  .rec-seta{color:var(--muted);font-size:12px;transition:transform .15s;display:inline-block;transform:rotate(90deg)}
+  .rec-tit{color:var(--ink);font-size:14px}
+  .rec-info{font-size:12.5px;color:var(--muted)}
+  .rec-st{margin-left:auto;font-size:12.5px;font-weight:700}
+  .rec-st.ok{color:var(--ok)} .rec-st.w{color:var(--warn)}
+  .socio.recolhido{padding-bottom:8px}
+  .socio.recolhido>.rec-linha{margin-bottom:0}
+  .socio.recolhido>.rec-linha .rec-seta{transform:none}
+  .socio.recolhido>:not(.tag):not(.rec-linha){display:none!important}
+  .rec-todos{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:0 0 10px}
+  .rec-todos .hint{margin-right:auto}
+
+  /* documento: embaixo do formulário, maior, sem a caixinha de rolagem */
+  #preview{max-height:none;overflow-x:auto}
+  .pv-zoom{display:inline-flex;align-items:center;gap:6px;font-size:12.5px}
+  .pv-zoom b{min-width:42px;text-align:center;color:var(--ink2)}
+  @media(min-width:1100px){
+    #previewCard{width:min(1400px,calc(100vw - 48px));margin-left:calc(50% - min(700px, calc(50vw - 24px)))}
+  }
+  @media print{ #previewCard{width:auto!important;margin-left:0!important} .proc-cab,.etapa-painel{display:none!important} }
+
+  /* o conteúdo de uma janela mostrado dentro de uma etapa */
+  .modal-hosp .mb{padding:0;font-size:13px;line-height:1.55}
+  .modal-hosp .mb .hint{font-size:12px}
+  /* comercial: nas configurações, só os avisos e a conta (Nuvem) */
+  body.so-solic .cfg-aba[data-cfg="escritorio"],body.so-solic .cfg-aba[data-cfg="padroes"],
+  body.so-solic .cfg-aba[data-cfg="integracao"],body.so-solic .cfg-aba[data-cfg="erros"]{display:none!important}
+  .head-item[hidden]{display:none!important}
+  @media(max-width:760px){ .sol-topo #solicBusca{flex:1 1 100%} .pc-tit{font-size:14px} .etapa{min-width:118px} }

@@ -342,8 +342,80 @@ window.TINA=(function(){
     if(typeof MODE!=="undefined" && MODE.startsWith("coop")){ div.querySelectorAll(".cooponly").forEach(e=>e.style.display=""); if(data.cargo){ const sc=div.querySelector('[data-f="cargo"]'); if(sc) sc.value=data.cargo; } }
     const ret=q("retirante"); if(ret)ret.addEventListener("change",recalc);   // sai do quadro → recalcula os percentuais
     recalc();
+    tornarRecolhivel(div);
   }
-  function removeSocio(idx){const el=document.querySelector(".socio[data-idx='"+idx+"']");if(el)el.remove();recalc();}
+  function removeSocio(idx){const el=document.querySelector(".socio[data-idx='"+idx+"']");if(el)el.remove();recalc();atualizarRecTodos();}
+
+  /* ===== Cartões recolhíveis (sócio e filial) =====
+     Contrato com muitos sócios ou filiais virava uma parede de campos. Cada cartão ganha uma
+     linha-resumo (nome, participação, o que falta) e recolhe com um clique. Nada some: os campos
+     continuam no cartão, só fora de vista, e entram no documento do mesmo jeito. Cartão com
+     pendência ou campo em amarelo não nasce recolhido, e o campo que recebe o foco abre o cartão. */
+  const ROT_END={cep:"CEP",log:"logradouro",num:"número",bairro:"bairro",mun:"município",uf:"UF"};
+  function _milhar(v){ const n=Number(String(v||"").replace(/\./g,"").replace(",",".")); return n>0?n.toLocaleString("pt-BR"):""; }
+  function resumoCard(div){
+    const lin=div&&div.querySelector(":scope > .rec-linha"); if(!lin) return;
+    let tit="", info=[], falta=[];
+    if(div.classList.contains("filial")){
+      const g=k=>((div.querySelector('[data-g="'+k+'"]')||{}).value||"").trim();
+      const n=[...document.querySelectorAll("#filiais > .filial")].indexOf(div)+1;
+      tit="Filial"+(n>0?" "+n:"")+(g("mun")?" · "+g("mun")+(g("uf")?"/"+g("uf").toUpperCase():""):"");
+      if(g("log")) info.push(g("log")+(g("num")?", nº "+g("num"):""));
+      if(g("cnpj")) info.push("CNPJ "+g("cnpj"));
+      if(g("anterior")) info.push("muda de endereço");
+      ["cep","log","num","bairro","mun","uf"].forEach(k=>{ if(!g(k)) falta.push(ROT_END[k]); });
+    } else {
+      const so=lerCardSocio(div);
+      tit=so.nome||(so.tipoPessoa==="PJ"?"(empresa sócia sem nome)":"(sem nome)");
+      if(so.tipoPessoa==="PJ") info.push("pessoa jurídica");
+      if(!semQuotasPorSocio() && _milhar(so.quotas)) info.push(_milhar(so.quotas)+((MODE.startsWith("sa_")&&MODE!=="sa_transf_sa_ltda")?" ações":" quotas")+(so.percentual?" · "+so.percentual:""));
+      if(MODE.startsWith("coop")){ const sc=div.querySelector('[data-f="cargo"]'); const t=sc&&sc.value&&sc.selectedOptions&&sc.selectedOptions[0]?sc.selectedOptions[0].textContent.trim():""; if(t) info.push(t); }
+      if(so.administrador && !ehFormEI()){ const cb=div.querySelector('[data-f="administrador"]'), lb=cb&&cb.closest("label"); info.push(lb?lb.textContent.split("—")[0].replace(/^\s*[ÉE]\s+/,"").trim().toLowerCase():"administrador"); }   // só o rótulo, sem a dica ao lado
+      if(so.retirante) info.push("retira-se");
+      if(so.maioridade) info.push("atingiu a maioridade");
+      if(so.temProc) info.push("assistido ou representado");
+      falta=faltasSocio(so);
+    }
+    lin.querySelector(".rec-tit").textContent=tit;
+    lin.querySelector(".rec-info").textContent=info.join(" · ");
+    const st=lin.querySelector(".rec-st");
+    st.className="rec-st "+(falta.length?"w":"ok");
+    st.textContent=falta.length?("⚠ falta: "+falta.slice(0,4).join(", ")+(falta.length>4?"…":"")):"✓ completo";
+    div.classList.toggle("tem-pend",falta.length>0);
+  }
+  function alternarCard(div,recolher){
+    if(!div) return; div.classList.toggle("recolhido",!!recolher);
+    const l=div.querySelector(":scope > .rec-linha"); if(l) l.setAttribute("aria-expanded",String(!recolher));
+  }
+  function tornarRecolhivel(div){
+    if(!div || div.querySelector(":scope > .rec-linha")) return;
+    const lin=document.createElement("div"); lin.className="rec-linha"; lin.setAttribute("role","button"); lin.tabIndex=0;
+    lin.title="Abrir ou recolher o cartão";
+    lin.innerHTML='<span class="rec-seta" aria-hidden="true">▸</span><b class="rec-tit"></b><span class="rec-info"></span><span class="rec-st"></span>';
+    const tag=div.querySelector(":scope > .tag"); if(tag) tag.after(lin); else div.prepend(lin);
+    const alternar=()=>alternarCard(div,!div.classList.contains("recolhido"));
+    lin.addEventListener("click",alternar);
+    lin.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); alternar(); } });
+    let t=null; const upd=()=>{ clearTimeout(t); t=setTimeout(()=>resumoCard(div),200); };
+    div.addEventListener("input",upd); div.addEventListener("change",upd);
+    resumoCard(div);
+    // nasce recolhido só o cartão que já chega completo (lido do contrato, exemplo, retomado)
+    const ehFil=div.classList.contains("filial");
+    const cheio=!!((div.querySelector(ehFil?'[data-g="log"]':'[data-f="nome"]')||{}).value||"").trim();
+    alternarCard(div, cheio && !div.classList.contains("tem-pend") && !div.querySelector(".revisar"));
+    atualizarRecTodos();
+  }
+  function atualizarRecTodos(){
+    const ns=document.querySelectorAll("#socios > .socio:not(.guardado)").length, nf=document.querySelectorAll("#filiais > .filial").length;
+    if($("recSocios")) $("recSocios").style.display=ns>=2?"":"none";
+    if($("recFiliais")) $("recFiliais").style.display=nf>=1?"":"none";
+    document.querySelectorAll("#filiais > .filial").forEach(resumoCard);   // a numeração muda quando uma filial sai
+  }
+  // depois da leitura do contrato: abre o cartão que ficou com pendência ou campo em amarelo
+  function abrirCardsComPendencia(){
+    document.querySelectorAll("#socios > .socio, #filiais > .filial").forEach(c=>{ resumoCard(c);
+      if(c.classList.contains("tem-pend")||c.querySelector(".revisar")) alternarCard(c,false); });
+  }
   // Acessibilidade: os campos dos cards (sócio/filial) não têm id, então o rótulo vai por aria-label,
   // copiado do <label> irmão — sem isso o leitor de tela anuncia só "campo de edição".
   function rotularCard(div){
@@ -398,7 +470,7 @@ window.TINA=(function(){
         <div style="display:flex;align-items:flex-end"><button class="btn del mini" type="button" data-rem>× Remover filial</button></div>
       </div>
       <div class="fldstat" data-g="cepstat"></div>`;
-    div.querySelector("[data-rem]").addEventListener("click",()=>{div.remove();if(typeof salvarRascunhoDeb==="function")salvarRascunhoDeb();});
+    div.querySelector("[data-rem]").addEventListener("click",()=>{div.remove();atualizarRecTodos();if(typeof salvarRascunhoDeb==="function")salvarRascunhoDeb();});
     const q=s=>div.querySelector('[data-g="'+s+'"]');
     attachCep(q("cep"), q("cepstat"), {log:q("log"),bairro:q("bairro"),mun:q("mun"),uf:q("uf")});
     $("filiais").appendChild(div); rotularCard(div);
@@ -407,13 +479,16 @@ window.TINA=(function(){
     const alt=(typeof MODE!=="undefined"&&MODE&&MODE.endsWith("alt"));
     div.querySelectorAll(".altonly").forEach(el=>el.style.display=alt?"":"none");
     rotularCardSA(div);
+    tornarRecolhivel(div);
     return div;}
   function readFiliais(){return[...document.querySelectorAll(".filial")].map(c=>{const o={};
     c.querySelectorAll("[data-g]").forEach(inp=>{o[inp.dataset.g]=(inp.value||"").trim();});
     o.uf=(o.uf||"").toUpperCase(); return o;}).filter(f=>f.log||f.mun);}
-  function readSocios(todos){return[...document.querySelectorAll(".socio:not(.filial)"+(todos?"":":not(.guardado)"))].map(c=>{const o={};
+  // um cartão → os dados do sócio (o resumo do cartão recolhido usa o mesmo leitor do documento)
+  function lerCardSocio(c){const o={};
     c.querySelectorAll("[data-f]").forEach(inp=>{const f=inp.dataset.f;if(f==="cepstat"||f==="cpfstat"||f==="pjcnpjstat")return;o[f]=inp.type==="checkbox"?inp.checked:(inp.value||"").trim();});
-    o.tipoPessoa=o.tipoPJ?"PJ":"PF"; if(o.tipoPessoa==="PJ")o.sexo="F"; return o;});}
+    o.tipoPessoa=o.tipoPJ?"PJ":"PF"; if(o.tipoPessoa==="PJ")o.sexo="F"; return o;}
+  function readSocios(todos){return[...document.querySelectorAll(".socio:not(.filial)"+(todos?"":":not(.guardado)"))].map(lerCardSocio);}
 
   /* VISTO DE ADVOGADO — a regra real, conferida no Manual de Registro de LTDA da Junta (item 7 e
      roteiro 8/8.1) e na Lei nº 8.906/1994, art. 1º, § 2º:
@@ -2053,41 +2128,30 @@ window.TINA=(function(){
       if($("lblInicioOrig"))$("lblInicioOrig").textContent="Início original das atividades";
     }
     $("status").className="status muted";$("status").textContent=msg[m]||""; recalc();}
+  /* Tamanho do documento NA TELA. Antes saía em 100%, numa caixinha de rolagem; agora fica embaixo
+     do formulário, maior, com zoom ajustável (− / +) e lembrado. Só a tela muda: o .docx não
+     depende disto e o PDF lê a prévia com o zoom desligado (ver _domToPdfmake). */
+  let _zoomPrev=(()=>{ try{ const z=parseFloat(localStorage.getItem("tinaZoom")); return (z>=0.6&&z<=2)?z:1.25; }catch(e){ return 1.25; } })();
   function fitPreview(){
     const cont=$("preview"); if(!cont) return;
     const secs=cont.querySelectorAll(".docxprev-wrapper > section");
-    if(!secs.length) return;
+    const pct=$("zoomPct");
+    if(!secs.length){ if(pct) pct.textContent=Math.round(_zoomPrev*100)+"%"; return; }
     secs.forEach(s=>{s.style.zoom="";});                 // mede largura natural
     const pageW=secs[0].offsetWidth, avail=cont.clientWidth-6;
-    if(pageW>0 && avail>0 && avail<pageW){const sc=avail/pageW; secs.forEach(s=>{s.style.zoom=sc;});}
+    let sc=_zoomPrev;
+    if(pageW>0 && avail>0 && avail<pageW*sc) sc=avail/pageW;   // não passa da largura da tela (no celular encolhe, como antes)
+    if(Math.abs(sc-1)>0.001) secs.forEach(s=>{s.style.zoom=sc;});
+    if(pct) pct.textContent=Math.round(sc*100)+"%";
   }
-  async function validar(blobOpt){
-    if(MODE.startsWith("sia")){ const f=validarSIA(coletar()); if(blobOpt==="sóCampos") return f; await conferirVariaveis(f,blobOpt); return f; }
-    const d=coletar(); const f=[]; const isTransf=MODE.startsWith("transf"); const isDist=MODE.startsWith("dist"); const isAlt=MODE.endsWith("alt"), isEI=ehFormEI(), isCoop=MODE.startsWith("coop");
-    const saAcoesV=MODE.startsWith("sa_") && MODE!=="sa_transf_sa_ltda";   // documento que resulta em S.A.: fala em denominação e acionistas
-    if(!d.razao) f.push(isEI?"Nome empresarial":(saAcoesV?"Denominação da companhia":"Razão social"));
-    if(!isDist && !d.objeto) f.push("Objeto social");
-    if(!isDist && !d.foro) f.push("Foro (comarca)");
-    if(!isDist && !d.foroUF) f.push("UF do foro");
-    if(!d.atoUF) f.push("UF do local do ato");
-    const s=d.sede||{}, sm=[]; ["cep","log","num","bairro","mun","uf"].forEach(k=>{if(!s[k])sm.push(k);});
-    if(sm.length) f.push("Endereço da sede: "+sm.join(", "));
-    // a cooperativa tem capital mínimo e quota-parte próprios (card da cooperativa), não o capital da Ltda
-    if(!isDist && !isCoop && !(d.capital>0)) f.push("Capital");
-    if(!isEI && !isDist && !isCoop && !(d.valorQuota>0)) f.push("Valor da quota");
-    if(!d.atoCidade) f.push("Cidade do ato");
-    if(!d.atoData) f.push("Data do ato");
-    /* Foro do formulário × foro da cláusula que seria mantida. Sem a marcação "Foro", a cláusula do
-       contrato enviado sai como está — e um foro trocado só no campo sumia do documento, calado. */
-    if(MODE==="alt" && d.preservar && d.foro && (d.clausulasOrig||[]).length>=5 && !(d.changed&&d.changed.has("foro"))){
-      const cid=x=>String(x||"").normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"").replace(/\s+/g," ").toLowerCase();
-      const cf=(d.clausulasOrig||[]).find(c=>c.tema==="foro" && /\bforo\b/i.test(c.texto));
-      const meu=cid(d.foro.replace(/\s*[-–\/]\s*[A-Za-z]{2}\s*$/,"")).trim();
-      if(cf && meu && cid(cf.texto).indexOf(meu)<0)
-        f.push("Foro: o campo diz “"+d.foro+"”, mas a cláusula do contrato enviado elege outro foro — marque “Foro” em “O que muda” para alterá-lo, ou corrija o campo");
-    }
-    if(!d.socios.length && MODE!=="coop_reforma") f.push(isEI?"Titular não cadastrado":(saAcoesV?"Nenhum acionista cadastrado":"Nenhum sócio cadastrado"));
-    d.socios.forEach((so,i)=>{ const rot=(isEI?"Titular":(so.tipoPessoa==="PJ"?"Sócia PJ ":"Sócio ")+(i+1))+(so.nome?" ("+so.nome+")":"")+": "; const m=[];
+  function mudarZoom(passo){
+    _zoomPrev=Math.min(2,Math.max(0.6,Math.round((_zoomPrev+passo)*100)/100));
+    try{ localStorage.setItem("tinaZoom",String(_zoomPrev)); }catch(e){}
+    fitPreview();
+  }
+  /* O que falta no cartão de um sócio — a MESMA regra da validação, à parte para o resumo do
+     cartão recolhido dizer o que falta sem precisar abrir. */
+  function faltasSocio(so){ const m=[]; const isEI=ehFormEI(), isDist=MODE.startsWith("dist");
       if(!so.nome)m.push(so.tipoPessoa==="PJ"?"razão social":"nome");
       if(so.tipoPessoa==="PJ"){
         if(!so.pjCnpj)m.push("CNPJ"); if(!so.pjRep)m.push("representante legal");
@@ -2121,6 +2185,34 @@ window.TINA=(function(){
       }
       // quem se retira sai do quadro: cobrar quotas dele faria a validação nunca fechar
       if(!isEI && !isDist && MODE!=="coop_reforma" && !so.retirante && !(so.quotas>0))m.push("quotas");
+    return m; }
+  async function validar(blobOpt){
+    if(MODE.startsWith("sia")){ const f=validarSIA(coletar()); if(blobOpt==="sóCampos") return f; await conferirVariaveis(f,blobOpt); return f; }
+    const d=coletar(); const f=[]; const isTransf=MODE.startsWith("transf"); const isDist=MODE.startsWith("dist"); const isAlt=MODE.endsWith("alt"), isEI=ehFormEI(), isCoop=MODE.startsWith("coop");
+    const saAcoesV=MODE.startsWith("sa_") && MODE!=="sa_transf_sa_ltda";   // documento que resulta em S.A.: fala em denominação e acionistas
+    if(!d.razao) f.push(isEI?"Nome empresarial":(saAcoesV?"Denominação da companhia":"Razão social"));
+    if(!isDist && !d.objeto) f.push("Objeto social");
+    if(!isDist && !d.foro) f.push("Foro (comarca)");
+    if(!isDist && !d.foroUF) f.push("UF do foro");
+    if(!d.atoUF) f.push("UF do local do ato");
+    const s=d.sede||{}, sm=[]; ["cep","log","num","bairro","mun","uf"].forEach(k=>{if(!s[k])sm.push(k);});
+    if(sm.length) f.push("Endereço da sede: "+sm.join(", "));
+    // a cooperativa tem capital mínimo e quota-parte próprios (card da cooperativa), não o capital da Ltda
+    if(!isDist && !isCoop && !(d.capital>0)) f.push("Capital");
+    if(!isEI && !isDist && !isCoop && !(d.valorQuota>0)) f.push("Valor da quota");
+    if(!d.atoCidade) f.push("Cidade do ato");
+    if(!d.atoData) f.push("Data do ato");
+    /* Foro do formulário × foro da cláusula que seria mantida. Sem a marcação "Foro", a cláusula do
+       contrato enviado sai como está — e um foro trocado só no campo sumia do documento, calado. */
+    if(MODE==="alt" && d.preservar && d.foro && (d.clausulasOrig||[]).length>=5 && !(d.changed&&d.changed.has("foro"))){
+      const cid=x=>String(x||"").normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"").replace(/\s+/g," ").toLowerCase();
+      const cf=(d.clausulasOrig||[]).find(c=>c.tema==="foro" && /\bforo\b/i.test(c.texto));
+      const meu=cid(d.foro.replace(/\s*[-–\/]\s*[A-Za-z]{2}\s*$/,"")).trim();
+      if(cf && meu && cid(cf.texto).indexOf(meu)<0)
+        f.push("Foro: o campo diz “"+d.foro+"”, mas a cláusula do contrato enviado elege outro foro — marque “Foro” em “O que muda” para alterá-lo, ou corrija o campo");
+    }
+    if(!d.socios.length && MODE!=="coop_reforma") f.push(isEI?"Titular não cadastrado":(saAcoesV?"Nenhum acionista cadastrado":"Nenhum sócio cadastrado"));
+    d.socios.forEach((so,i)=>{ const rot=(isEI?"Titular":(so.tipoPessoa==="PJ"?"Sócia PJ ":"Sócio ")+(i+1))+(so.nome?" ("+so.nome+")":"")+": "; const m=faltasSocio(so);
       if(m.length)f.push(rot+m.join(", ")); });
     if(!isEI && !isDist){
       // porte × sócia PJ: com PJ no capital a sociedade não pode declarar ME/EPP (LC 123, art. 3º, § 4º, I)
@@ -2404,6 +2496,9 @@ window.TINA=(function(){
     const seq=++_idxSeq;
     let f=[]; try{ f=await validar("sóCampos"); }catch(e){ return; }
     if(seq!==_idxSeq) return;   // outra digitação chegou antes: vale a mais nova
+    _pendIdx=f.length;
+    document.querySelectorAll("#socios > .socio, #filiais > .filial").forEach(resumoCard);   // percentuais e pendências do resumo
+    atualizarEtapas();
     const cards=[...document.querySelectorAll(".form-cards > .card")].filter(c=>c.offsetParent!==null && c.id!=="cardRapido" && c.querySelector("h2"));
     const itens=cards.map((c,i)=>{
       const h=c.querySelector("h2"), nEl=h.querySelector(".n"), n=nEl?nEl.textContent.trim():"";
@@ -2426,6 +2521,7 @@ window.TINA=(function(){
     box.querySelectorAll("[data-ir]").forEach(b=>b.addEventListener("click",()=>{
       const alvo=$(b.dataset.ir); if(!alvo) return;
       box.classList.remove("aberto");
+      alvo.querySelectorAll(".socio.recolhido.tem-pend").forEach(c=>alternarCard(c,false));   // a pendência pode estar num cartão recolhido
       alvo.scrollIntoView({behavior:"smooth",block:"start"});
       alvo.classList.remove("val-flash"); void alvo.offsetWidth; alvo.classList.add("val-flash");
       // leva o cursor ao primeiro campo vazio da seção (no celular, só rola: focar abriria o teclado)
@@ -2467,16 +2563,16 @@ window.TINA=(function(){
   function gerarPreview(){$("status").className="status muted";$("status").textContent="Gerando prévia…";
     return buildBlob().then(({blob,nomeArq})=>{_blob={blob,nomeArq};const c=$("preview");c.innerHTML="";
       return window.docx.renderAsync(blob,c,null,{className:"docxprev",inWrapper:true})
-        .then(async()=>{fitPreview();renderValidacao(await validar(blob));$("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ Prévia atualizada.";
+        .then(async()=>{_ultPrePro=-1;fitPreview();renderValidacao(await validar(blob));$("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ Prévia atualizada.";
           // o botão do comparador só existe quando houve contrato enviado para comparar
           const bc=$("btnComparar"); if(bc) bc.style.display=_comparacao.length?"":"none";
-          const bp=$("btnPreProto"); if(bp) bp.style.display="";});})
+          const bp=$("btnPreProto"); if(bp) bp.style.display=""; atualizarEtapas();});})
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);});}
   function baixarDocx(){ comConfirmacao(()=>{
     $("status").className="status muted";$("status").textContent="Gerando .docx…";
     buildBlob().then(({blob,nomeArq})=>{const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=nomeArq;document.body.appendChild(a);a.click();a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),6000);$("status").style.color="var(--ok)";$("status").textContent="✓ Baixado: "+nomeArq;registrarCasoAuto();
-      _ultimoArquivo={blob,nome:nomeArq,tipo:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}; abrirEnviar();})
+      _ultimoArquivo={blob,nome:nomeArq,tipo:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}; aposBaixar();})
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro: "+e.message;console.error(e);}); }); }
   // ===== PDF NATIVO (pdfmake) — gerado a partir do que o docx-preview já renderiza: fonte única = o próprio .docx (não usa impressão) =====
   const _pt = s => { const m=/(-?[\d.]+)pt/.exec(s||""); return m?parseFloat(m[1]):0; };
@@ -2496,7 +2592,13 @@ window.TINA=(function(){
   function _paraPdf(node,brk){ const runs=_runs(node); const st=node.style; const al=(st.textAlign||"left").replace("start","left");
     const o={ text:_frag(runs), alignment:al, margin:[0,_pt(st.marginTop),0,_pt(st.marginBottom)], lineHeight:(parseFloat(st.lineHeight)||1.15) };
     if(brk)o.pageBreak="before"; return o; }
-  function _domToPdfmake(){ const secs=[...document.querySelectorAll("section.docxprev")]; const content=[];
+  // o PDF é montado lendo a prévia; com o zoom da tela ligado, as larguras medidas viriam ampliadas
+  function _domToPdfmake(){
+    const pags=[...document.querySelectorAll("#preview .docxprev-wrapper > section")], antes=pags.map(x=>x.style.zoom);
+    pags.forEach(x=>{x.style.zoom="";});
+    try{ return _domToPdfmakeSemZoom(); } finally{ pags.forEach((x,i)=>{x.style.zoom=antes[i];}); }
+  }
+  function _domToPdfmakeSemZoom(){ const secs=[...document.querySelectorAll("section.docxprev")]; const content=[];
     secs.forEach((sec,si)=>{ const root=sec.querySelector("article")||sec; let first=(si>0);   // page break entre seções do Word
       const filhos=[...root.children]; let pulaAte=-1;
       filhos.forEach((node,idx)=>{ const brk=first||(node.style&&(node.style.pageBreakBefore==="always"||node.style.breakBefore==="page")); first=false;
@@ -2547,7 +2649,7 @@ window.TINA=(function(){
     gerarPreview().then(()=>gerarPdfBlob()).then(blob=>{ const nome=(_blob&&_blob.nomeArq)?_blob.nomeArq.replace(/\.docx$/i,".pdf"):(slugArq(d.razao||"documento")+".pdf");   // mesmo nome do .docx (ex.: 3a-ALTERACAO-COMERCIAL-MODELO.pdf)
         const url=URL.createObjectURL(blob); const a=document.createElement("a");a.href=url;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),6000);
         $("status").className="status";$("status").style.color="var(--ok)";$("status").textContent="✓ PDF baixado: "+nome; registrarCasoAuto();
-        _ultimoArquivo={blob,nome,tipo:"application/pdf"}; abrirEnviar(); })
+        _ultimoArquivo={blob,nome,tipo:"application/pdf"}; aposBaixar(); })
       .catch(e=>{$("status").style.color="var(--err)";$("status").textContent="Erro ao gerar PDF: "+(e&&e.message||e);console.error(e);}); }); }
 
   /* ===== E-mail de confirmação ===== */
@@ -3384,11 +3486,37 @@ window.TINA=(function(){
     /* O ato que nascer daqui fica ligado a esta solicitação — mas só se o formulário estiver livre.
        Com outro ato em andamento na tela, ligar agora penduraria a solicitação no ato errado; o
        CNPJ resolve depois, quando o ato desta empresa for aberto. */
-    const livre=!draftTemConteudo(snapshotForm());
+    let livre=!draftTemConteudo(snapshotForm());
+    /* Outro ato no formulário: oferece guardá-lo (no Painel de casos, com tudo preenchido) para
+       começar este. Recusando, a solicitação fica marcada e a tela continua na lista. */
+    if(!calado && !livre && _solicLigada!==id){
+      const emp=(($("razao")||{}).value||"").trim();
+      if(confirm("O formulário está com outro ato"+(emp?" ("+emp+")":"")+".\n\nGuardar esse ato no Painel de casos e começar o de "+(r.empresa||"esta solicitação")+"?")){
+        if(emp){ const c=registrarCaso(); salvarTrabalho(c.id); }
+        limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; renderLigacao(); livre=true;
+      }
+    }
     if(livre || _solicLigada===id) ligarSolic(id);
     renderSolic();
-    if(!calado) toast(( eraNova ? "Em andamento — o comercial já está vendo. " : "Já estava em andamento. " )
-      +"Comece o ato pelo cartão CNPJ ou pelo contrato: a solicitação é o pedido, não a fonte dos dados.","ok");
+    if(!calado){
+      // a solicitação é o pedido; o ato nasce do documento: vai direto ao formulário, no leitor
+      if(livre || _solicLigada===id){ sairDaFila(2);
+        const cr=$("cardRapido"); if(cr && cr.offsetParent!==null && cr.scrollIntoView) cr.scrollIntoView({behavior:"smooth",block:"start"}); else rolarAoProcesso(); }
+      toast(( eraNova ? "Em andamento — o comercial já está vendo. " : "Já estava em andamento. " )
+        +"Comece o ato pelo cartão CNPJ ou pelo contrato: a solicitação é o pedido, não a fonte dos dados.","ok");
+    }
+  }
+  // "Continuar o ato": abre o ato desta solicitação (o que está na tela, ou o guardado) na etapa em que ele parou
+  function continuarSolic(id){
+    const r=lerSolic().find(x=>x.id===id); if(!r) return;
+    if(_solicLigada===id && draftTemConteudo(snapshotForm())){ sairDaFila(proximaEtapa()); rolarAoProcesso(); return; }
+    if(r.atoId && temTrabalho(r.atoId)){
+      if(draftTemConteudo(snapshotForm()) && casoAtualId!==r.atoId
+         && !confirm("Abrir o ato de "+(r.empresa||"esta solicitação")+"?\n\nO que está no formulário agora será substituído (guarde antes, se precisar).")) return;
+      if(abrirTrabalho(r.atoId)){ ligarSolic(id); sairDaFila(proximaEtapa()); rolarAoProcesso(); }
+      return;
+    }
+    trabalharSolic(id);
   }
 
   /* ===== Solicitação ligada ao ato =====
@@ -3465,7 +3593,7 @@ window.TINA=(function(){
       renderPainel(); }
     const moveu=sid ? moverSolic("protocolada",["nova","andamento","cliente","exigencia"]) : false;
     if(!moveu) toast(c ? ("Protocolo registrado no Painel de casos em "+c.protocoladoEm+".") : "Salve o caso (Painel de casos) para registrar o protocolo.", c?"ok":"warn");
-    renderLigacao();
+    renderLigacao(); atualizarEtapas(); if(_etapa===6) preencherEtapa6();
   }
   function renderLigacao(){
     const bar=$("solicLigadaBar"), sid=(_solicLigada===null)?"":_solicLigada;
@@ -3614,6 +3742,57 @@ window.TINA=(function(){
   }
   /* O telefone do cliente estava guardado mas não aparecia em lugar nenhum: para ligar, o
      comercial tinha de abrir a edição e copiar. Agora é um toque, no próprio cartão. */
+  /* Ações do cartão: à vista só o próximo passo de cada situação; o resto continua no ⋯ (nenhum
+     botão saiu, só mudou de lugar). O comercial vê as dele, com as mesmas regras de antes. */
+  function _acoesSolic(r){
+    const id=escHtml(r.id), B=(attr,cls,txt,tit)=>'<button type="button" class="btn '+cls+' mini" '+attr+'="'+id+'"'+(tit?' title="'+escHtml(tit)+'"':"")+'>'+txt+"</button>";
+    const a=[], fim=SOLIC_FIM.indexOf(r.status)>=0;
+    const podeEditar=!_modoComercial || r.status==="nova";   // depois que o trabalho começou, o comercial fala pela resposta
+    if(!_modoComercial){
+      a.push(["abrir",B("data-sol-abrir","p","Trabalhar","Marca o processo como em andamento e abre o ato. Não preenche o formulário: os dados do ato vêm do cartão CNPJ ou do contrato.")]);
+      if(r.status!=="nova" && !fim) a.push(["continuar",B("data-sol-continuar","p","▶ Continuar o ato","Abre o ato desta solicitação na etapa em que ele está")]);
+      if(r.status==="protocolada") a.push(["exig",B("data-sol-exig","o","⚠ Exigência","A Junta devolveu com exigência: registra o motivo")]);
+      if(r.status==="exigencia") a.push(["reproto",B("data-sol-reproto","o","↻ Protocolei de novo","Exigência cumprida e ato protocolado de novo")]);
+      // finalizar é ato de quem faz o cadastro; o comercial acompanha, não encerra
+      if(!fim){ a.push(["fim",B("data-sol-fim","ok","✓ Finalizar","Marcar o processo como finalizado — quem abriu a solicitação passa a ver")]);
+        a.push(["cancelar",B("data-sol-cancelar","o","✕ Cancelar","O cliente desistiu: encerra como “Cancelada”, sem dizer que o processo foi concluído")]); }
+      else a.push(["reabrir",B("data-sol-reabrir","o","↺ Reabrir","Voltar para “Em andamento”")]);
+    }
+    if(_modoComercial && SOLIC_ABERTAS.indexOf(r.status)>=0 && _respAberta!==r.id)
+      a.push(["resp",'<button type="button" class="btn '+(recadoPendente(r)?"p":"o")+' mini" data-sol-resp="'+id+'">💬 '+(recadoPendente(r)?"Responder":"Mensagem ao cadastro")+"</button>"]);
+    if(podeEditar) a.push(["editar",B("data-sol-editar","o","✎ Editar")]);
+    if(r.status!=="nova" && (r.fone||"").trim()) a.push(["cliente",B("data-sol-cliente","o","📲 Avisar cliente","Abre o WhatsApp (ou o e-mail) do cliente com a mensagem desta situação pronta")]);
+    if(!(_modoComercial && fim)) a.push(["avisar",B("data-sol-avisar","o",_modoComercial?"📣 Avisar cadastro":"📣 Avisar","Manda a solicitação pronta por WhatsApp ou e-mail")]);
+    // o comercial só exclui o que ele mesmo abriu e ainda está "nova"; em andamento é trabalho de outro
+    if(!(_modoComercial && !(r.status==="nova" && (!r.abertaPor || r.abertaPor===_meuEmail()))))
+      a.push(["excluir",'<button type="button" class="btn del mini sol-x" data-sol-excluir="'+id+'">Excluir</button>']);
+    let vis;
+    if(_modoComercial) vis=recadoPendente(r)?["resp"]:(r.status==="nova"?["editar"]:((r.status!=="nova"&&(r.fone||"").trim())?["cliente"]:["resp"]));
+    else vis=({nova:["abrir"],andamento:["continuar"],cliente:["continuar"],protocolada:["fim","exig"],exigencia:["reproto","continuar"]})[r.status]||[];
+    if(!a.some(x=>vis.indexOf(x[0])>=0) && a.some(x=>x[0]==="cliente")) vis=["cliente"];
+    const ver=a.filter(x=>vis.indexOf(x[0])>=0).sort((x,y)=>vis.indexOf(x[0])-vis.indexOf(y[0])), resto=a.filter(x=>vis.indexOf(x[0])<0);
+    return '<div class="sol-acoes">'+ver.map(x=>x[1]).join("")
+      +(resto.length?'<details class="sol-mais"><summary class="btn o mini" title="Mais ações" aria-label="Mais ações">⋯</summary><div class="menu-mais">'+resto.map(x=>x[1]).join("")+"</div></details>":"")
+      +"</div>";
+  }
+  /* Conversa do pedido: recados de quem cadastra e respostas do comercial, em ordem, numa linha
+     só (antes: caixa do recado + caixa da última resposta). Mostra as três mais recentes. */
+  function _conversa(r){
+    const it=[];
+    (r.respostas||[]).forEach((x,i,arr)=>it.push({k:"resp",em:x.em||"",x,ult:i===arr.length-1}));
+    if(r.pendencia) it.push({k:"recado",em:r.pendenciaEm||"",txt:r.pendencia});
+    if(!it.length) return "";
+    it.sort((a,b)=>String(a.em||"").localeCompare(String(b.em||"")));
+    const msg=m=> m.k==="recado"
+      ? '<div class="sol-recado"><b>Recado:</b> '+escHtml(m.txt)+(m.em?' <span class="hint">· '+escHtml(_dataBR(m.em))+"</span>":"")+"</div>"
+      : '<div class="sol-resp'+((m.ult&&r.respostaNova)?" nova":"")+'"><b>💬 '+escHtml(m.x.por||"Comercial")+":</b> "+escHtml(m.x.txt||"(anexo)")
+          +((m.x.anexos||[]).length?' <span class="hint">📎 '+escHtml(m.x.anexos.join(", "))+"</span>":"")
+          +' <span class="hint">'+escHtml(_dataBR(m.x.em))+"</span>"
+          +((m.ult&&!_modoComercial&&r.respostaNova)?' <button type="button" class="btn s mini" data-sol-visto="'+escHtml(r.id)+'">✓ Visto</button>':"")+"</div>";
+    const n=it.length, antigas=n>3?it.slice(0,n-3):[], recentes=it.slice(-3);
+    return '<div class="sol-conversa">'+(antigas.length?'<button type="button" class="sol-conv-mais" data-conv-mais>ver '+antigas.length+(antigas.length>1?" mensagens anteriores":" mensagem anterior")+'</button><div class="sol-conv-antigas" hidden>'+antigas.map(msg).join("")+"</div>":"")
+      +recentes.map(msg).join("")+"</div>";
+  }
   function _contatoSolic(r){
     const fone=(r.fone||"").trim(), nome=(r.contato||"").trim(); if(!fone&&!nome) return "";
     let links="";
@@ -3665,6 +3844,7 @@ window.TINA=(function(){
         :f==="abertas"?"Nenhuma solicitação em aberto.<br>Para lançar, use “+ Nova solicitação”."
         :f==="precisa"?"Nada esperando por você agora."
         :"Nenhuma solicitação nesta situação.")+"</div>";
+      _posRenderSolic(f,q);
       return;
     }
     const hoje=new Date(); hoje.setHours(0,0,0,0);
@@ -3672,12 +3852,18 @@ window.TINA=(function(){
     l=l.filter(precisaDaTela).concat(l.filter(x=>!precisaDaTela(x)));
     const nPrec=l.filter(precisaDaTela).length, comSep=separar && nPrec>0 && nPrec<l.length;
     box.innerHTML=((f==="exigencia"||f==="todas")?resumoExigencias(tot):"")+l.map((r,ix)=>{
-      const pz=_prazoSolic(r,hoje), st=SOLIC_STATUS[r.status]?r.status:"nova", precisa=precisaDaTela(r);
       const sep=!comSep?"":(ix===0?'<div class="sol-sep precisa">'+(_modoComercial?"Precisa de você":"Respostas novas")+" ("+nPrec+")</div>":(ix===nPrec?'<div class="sol-sep">Acompanhando</div>':""));
+      return sep+cartaoSolic(r,hoje,T);
+    }).join("");
+    ligarCartoesSolic(box);
+    _posRenderSolic(f,q);
+  }
+  /* Um cartão de solicitação. Função à parte porque ele aparece em dois lugares: na lista de
+     processos e na etapa "Pedido" do ato. */
+  function cartaoSolic(r,hoje,T){
+      const pz=_prazoSolic(r,hoje), st=SOLIC_STATUS[r.status]?r.status:"nova", precisa=precisaDaTela(r);
       const faltam=docsDaSolic(r).filter(d=>(r.docsOk||[]).indexOf(d)<0);
-      const resp=(r.respostas||[]).slice(-1)[0];
-      const podeEditar=!_modoComercial || r.status==="nova";   // depois que o trabalho começou, o comercial fala pela resposta
-      return sep+'<div class="sol st-'+st+(precisa?" precisa":"")+'" data-sol-id="'+escHtml(r.id)+'">'
+      return '<div class="sol st-'+st+(precisa?" precisa":"")+'" data-sol-id="'+escHtml(r.id)+'">'
         +'<div class="sol-cab"><div class="sol-emp">'+escHtml(r.empresa||"(sem empresa)")+"</div>"
         +'<span class="sol-st">'+escHtml(SOLIC_STATUS[r.status]||r.status||"")+"</span></div>"
         +'<div class="sol-meta"><span>'+escHtml(T[r.tipo]||(r.tipo?r.tipo:"ato a definir"))+"</span>"
@@ -3691,15 +3877,11 @@ window.TINA=(function(){
         +(r.status==="exigencia"?(function(){ const u=(r.exigencias||[]).slice(-1)[0]||{};
             return '<div class="sol-exig"><b>⚠ Exigência'+(u.em?" de "+escHtml(_dataBR(u.em)):"")+(u.cat?" — "+escHtml(u.cat):"")+"</b>"+(u.txt?": "+escHtml(u.txt):"")
               +((r.exigencias||[]).length>1?' <span class="hint">('+r.exigencias.length+"ª exigência deste pedido)</span>":"")+"</div>"; })():"")
-        // o recado é o que o comercial tem de resolver: vem antes da descrição, em destaque
-        +(r.pendencia?'<div class="sol-recado"><b>Recado:</b> '+escHtml(r.pendencia)+"</div>":"")
-        +(resp?'<div class="sol-resp'+(r.respostaNova?" nova":"")+'"><b>💬 '+escHtml(resp.por||"Comercial")+":</b> "+escHtml(resp.txt||"(anexo)")
-            +((resp.anexos||[]).length?' <span class="hint">📎 '+escHtml(resp.anexos.join(", "))+"</span>":"")
-            +' <span class="hint">'+escHtml(_dataBR(resp.em))+"</span>"
-            +((!_modoComercial&&r.respostaNova)?' <button type="button" class="btn s mini" data-sol-visto="'+escHtml(r.id)+'">✓ Visto</button>':"")+"</div>":"")
         +((SOLIC_ABERTAS.indexOf(r.status)>=0 && faltam.length)?'<div class="sol-faltam">📋 Falta: '+escHtml(faltam.map(d=>DOCS_CURTO[d]).join(", "))+"</div>"
           :((SOLIC_ABERTAS.indexOf(r.status)>=0 && docsDaSolic(r).length && (r.docsOk||[]).length)?'<div class="sol-faltam ok">✓ Documentos completos</div>':""))
         +(r.obs?'<div class="sol-desc" title="Toque para ver tudo">'+escHtml(r.obs)+"</div>":"")
+        // descrição, recados e respostas numa conversa só (antes eram caixas separadas)
+        +_conversa(r)
         // o anexo aparece na própria lista: quem vai cadastrar abre o áudio ou a foto sem entrar em modo de edição
         +((r.anexos||[]).length?'<div class="sol-anexos">'+r.anexos.map((a,ai)=>
             '<a class="btn s mini" href="'+escHtml(a.url||"#")+'" target="_blank" rel="noopener noreferrer" title="'+escHtml(a.nome||"")+" · "+_tam(a.tamanho)+'">'
@@ -3718,23 +3900,10 @@ window.TINA=(function(){
             +'<input type="file" multiple style="display:none"><div class="bar"><button type="button" class="btn o mini" data-resp-anexar>📎 Anexar</button>'
             +'<button type="button" class="btn p mini" data-resp-enviar="'+escHtml(r.id)+'">Enviar</button><button type="button" class="btn s mini" data-resp-cancelar>Cancelar</button>'
             +'<span class="fldstat"></span></div></div>':"")
-        +'<div class="sol-acoes">'
-        // "Trabalhar" abre o gerador de atos — para quem só lança solicitação, é botão que não leva a lugar nenhum
-        +(_modoComercial?"":'<button class="btn p mini" data-sol-abrir="'+escHtml(r.id)+'" title="Marca o processo como em andamento para o comercial acompanhar. Não preenche o formulário: os dados do ato vêm do cartão CNPJ ou do contrato.">Trabalhar</button>')
-        +((!_modoComercial && r.status==="protocolada")?'<button class="btn o mini" data-sol-exig="'+escHtml(r.id)+'" title="A Junta devolveu com exigência: registra o motivo">⚠ Exigência</button>':"")
-        +((!_modoComercial && r.status==="exigencia")?'<button class="btn o mini" data-sol-reproto="'+escHtml(r.id)+'" title="Exigência cumprida e ato protocolado de novo">↻ Protocolei de novo</button>':"")
-        // finalizar é ato de quem faz o cadastro; o comercial acompanha, não encerra
-        +((!_modoComercial && SOLIC_FIM.indexOf(r.status)<0)?'<button class="btn ok mini" data-sol-fim="'+escHtml(r.id)+'" title="Marcar o processo como finalizado — quem abriu a solicitação passa a ver">✓ Finalizar</button>':"")
-        +((!_modoComercial && SOLIC_FIM.indexOf(r.status)<0)?'<button class="btn o mini" data-sol-cancelar="'+escHtml(r.id)+'" title="O cliente desistiu: encerra como “Cancelada”, sem dizer que o processo foi concluído">✕ Cancelar</button>':"")
-        +((!_modoComercial && SOLIC_FIM.indexOf(r.status)>=0)?'<button class="btn o mini" data-sol-reabrir="'+escHtml(r.id)+'" title="Voltar para “Em andamento”">↺ Reabrir</button>':"")
-        +((_modoComercial && SOLIC_ABERTAS.indexOf(r.status)>=0 && _respAberta!==r.id)?'<button class="btn '+(recadoPendente(r)?"p":"o")+' mini" data-sol-resp="'+escHtml(r.id)+'">💬 '+(recadoPendente(r)?"Responder":"Mensagem ao cadastro")+"</button>":"")
-        +(podeEditar?'<button class="btn o mini" data-sol-editar="'+escHtml(r.id)+'">✎ Editar</button>':"")
-        +((r.status!=="nova" && (r.fone||"").trim())?'<button class="btn o mini" data-sol-cliente="'+escHtml(r.id)+'" title="Abre o WhatsApp (ou o e-mail) do cliente com a mensagem desta situação pronta">📲 Avisar cliente</button>':"")
-        +((_modoComercial && SOLIC_FIM.indexOf(r.status)>=0)?"":'<button class="btn o mini" data-sol-avisar="'+escHtml(r.id)+'" title="Manda a solicitação pronta por WhatsApp ou e-mail">'+(_modoComercial?"📣 Avisar cadastro":"📣 Avisar")+"</button>")
-        // o comercial só exclui o que ele mesmo abriu e ainda está "nova"; em andamento é trabalho de outro
-        +((_modoComercial && !(r.status==="nova" && (!r.abertaPor || r.abertaPor===_meuEmail())))?"":'<button class="btn del mini sol-x" data-sol-excluir="'+escHtml(r.id)+'">Excluir</button>')
-        +"</div></div>";
-    }).join("");
+        +_acoesSolic(r)
+        +"</div>";
+  }
+  function ligarCartoesSolic(box){
     box.querySelectorAll("[data-sol-abrir]").forEach(b=>b.addEventListener("click",()=>trabalharSolic(b.dataset.solAbrir)));
     box.querySelectorAll("[data-sol-exig]").forEach(b=>b.addEventListener("click",()=>registrarExigencia(b.dataset.solExig)));
     box.querySelectorAll("[data-sol-reproto]").forEach(b=>b.addEventListener("click",()=>reprotocolar(b.dataset.solReproto)));
@@ -3757,6 +3926,9 @@ window.TINA=(function(){
     box.querySelectorAll("[data-sol-reabrir]").forEach(b=>b.addEventListener("click",()=>finalizarSolic(b.dataset.solReabrir,false)));
     box.querySelectorAll("[data-sol-cancelar]").forEach(b=>b.addEventListener("click",()=>finalizarSolic(b.dataset.solCancelar,"cancelar")));
     // descrição longa vem cortada em 4 linhas; um toque abre inteira
+    box.querySelectorAll("[data-sol-continuar]").forEach(b=>b.addEventListener("click",()=>continuarSolic(b.dataset.solContinuar)));
+    box.querySelectorAll("[data-conv-mais]").forEach(b=>b.addEventListener("click",()=>{ const x=b.nextElementSibling; if(x){ x.hidden=!x.hidden; b.textContent=x.hidden?b.dataset.txt:"esconder as anteriores"; } }));
+    box.querySelectorAll("[data-conv-mais]").forEach(b=>{ b.dataset.txt=b.textContent; });
     box.querySelectorAll(".sol-desc").forEach(d=>d.addEventListener("click",()=>d.classList.toggle("aberta")));
   }
   /* Traz da nuvem o que não existe aqui (outro computador, ou navegador limpo).
@@ -4317,6 +4489,15 @@ window.TINA=(function(){
   }
   // onde os casos realmente moram agora: com login é a nuvem, e o navegador é só a cópia offline
   function _naNuvem(){ return !!(window.Nuvem&&window.Nuvem.podeGravar()); }
+  function excluirCaso(id){
+    const tem=temTrabalho(id);
+    if(!confirm("Remover este caso do painel?"+(tem?" O ato guardado (com os dados preenchidos) também será apagado.":" (não afeta documentos já baixados)"))) return false;
+    salvarCasos(lerCasos().filter(x=>x.id!==id)); excluirTrabalho(id); marcarIdsExcluidos([id]); if(casoAtualId===id)casoAtualId=null;
+    // exclusão de verdade também na nuvem; só a trilha (sem dado pessoal) sobrevive
+    if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.excluir("atos",id); window.Nuvem.trilha("ato.excluir",id,""); }
+    renderPainel(); renderSolic();
+    return true;
+  }
   function renderPainel(){const box=$("painelLista"); if(!box)return; let casos=lerCasos();
     const todos=casos.length;
     const q=(($("painelBusca")&&$("painelBusca").value)||"").trim().toLowerCase();
@@ -4353,13 +4534,7 @@ window.TINA=(function(){
       const ab=tr.querySelector("[data-abrir]"); if(ab)ab.addEventListener("click",()=>abrirTrabalho(id));
       const dup=tr.querySelector("[data-dup]"); if(dup)dup.addEventListener("click",()=>duplicarCaso(id));
       const loc=tr.querySelector("[data-loc]"); if(loc)loc.addEventListener("click",()=>localizarGmail(id));
-      const del=tr.querySelector("[data-del]"); if(del)del.addEventListener("click",()=>{
-        const tem=temTrabalho(id);
-        if(confirm("Remover este caso do painel?"+(tem?" O ato guardado (com os dados preenchidos) também será apagado.":" (não afeta documentos já baixados)"))){
-          salvarCasos(lerCasos().filter(x=>x.id!==id)); excluirTrabalho(id); marcarIdsExcluidos([id]); if(casoAtualId===id)casoAtualId=null;
-          // exclusão de verdade também na nuvem; só a trilha (sem dado pessoal) sobrevive
-          if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.excluir("atos",id); window.Nuvem.trilha("ato.excluir",id,""); }
-          renderPainel();}});
+      const del=tr.querySelector("[data-del]"); if(del)del.addEventListener("click",()=>excluirCaso(id));
     });}
 
   // CPF fictício com dígitos verificadores válidos, para o exemplo passar na validação
@@ -6284,6 +6459,7 @@ window.TINA=(function(){
         toast("Aba trocada para Transformação → EI → Ltda. O preenchimento foi mantido.","ok");
         const c=$("cardRapido")||$("status"); if(c&&c.scrollIntoView)c.scrollIntoView({behavior:"smooth",block:"center"}); });}
     else{av.style.display="none";}
+    abrirCardsComPendencia();
     _formAposRapido=_assinaturaForm();   // o ponto de partida: o que mudar daqui em diante é correção de alguém
   }
 
@@ -6351,7 +6527,9 @@ window.TINA=(function(){
       if($("cfgIntegraStat"))$("cfgIntegraStat").textContent="";
       if($("cfgIntegraFila")){const n=Integracao.fila().length;
         $("cfgIntegraFila").textContent=n?("H\u00e1 "+n+" aviso(s) esperando para sair."):"";}}
-    $("configModal").classList.add("open");}
+    $("configModal").classList.add("open");
+    // o comercial só precisa dos avisos e da conta: as abas do gerador ficam escondidas para ele
+    if(_modoComercial){ const a=document.querySelector('.cfg-aba[data-cfg="avisos"]'); if(a) a.click(); }}
   function salvarConfigForm(){const cor=($("cfgCor").value||"").toLowerCase();
     CFG={escritorio:$("cfgEscritorio").value.trim(),logo:_cfgLogoTmp||"",cor:(cor==="#14293f"||!cor)?"":cor,paralegal:$("cfgParalegal").value.trim(),remetente:$("cfgRemetente").value.trim(),avisoWhats:$("cfgAvisoWhats").value.trim(),avisoEmail:$("cfgAvisoEmail").value.trim(),defMun:$("cfgMun").value.trim(),defUF:$("cfgUF").value,defOrgao:$("cfgOrgao").value,defOrgaoUF:$("cfgOrgaoUF").value,foro:$("cfgForo").value.trim(),junta:(($("cfgJunta")&&$("cfgJunta").value)||"").trim()};
     salvarCfg(CFG);aplicarCfg();
@@ -6459,7 +6637,8 @@ window.TINA=(function(){
     if($("btnEnvArquivo")) $("btnEnvArquivo").style.display=podeArquivo?"":"none";
     if($("envAviso")) $("envAviso").innerHTML = podeArquivo
       ? "“Enviar o arquivo” abre o compartilhamento do celular com o PDF já anexado — escolha o WhatsApp, o e-mail ou outro aplicativo."
-      : "O documento <b>já foi baixado</b>. Abra a conversa pelos botões acima (o texto vai pronto) e <b>anexe o arquivo baixado</b> antes de enviar.";
+      : (_ultimoArquivo ? "O documento <b>já foi baixado</b>. Abra a conversa pelos botões acima (o texto vai pronto) e <b>anexe o arquivo baixado</b> antes de enviar."
+        : "Baixe o documento (.docx ou PDF); depois abra a conversa pelos botões acima (o texto vai pronto) e <b>anexe o arquivo baixado</b> antes de enviar.");
     m.classList.add("open");
   }
   async function enviarArquivo(){
@@ -6537,6 +6716,280 @@ window.TINA=(function(){
     _ufAtoManual=!!(o.fields&&o.fields.atoUF); completarUFs();
     if(typeof recalc==="function")recalc();
   }finally{_suppressDraft=false;}salvarRascunho();}
+
+  /* ===== O ato como processo: lista de processos e as seis etapas =====
+     A tela inicial é a lista de processos: a lista de solicitações em página inteira, mais os atos
+     abertos sem solicitação. Abrir um processo leva ao ato, com as etapas no topo. A etapa 2 é o
+     formulário de sempre; as outras mostram NA TELA o conteúdo das janelas que já existiam
+     (pré-protocolo, antes e depois, e-mail, confirmação, envio, protocolo). É o MESMO conteúdo,
+     emprestado da janela enquanto a etapa está aberta e devolvido ao sair dela — por isso as
+     regras, os botões e as travas continuam exatamente os de antes. `var` de propósito: a lista
+     pode ser desenhada antes desta linha rodar. */
+  var _etapa=2, _etapaVolta=2, _pendIdx=-1, _ultPrePro=-1, _etSeq=0, _filaInicial=false, _hosp=[];
+  const NOME_ET={1:"Pedido",2:"Dados do ato",3:"Conferência",4:"Confirmação do cliente",5:"Documento e assinatura",6:"Protocolo"};
+  function hospedar(el,destino){ if(!el||!destino||!el.parentNode) return; _hosp=_hosp||[]; const marca=document.createComment("hospedado"); el.parentNode.insertBefore(marca,el); destino.appendChild(el); _hosp.push({el,marca}); }
+  function hospedarModal(id,destino){ const m=$(id), mb=m&&m.querySelector(".mb"); if(mb) hospedar(mb,destino); }
+  function devolverHospedes(){ _hosp=_hosp||[]; while(_hosp.length){ const h=_hosp.pop(); if(h.marca.parentNode){ h.marca.parentNode.insertBefore(h.el,h.marca); h.marca.remove(); } } }
+  function modalHospedado(m){ return (_hosp||[]).some(h=>h.marca.parentNode && m.contains(h.marca)); }
+  function _formOcupado(){ try{ return draftTemConteudo(snapshotForm()); }catch(e){ return false; } }
+  function rolarAoProcesso(){ const c=$("procCab"); if(c && c.scrollIntoView) try{ c.scrollIntoView({block:"start",behavior:"smooth"}); }catch(e){} }
+
+  // ---- a lista de processos (tela inicial)
+  function abrirFila(){
+    if(_modoComercial){ abrirSolic(); sincronizarSolic(); return; }
+    _etapaVolta=_etapa||2; if(_etapa!==2) devolverHospedes();
+    document.body.classList.add("na-fila"); medirCabecalho(); tituloLista(true);
+    abrirSolic(); sincronizarSolic(); atualizarCabProc();
+  }
+  // a mesma janela é a "lista de processos" (página inicial) e a de "Solicitações" (por cima do ato)
+  function tituloLista(proc){ const t=document.querySelector("#solicModal .mh > span"); if(t) t.textContent=proc?"🗂 Processos":"🗂 Solicitações"; }
+  // sai da lista e mostra o ato na etapa pedida (sem etapa: a em que ele estava)
+  function sairDaFila(et){
+    const m=$("solicModal");
+    document.body.classList.remove("na-fila");   // antes de fechar: o observador da janela não precisa agir
+    tituloLista(false);
+    if(m && m.classList.contains("open") && !_modoComercial){ if(_formSolicAberto()) cancelarFormSolic(); m.classList.remove("open"); }
+    irEtapa(et||_etapa||2); atualizarCabProc();
+  }
+  function voltarAoAto(){ sairDaFila(_etapaVolta||2); }
+  function novoAto(){
+    if(_formOcupado()){
+      const emp=(($("razao")||{}).value||"").trim();
+      if(!confirm(emp?("Começar um ato novo?\n\nO ato de "+emp+" fica guardado no Painel de casos, com tudo o que foi preenchido — dá para retomar depois.")
+                     :"Começar um ato novo? O que está no formulário (ainda sem razão social) será apagado.")) return;
+      if(emp){ const c=registrarCaso(); salvarTrabalho(c.id); }
+      limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; renderLigacao();
+    }
+    sairDaFila(2); window.scrollTo(0,0); atualizarCabProc();
+  }
+  // os atos abertos que não vieram de solicitação (antes só se via no Painel de casos)
+  function renderFilaAtos(f,q){
+    const box=$("filaAtos"); if(!box) return;
+    if(_modoComercial || (f!=="abertas" && f!=="todas")){ box.innerHTML=""; return; }
+    const sols=lerSolic(), ids=new Set(sols.map(r=>r.atoId).filter(Boolean)), sids=new Set(sols.map(r=>r.id));
+    let cs=lerCasos().filter(c=>c && c.id && !ids.has(c.id) && !(c.solicId && sids.has(c.solicId)));
+    if(f==="abertas") cs=cs.filter(c=>temTrabalho(c.id) || (c.confirmado && !c.concluidoEm && !c.protocoladoEm));
+    if(q) cs=cs.filter(c=>[c.id,c.empresa,c.cnpj,c.tipo].some(v=>String(v||"").toLowerCase().includes(q)));
+    cs.sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0));
+    if(!cs.length){ box.innerHTML=""; return; }
+    box.innerHTML='<div class="fila-atos"><h3>Atos sem solicitação ('+cs.length+')</h3>'+cs.map(c=>{
+      const st=c.protocoladoEm?"📮 protocolado "+c.protocoladoEm:(c.concluidoEm?"⬇ documento baixado":(c.confirmado?(c.confirmadoVia==="emergencia"?"⚠ liberado sem e-mail":"✓ cliente confirmou "+(c.confirmadoEm||"")):"⏳ aguardando a confirmação do cliente"));
+      const tem=temTrabalho(c.id);
+      return '<div class="fila-ato" data-caso="'+escHtml(c.id)+'"><div class="fa-txt"><div class="fa-emp">'+escHtml(c.empresa||"(sem nome)")+'</div><div class="fa-sub">'
+        +escHtml([c.tipo||"", "ID #"+c.id, c.data||"", st].filter(Boolean).join(" · "))+"</div></div>"
+        +(tem?'<button type="button" class="btn p mini" data-ca="abrir" title="Retomar este ato com todos os dados preenchidos">▸ Retomar</button>':'<button type="button" class="btn o mini" data-ca="dup" title="Iniciar um novo ato para esta empresa">⧉ Duplicar</button>')
+        +'<details class="sol-mais"><summary class="btn o mini" title="Mais ações" aria-label="Mais ações">⋯</summary><div class="menu-mais">'
+          +(tem?'<button type="button" class="btn o mini" data-ca="dup">⧉ Duplicar (novo ato da empresa)</button>':"")
+          +'<button type="button" class="btn o mini" data-ca="gmail">🔎 Localizar no Gmail</button>'
+          +(c.confirmado?'<button type="button" class="btn o mini" data-ca="just">🔎 Ver o registro da confirmação</button>':"")
+          +'<button type="button" class="btn del mini" data-ca="del">Excluir</button></div></details></div>';
+    }).join("")+"</div>";
+    box.querySelectorAll("[data-caso]").forEach(el=>{ const id=el.dataset.caso;
+      el.querySelectorAll("[data-ca]").forEach(b=>b.addEventListener("click",()=>{ const k=b.dataset.ca;
+        if(k==="abrir"){ if(_formOcupado() && casoAtualId!==id && !confirm("Abrir este ato?\n\nO que está no formulário agora será substituído (guarde antes, se precisar).")) return;
+          if(abrirTrabalho(id)){ sairDaFila(proximaEtapa()); rolarAoProcesso(); } }
+        else if(k==="dup"){ duplicarCaso(id); sairDaFila(2); }
+        else if(k==="gmail") localizarGmail(id);
+        else if(k==="just") verJustificativa(id);
+        else if(k==="del") excluirCaso(id);
+      })); });
+  }
+  function _posRenderSolic(f,q){
+    renderFilaAtos(f,q);
+    if(_etapa===1) renderEtapaPedido();
+    if(_etapa===6) preencherEtapa6();
+    atualizarEtapas();
+  }
+
+  // ---- cabeçalho do processo e o estado de cada etapa
+  function atualizarCabProc(){
+    let d={}; try{ d=coletar(); }catch(e){}
+    const emp=(d.razao||"").trim();
+    if($("pcEmpresa")) $("pcEmpresa").textContent=emp?emp.toUpperCase():"Ato novo";
+    if($("pcInfo")){ const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null; let t=""; try{ t=tipoAto(d); }catch(e){}
+      $("pcInfo").textContent=[t, c?("ID #"+c.id):""].filter(Boolean).join(" · "); }
+    const b=$("btnAtoAtual");
+    if(b){ const mostra=document.body.classList.contains("na-fila") && _formOcupado(); b.style.display=mostra?"":"none";
+      if($("btnAtoAtualTxt")) $("btnAtoAtualTxt").textContent=emp?("Voltar ao ato: "+(emp.length>22?emp.slice(0,22)+"…":emp)):"Voltar ao ato"; }
+  }
+  function estadoEtapas(){
+    let d={}; try{ d=coletar(); }catch(e){}
+    const sid=(_solicLigada===null||_solicLigada===undefined)?"":_solicLigada, r=sid?lerSolic().find(x=>x.id===sid):null;
+    const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null;
+    const temPrev=!!document.querySelector("#preview section.docxprev");
+    let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(d)); }catch(e){}
+    if(temPrev && !(_ultPrePro>=0)){ try{ _ultPrePro=preProtocolo().filter(i=>!i.ok && i.tema!=="Confirmação do cliente registrada").length; }catch(e){ _ultPrePro=-1; } }
+    const orgao=(MODE||"").startsWith("sia")?"OAB":"Junta";
+    return {
+      1: r?["f",SOLIC_STATUS[r.status]||"ligado"]:["","sem pedido ligado"],
+      2: !(d.razao||"").trim()?["","formulário"]:((_pendIdx>0)?["a","⚠ "+_pendIdx+(_pendIdx>1?" pendências":" pendência")]:["f","campos ok"]),
+      3: !temPrev?["","pré-protocolo"]:((_ultPrePro>0)?["a","⚠ "+_ultPrePro+" ponto(s)"]:["f","sem pendências"]),
+      4: ok?["f","confirmado "+(c.confirmadoEm||"")]:((c&&c.confirmado)?["a","⚠ venceu: reconfirmar"]:((r&&r.status==="cliente")?["a","aguardando o cliente"]:["","e-mail + “de acordo”"])),
+      5: (c&&c.concluidoEm)?["f","documento baixado"]:["",".docx · PDF · enviar"],
+      6: r?(r.status==="exigencia"?["x","em exigência"]:(r.status==="protocolada"?["f","protocolada"]:(r.status==="concluida"?["f","finalizada"]:(r.status==="cancelada"?["x","cancelada"]:["",orgao]))))
+          :((c&&c.protocoladoEm)?["f","protocolado "+c.protocoladoEm]:["",orgao])
+    };
+  }
+  function atualizarEtapas(){
+    const nav=$("etapas"); if(!nav) return;
+    const E=estadoEtapas();
+    nav.querySelectorAll(".etapa").forEach(b=>{ const k=Number(b.dataset.etapa), e=E[k]; if(!e) return;
+      b.classList.remove("f","a","x"); if(e[0]) b.classList.add(e[0]);
+      const sp=b.querySelector("span"); if(sp) sp.textContent=e[1]; });
+    atualizarCabProc();
+  }
+  function proximaEtapa(){ const E=estadoEtapas(); for(const k of [2,3,4,5,6]) if(E[k][0]!=="f") return k; return 6; }
+
+  // ---- as etapas
+  const _navEt=(ant,prox)=>'<div class="et-nav">'+(ant?'<button type="button" class="btn s" data-ir-etapa="'+ant+'">← '+NOME_ET[ant]+"</button>":"")
+    +'<span class="esp"></span>'+(prox?'<button type="button" class="btn p" data-ir-etapa="'+prox+'">Próximo: '+NOME_ET[prox].toLowerCase()+" →</button>":"")+"</div>";
+  const MOLDE_ET={
+    1:()=>'<div class="card"><h2>Pedido do cliente</h2><div id="etPedido"></div></div>'+_navEt(0,2),
+    3:()=>'<div class="et-duas"><div class="card"><h2>✓ Pré-protocolo <span class="hint">— as conferências do texto do documento</span></h2><div class="modal-hosp" data-slot="proto"></div></div>'
+      +'<div class="card"><h2>⇄ Antes e depois</h2><div class="modal-hosp" data-slot="comp"></div></div></div>'+_navEt(2,4)+'<div class="hint">O documento está logo abaixo.</div>',
+    4:()=>'<div class="card"><h2>🔒 Confirmação do cliente</h2><div id="etConfSt"></div><div class="et-duas">'
+      +'<div><div class="et-h4">1. E-mail de confirmação</div><div class="modal-hosp" data-slot="email"></div></div>'
+      +'<div><div class="et-h4">2. Resposta do cliente</div><div class="modal-hosp" data-slot="gate"></div></div></div></div>'+_navEt(3,5),
+    5:()=>'<div class="et-duas"><div class="card"><h2>Documento</h2><div id="etDocSt"></div><div class="bar"><button type="button" class="btn g" data-et-baixar="docx">⬇ .docx</button><button type="button" class="btn o" data-et-baixar="pdf">⬇ PDF</button></div>'
+      +'<div class="hint" style="margin-top:10px">✍ A assinatura é feita fora do sistema. Para o arquivamento valer desde a assinatura, protocole em até 30 dias da data do ato (art. 36 da Lei nº 8.934/1994).</div></div>'
+      +'<div class="card"><h2>📤 Enviar ao cliente</h2><div class="modal-hosp" data-slot="enviar"></div></div></div>'+_navEt(4,6),
+    6:()=>'<div class="card"><h2>Protocolo na <span id="etOrgao">Junta Comercial</span></h2><div id="etProtoSt"></div><div class="modal-hosp" data-slot="protocolei"></div>'
+      +'<div class="bar" id="etProtoAcoes" style="margin-top:10px"></div><div id="etExig"></div></div>'+_navEt(5,0)
+  };
+  function renderEtapaPedido(){
+    const box=$("etPedido"); if(!box) return;
+    const sid=(_solicLigada===null)?solicDoAto():_solicLigada, r=sid?lerSolic().find(x=>x.id===sid):null;
+    if(r){ const hoje=new Date(); hoje.setHours(0,0,0,0);
+      box.innerHTML='<div id="etPedidoCartao">'+cartaoSolic(r,hoje,tiposAto())+'</div><div class="bar" style="margin-top:8px"><button type="button" class="btn o mini" id="etVerLista">🗂 Ver na lista de processos</button></div>';
+      ligarCartoesSolic($("etPedidoCartao")); $("etVerLista").addEventListener("click",abrirFila); return; }
+    const abertas=lerSolic().filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0);
+    box.innerHTML='<div class="hint" style="margin-bottom:8px">Este ato não está ligado a uma solicitação do comercial. Se ele veio de uma, ligue: a situação passa a andar sozinha e o comercial acompanha.</div>'
+      +(abertas.length?'<div class="bar"><select id="etLigarSel" style="width:auto;max-width:100%">'+abertas.map(x=>'<option value="'+escHtml(x.id)+'">'+escHtml((x.empresa||"(sem empresa)")+" — "+(SOLIC_STATUS[x.status]||x.status))+"</option>").join("")+'</select><button type="button" class="btn p mini" id="etLigarBtn">Ligar a esta solicitação</button></div>'
+        :'<div class="hint">Não há solicitação em aberto para ligar.</div>');
+    const b=$("etLigarBtn"); if(b) b.addEventListener("click",()=>{ const v=$("etLigarSel").value; if(v){ ligarSolic(v); toast("Ato ligado à solicitação.","ok"); renderEtapaPedido(); atualizarEtapas(); } });
+  }
+  function statusConfirmacao(){
+    const box=$("etConfSt"); if(!box) return;
+    const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null; let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(coletar())); }catch(e){}
+    box.innerHTML=ok?'<div class="et-ok">✓ O cliente confirmou'+(c.confirmadoPor?" ("+escHtml(c.confirmadoPor)+")":"")+" em "+escHtml(c.confirmadoEm||"")+'. O documento já pode ser baixado na etapa 5.</div>'
+      :((c&&c.confirmado)?'<div class="et-av">⚠ O ato mudou depois da confirmação de '+escHtml(c.confirmadoEm||"")+': mande o e-mail de novo e registre a nova resposta (ou use a liberação de emergência).</div>'
+      :'<div class="hint" style="margin-bottom:10px">Mande o resumo ao cliente; quando ele responder “de acordo”, registre ao lado. Ao abrir o e-mail, o ato já fica guardado no Painel de casos.</div>');
+  }
+  function preencherEtapa6(){
+    if(_etapa!==6 || !$("etProtoSt")) return;
+    const orgao=(MODE||"").startsWith("sia")?"OAB":"Junta Comercial"; if($("etOrgao")) $("etOrgao").textContent=orgao;
+    const sid=(_solicLigada===null)?solicDoAto():_solicLigada, r=sid?lerSolic().find(x=>x.id===sid):null;
+    const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null;
+    renderLigacao();   // decide se o "Protocolei" aparece e o rótulo (Junta/OAB)
+    $("etProtoSt").innerHTML=r
+      ?'<div class="'+(r.status==="exigencia"?"et-av":"hint")+'" style="margin-bottom:10px">Situação: <b>'+escHtml(SOLIC_STATUS[r.status]||r.status)+"</b>"
+        +(r.protocoladaEm?" · protocolada em "+escHtml(_dataBR(r.protocoladaEm)):"")+(r.finalizadoEm?" · encerrada em "+escHtml(_dataBR(r.finalizadoEm)):"")+"</div>"
+      :'<div class="hint" style="margin-bottom:10px">'+((c&&c.protocoladoEm)?"📮 Protocolado em "+escHtml(c.protocoladoEm)+".":"Ato sem solicitação: o protocolo fica registrado no caso (Painel de casos).")+"</div>";
+    const ac=[];
+    if(r && !_modoComercial){
+      if(r.status==="protocolada") ac.push(["exig","⚠ Registrar exigência","o"]);
+      if(r.status==="exigencia"){ ac.push(["reproto","↻ Protocolei de novo","p"]); ac.push(["corrigir","✎ Corrigir o ato","o"]); }
+      if(SOLIC_FIM.indexOf(r.status)<0){ ac.push(["fim","✓ Finalizar","ok"]); ac.push(["cancelar","✕ Cancelar (cliente desistiu)","o"]); }
+      else ac.push(["reabrir","↺ Reabrir","o"]);
+      if(r.status!=="nova" && (r.fone||"").trim()) ac.push(["cliente","📲 Avisar cliente","o"]);
+    }
+    const box=$("etProtoAcoes");
+    box.innerHTML=ac.map(a=>'<button type="button" class="btn '+a[2]+' mini" data-et-p="'+a[0]+'">'+a[1]+"</button>").join("");
+    box.querySelectorAll("[data-et-p]").forEach(b=>b.addEventListener("click",()=>{ const k=b.dataset.etP;
+      if(k==="exig") registrarExigencia(r.id); else if(k==="reproto") reprotocolar(r.id); else if(k==="corrigir") irEtapa(2);
+      else if(k==="fim") finalizarSolic(r.id,true); else if(k==="cancelar") finalizarSolic(r.id,"cancelar"); else if(k==="reabrir") finalizarSolic(r.id,false);
+      else if(k==="cliente") avisarCliente(r.id); }));
+    const ex=(r&&r.exigencias)||[];
+    $("etExig").innerHTML=ex.length?'<div class="et-h4" style="margin-top:12px">Exigências deste pedido</div>'+ex.map((e,i)=>'<div class="sol-exig">'+(i+1)+"ª · "+escHtml(_dataBR(e.em))+(e.cat?" — "+escHtml(e.cat):"")+(e.txt?": "+escHtml(e.txt):"")+"</div>").join(""):"";
+  }
+  const PREENCHE_ET={
+    1:async()=>{ renderEtapaPedido(); },
+    3:async(p,seq)=>{
+      if(!document.querySelector("#preview section.docxprev")){ await gerarPreview(); if(seq!==_etSeq) return; }
+      hospedarModal("protoModal",p.querySelector('[data-slot="proto"]'));
+      if(_comparacao.length) hospedarModal("compModal",p.querySelector('[data-slot="comp"]'));
+      else p.querySelector('[data-slot="comp"]').innerHTML='<div class="hint">O antes e depois aparece quando o ato parte de um contrato lido no preenchimento rápido: ele mostra, cláusula por cláusula, o que foi mantido, reescrito ou acrescentado.</div>';
+      await abrirPreProtocolo(); if(seq!==_etSeq) return;
+      if(_comparacao.length) abrirComparacao();
+      fitPreview();
+    },
+    4:async(p)=>{
+      if(!((($("razao")||{}).value||"").trim())){ $("etConfSt").innerHTML='<div class="et-av">Preencha o ato (etapa 2) antes de pedir a confirmação do cliente.</div>'; return; }
+      hospedarModal("emailModal",p.querySelector('[data-slot="email"]'));
+      hospedarModal("gateModal",p.querySelector('[data-slot="gate"]'));
+      if(!_emailEditado || !emailIdAtual) gerarEmail();
+      abrirGateSoRegistro();
+      statusConfirmacao();
+    },
+    5:async(p)=>{
+      hospedarModal("enviarModal",p.querySelector('[data-slot="enviar"]'));
+      abrirEnviar();
+      p.querySelectorAll("[data-et-baixar]").forEach(b=>b.addEventListener("click",()=>{ const bt=$(b.dataset.etBaixar==="pdf"?"btnPDF":"btnBaixar"); if(bt) bt.click(); }));
+      const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null; let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(coletar())); }catch(e){}
+      $("etDocSt").innerHTML=(ok?'<div class="et-ok">✓ Confirmado pelo cliente em '+escHtml(c.confirmadoEm||"")+". O documento sai direto.</div>"
+        :'<div class="et-av">Sem a confirmação do cliente registrada, o download abre a trava de confirmação, como sempre.</div>')
+        +((c&&c.concluidoEm)?'<div class="hint" style="margin-bottom:8px">Último download em '+escHtml(_dataBR(c.concluidoEm))+".</div>":"");
+    },
+    6:async(p)=>{ hospedar($("protoSolic"),p.querySelector('[data-slot="protocolei"]')); preencherEtapa6(); }
+  };
+  async function irEtapa(n){
+    n=Math.min(6,Math.max(1,Number(n)||2));
+    devolverHospedes(); _etapa=n; const seq=++_etSeq;
+    document.body.dataset.etapaAtual=String(n);
+    document.querySelectorAll("#etapas .etapa").forEach(b=>{ const on=Number(b.dataset.etapa)===n; b.classList.toggle("on",on); if(on) b.setAttribute("aria-current","step"); else b.removeAttribute("aria-current"); });
+    const p=$("etapaPainel"); if(!p) return;
+    if(n===2){ p.innerHTML=""; p.style.display="none"; agendarIndice(); fitPreview(); atualizarEtapas(); return; }
+    p.style.display=""; p.innerHTML=MOLDE_ET[n]();
+    p.querySelectorAll("[data-ir-etapa]").forEach(b=>b.addEventListener("click",()=>{ irEtapa(b.dataset.irEtapa); rolarAoProcesso(); }));
+    try{ await PREENCHE_ET[n](p,seq); }catch(e){ console.error(e); }
+    if(seq===_etSeq) atualizarEtapas();
+  }
+  // depois do download o envio ao cliente não abre mais sozinho (abria duas vezes com .docx e PDF): fica na etapa 5
+  function aposBaixar(){
+    atualizarEtapas();
+    if(_etapa===5){ abrirEnviar(); return; }
+    toast("✓ Documento baixado. Para mandar ao cliente conferir e assinar: etapa 5 — Documento e assinatura.","ok",6500);
+  }
+  function ligarProcesso(){
+    document.body.dataset.etapaAtual=String(_etapa||2);
+    document.querySelectorAll("#etapas .etapa").forEach(b=>b.addEventListener("click",()=>{ irEtapa(b.dataset.etapa); if(Number(b.dataset.etapa)!==2) rolarAoProcesso(); }));
+    if($("btnProximo")) $("btnProximo").addEventListener("click",()=>{ irEtapa(3); rolarAoProcesso(); });
+    if($("btnVoltarFila")) $("btnVoltarFila").addEventListener("click",abrirFila);
+    if($("btnAtoAtual")) $("btnAtoAtual").addEventListener("click",voltarAoAto);
+    ["btnNovoAto","btnNovoAtoM","btnFilaNovoAto"].forEach(id=>{ if($(id)) $(id).addEventListener("click",novoAto); });
+    if($("btnZoomMenos")) $("btnZoomMenos").addEventListener("click",()=>mudarZoom(-0.1));
+    if($("btnZoomMais")) $("btnZoomMais").addEventListener("click",()=>mudarZoom(0.1));
+    fitPreview();
+    // ⋯ da lista: o que antes ficava no Painel de casos
+    document.querySelectorAll("[data-fila]").forEach(b=>b.addEventListener("click",()=>{ const k=b.dataset.fila;
+      const dd=b.closest("details"); if(dd) dd.removeAttribute("open");
+      if(k==="painel" && $("btnPainel")) $("btnPainel").click();
+      else if(k==="exportar" && $("btnExportarCasos")) $("btnExportarCasos").click();
+      else if(k==="importar" && $("btnImportarCasos")) $("btnImportarCasos").click(); }));
+    // menus ⋯ fecham ao clicar fora (e ao escolher uma ação)
+    document.addEventListener("click",e=>{ document.querySelectorAll("details.sol-mais[open],details.fila-mais[open]").forEach(dd=>{
+      if(!dd.contains(e.target) || (e.target.closest(".menu-mais") && e.target.closest("button"))) dd.removeAttribute("open"); }); });
+    // sócio/filial: abrir ou recolher todos; o campo que recebe o foco abre o seu cartão
+    document.querySelectorAll("[data-rec]").forEach(b=>b.addEventListener("click",()=>{
+      const sel=b.dataset.recDe==="filiais"?"#filiais > .filial":"#socios > .socio";
+      document.querySelectorAll(sel).forEach(c=>alternarCard(c,b.dataset.rec==="fechar")); }));
+    document.addEventListener("focusin",e=>{ const c=e.target&&e.target.closest&&e.target.closest(".socio.recolhido"); if(c && !e.target.closest(".rec-linha")) alternarCard(c,false); });
+    // janela emprestada a uma etapa: em vez de abrir por cima, o conteúdo já está na tela
+    ["protoModal","compModal","emailModal","gateModal","enviarModal"].forEach(id=>{ const m=$(id); if(!m) return;
+      new MutationObserver(()=>{ if(m.classList.contains("open") && modalHospedado(m)){ m.classList.remove("open"); } }).observe(m,{attributes:true,attributeFilter:["class"]}); });
+    // a lista fechou (Fechar, "Ler este anexo", Trabalhar…): volta ao ato
+    { const m=$("solicModal"); if(m) new MutationObserver(()=>{
+        if(!m.classList.contains("open") && document.body.classList.contains("na-fila")){
+          document.body.classList.remove("na-fila"); tituloLista(false); irEtapa(2); atualizarCabProc(); }
+      }).observe(m,{attributes:true,attributeFilter:["class"]}); }
+    // etapa 4: confirmou → etapa 5; "Guardar e fazer outro" → volta à lista
+    ["btnGateRegistrar","btnGateEmergencia"].forEach(id=>{ if($(id)) $(id).addEventListener("click",()=>setTimeout(()=>{
+      if(_etapa!==4) return; const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null; let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(coletar())); }catch(e){}
+      if(ok){ irEtapa(5); rolarAoProcesso(); } else statusConfirmacao(); },60)); });
+    if($("btnGateGuardar")) $("btnGateGuardar").addEventListener("click",()=>setTimeout(()=>{
+      if(_etapa!==2 && !casoAtualId && !_formOcupado()){ irEtapa(2); abrirFila(); } },0));
+    atualizarEtapas();
+  }
 
   /* ===== Backup do painel (exportar/importar JSON) ===== */
   // Lembrete de backup: sem login os casos só existem neste navegador — limpar o histórico apaga
@@ -6753,7 +7206,8 @@ window.TINA=(function(){
     if($("btnSolicM")) $("btnSolicM").addEventListener("click",()=>$("btnSolic").click());
     if($("btnPainelM")) $("btnPainelM").addEventListener("click",()=>$("btnPainel").click());
     if($("btnEmailM")) $("btnEmailM").addEventListener("click",()=>$("btnEmail").click());
-    if($("btnSolic")) $("btnSolic").addEventListener("click",()=>{ abrirSolic(); sincronizarSolic(); });
+    if($("btnSolic")) $("btnSolic").addEventListener("click",abrirFila);
+    ligarProcesso();
     // fechar a janela com o formulário aberto descarta o que estava sendo lançado, como o Cancelar
     if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>{ if(_formSolicAberto()) cancelarFormSolic(); $("solicModal").classList.remove("open"); });
     if($("btnSolicNova")) $("btnSolicNova").addEventListener("click",novaSolic);
@@ -6845,6 +7299,8 @@ window.TINA=(function(){
       if(window.Nuvem.papelLembrado&&window.Nuvem.papelLembrado()==="comercial"&&window.Nuvem.jaEntrouAqui()) aplicarModoComercial(true);
       window.Nuvem.aoMudar(e=>{
         if(e.verificado||e.daEquipe) aplicarModoComercial(!!e.soSolicitacoes);
+        // quem cadastra abre o sistema na lista de processos (uma vez por abertura do sistema)
+        if(e.daEquipe && !e.soSolicitacoes && !_filaInicial){ _filaInicial=true; abrirFila(); }
         mostrarPortao(deveMostrarPortao(e,window.Nuvem.jaEntrouAqui()),
                       e.verificado?"login":"espera", "Verificando o acesso…");
         if(e.configurado && e.logado && !e.daEquipe){
@@ -6944,7 +7400,10 @@ window.TINA=(function(){
     if($("emailRemetente")) $("emailRemetente").addEventListener("input",regerarEmail);
     if($("emailCorpo")) $("emailCorpo").addEventListener("input",()=>{_emailEditado=true;});
     // copiar ou abrir o e-mail é o momento em que ele vai para o cliente: a solicitação passa a esperar a resposta
-    const emailSaiu=()=>moverSolic("cliente",["nova","andamento"]);
+    /* O e-mail saiu: a situação vai para "Aguardando cliente" e o trabalho inteiro fica guardado no
+       caso (antes só com o "Guardar e fazer outro"), para retomar quando o cliente responder. */
+    const emailSaiu=()=>{ moverSolic("cliente",["nova","andamento"]);
+      try{ if((($("razao")||{}).value||"").trim()){ const c=registrarCaso(); salvarTrabalho(c.id); atualizarEtapas(); } }catch(e){} };
     if($("btnEmailCopiar")) $("btnEmailCopiar").addEventListener("click",()=>{copiar($("emailAssunto").value+"\n\n"+$("emailCorpo").value,"✓ Assunto + corpo copiados.");emailSaiu();});
     if($("btnEmailCopiarCorpo")) $("btnEmailCopiarCorpo").addEventListener("click",()=>{copiar($("emailCorpo").value,"✓ Corpo copiado.");emailSaiu();});
     if($("btnEmailGmail")) $("btnEmailGmail").addEventListener("click",()=>{emailSaiu();const u="https://mail.google.com/mail/?view=cm&fs=1&tf=1&su="+encodeURIComponent($("emailAssunto").value)+"&body="+encodeURIComponent($("emailCorpo").value);window.open(u,"_blank","noopener,noreferrer");if($("emailStat")){$("emailStat").style.color="var(--navy)";$("emailStat").textContent="Abrindo o Gmail — confira o remetente no campo \"De:\" antes de enviar.";}});
@@ -7110,7 +7569,7 @@ window.TINA=(function(){
     let draftSalvo=null; try{draftSalvo=JSON.parse(localStorage.getItem("tinaDraft")||"null");}catch(e){}
     if(draftVencido(draftSalvo)){ limparRascunho(); draftSalvo=null; }   // rascunho velho (24h+) é apagado sozinho — contém dados pessoais
     if(draftTemConteudo(draftSalvo) && $("draftBanner")){ $("draftBanner").classList.add("show");
-      if($("btnDraftRestore")) $("btnDraftRestore").addEventListener("click",()=>{restaurarForm(draftSalvo);$("draftBanner").classList.remove("show");toast("Rascunho restaurado.","ok");});
+      if($("btnDraftRestore")) $("btnDraftRestore").addEventListener("click",()=>{restaurarForm(draftSalvo);$("draftBanner").classList.remove("show");toast("Rascunho restaurado.","ok");sairDaFila(2);});
       if($("btnDraftDiscard")) $("btnDraftDiscard").addEventListener("click",()=>{limparRascunho();$("draftBanner").classList.remove("show");toast("Rascunho descartado.","info");}); }
     document.addEventListener("input",salvarRascunhoDeb);
     document.addEventListener("change",salvarRascunhoDeb);

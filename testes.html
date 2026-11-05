@@ -1544,7 +1544,7 @@
         "razão “"+($("razao")||{}).value+"” · CNPJ “"+($("cnpj")||{}).value+"”");
       reg("Ao trabalhar, a solicitação sai de “Nova”",
         (JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{}).status==="andamento");
-      reg("E a tela continua na lista, sem pular para o ato", $("solicModal").classList.contains("open"));
+      reg("E vai direto para o ato, na etapa “Dados do ato” (sem copiar nada da solicitação)", !$("solicModal").classList.contains("open") && D.body.dataset.etapaAtual==="2");
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de solicitações",false,String(e&&e.message||e).slice(0,120)); }
 
@@ -1662,7 +1662,7 @@
       $("btnSolicNova").click(); await espera(220);
       val("sEmpresa","EXEMPLO COMERCIO LTDA"); val("sObs","Mudar o endereço da sede.");
       $("btnSolicSalvar").click(); await espera(450);
-      reg("Quem faz o cadastro tem o botão Finalizar", /Finalizar/.test($("solicLista").innerText));
+      reg("Quem faz o cadastro tem o botão Finalizar", !!D.querySelector("#solicLista [data-sol-fim]"));
       D.querySelector("[data-sol-fim]").click(); await espera(350);
       var s1=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
       reg("Finalizar marca o processo como finalizado", s1.status==="concluida", s1.status);
@@ -2865,9 +2865,12 @@
         val("gateData","14/08/2026"); val("gateContato","Cliente Teste"); val("gateNota","De acordo");
         $("btnGateRegistrar").click();
       }
-      await ate(function(){ return $("enviarModal").classList.contains("open"); }, 15000);
-      reg("Após gerar o PDF, o sistema oferece enviar ao cliente", true);
-      reg("Aviso do envio sem a frase retirada", !/menos exig[êe]ncia na Junta/i.test((($("enviarModal")||{}).innerText||"")));
+      await ate(function(){ return /Documento baixado|Baixado/.test(($("toastWrap")||{}).innerText||"") || /Baixado|PDF/.test(($("status")||{}).textContent||""); }, 15000);
+      await espera(400);
+      reg("Depois do PDF, o envio ao cliente não abre sozinho por cima (fica na etapa 5)", !$("enviarModal").classList.contains("open"));
+      D.querySelector('#etapas [data-etapa="5"]').click(); await espera(700);
+      reg("Na etapa 5 o envio ao cliente aparece na tela", !!$("etapaPainel").querySelector("#envMsg") && !$("enviarModal").classList.contains("open"));
+      reg("Aviso do envio sem a frase retirada", !/menos exig[êe]ncia na Junta/i.test((($("etapaPainel")||{}).innerText||"")));
       // no desktop o compartilhamento com arquivo falha: o botão não pode aparecer
       var ehCelular=(W.navigator.maxTouchPoints||0)>0 && /Android|iPhone|iPad|iPod/i.test(W.navigator.userAgent||"");
       reg("Botão de anexar só aparece onde funciona (celular)",
@@ -2886,8 +2889,90 @@
       aberto=null; $("btnEnvWhats").click(); await espera(300);
       reg("Número incompleto é barrado", !aberto && /incompleto/i.test($("envStat").textContent||""));
       W.open=openOrig;
+      D.querySelector('#etapas [data-etapa="2"]').click(); await espera(300);
+      reg("Ao voltar à etapa 2, o envio volta para a sua janela", !!$("enviarModal").querySelector("#envMsg"));
       if($("enviarModal")) $("enviarModal").classList.remove("open");
     }catch(e){ reg("Bateria de envio ao cliente",false,String(e&&e.message||e).slice(0,110)); }
+
+    /* ---------- v1.65: o ato como processo (lista de processos, etapas, cartões recolhíveis, documento maior) ---------- */
+    grupo("Processo e etapas");
+    try{
+      await recarregar(); $=function(id){ return D.getElementById(id); };
+      ["tinaSolic","tinaCasos","tinaTrabalhos","tinaDraft","tinaZoom"].forEach(function(k){ try{ W.localStorage.removeItem(k); }catch(e){} });
+      var et=function(n){ return D.querySelector('#etapas [data-etapa="'+n+'"]'); };
+      reg("Seis etapas no topo do ato", D.querySelectorAll("#etapas .etapa").length===6 && D.body.dataset.etapaAtual==="2");
+      reg("Cabeçalho: “Processos” e “Novo ato”; Painel de casos e E-mail continuam no ☰",
+        /Processos/.test($("btnSolic").textContent) && !!$("btnNovoAto") && !!$("btnPainelM") && !!$("btnEmailM") && $("btnPainel").hidden && $("btnEmail").hidden);
+      modo("alt"); await espera(200); $("btnExemplo").click(); await espera(700);
+      // sócios recolhíveis
+      var cs=[].slice.call(D.querySelectorAll("#socios > .socio"));
+      reg("Cartão de sócio completo nasce recolhido, com a linha-resumo", cs.length===2 && cs.every(function(c){ return c.classList.contains("recolhido") && /✓ completo/.test((c.querySelector(".rec-linha")||{}).textContent||""); }),
+        cs.map(function(c){ return (c.querySelector(".rec-linha")||{}).textContent; }).join(" | ").slice(0,140));
+      reg("O resumo diz quotas, percentual e administrador", /6\.000 quotas · 60,00% · administrador/.test((cs[0].querySelector(".rec-linha")||{}).textContent||""), (cs[0].querySelector(".rec-linha")||{}).textContent);
+      var nm=cs[0].querySelector('[data-f="rg"]'); val("razao",$("razao").value);
+      nm.value=""; nm.dispatchEvent(new W.Event("input",{bubbles:true})); await espera(400);
+      reg("Campo apagado aparece no resumo como pendência", /falta: .*RG/.test((cs[0].querySelector(".rec-linha")||{}).textContent||""), (cs[0].querySelector(".rec-linha")||{}).textContent);
+      nm.dispatchEvent(new W.FocusEvent("focusin",{bubbles:true})); await espera(80);
+      reg("O campo que recebe o foco abre o cartão", !cs[0].classList.contains("recolhido"));
+      nm.value="1234567"; nm.dispatchEvent(new W.Event("input",{bubbles:true}));
+      D.querySelector('[data-rec="fechar"][data-rec-de="socios"]').click();
+      reg("“Recolher todos” recolhe os cartões", cs.every(function(c){ return c.classList.contains("recolhido"); }));
+      reg("Cartão recolhido continua no documento (os dados são lidos igual)", W.TINA._ux.snapshotForm().socios.length===2 && /111\.444\.777-35/.test(JSON.stringify(W.TINA._ux.snapshotForm().socios)));
+      // filial recolhível
+      $("btnAddFilial").click(); await espera(200);
+      var fl=D.querySelector("#filiais > .filial");
+      reg("Filial nova nasce aberta, com o que falta no resumo", fl && !fl.classList.contains("recolhido") && /falta: CEP/.test((fl.querySelector(".rec-linha")||{}).textContent||""));
+      fl.querySelector(".rec-linha").click();
+      reg("Filial recolhe com um clique na linha", fl.classList.contains("recolhido"));
+      fl.querySelector("[data-rem]").click(); await espera(100);
+      // Exemplo/Limpar na linha do tipo de ato
+      reg("“Preencher exemplo” e “Limpar” ficam na linha do tipo de ato", !!$("btnExemplo").closest(".sub-linha"));
+      // documento maior, com zoom, e o PDF lido sem o zoom
+      await W.TINA.gerarPreview(); await espera(2400);
+      var antes=$("zoomPct").textContent; $("btnZoomMais").click(); await espera(150);
+      reg("Zoom do documento ajustável (− / +)", $("zoomPct").textContent!==antes || /\d+%/.test(antes), antes+" → "+$("zoomPct").textContent);
+      $("btnZoomMenos").click(); await espera(100);
+      reg("O documento não fica mais numa caixinha de rolagem", W.getComputedStyle($("preview")).maxHeight==="none");
+      var pg=D.querySelector("#preview .docxprev-wrapper > section"), zAntes=pg.style.zoom;
+      try{ W.TINA._ux.domToPdfmake(); }catch(e){}
+      reg("O PDF lê a prévia sem o zoom, e o zoom da tela volta depois", pg.style.zoom===zAntes);
+      // etapa 3: pré-protocolo na tela
+      et(3).click(); await espera(1500);
+      reg("Etapa 3 mostra o pré-protocolo na tela, sem abrir janela", !!$("etapaPainel").querySelector("#protoLista") && !$("protoModal").classList.contains("open") && !D.querySelector(".form-cards").offsetParent);
+      reg("Na conferência o documento continua à vista", !!$("previewCard").offsetParent);
+      // etapa 4: e-mail e confirmação na tela; registrar leva à 5
+      et(4).click(); await espera(900);
+      reg("Etapa 4 mostra o e-mail e a resposta do cliente na tela", !!$("etapaPainel").querySelector("#emailCorpo") && !!$("etapaPainel").querySelector("#btnGateRegistrar") && !$("emailModal").classList.contains("open") && !$("gateModal").classList.contains("open"));
+      reg("O e-mail já mostra o pré-protocolo", /pré-protocolo/i.test(($("emailPrePro")||{}).textContent||""));
+      val("gateData","05/11/2026"); val("gateContato","Cliente"); val("gateNota","De acordo");
+      $("btnGateRegistrar").click(); await espera(900);
+      reg("Registrar o “de acordo” leva à etapa 5", D.body.dataset.etapaAtual==="5" && /confirmado/.test(et(4).textContent));
+      // etapa 6
+      et(6).click(); await espera(500);
+      reg("Etapa 6 tem o “Protocolei” na tela", !!$("etapaPainel").querySelector("#btnProtocolei") && $("protoSolic").style.display!=="none");
+      et(2).click(); await espera(300);
+      reg("Voltando à etapa 2, tudo volta às janelas de origem", $("protoModal").contains($("protoSolic")) && !!$("emailModal").querySelector("#emailCorpo") && !!$("gateModal").querySelector("#btnGateRegistrar") && !!D.querySelector(".form-cards").offsetParent);
+      // lista de processos como página, com os atos sem solicitação
+      $("btnSolic").click(); await espera(500);
+      reg("“Processos” abre a lista como página inteira", D.body.classList.contains("na-fila") && $("solicModal").classList.contains("open") && /Processos/.test(D.querySelector("#solicModal .mh > span").textContent));
+      reg("Na lista, “Voltar ao ato” mostra a empresa do formulário", $("btnAtoAtual").style.display!=="none" && /COMERCIAL MODELO/.test($("btnAtoAtual").textContent));
+      reg("Ato sem solicitação aparece na lista de processos", /Atos sem solicitação/.test($("filaAtos").textContent) && /COMERCIAL MODELO/.test($("filaAtos").textContent));
+      $("btnAtoAtual").click(); await espera(400);
+      reg("“Voltar ao ato” fecha a lista e volta ao formulário", !D.body.classList.contains("na-fila") && !$("solicModal").classList.contains("open"));
+      // cartão com ⋯ e conversa
+      var ag=new Date().toISOString();
+      W.localStorage.setItem("tinaSolic",JSON.stringify([{id:"PX1",empresa:"EXEMPLO PROCESSO LTDA",status:"andamento",tipo:"alt",criadoEm:ag,alteradoEm:ag,obs:"Pedido de teste.",
+        pendencia:"Falta o comprovante.",pendenciaEm:ag,respostas:[{txt:"Mandei agora.",em:new Date(Date.now()+1000).toISOString(),por:"comercial"}],respostaNova:true}]));
+      $("btnSolic").click(); await espera(500);
+      var card=D.querySelector('[data-sol-id="PX1"]');
+      reg("Cartão: um botão principal à vista e o resto no ⋯", !!card.querySelector('.sol-acoes > [data-sol-continuar]') && !!card.querySelector(".sol-mais [data-sol-fim]") && !!card.querySelector(".sol-mais [data-sol-excluir]"));
+      reg("Recado e resposta numa conversa só, em ordem", /Recado: Falta o comprovante[\s\S]*Mandei agora/.test((card.querySelector(".sol-conversa")||{}).innerText||""));
+      $("btnSolicClose").click(); await espera(200);
+      // Novo ato guarda o atual
+      $("btnNovoAto").click(); await espera(500);
+      reg("“Novo ato” guarda o atual no Painel e limpa o formulário", !($("razao").value||"").trim() && Object.keys(JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}")).length>=1);
+      ["tinaSolic","tinaCasos","tinaTrabalhos","tinaDraft","tinaZoom"].forEach(function(k){ try{ W.localStorage.removeItem(k); }catch(e){} });
+    }catch(e){ reg("Bateria do processo e etapas",false,String(e&&e.message||e).slice(0,140)); }
 
     // ---------- 6e. Trabalhos em espera ----------
     grupo("Trabalhos em espera");

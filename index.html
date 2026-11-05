@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.64" />
+<meta name="versao" content="1.65" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,7 +18,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="assets/icone-512.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icone-192.png" />
 <title>Atos Societários — Totali Soluções Contábeis</title>
-<link rel="stylesheet" href="css/app.css?v=1.64">
+<link rel="stylesheet" href="css/app.css?v=1.65">
 </head>
 <body>
 <!-- Tela de carregamento: as bibliotecas (docx, pdf.js, OCR) levam um instante e, sem sinal nenhum,
@@ -67,9 +67,13 @@
        A barra de ações abaixo do formulário ficou só com o que age sobre o arquivo. -->
   <!-- O que se usa o tempo todo fica a UM clique, no próprio cabeçalho. O menu guarda o resto. -->
   <nav class="head-nav">
-    <button class="head-item" id="btnSolic" type="button">🗂 <span>Solicitações</span><span class="badge" id="solicBadge" style="display:none">0</span></button>
-    <button class="head-item" id="btnPainel" type="button">📁 <span>Painel de casos</span></button>
-    <button class="head-item" id="btnEmail" type="button">✉ <span>E-mail</span></button>
+    <!-- A tela inicial é a lista de processos (solicitações + atos). O Painel de casos e o e-mail de
+         confirmação continuam existindo: no ☰ e dentro do processo (etapa 4). -->
+    <button class="head-item" id="btnSolic" type="button">🗂 <span>Processos</span><span class="badge" id="solicBadge" style="display:none">0</span></button>
+    <button class="head-item" id="btnAtoAtual" type="button" style="display:none">✎ <span id="btnAtoAtualTxt">Voltar ao ato</span></button>
+    <button class="head-item" id="btnNovoAto" type="button">＋ <span>Novo ato</span></button>
+    <button class="head-item" id="btnPainel" type="button" hidden>📁 <span>Painel de casos</span></button>
+    <button class="head-item" id="btnEmail" type="button" hidden>✉ <span>E-mail</span></button>
   </nav>
   <div class="usermenu">
     <button class="head-gear" id="btnMenu" type="button" title="Menu" aria-label="Menu" aria-haspopup="true" aria-expanded="false">☰<span class="badge" id="menuBadge" style="display:none">0</span></button>
@@ -77,8 +81,11 @@
       <div class="menu-quem" id="menuQuem"></div>
       <!-- no celular o cabeçalho não cabe: os mesmos itens reaparecem aqui -->
       <div class="so-mobile">
-        <button type="button" role="menuitem" id="btnSolicM">🗂 Solicitações</button>
-        <button type="button" role="menuitem" id="btnPainelM">📁 Painel de casos</button>
+        <button type="button" role="menuitem" id="btnSolicM">🗂 Processos</button>
+        <button type="button" role="menuitem" id="btnNovoAtoM">＋ Novo ato</button>
+      </div>
+      <div class="so-cad">
+        <button type="button" role="menuitem" id="btnPainelM">📁 Painel de casos (tabela)</button>
         <button type="button" role="menuitem" id="btnEmailM">✉ E-mail de confirmação</button>
         <div class="menu-sep"></div>
       </div>
@@ -93,8 +100,26 @@
 </header>
 
 <div class="wrap">
-  <div class="form-cards">
+  <!-- O ato é um PROCESSO em seis etapas. As etapas são um guia (dá para ir a qualquer uma): a 2 é o
+       formulário de sempre; as outras mostram, na própria tela, o que antes vivia em janelas soltas
+       (pré-protocolo, e-mail e confirmação, envio ao cliente, protocolo). -->
+  <div class="proc-cab" id="procCab">
+    <div class="pc-linha">
+      <button type="button" class="btn s mini" id="btnVoltarFila">← Processos</button>
+      <div class="pc-tit"><b id="pcEmpresa">Ato novo</b> <span class="hint" id="pcInfo"></span></div>
+    </div>
     <div class="sol-ligada" id="solicLigadaBar" style="display:none"></div>
+    <nav class="etapas" id="etapas" aria-label="Etapas do processo">
+      <button type="button" class="etapa" data-etapa="1"><b>Pedido</b><span>o que o cliente quer</span></button>
+      <button type="button" class="etapa on" data-etapa="2" aria-current="step"><b>Dados do ato</b><span>formulário</span></button>
+      <button type="button" class="etapa" data-etapa="3"><b>Conferência</b><span>pré-protocolo</span></button>
+      <button type="button" class="etapa" data-etapa="4"><b>Confirmação do cliente</b><span>e-mail + “de acordo”</span></button>
+      <button type="button" class="etapa" data-etapa="5"><b>Documento e assinatura</b><span>.docx · PDF · enviar</span></button>
+      <button type="button" class="etapa" data-etapa="6"><b>Protocolo</b><span>Junta</span></button>
+    </nav>
+  </div>
+  <div class="etapa-painel" id="etapaPainel" style="display:none"></div>
+  <div class="form-cards">
     <div class="card">
       <div class="tipo-mob">
         <label for="tipoAtoMob">Tipo de ato</label>
@@ -117,6 +142,7 @@
         <button type="button" class="t" data-mode="sa">S.A.</button>
         <button type="button" class="t" data-mode="sia">Advocacia (OAB)</button>
       </div>
+      <div class="sub-linha">
       <div class="siasub siaonly typebar" style="display:none;margin-top:2px">
         <button type="button" class="t" data-mode="sia_const">Sociedade Individual de Advocacia · Ato constitutivo</button>
         <button type="button" class="t" data-mode="sia_alt">Sociedade Individual de Advocacia · Alteração + Consolidação</button>
@@ -149,9 +175,10 @@
         <button type="button" class="t" data-mode="dist_ltda">Distrato de Sociedade (Ltda/SLU)</button>
         <button type="button" class="t" data-mode="dist_ei">Extinção de Empresário Individual</button>
       </div>
-      <div class="bar">
+      <div class="bar sub-acoes">
         <button class="btn s mini" id="btnExemplo">↺ Preencher exemplo</button>
         <button class="btn s mini" id="btnLimpar">Limpar</button>
+      </div>
       </div>
     </div>
 
@@ -452,6 +479,7 @@
           <button class="btn s mini" type="button" id="btnAddFilial">+ Adicionar filial</button>
           <span class="hint">Opcional — gera a cláusula "DAS FILIAIS" (art. 969 / art. 1.000 do CC), com endereço, atividades e capital destacado.</span>
         </div>
+        <div class="rec-todos" id="recFiliais" style="display:none"><button type="button" class="btn s mini" data-rec="abrir" data-rec-de="filiais">Abrir todas</button><button type="button" class="btn s mini" data-rec="fechar" data-rec-de="filiais">Recolher todas</button></div>
         <div id="filiais"></div>
       </div>
     </div>
@@ -475,6 +503,7 @@
 
     <div class="card">
       <h2><span class="n">4</span> <span id="lblQuadro">Quadro societário</span></h2>
+      <div class="rec-todos" id="recSocios" style="display:none"><span class="hint">Clique na linha do cartão para abrir ou recolher.</span><button type="button" class="btn s mini" data-rec="abrir" data-rec-de="socios">Abrir todos</button><button type="button" class="btn s mini" data-rec="fechar" data-rec-de="socios">Recolher todos</button></div>
       <div id="socios"></div>
       <div class="bar ltdaonly"><button class="btn o mini" id="btnAddSocio">+ Adicionar sócio</button>
         <span class="hint" id="hintAdm">Marque quem administra. Todos os sócios já vêm como administradores por padrão.</span></div>
@@ -581,12 +610,15 @@
     <button class="btn g" id="btnBaixar">⬇ .docx</button>
     <button class="btn o" id="btnPDF">⬇ PDF</button>
     <span class="status muted" id="status">Preencha os dados e gere a prévia.</span>
+    <button class="btn p" id="btnProximo" type="button" title="Ir para a conferência (pré-protocolo e antes e depois)">Próximo<span class="so-pc">: conferência</span> →</button>
   </div>
   <div id="validacaoBox" class="val" style="display:none;margin-bottom:16px"></div>
 
   <div class="card" id="previewCard">
     <div class="pv-head"><span class="dot"></span> Prévia do documento <span class="pill">render aproximado do Word</span>
-      <button class="btn o mini" type="button" id="btnPreProto" style="display:none;margin-left:auto">✓ Pré-protocolo</button>
+      <!-- só o tamanho na tela: o documento (texto, fonte, formatação) não muda -->
+      <span class="pv-zoom" style="margin-left:auto"><button class="btn s mini" type="button" id="btnZoomMenos" aria-label="Diminuir o documento">−</button><b id="zoomPct" title="Tamanho do documento na tela">125%</b><button class="btn s mini" type="button" id="btnZoomMais" aria-label="Aumentar o documento">+</button></span>
+      <button class="btn o mini" type="button" id="btnPreProto" style="display:none">✓ Pré-protocolo</button>
       <button class="btn o mini" type="button" id="btnComparar" style="display:none">⇄ Antes e depois</button></div>
     <div id="preview"><div class="empty">A prévia do contrato aparece aqui.<br>Clique em <b>Gerar prévia</b>.</div></div>
   </div>
@@ -822,6 +854,13 @@
         <div class="sol-topo">
           <input type="search" id="solicBusca" placeholder="🔎 Buscar empresa, CNPJ, pedido…" autocomplete="off" enterkeyhint="search">
           <button class="btn p" id="btnSolicNova" type="button">+ Nova solicitação</button>
+          <button class="btn o so-cad" id="btnFilaNovoAto" type="button">＋ Novo ato</button>
+          <details class="fila-mais so-cad"><summary class="btn o" title="Mais opções">⋯</summary>
+            <div class="menu-mais">
+              <button type="button" data-fila="painel">📁 Painel de casos (tabela)</button>
+              <button type="button" data-fila="exportar">⬇ Exportar backup dos casos</button>
+              <button type="button" data-fila="importar">⬆ Importar backup dos casos</button>
+            </div></details>
         </div>
         <!-- Filtro em botões, com a contagem de cada situação. O <select> escondido continua sendo
              quem guarda o filtro escolhido; os botões só o trocam. -->
@@ -899,6 +938,7 @@
         </div>
       </div>
       <div id="solicLista" style="margin-top:10px"></div>
+      <div id="filaAtos"></div>
     </div>
   </div>
 </div>
@@ -1101,19 +1141,19 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.64"></script>
-<script defer src="js/nuvem.js?v=1.64"></script>
-<script defer src="js/integracao.js?v=1.64"></script>
-<script defer src="js/modelos-coop.js?v=1.64"></script>
-<script defer src="js/gerador-coop.js?v=1.64"></script>
-<script defer src="js/modelos-sa.js?v=1.64"></script>
-<script defer src="js/gerador-sa.js?v=1.64"></script>
-<script defer src="js/gerador-sia.js?v=1.64"></script>
+<script defer src="js/nuvem-config.js?v=1.65"></script>
+<script defer src="js/nuvem.js?v=1.65"></script>
+<script defer src="js/integracao.js?v=1.65"></script>
+<script defer src="js/modelos-coop.js?v=1.65"></script>
+<script defer src="js/gerador-coop.js?v=1.65"></script>
+<script defer src="js/modelos-sa.js?v=1.65"></script>
+<script defer src="js/gerador-sa.js?v=1.65"></script>
+<script defer src="js/gerador-sia.js?v=1.65"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
-<script src="js/erros.js?v=1.64"></script>
-<script src="js/app.js?v=1.64"></script>
+<script src="js/erros.js?v=1.65"></script>
+<script src="js/app.js?v=1.65"></script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
 <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 <div id="draftBanner">
