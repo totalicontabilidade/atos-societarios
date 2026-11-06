@@ -6582,7 +6582,10 @@ window.TINA=(function(){
   function draftTemConteudo(o){if(!o)return false;const f=o.fields||{};if((f.razao||"").trim())return true;if((f.objeto||"").trim())return true;if(o.socios&&o.socios.some(s=>(s.nome||"").trim()))return true;return false;}
   function salvarRascunho(){if(_suppressDraft)return;try{const snap=snapshotForm();if(draftTemConteudo(snap))localStorage.setItem("tinaDraft",JSON.stringify(snap));else localStorage.removeItem("tinaDraft");}catch(e){}}
   const salvarRascunhoDeb=debounce(salvarRascunho,700);
-  function limparRascunho(){try{localStorage.removeItem("tinaDraft");}catch(e){}}
+  /* Rascunho descartado (ato retomado, ato novo, documento baixado, ato guardado): o aviso
+     "Encontramos um rascunho não salvo… Restaurar?" sai junto. Antes ele continuava na tela logo
+     depois de a pessoa abrir um ato salvo — e "Restaurar" trocaria o ato aberto por uma sobra. */
+  function limparRascunho(){try{localStorage.removeItem("tinaDraft");}catch(e){} const b=$("draftBanner"); if(b) b.classList.remove("show");}
 
   /* ===== Trabalhos em espera =====
      Enquanto o cliente não confirma, o ato fica parado. Em vez de segurar o formulário,
