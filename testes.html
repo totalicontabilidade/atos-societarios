@@ -68,7 +68,7 @@
   function espera(ms){ return new Promise(function(r){ if(!_wk){ setTimeout(r,ms); return; } var id=++_wkSeq; _wkPend[id]=r; try{ _wk.postMessage({id:id,ms:ms}); }catch(e){ delete _wkPend[id]; setTimeout(r,ms); } }); }
   /* A bateria roda sem ninguém na frente (e no GitHub, sem tela): uma caixa de confirmação do app
      pararia tudo esperando um clique. Aceita sempre; quem quer testar o "cancelar" troca na hora. */
-  function semDialogos(w){ try{ w.confirm=function(){ return true; }; w.alert=function(){}; w.prompt=function(){ return ""; }; }catch(e){} }
+  function semDialogos(w){ try{ w.confirm=function(){ return true; }; w.alert=function(){}; w.prompt=function(){ return ""; }; w.__semPerguntaSair=true; }catch(e){} }
   function ate(cond,limite){ limite=limite||15000; var ini=Date.now();
     return new Promise(function(res,rej){ (function tenta(){
       var v; try{ v=cond(); }catch(e){ v=false; }
@@ -2952,7 +2952,8 @@
       reg("Etapa 6 tem o “Protocolei” na tela", !!$("etapaPainel").querySelector("#btnProtocolei") && $("protoSolic").style.display!=="none");
       et(2).click(); await espera(300);
       reg("Voltando à etapa 2, tudo volta às janelas de origem", $("protoModal").contains($("protoSolic")) && !!$("emailModal").querySelector("#emailCorpo") && !!$("gateModal").querySelector("#btnGateRegistrar") && !!D.querySelector(".form-cards").offsetParent);
-      // lista de processos como página, com os atos sem solicitação
+      // lista de processos como página, com os atos sem solicitação (em aberto = ato salvo para continuar)
+      $("btnSalvarAto").click(); await espera(300);
       $("btnSolic").click(); await espera(500);
       reg("“Processos” abre a lista como página inteira", D.body.classList.contains("na-fila") && $("solicModal").classList.contains("open") && /Processos/.test(D.querySelector("#solicModal .mh > span").textContent));
       reg("Na lista, “Voltar ao ato” mostra a empresa do formulário", $("btnAtoAtual").style.display!=="none" && /COMERCIAL MODELO/.test($("btnAtoAtual").textContent));
@@ -2968,9 +2969,50 @@
       reg("Cartão: um botão principal à vista e o resto no ⋯", !!card.querySelector('.sol-acoes > [data-sol-continuar]') && !!card.querySelector(".sol-mais [data-sol-fim]") && !!card.querySelector(".sol-mais [data-sol-excluir]"));
       reg("Recado e resposta numa conversa só, em ordem", /Recado: Falta o comprovante[\s\S]*Mandei agora/.test((card.querySelector(".sol-conversa")||{}).innerText||""));
       $("btnSolicClose").click(); await espera(200);
-      // Novo ato guarda o atual
-      $("btnNovoAto").click(); await espera(500);
-      reg("“Novo ato” guarda o atual no Painel e limpa o formulário", !($("razao").value||"").trim() && Object.keys(JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}")).length>=1);
+      // v1.66: sair de um ato com alteração pergunta se salva; salvo, ele volta com o preenchimento rápido
+      W.__semPerguntaSair=false;
+      val("cmdRapido","capital para R$ 50.000"); val("razao","EXEMPLO SALVAR LTDA");
+      $("btnNovoAto").click(); await espera(300);
+      reg("Sair com alteração não salva pergunta antes (Salvar / Sair sem salvar / Continuar)", $("sairModal").classList.contains("open") && !!$("btnSairSalvar") && !!$("btnSairSem") && !!$("btnSairFicar"));
+      $("btnSairSalvar").click(); await espera(500);
+      var trs=JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}"), ids=Object.keys(trs);
+      reg("“Salvar e começar outro” salva e limpa o formulário", !($("razao").value||"").trim() && ids.length>=1);
+      var snapS=ids.length?trs[ids[ids.length-1]].snap:null;
+      reg("O ato salvo leva o texto do preenchimento rápido", !!(snapS && snapS.rapido && snapS.rapido.cmd==="capital para R$ 50.000"));
+      $("btnSolic").click(); await espera(500);
+      reg("O ato salvo aparece na lista de processos", /EXEMPLO SALVAR/.test($("filaAtos").textContent));
+      var bRet=D.querySelector('#filaAtos [data-ca="abrir"]'); if(bRet) bRet.click(); await espera(600);
+      reg("Retomado, volta como estava, com o preenchimento rápido", /EXEMPLO SALVAR/.test($("razao").value) && $("cmdRapido").value==="capital para R$ 50.000" && !D.body.classList.contains("na-fila"));
+      $("btnSolic").click(); await espera(400);
+      reg("Sem alteração desde que salvou, sair não pergunta nada", !$("sairModal").classList.contains("open") && D.body.classList.contains("na-fila"));
+      W.__semPerguntaSair=true;
+      // cabeçalho continua por cima da lista mesmo depois de várias janelas abertas
+      for(var jn=0;jn<6;jn++){ $("btnPainel").click(); await espera(60); $("btnPainelClose").click(); await espera(60); }
+      $("btnSolicClose").click(); await espera(200); $("btnSolic").click(); await espera(300);
+      var zCab=+(D.querySelector("body > header").style.zIndex||W.getComputedStyle(D.querySelector("body > header")).zIndex||0), zLista=+($("solicModal").style.zIndex||0);
+      reg("Na lista, o cabeçalho fica acima dela (não some)", zCab>zLista, "cabeçalho "+zCab+" · lista "+zLista);
+      // a lista mostra só ato em andamento; ato antigo (sem trabalho salvo) não volta
+      var cs0=JSON.parse(W.localStorage.getItem("tinaCasos")||"[]");
+      cs0.push({id:"20260903-0099",empresa:"ATO ANTIGO CONFIRMADO",tipo:"6ª Alteração Contratual",data:"03/09/2026",modo:"alt",criadoEm:1,confirmado:true,confirmadoVia:"emergencia",confirmadoEm:"03/09/2026"});
+      W.localStorage.setItem("tinaCasos",JSON.stringify(cs0));
+      $("btnSolicClose").click(); await espera(200); $("btnSolic").click(); await espera(400);
+      reg("Ato antigo, já concluído, não aparece em “Em aberto”", !/ATO ANTIGO CONFIRMADO/.test($("filaAtos").textContent));
+      // concluir e ligar
+      var linhaS=D.querySelector('#filaAtos [data-caso]');
+      if(linhaS){ linhaS.querySelector('[data-ca="ligar"]').click(); await espera(150); }
+      reg("“Ligar a uma solicitação” oferece criar uma, quando não há nenhuma aberta", !!(linhaS && linhaS.querySelector('.fa-ligar [data-l="criar"]')));
+      if(linhaS){ linhaS.querySelector('.fa-ligar [data-l="criar"]').click(); await espera(400); }
+      var sCri=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{};
+      reg("Criar solicitação liga o ato a ela", !!sCri.atoId && /EXEMPLO SALVAR/.test(sCri.empresa||"") && sCri.status==="andamento", (sCri.empresa||"")+" · "+sCri.status);
+      var idS=sCri.atoId;
+      W.TINA._ux.renderSolic(); await espera(100);
+      reg("Ligado, o ato sai de “Atos sem solicitação”", !/EXEMPLO SALVAR/.test($("filaAtos").textContent));
+      // concluir (pelo cartão de um ato sem pedido)
+      W.localStorage.setItem("tinaSolic","[]"); var cs1=JSON.parse(W.localStorage.getItem("tinaCasos")||"[]"); cs1.forEach(function(c){ delete c.solicId; }); W.localStorage.setItem("tinaCasos",JSON.stringify(cs1));
+      W.TINA._ux.renderSolic(); await espera(150);
+      var bConc=D.querySelector('#filaAtos [data-ca="concluir"]'); if(bConc) bConc.click(); await espera(300);
+      reg("“Marcar como concluído” tira o ato da lista e apaga o trabalho", !/EXEMPLO SALVAR/.test($("filaAtos").textContent) && !JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}")[idS]);
+      $("btnSolicClose").click(); await espera(200);
       ["tinaSolic","tinaCasos","tinaTrabalhos","tinaDraft","tinaZoom"].forEach(function(k){ try{ W.localStorage.removeItem(k); }catch(e){} });
     }catch(e){ reg("Bateria do processo e etapas",false,String(e&&e.message||e).slice(0,140)); }
 

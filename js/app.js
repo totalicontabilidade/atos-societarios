@@ -3491,9 +3491,10 @@ window.TINA=(function(){
        começar este. Recusando, a solicitação fica marcada e a tela continua na lista. */
     if(!calado && !livre && _solicLigada!==id){
       const emp=(($("razao")||{}).value||"").trim();
-      if(confirm("O formulário está com outro ato"+(emp?" ("+emp+")":"")+".\n\nGuardar esse ato no Painel de casos e começar o de "+(r.empresa||"esta solicitação")+"?")){
+      if(confirm("O formulário está com outro ato"+(emp?" ("+emp+")":"")+".\n\nSalvar esse ato (ele fica na lista de processos) e começar o de "+(r.empresa||"esta solicitação")+"?")){
         if(emp){ const c=registrarCaso(); salvarTrabalho(c.id); }
         limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; renderLigacao(); livre=true;
+        if($("cmdRapido")) $("cmdRapido").value=""; _pdfNomeAnterior=""; _atoAlterado=false;
       }
     }
     if(livre || _solicLigada===id) ligarSolic(id);
@@ -6460,6 +6461,7 @@ window.TINA=(function(){
         const c=$("cardRapido")||$("status"); if(c&&c.scrollIntoView)c.scrollIntoView({behavior:"smooth",block:"center"}); });}
     else{av.style.display="none";}
     abrirCardsComPendencia();
+    _atoAlterado=true;
     _formAposRapido=_assinaturaForm();   // o ponto de partida: o que mudar daqui em diante é correção de alguém
   }
 
@@ -6566,7 +6568,7 @@ window.TINA=(function(){
       const lista=(el.type==="checkbox")?DRAFT_CHECKS:DRAFT_FIELDS; if(lista.indexOf(el.id)<0) lista.push(el.id); }); });
   // a mesa da assembleia é escolhida entre os sócios: as opções só existem depois que os cartões voltam
   const CAMPOS_MESA=["saPresMesa","saSecMesa","coopPresMesa","coopSecMesa"];
-  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig,solic:_solicLigada};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});return o;}
+  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig,solic:_solicLigada};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});o.rapido=_snapRapido();return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
   // passadas 24h sem uso, é descartado sozinho, para não ficar legível num computador compartilhado.
   const DRAFT_VALIDADE_MS=24*60*60*1000;
@@ -6692,6 +6694,7 @@ window.TINA=(function(){
     const t=lerTrabalhos()[casoId]; if(!t||!t.snap){ toast("Este caso não tem trabalho guardado.","warn"); return false; }
     restaurarForm(t.snap);
     casoAtualId=casoId;                    // volta a apontar para o mesmo caso (mantém a confirmação já registrada)
+    _atoAlterado=false;
     limparRascunho();
     if($("painelModal")) $("painelModal").classList.remove("open");
     toast("Trabalho retomado — caso #"+casoId+".","ok");
@@ -6701,6 +6704,7 @@ window.TINA=(function(){
     if(o.mode)switchMode(o.mode);
     DRAFT_FIELDS.forEach(id=>{if($(id)&&o.fields&&(id in o.fields))$(id).value=o.fields[id];});
     DRAFT_CHECKS.forEach(id=>{if($(id)&&o.checks&&(id in o.checks))$(id).checked=!!o.checks[id];});
+    _restaurarRapido(o.rapido);
     $("socios").innerHTML="";const arr=(o.socios&&o.socios.length)?o.socios:[undefined];arr.forEach(s=>socioCard(s));
     if($("filiais")){$("filiais").innerHTML=""; (o.filiais||[]).forEach(f=>filialCard(f));}
     // com os sócios de volta, as listas da mesa ganham as opções; aí sim o valor guardado pega
@@ -6725,6 +6729,7 @@ window.TINA=(function(){
      emprestado da janela enquanto a etapa está aberta e devolvido ao sair dela — por isso as
      regras, os botões e as travas continuam exatamente os de antes. `var` de propósito: a lista
      pode ser desenhada antes desta linha rodar. */
+  var _atoAlterado=false;
   var _etapa=2, _etapaVolta=2, _pendIdx=-1, _ultPrePro=-1, _etSeq=0, _filaInicial=false, _hosp=[];
   const NOME_ET={1:"Pedido",2:"Dados do ato",3:"Conferência",4:"Confirmação do cliente",5:"Documento e assinatura",6:"Protocolo"};
   function hospedar(el,destino){ if(!el||!destino||!el.parentNode) return; _hosp=_hosp||[]; const marca=document.createComment("hospedado"); el.parentNode.insertBefore(marca,el); destino.appendChild(el); _hosp.push({el,marca}); }
@@ -6732,6 +6737,14 @@ window.TINA=(function(){
   function devolverHospedes(){ _hosp=_hosp||[]; while(_hosp.length){ const h=_hosp.pop(); if(h.marca.parentNode){ h.marca.parentNode.insertBefore(h.el,h.marca); h.marca.remove(); } } }
   function modalHospedado(m){ return (_hosp||[]).some(h=>h.marca.parentNode && m.contains(h.marca)); }
   function _formOcupado(){ try{ return draftTemConteudo(snapshotForm()); }catch(e){ return false; } }
+  /* A lista em página inteira é uma janela, e cada janela aberta vai para a frente da anterior.
+     Depois de algumas aberturas ela passava por cima do cabeçalho, que sumia. O cabeçalho fica
+     sempre logo acima da lista; as janelas abertas depois continuam por cima de ambos. */
+  function ajustarCabecalho(){
+    const h=document.querySelector("body > header"), m=$("solicModal"); if(!h) return;
+    const pagina=m && m.classList.contains("open") && (document.body.classList.contains("na-fila")||document.body.classList.contains("so-solic"));
+    h.style.zIndex=pagina?String((+m.style.zIndex||50)+1):"";
+  }
   function rolarAoProcesso(){ const c=$("procCab"); if(c && c.scrollIntoView) try{ c.scrollIntoView({block:"start",behavior:"smooth"}); }catch(e){} }
 
   // ---- a lista de processos (tela inicial)
@@ -6739,7 +6752,7 @@ window.TINA=(function(){
     if(_modoComercial){ abrirSolic(); sincronizarSolic(); return; }
     _etapaVolta=_etapa||2; if(_etapa!==2) devolverHospedes();
     document.body.classList.add("na-fila"); medirCabecalho(); tituloLista(true);
-    abrirSolic(); sincronizarSolic(); atualizarCabProc();
+    abrirSolic(); sincronizarSolic(); atualizarCabProc(); setTimeout(ajustarCabecalho,0);
   }
   // a mesma janela é a "lista de processos" (página inicial) e a de "Solicitações" (por cima do ato)
   function tituloLista(proc){ const t=document.querySelector("#solicModal .mh > span"); if(t) t.textContent=proc?"🗂 Processos":"🗂 Solicitações"; }
@@ -6752,15 +6765,54 @@ window.TINA=(function(){
     irEtapa(et||_etapa||2); atualizarCabProc();
   }
   function voltarAoAto(){ sairDaFila(_etapaVolta||2); }
-  function novoAto(){
-    if(_formOcupado()){
-      const emp=(($("razao")||{}).value||"").trim();
-      if(!confirm(emp?("Começar um ato novo?\n\nO ato de "+emp+" fica guardado no Painel de casos, com tudo o que foi preenchido — dá para retomar depois.")
-                     :"Começar um ato novo? O que está no formulário (ainda sem razão social) será apagado.")) return;
-      if(emp){ const c=registrarCaso(); salvarTrabalho(c.id); }
-      limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; renderLigacao();
+  /* ===== Salvar o ato para continuar depois =====
+     O sistema não salva sozinho: ao sair de um ato com alterações, ele PERGUNTA. Salvo, o ato vai
+     para a lista de processos do jeito que está — campos, sócios, filiais, o texto do
+     preenchimento rápido e o texto lido do PDF (o arquivo em si o navegador não deixa guardar). */
+  var _depoisDeSair=null;
+  function _precisaSalvar(){
+    if(window.__semPerguntaSair || !_formOcupado()) return false;
+    const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null;
+    if(c && c.concluidoEm && !_atoAlterado) return false;              // ato concluído: nada a guardar
+    return _atoAlterado || !(c && temTrabalho(c.id));
+  }
+  function salvarAtoAtual(calado){
+    const c=registrarCaso();
+    if(!salvarTrabalho(c.id)){ toast("Não foi possível salvar (armazenamento cheio). Exporte um backup e remova casos antigos.","err",7000); return false; }
+    _atoAlterado=false; atualizarEtapas();
+    if(!calado) toast("💾 Ato salvo. Ele fica na lista de processos para você continuar depois.","ok",5000);
+    return true;
+  }
+  function pedirSalvar(depois,opc){
+    opc=opc||{};
+    if(!_precisaSalvar()){ depois(); return; }
+    _depoisDeSair=depois;
+    if($("btnSairSalvar")) $("btnSairSalvar").textContent=opc.com||"💾 Salvar e sair";
+    if($("btnSairSem")) $("btnSairSem").textContent=opc.sem||"Sair sem salvar";
+    $("sairModal").classList.add("open");
+  }
+  function _fecharSair(){ if($("sairModal")) $("sairModal").classList.remove("open"); }
+  function _snapRapido(){
+    const f=$("pdfContrato")&&$("pdfContrato").files&&$("pdfContrato").files[0];
+    return { cmd:(($("cmdRapido")||{}).value||""), pdfNome:(f&&f.name)||_pdfNomeAnterior||"",
+             pdfTexto:((($("pdfTexto")||{}).textContent)||"").slice(0,80000) };
+  }
+  var _pdfNomeAnterior="";
+  function _restaurarRapido(r){
+    if($("cmdRapido")) $("cmdRapido").value=(r&&r.cmd)||"";
+    _pdfNomeAnterior=(r&&r.pdfNome)||"";
+    if(r && r.pdfTexto && $("pdfTexto")){
+      $("pdfTexto").textContent=r.pdfTexto; if($("pdfTextoWrap")) $("pdfTextoWrap").style.display="";
+      if($("pdfStat")){ $("pdfStat").className="fldstat"; $("pdfStat").textContent="📄 Lido antes: "+(r.pdfNome||"contrato")+". O arquivo não fica salvo, só o texto lido; para ler de novo, escolha o arquivo outra vez."; }
     }
-    sairDaFila(2); window.scrollTo(0,0); atualizarCabProc();
+  }
+  function novoAto(){
+    const comecar=()=>{ limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; renderLigacao();
+      if($("cmdRapido")) $("cmdRapido").value=""; _pdfNomeAnterior=""; _atoAlterado=false;
+      sairDaFila(2); window.scrollTo(0,0); atualizarCabProc(); };
+    if(!_formOcupado()){ sairDaFila(2); window.scrollTo(0,0); atualizarCabProc(); return; }
+    if(!_precisaSalvar()){ comecar(); return; }
+    pedirSalvar(comecar,{com:"💾 Salvar e começar outro",sem:"Começar sem salvar"});
   }
   // os atos abertos que não vieram de solicitação (antes só se via no Painel de casos)
   function renderFilaAtos(f,q){
@@ -6768,18 +6820,24 @@ window.TINA=(function(){
     if(_modoComercial || (f!=="abertas" && f!=="todas")){ box.innerHTML=""; return; }
     const sols=lerSolic(), ids=new Set(sols.map(r=>r.atoId).filter(Boolean)), sids=new Set(sols.map(r=>r.id));
     let cs=lerCasos().filter(c=>c && c.id && !ids.has(c.id) && !(c.solicId && sids.has(c.solicId)));
-    if(f==="abertas") cs=cs.filter(c=>temTrabalho(c.id) || (c.confirmado && !c.concluidoEm && !c.protocoladoEm));
+    /* Em aberto = o ato que tem trabalho salvo e ainda não foi concluído. O trabalho sai quando o
+       documento é baixado (ou o ato é marcado como concluído); atos antigos, de antes desse
+       carimbo, não têm trabalho — por isso não voltam para cá. */
+    if(f==="abertas") cs=cs.filter(c=>temTrabalho(c.id) && !c.concluidoEm);
     if(q) cs=cs.filter(c=>[c.id,c.empresa,c.cnpj,c.tipo].some(v=>String(v||"").toLowerCase().includes(q)));
     cs.sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0));
     if(!cs.length){ box.innerHTML=""; return; }
     box.innerHTML='<div class="fila-atos"><h3>Atos sem solicitação ('+cs.length+')</h3>'+cs.map(c=>{
-      const st=c.protocoladoEm?"📮 protocolado "+c.protocoladoEm:(c.concluidoEm?"⬇ documento baixado":(c.confirmado?(c.confirmadoVia==="emergencia"?"⚠ liberado sem e-mail":"✓ cliente confirmou "+(c.confirmadoEm||"")):"⏳ aguardando a confirmação do cliente"));
-      const tem=temTrabalho(c.id);
+      const tem=temTrabalho(c.id), tr=tem?lerTrabalhos()[c.id]:null;
+      const st=c.protocoladoEm?"📮 protocolado "+c.protocoladoEm:(c.concluidoEm?"✓ concluído":(c.confirmado?(c.confirmadoVia==="emergencia"?"⚠ liberado sem e-mail":"✓ cliente confirmou "+(c.confirmadoEm||"")):"⏳ aguardando a confirmação do cliente"))
+        +(tr&&tr.ts?" · salvo em "+new Date(tr.ts).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"");
       return '<div class="fila-ato" data-caso="'+escHtml(c.id)+'"><div class="fa-txt"><div class="fa-emp">'+escHtml(c.empresa||"(sem nome)")+'</div><div class="fa-sub">'
         +escHtml([c.tipo||"", "ID #"+c.id, c.data||"", st].filter(Boolean).join(" · "))+"</div></div>"
         +(tem?'<button type="button" class="btn p mini" data-ca="abrir" title="Retomar este ato com todos os dados preenchidos">▸ Retomar</button>':'<button type="button" class="btn o mini" data-ca="dup" title="Iniciar um novo ato para esta empresa">⧉ Duplicar</button>')
         +'<details class="sol-mais"><summary class="btn o mini" title="Mais ações" aria-label="Mais ações">⋯</summary><div class="menu-mais">'
           +(tem?'<button type="button" class="btn o mini" data-ca="dup">⧉ Duplicar (novo ato da empresa)</button>':"")
+          +'<button type="button" class="btn o mini" data-ca="ligar">🔗 Ligar a uma solicitação</button>'
+          +(!c.concluidoEm?'<button type="button" class="btn o mini" data-ca="concluir">✓ Marcar como concluído (sai da lista)</button>':"")
           +'<button type="button" class="btn o mini" data-ca="gmail">🔎 Localizar no Gmail</button>'
           +(c.confirmado?'<button type="button" class="btn o mini" data-ca="just">🔎 Ver o registro da confirmação</button>':"")
           +'<button type="button" class="btn del mini" data-ca="del">Excluir</button></div></details></div>';
@@ -6792,7 +6850,58 @@ window.TINA=(function(){
         else if(k==="gmail") localizarGmail(id);
         else if(k==="just") verJustificativa(id);
         else if(k==="del") excluirCaso(id);
+        else if(k==="concluir") concluirCaso(id);
+        else if(k==="ligar") escolherSolicDoAto(id,el);
       })); });
+  }
+  /* "Marcar como concluído": o ato sai da lista de processos. Como no download, os dados
+     preenchidos (CPF, RG, endereços) saem daqui e da nuvem; fica o registro no Painel de casos. */
+  function concluirCaso(id){
+    const cs=lerCasos(), c=cs.find(x=>x.id===id); if(!c) return;
+    if(!confirm("Marcar o ato de "+(c.empresa||"(sem nome)")+" como concluído?\n\nEle sai da lista de processos e os dados preenchidos são apagados (fica só o registro no Painel de casos).")) return;
+    c.concluidoEm=c.alteradoEm=new Date().toISOString(); salvarCasos(cs); excluirTrabalho(id);
+    if(window.Nuvem&&window.Nuvem.podeGravar()){ const lim=Object.assign({},c); delete lim.trabalho; window.Nuvem.salvar("atos",id,lim,{substituir:true}); window.Nuvem.trilha("ato.concluir",id,""); }
+    if(casoAtualId===id) _atoAlterado=false;
+    renderPainel(); renderSolic(); toast("✓ Concluído: "+(c.empresa||"ato")+".","ok");
+  }
+  // liga um ato (caso) a uma solicitação: a situação dela passa a andar com o ato
+  function ligarCasoASolic(casoId,sid){
+    const cs=lerCasos(), c=cs.find(x=>x.id===casoId), l=lerSolic(), r=l.find(x=>x.id===sid); if(!c||!r) return;
+    c.solicId=sid; c.alteradoEm=new Date().toISOString(); salvarCasos(cs);
+    r.atoId=casoId; r.alteradoEm=c.alteradoEm;
+    if(r.status==="nova"){ r.status="andamento"; passoSolic(r,"andamento"); if(!r.trabalhandoPor){ r.trabalhandoPor=_meuEmail(); r.trabalhandoDesde=r.alteradoEm; } }
+    salvarSolic(l);
+    if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.salvar("atos",casoId,{solicId:sid,alteradoEm:c.alteradoEm});
+      window.Nuvem.salvar("solicitacoes",sid,{atoId:casoId,status:r.status,historico:r.historico||[],trabalhandoPor:r.trabalhandoPor||"",trabalhandoDesde:r.trabalhandoDesde||"",alteradoEm:r.alteradoEm}); }
+    if(casoAtualId===casoId){ _solicLigada=sid; renderLigacao(); }
+    renderSolic(); toast("Ato ligado à solicitação de "+(r.empresa||"cliente")+".","ok");
+  }
+  // cria uma solicitação para um ato que nasceu sem ela (quem cadastra abre e já está trabalhando)
+  function criarSolicDoAto(casoId){
+    const c=lerCasos().find(x=>x.id===casoId); if(!c) return null;
+    const agora=new Date().toISOString(), eu=_meuEmail();
+    const r={id:"S"+Date.now().toString(36).toUpperCase(),empresa:c.empresa||"",cnpj:c.cnpj||"",tipo:c.modo||"",pedidos:[],docsOk:[],
+      status:"nova",obs:"Aberta pelo cadastro a partir do ato #"+c.id+".",criadoEm:agora,alteradoEm:agora,abertaPor:eu,anexos:[]};
+    passoSolic(r,"nova");
+    const l=lerSolic(); l.unshift(r); salvarSolic(l);
+    if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",r.id,r);
+    avisarIntegracao("solicitacao.criada",r,true);
+    ligarCasoASolic(casoId,r.id);
+    return r;
+  }
+  // escolher a solicitação ali mesmo, na linha do ato
+  function escolherSolicDoAto(casoId,linha){
+    const abertas=lerSolic().filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0);
+    const box=document.createElement("div"); box.className="fa-ligar";
+    box.innerHTML=(abertas.length?'<select>'+abertas.map(x=>'<option value="'+escHtml(x.id)+'">'+escHtml((x.empresa||"(sem empresa)")+" — "+(SOLIC_STATUS[x.status]||x.status))+"</option>").join("")+'</select><button type="button" class="btn p mini" data-l="ligar">Ligar</button>'
+        :'<span class="hint">Não há solicitação em aberto.</span>')
+      +'<button type="button" class="btn o mini" data-l="criar">＋ Criar uma solicitação para este ato</button><button type="button" class="btn s mini" data-l="cancelar">Cancelar</button>';
+    const velho=linha.querySelector(".fa-ligar"); if(velho) velho.remove();
+    linha.appendChild(box);
+    box.querySelectorAll("[data-l]").forEach(b=>b.addEventListener("click",()=>{ const k=b.dataset.l;
+      if(k==="cancelar") box.remove();
+      else if(k==="ligar") ligarCasoASolic(casoId,box.querySelector("select").value);
+      else if(k==="criar") criarSolicDoAto(casoId); }));
   }
   function _posRenderSolic(f,q){
     renderFilaAtos(f,q);
@@ -6865,15 +6974,20 @@ window.TINA=(function(){
     const abertas=lerSolic().filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0);
     box.innerHTML='<div class="hint" style="margin-bottom:8px">Este ato não está ligado a uma solicitação do comercial. Se ele veio de uma, ligue: a situação passa a andar sozinha e o comercial acompanha.</div>'
       +(abertas.length?'<div class="bar"><select id="etLigarSel" style="width:auto;max-width:100%">'+abertas.map(x=>'<option value="'+escHtml(x.id)+'">'+escHtml((x.empresa||"(sem empresa)")+" — "+(SOLIC_STATUS[x.status]||x.status))+"</option>").join("")+'</select><button type="button" class="btn p mini" id="etLigarBtn">Ligar a esta solicitação</button></div>'
-        :'<div class="hint">Não há solicitação em aberto para ligar.</div>');
+        :'<div class="hint">Não há solicitação em aberto para ligar.</div>')
+      +'<div class="bar" style="margin-top:8px"><button type="button" class="btn o mini" id="etCriarSolic">＋ Criar uma solicitação para este ato</button><span class="hint">— para o comercial acompanhar e o Hub receber o aviso.</span></div>';
     const b=$("etLigarBtn"); if(b) b.addEventListener("click",()=>{ const v=$("etLigarSel").value; if(v){ ligarSolic(v); toast("Ato ligado à solicitação.","ok"); renderEtapaPedido(); atualizarEtapas(); } });
+    const cr=$("etCriarSolic"); if(cr) cr.addEventListener("click",()=>{
+      if(!((($("razao")||{}).value||"").trim())){ toast("Preencha ao menos a razão social do ato (etapa 2) antes.","warn"); return; }
+      const c=registrarCaso(); salvarTrabalho(c.id); const r=criarSolicDoAto(c.id);
+      if(r){ _solicLigada=r.id; renderLigacao(); renderEtapaPedido(); atualizarEtapas(); } });
   }
   function statusConfirmacao(){
     const box=$("etConfSt"); if(!box) return;
     const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null; let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(coletar())); }catch(e){}
     box.innerHTML=ok?'<div class="et-ok">✓ O cliente confirmou'+(c.confirmadoPor?" ("+escHtml(c.confirmadoPor)+")":"")+" em "+escHtml(c.confirmadoEm||"")+'. O documento já pode ser baixado na etapa 5.</div>'
       :((c&&c.confirmado)?'<div class="et-av">⚠ O ato mudou depois da confirmação de '+escHtml(c.confirmadoEm||"")+': mande o e-mail de novo e registre a nova resposta (ou use a liberação de emergência).</div>'
-      :'<div class="hint" style="margin-bottom:10px">Mande o resumo ao cliente; quando ele responder “de acordo”, registre ao lado. Ao abrir o e-mail, o ato já fica guardado no Painel de casos.</div>');
+      :'<div class="hint" style="margin-bottom:10px">Mande o resumo ao cliente; quando ele responder “de acordo”, registre ao lado. Ao abrir o e-mail, o ato fica salvo na lista de processos.</div>');
   }
   function preencherEtapa6(){
     if(_etapa!==6 || !$("etProtoSt")) return;
@@ -6927,7 +7041,7 @@ window.TINA=(function(){
       p.querySelectorAll("[data-et-baixar]").forEach(b=>b.addEventListener("click",()=>{ const bt=$(b.dataset.etBaixar==="pdf"?"btnPDF":"btnBaixar"); if(bt) bt.click(); }));
       const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null; let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(coletar())); }catch(e){}
       $("etDocSt").innerHTML=(ok?'<div class="et-ok">✓ Confirmado pelo cliente em '+escHtml(c.confirmadoEm||"")+". O documento sai direto.</div>"
-        :'<div class="et-av">Sem a confirmação do cliente registrada, o download abre a trava de confirmação, como sempre.</div>')
+        :'<div class="et-av">O cliente ainda não confirmou. Ao baixar, o sistema pede o registro da confirmação (etapa 4) ou a liberação de emergência, com justificativa.</div>')
         +((c&&c.concluidoEm)?'<div class="hint" style="margin-bottom:8px">Último download em '+escHtml(_dataBR(c.concluidoEm))+".</div>":"");
     },
     6:async(p)=>{ hospedar($("protoSolic"),p.querySelector('[data-slot="protocolei"]')); preencherEtapa6(); }
@@ -6954,7 +7068,17 @@ window.TINA=(function(){
     document.body.dataset.etapaAtual=String(_etapa||2);
     document.querySelectorAll("#etapas .etapa").forEach(b=>b.addEventListener("click",()=>{ irEtapa(b.dataset.etapa); if(Number(b.dataset.etapa)!==2) rolarAoProcesso(); }));
     if($("btnProximo")) $("btnProximo").addEventListener("click",()=>{ irEtapa(3); rolarAoProcesso(); });
-    if($("btnVoltarFila")) $("btnVoltarFila").addEventListener("click",abrirFila);
+    if($("btnVoltarFila")) $("btnVoltarFila").addEventListener("click",()=>pedirSalvar(abrirFila));
+    if($("btnSalvarAto")) $("btnSalvarAto").addEventListener("click",()=>{
+      if(!_formOcupado()){ toast("O formulário está vazio: não há o que salvar.","warn"); return; } salvarAtoAtual(); });
+    if($("btnSairSalvar")) $("btnSairSalvar").addEventListener("click",()=>{ if(!salvarAtoAtual()) return; _fecharSair(); const f=_depoisDeSair; _depoisDeSair=null; if(f) f(); });
+    if($("btnSairSem")) $("btnSairSem").addEventListener("click",()=>{ _fecharSair(); const f=_depoisDeSair; _depoisDeSair=null; if(f) f(); });
+    ["btnSairFicar","btnSairClose"].forEach(id=>{ if($(id)) $(id).addEventListener("click",()=>{ _depoisDeSair=null; _fecharSair(); }); });
+    // o que a pessoa mexe no ato marca "há alteração não salva"
+    const _marca=e=>{ const t=e.target; if(t && t.closest && t.closest(".form-cards") && t.id!=="solicBusca") _atoAlterado=true; };
+    document.addEventListener("input",_marca); document.addEventListener("change",_marca);
+    // fechar a aba (ou o aplicativo) com alteração não salva: o navegador pergunta antes
+    window.addEventListener("beforeunload",e=>{ if(_precisaSalvar() && _atoAlterado){ e.preventDefault(); e.returnValue=""; } });
     if($("btnAtoAtual")) $("btnAtoAtual").addEventListener("click",voltarAoAto);
     ["btnNovoAto","btnNovoAtoM","btnFilaNovoAto"].forEach(id=>{ if($(id)) $(id).addEventListener("click",novoAto); });
     if($("btnZoomMenos")) $("btnZoomMenos").addEventListener("click",()=>mudarZoom(-0.1));
@@ -6979,6 +7103,7 @@ window.TINA=(function(){
       new MutationObserver(()=>{ if(m.classList.contains("open") && modalHospedado(m)){ m.classList.remove("open"); } }).observe(m,{attributes:true,attributeFilter:["class"]}); });
     // a lista fechou (Fechar, "Ler este anexo", Trabalhar…): volta ao ato
     { const m=$("solicModal"); if(m) new MutationObserver(()=>{
+        setTimeout(ajustarCabecalho,0);
         if(!m.classList.contains("open") && document.body.classList.contains("na-fila")){
           document.body.classList.remove("na-fila"); tituloLista(false); irEtapa(2); atualizarCabProc(); }
       }).observe(m,{attributes:true,attributeFilter:["class"]}); }
@@ -7053,6 +7178,7 @@ window.TINA=(function(){
   /* ===== Registrar caso automaticamente ao baixar (docx/PDF) — o download sinaliza que o preenchimento foi finalizado ===== */
   function registrarCasoAuto(){ const d=coletar(); if(!d.razao) return null; const jaExistia=!!casoAtualId; const c=registrarCaso();
     limparRascunho();   // documento entregue: o rascunho (com CPF/RG/endereço dos sócios) sai do navegador. Os campos seguem na tela para reuso.
+    _atoAlterado=false;
     excluirTrabalho(c.id);   // ato concluído: o trabalho guardado também sai
     c.concluidoEm=new Date().toISOString(); c.alteradoEm=c.concluidoEm;
     salvarCasos(lerCasos().map(x=>x.id===c.id?c:x));
@@ -7206,7 +7332,8 @@ window.TINA=(function(){
     if($("btnSolicM")) $("btnSolicM").addEventListener("click",()=>$("btnSolic").click());
     if($("btnPainelM")) $("btnPainelM").addEventListener("click",()=>$("btnPainel").click());
     if($("btnEmailM")) $("btnEmailM").addEventListener("click",()=>$("btnEmail").click());
-    if($("btnSolic")) $("btnSolic").addEventListener("click",abrirFila);
+    // já na lista não pergunta nada; saindo do ato, pergunta se há alteração não salva
+    if($("btnSolic")) $("btnSolic").addEventListener("click",()=>{ if(document.body.classList.contains("na-fila")) abrirFila(); else pedirSalvar(abrirFila); });
     ligarProcesso();
     // fechar a janela com o formulário aberto descarta o que estava sendo lançado, como o Cancelar
     if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>{ if(_formSolicAberto()) cancelarFormSolic(); $("solicModal").classList.remove("open"); });
@@ -7403,7 +7530,7 @@ window.TINA=(function(){
     /* O e-mail saiu: a situação vai para "Aguardando cliente" e o trabalho inteiro fica guardado no
        caso (antes só com o "Guardar e fazer outro"), para retomar quando o cliente responder. */
     const emailSaiu=()=>{ moverSolic("cliente",["nova","andamento"]);
-      try{ if((($("razao")||{}).value||"").trim()){ const c=registrarCaso(); salvarTrabalho(c.id); atualizarEtapas(); } }catch(e){} };
+      try{ if((($("razao")||{}).value||"").trim()){ const c=registrarCaso(); if(salvarTrabalho(c.id)) _atoAlterado=false; atualizarEtapas(); } }catch(e){} };
     if($("btnEmailCopiar")) $("btnEmailCopiar").addEventListener("click",()=>{copiar($("emailAssunto").value+"\n\n"+$("emailCorpo").value,"✓ Assunto + corpo copiados.");emailSaiu();});
     if($("btnEmailCopiarCorpo")) $("btnEmailCopiarCorpo").addEventListener("click",()=>{copiar($("emailCorpo").value,"✓ Corpo copiado.");emailSaiu();});
     if($("btnEmailGmail")) $("btnEmailGmail").addEventListener("click",()=>{emailSaiu();const u="https://mail.google.com/mail/?view=cm&fs=1&tf=1&su="+encodeURIComponent($("emailAssunto").value)+"&body="+encodeURIComponent($("emailCorpo").value);window.open(u,"_blank","noopener,noreferrer");if($("emailStat")){$("emailStat").style.color="var(--navy)";$("emailStat").textContent="Abrindo o Gmail — confira o remetente no campo \"De:\" antes de enviar.";}});
@@ -7420,7 +7547,8 @@ window.TINA=(function(){
       if(!salvarTrabalho(c.id)){ if($("gateStat")){$("gateStat").style.color="var(--err)";$("gateStat").textContent="Não foi possível guardar (armazenamento cheio). Exporte um backup e remova casos antigos.";} return; }
       _gateAcao=null; _fecharGate();
       limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; renderLigacao();
-      toast("Ato guardado no caso #"+c.id+". Formulário livre para o próximo — retome pelo Painel de casos.","ok");
+      if($("cmdRapido")) $("cmdRapido").value=""; _pdfNomeAnterior=""; _atoAlterado=false;
+      toast("Ato guardado no caso #"+c.id+". Formulário livre para o próximo — ele fica na lista de processos para você continuar.","ok");
     });
     if($("btnGateRegistrar")) $("btnGateRegistrar").addEventListener("click",registrarConfirmacaoEmail);
     if($("btnGateEmergencia")) $("btnGateEmergencia").addEventListener("click",registrarConfirmacaoEmergencia);

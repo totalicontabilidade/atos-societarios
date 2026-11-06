@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.65" />
+<meta name="versao" content="1.66" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,7 +18,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="assets/icone-512.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icone-192.png" />
 <title>Atos Societários — Totali Soluções Contábeis</title>
-<link rel="stylesheet" href="css/app.css?v=1.65">
+<link rel="stylesheet" href="css/app.css?v=1.66">
 </head>
 <body>
 <!-- Tela de carregamento: as bibliotecas (docx, pdf.js, OCR) levam um instante e, sem sinal nenhum,
@@ -107,6 +107,7 @@
     <div class="pc-linha">
       <button type="button" class="btn s mini" id="btnVoltarFila">← Processos</button>
       <div class="pc-tit"><b id="pcEmpresa">Ato novo</b> <span class="hint" id="pcInfo"></span></div>
+      <button type="button" class="btn o mini" id="btnSalvarAto" style="margin-left:auto" title="Guarda o ato do jeito que está (inclusive o preenchimento rápido) para continuar depois. Ele aparece na lista de processos.">💾 Salvar para continuar depois</button>
     </div>
     <div class="sol-ligada" id="solicLigadaBar" style="display:none"></div>
     <nav class="etapas" id="etapas" aria-label="Etapas do processo">
@@ -626,6 +627,21 @@
   <div class="foot">Totali Soluções Contábeis — protótipo interno. Documento gerado é rascunho para revisão do paralegal antes do protocolo na Junta.</div>
 </div>
 
+<!-- Sair de um ato com alterações não salvas: pergunta antes (o sistema não salva sozinho) -->
+<div class="modal-bg" id="sairModal">
+  <div class="modal" style="max-width:500px">
+    <div class="mh"><span>💾 Salvar este ato?</span><button class="x" id="btnSairClose">Fechar</button></div>
+    <div class="mb">
+      <p style="margin-top:0">Este ato tem alterações que ainda não foram salvas. Salvando, ele fica na <b>lista de processos</b> do jeito que está — inclusive o texto do preenchimento rápido — para você continuar depois.</p>
+      <div class="bar" style="flex-wrap:wrap;margin-top:12px">
+        <button class="btn p" id="btnSairSalvar" type="button">💾 Salvar e sair</button>
+        <button class="btn o" id="btnSairSem" type="button">Sair sem salvar</button>
+        <button class="btn s" id="btnSairFicar" type="button">Continuar editando</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="helpRapido">
   <div class="modal">
     <div class="mh"><span>⚡ Como escrever o preenchimento rápido</span><button class="x" id="btnHelpClose">Fechar</button></div>
@@ -695,7 +711,7 @@
         <div class="hint" style="margin-bottom:6px">O app monta o rascunho com as alterações e um ID que amarra a resposta do cliente.</div>
         <button class="btn p mini" id="btnGateEmail">✉ Abrir e-mail de confirmação</button>
         <button class="btn o mini" id="btnGateGuardar" title="Guarda este ato inteiro e libera o formulário para você começar outro">💾 Guardar e fazer outro</button>
-        <div class="hint" style="margin-top:6px">Guardando, o ato fica completo no <b>Painel de casos</b> — com os dados preenchidos — e você o retoma quando o cliente responder.</div>
+        <div class="hint" style="margin-top:6px">Guardando, o ato fica completo na <b>lista de processos</b> — com os dados preenchidos — e você o retoma quando o cliente responder.</div>
       </div>
 
       <div style="margin-top:16px">
@@ -1141,19 +1157,19 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.65"></script>
-<script defer src="js/nuvem.js?v=1.65"></script>
-<script defer src="js/integracao.js?v=1.65"></script>
-<script defer src="js/modelos-coop.js?v=1.65"></script>
-<script defer src="js/gerador-coop.js?v=1.65"></script>
-<script defer src="js/modelos-sa.js?v=1.65"></script>
-<script defer src="js/gerador-sa.js?v=1.65"></script>
-<script defer src="js/gerador-sia.js?v=1.65"></script>
+<script defer src="js/nuvem-config.js?v=1.66"></script>
+<script defer src="js/nuvem.js?v=1.66"></script>
+<script defer src="js/integracao.js?v=1.66"></script>
+<script defer src="js/modelos-coop.js?v=1.66"></script>
+<script defer src="js/gerador-coop.js?v=1.66"></script>
+<script defer src="js/modelos-sa.js?v=1.66"></script>
+<script defer src="js/gerador-sa.js?v=1.66"></script>
+<script defer src="js/gerador-sia.js?v=1.66"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
-<script src="js/erros.js?v=1.65"></script>
-<script src="js/app.js?v=1.65"></script>
+<script src="js/erros.js?v=1.66"></script>
+<script src="js/app.js?v=1.66"></script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
 <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 <div id="draftBanner">
