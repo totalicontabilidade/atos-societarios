@@ -113,6 +113,31 @@ service cloud.firestore {
     }
 
     // ----------------------------------------------------------
+    // Robô do WhatsApp (v1.72). Quem ESCREVE conversas, vínculos e
+    // eventos é a Cloud Function (Admin SDK, fora destas regras).
+    // A equipe só lê. O código de vínculo é a única coisa que a
+    // tela cria: nasce na etapa 1 do processo, vale 10 minutos.
+    // ----------------------------------------------------------
+    match /codigos_vinculo/{codigo} {
+      allow read:   if daEquipe();
+      allow create: if daEquipe() && autoriaOk()
+                    && codigo.matches('^[0-9]{6}$')
+                    && request.resource.data.expiraEm is timestamp;
+      allow update, delete: if daEquipe();
+    }
+    match /conversas/{chat} {
+      allow read:  if daEquipe();
+      allow write: if false;
+    }
+    match /vinculos/{chat} {
+      allow read:  if daEquipe();
+      allow write: if false;
+    }
+    match /whatsapp_eventos/{id} {
+      allow read, write: if false;
+    }
+
+    // ----------------------------------------------------------
     // Tudo o mais: não existe.
     // ----------------------------------------------------------
     match /{document=**} {

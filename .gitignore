@@ -40,3 +40,9 @@ Desktop.ini
 # Pesquisa e relatórios de planejamento (trabalho interno, não vão para o site público)
 /research_notes/
 /reports/
+
+# Cloud Functions (robô do WhatsApp): dependências e logs do deploy ficam de fora
+/functions/node_modules/
+firebase-debug.log
+firebase-debug.*.log
+/functions/*.log

@@ -3948,6 +3948,7 @@ window.TINA=(function(){
     return window.Nuvem.listar("solicitacoes",{limite:500}).then(r=>{
       if(!r.ok) return;
       const cfg=r.itens.find(x=>x.id===ID_CFG_INTEGRA); if(cfg) aplicarIntegraNuvem(cfg);
+      const cw=r.itens.find(x=>x.id==="__whatsapp"); if(cw) _whatsCfg=cw;   // v1.72: número e estado do robô do WhatsApp
       r.itens=r.itens.filter(x=>!_ehRegistroReservado(x));
       let local=lerSolic(); const remoto={}; r.itens.forEach(x=>remoto[x.id]=x);
       let mudou=false;
@@ -7442,12 +7443,40 @@ window.TINA=(function(){
   function gerarLaudoPdf(){ if(!window.pdfMake) throw new Error("pdfmake não carregou"); const L=dadosLaudo(); const dd={pageSize:"A4",pageMargins:[56,56,56,56],defaultStyle:{font:"Times",fontSize:10.5,lineHeight:1.2},info:{title:"Laudo de análise — "+(L.empresa||"")},content:conteudoLaudoPdf(L)};
     return new Promise((res,rej)=>{ try{ pdfMake.createPdf(dd).getBlob(res); }catch(e){ rej(e); } }); }
   function renderBlocosAnalise(){ try{ renderPendencias(); }catch(e){ console.error(e); } try{ renderEnquadramento(); }catch(e){ console.error(e); const b=$("anEnq"); if(b) b.innerHTML='<div class="et-av">'+escHtml((e&&e.message)||String(e))+'</div>'; } try{ renderLaudo(); }catch(e){ console.error(e); } }
+  /* ===== WhatsApp na etapa 1 (v1.72): o código que liga a conversa do cliente a este processo =====
+     O robô (Cloud Function + Evolution na VPS da Magalu) atende no privado e em grupo ligado. O código
+     vale 10 minutos, nasce aqui com o id da solicitação e da empresa, e é a única coisa que a tela
+     grava (coleção codigos_vinculo). O número conectado vem de solicitacoes/__whatsapp, que a função
+     mantém. Nenhum dado do cliente passa por aqui: só o código. */
+  var _whatsCfg=null, _codigoWhats=null;
+  function _codigoSeis(){ try{ const u=new Uint32Array(1); crypto.getRandomValues(u); return String(u[0]%1000000).padStart(6,"0"); }catch(e){ return String(Math.floor(Math.random()*1e6)).padStart(6,"0"); } }
+  function renderWhatsPedido(r){
+    const box=$("etWhats"); if(!box||!r) return;
+    const w=r.whatsapp||{}, cfg=_whatsCfg||{}, num=cfg.numero?fmtTel(String(cfg.numero).replace(/^55/,"")):"";
+    let h='<div class="card" style="margin-top:10px"><div class="et-h4">📱 Pedido pelo WhatsApp</div>';
+    if(w.vinculadoEm) h+='<div class="et-ok">✓ Conversa do cliente ligada a este processo em '+escHtml(_dataBR(w.vinculadoEm))+(w.grupo?" (grupo)":" (privado)")+'.'+(w.respostasEm?' O cliente respondeu ao robô em '+escHtml(_dataBR(w.respostasEm))+': confira os dados e os anexos na solicitação.':'')+'</div>';
+    if(!(window.Nuvem&&window.Nuvem.podeGravar())) h+='<div class="hint">Entre com o seu login para gerar o código que liga a conversa do cliente a este pedido.</div>';
+    else if(cfg.estado && cfg.estado!=="open") h+='<div class="et-av">O número do robô está desconectado ('+escHtml(cfg.estado)+'). Conecte pelo QR code na Evolution antes de mandar um código ao cliente.</div>';
+    else {
+      h+='<div class="hint">Gere um código e peça ao cliente para mandar <b>vincular CÓDIGO</b>'+(num?' para o número <b>'+escHtml(num)+'</b>':' para o número do robô')+', no privado ou no grupo onde o robô está. O robô pergunta o que falta e manda tudo para cá.</div>';
+      if(_codigoWhats && _codigoWhats.solicId===r.id && _codigoWhats.expira>Date.now()) h+='<div class="whats-cod"><b>vincular '+_codigoWhats.codigo.slice(0,3)+' '+_codigoWhats.codigo.slice(3)+'</b><span class="hint">vale até '+new Date(_codigoWhats.expira).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+'</span><button type="button" class="btn o mini" id="etWhatsCopiar">📋 Copiar mensagem para o cliente</button></div>';
+      h+='<div class="bar"><button type="button" class="btn p mini" id="etWhatsGerar">'+((_codigoWhats&&_codigoWhats.solicId===r.id)?"↻ Novo código":"📱 Gerar código de vínculo (10 min)")+'</button></div>';
+    }
+    box.innerHTML=h+'</div>';
+    const g=$("etWhatsGerar"); if(g) g.addEventListener("click",async()=>{ g.disabled=true;
+      const codigo=_codigoSeis(), exp=Date.now()+10*60*1000;
+      const res=await window.Nuvem.salvarCru("codigos_vinculo",codigo,{codigo,solicId:r.id,casoId:casoAtualId||"",empresa:r.empresa||"",cnpj:r.cnpj||"",criadoEm:new Date().toISOString(),expiraEm:firebase.firestore.Timestamp.fromMillis(exp)});
+      g.disabled=false;
+      if(!res.ok){ toast("Não foi possível gerar o código: "+(res.msg||"falha")+(/permission|insufficient/i.test(res.msg||"")?" — publique as regras do Firestore (v1.72)":""),"err",8000); return; }
+      _codigoWhats={codigo,solicId:r.id,expira:exp}; renderWhatsPedido(r); toast("Código gerado. Vale 10 minutos.","ok"); });
+    const c=$("etWhatsCopiar"); if(c) c.addEventListener("click",async()=>{ const t="Olá! Para adiantar o seu pedido na Totali, mande a mensagem abaixo para o WhatsApp "+(num||"do nosso robô")+":\n\nvincular "+_codigoWhats.codigo+"\n\nO assistente vai perguntar o que falta (vale 10 minutos)."; try{ await navigator.clipboard.writeText(t); toast("Mensagem copiada.","ok"); }catch(e){ prompt("Copie:",t); } });
+  }
   function renderEtapaPedido(){
     const box=$("etPedido"); if(!box) return;
     const sid=(_solicLigada===null)?solicDoAto():_solicLigada, r=sid?lerSolic().find(x=>x.id===sid):null;
     if(r){ const hoje=new Date(); hoje.setHours(0,0,0,0);
-      box.innerHTML='<div id="etPedidoCartao">'+cartaoSolic(r,hoje,tiposAto())+'</div><div class="bar" style="margin-top:8px"><button type="button" class="btn o mini" id="etVerLista">🗂 Ver na lista de processos</button></div>';
-      ligarCartoesSolic($("etPedidoCartao")); $("etVerLista").addEventListener("click",abrirFila); return; }
+      box.innerHTML='<div id="etPedidoCartao">'+cartaoSolic(r,hoje,tiposAto())+'</div><div class="bar" style="margin-top:8px"><button type="button" class="btn o mini" id="etVerLista">🗂 Ver na lista de processos</button></div><div id="etWhats"></div>';
+      ligarCartoesSolic($("etPedidoCartao")); $("etVerLista").addEventListener("click",abrirFila); renderWhatsPedido(r); return; }
     const abertas=lerSolic().filter(x=>SOLIC_ABERTAS.indexOf(x.status)>=0);
     box.innerHTML='<div class="hint" style="margin-bottom:8px">Este ato não está ligado a uma solicitação do comercial. Se ele veio de uma, ligue: a situação passa a andar sozinha e o comercial acompanha.</div>'
       +(abertas.length?'<div class="bar"><select id="etLigarSel" style="width:auto;max-width:100%">'+abertas.map(x=>'<option value="'+escHtml(x.id)+'">'+escHtml((x.empresa||"(sem empresa)")+" — "+(SOLIC_STATUS[x.status]||x.status))+"</option>").join("")+'</select><button type="button" class="btn p mini" id="etLigarBtn">Ligar a esta solicitação</button></div>'

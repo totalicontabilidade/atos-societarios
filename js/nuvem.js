@@ -194,6 +194,15 @@
       .catch(function (e) { return { ok: false, msg: (e && e.message) || "falha ao gravar" }; });
   }
 
+  // grava SEM clonar em JSON: serve para campos especiais do Firestore (Timestamp do código de vínculo) — v1.72
+  function salvarCru(colecao, id, dados) {
+    if (!podeGravar()) return Promise.resolve({ ok: false, msg: "não conectado" });
+    var ref = db.collection(colecao).doc(String(id));
+    return ref.set(carimbo(Object.assign({}, dados || {})), { merge: true })
+      .then(function () { return { ok: true, id: ref.id }; })
+      .catch(function (e) { return { ok: false, msg: (e && e.message) || "falha ao gravar" }; });
+  }
+
   function listar(colecao, opc) {
     if (!podeGravar()) return Promise.resolve({ ok: false, msg: "não conectado", itens: [] });
     var q = db.collection(colecao);
@@ -385,6 +394,7 @@
     jaEntrouAqui: jaEntrouAqui,
     ouvirNovos: ouvirNovos,
     ouvirColecao: ouvirColecao,
+    salvarCru: salvarCru,
     enviarAnexo: enviarAnexo,
     listarTrilha: listarTrilha,
     excluirAnexo: excluirAnexo,

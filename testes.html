@@ -1549,6 +1549,9 @@
       reg("Ao trabalhar, a solicitação sai de “Nova”",
         (JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{}).status==="andamento");
       reg("E vai direto para o ato, na etapa “Dados do ato” (sem copiar nada da solicitação)", !$("solicModal").classList.contains("open") && D.body.dataset.etapaAtual==="3");
+      D.querySelector('#etapas [data-etapa="1"]').click(); await espera(300);
+      reg("Etapa 1 mostra o bloco do WhatsApp (v1.72) e, sem login, pede o login para gerar o código", !!$("etWhats") && /login/.test($("etWhats").textContent) && !$("etWhatsGerar"));
+      D.querySelector('#etapas [data-etapa="3"]').click(); await espera(200);
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de solicitações",false,String(e&&e.message||e).slice(0,120)); }
 

@@ -29,6 +29,13 @@ service firebase.storage {
       allow delete: if daEquipe();
     }
 
+    // anexos que o robô do WhatsApp guardou: whatsapp/{conversa}/{arquivo}. Quem grava é a
+    // Cloud Function (Admin SDK); a equipe só lê. O cliente nunca escreve aqui.
+    match /whatsapp/{conversa}/{arquivo} {
+      allow read: if daEquipe();
+      allow write, delete: if false;
+    }
+
     // nada mais é gravável: caminho novo exige regra nova, escrita conscientemente
     match /{caminho=**} {
       allow read, write: if false;
