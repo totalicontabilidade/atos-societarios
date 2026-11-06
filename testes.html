@@ -3013,6 +3013,11 @@
       var bConc=D.querySelector('#filaAtos [data-ca="concluir"]'); if(bConc) bConc.click(); await espera(300);
       reg("“Marcar como concluído” tira o ato da lista e apaga o trabalho", !/EXEMPLO SALVAR/.test($("filaAtos").textContent) && !JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}")[idS]);
       $("btnSolicClose").click(); await espera(200);
+      // v1.69: comercial — lista vazia explica o que fazer; sem a aba Equipe nas configurações
+      W.TINA._ux.aplicarModoComercial(true); await espera(300); W.TINA._ux.renderSolic(); await espera(100);
+      reg("Comercial: lista vazia explica o que aparece ali e como lançar", /Nenhum pedido seu em aberto[\s\S]*Nova solicitação/.test((D.querySelector("#solicLista .sol-vazio")||{}).innerText||""));
+      reg("Comercial: sem a aba Equipe nas configurações", W.getComputedStyle(D.querySelector('.cfg-aba[data-cfg="equipe"]')).display==="none");
+      W.TINA._ux.aplicarModoComercial(false); await espera(200);
       // v1.67: registrar o "de acordo" não pode apagar o trabalho do ato ainda não baixado (a faxina
       // da nuvem tratava todo ato confirmado como entregue); o ato antigo, sem carimbo, continua entregue
       try{

@@ -6926,6 +6926,8 @@ window.TINA=(function(){
       if(ch && n) ch.textContent=String((parseInt(ch.textContent,10)||0)+n); }
     // lista vazia: diz o que aparece aqui e como começar
     const vz=document.querySelector("#solicLista .sol-vazio");
+    if(vz && _modoComercial && f==="abertas" && !q)
+      vz.innerHTML="<b>Nenhum pedido seu em aberto.</b><br>Aqui ficam os pedidos dos clientes que você lança para o cadastro, com a situação de cada um.<br>Para lançar um pedido, use <b>+ Nova solicitação</b>.";
     if(vz && !_modoComercial && f==="abertas" && !q){
       vz.innerHTML=_atosAbertosSemSolic()
         ? "Nenhum pedido do comercial em aberto."
@@ -7451,6 +7453,10 @@ window.TINA=(function(){
       if(window.Nuvem.papelLembrado&&window.Nuvem.papelLembrado()==="comercial"&&window.Nuvem.jaEntrouAqui()) aplicarModoComercial(true);
       window.Nuvem.aoMudar(e=>{
         if(e.verificado||e.daEquipe) aplicarModoComercial(!!e.soSolicitacoes);
+        /* A lista do comercial pode ser desenhada antes de o login terminar (o papel vem do que ficou
+           guardado). Sem o e-mail ainda, "Só as minhas" ficava escondido e o filtro não valia até a
+           próxima atualização: o comercial via, por um tempo, pedidos de outros. */
+        if(e.daEquipe && e.email) renderSolic();
         // quem cadastra abre o sistema na lista de processos (uma vez por abertura do sistema)
         if(e.daEquipe && !e.soSolicitacoes && !_filaInicial){ _filaInicial=true; abrirFila(); }
         mostrarPortao(deveMostrarPortao(e,window.Nuvem.jaEntrouAqui()),

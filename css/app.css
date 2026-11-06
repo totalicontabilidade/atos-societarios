@@ -532,3 +532,5 @@
   /* v1.67 */
   #procCab{scroll-margin-top:calc(var(--alturaCab,66px) + 10px)}
   body[data-etapa-atual="4"] #gateBloco1{display:none!important}
+  /* comercial: a aba Equipe é só do administrador */
+  body.so-solic .cfg-aba[data-cfg="equipe"]{display:none!important}
