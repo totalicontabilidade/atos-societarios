@@ -447,7 +447,7 @@
   .pc-tit b{color:var(--navy)}
   .proc-cab .sol-ligada{margin:10px 0 0}
   .etapas{display:flex;gap:0;margin-top:10px;overflow-x:auto;counter-reset:et;scrollbar-width:thin}
-  .etapa{flex:1 1 0;min-width:132px;position:relative;text-align:left;background:#fff;border:1px solid var(--line);border-right:0;padding:8px 10px 8px 38px;font:inherit;cursor:pointer;color:var(--ink2)}
+  .etapa{flex:1 1 0;min-width:118px;position:relative;text-align:left;background:#fff;border:1px solid var(--line);border-right:0;padding:8px 10px 8px 38px;font:inherit;cursor:pointer;color:var(--ink2)}
   .etapa:first-child{border-radius:11px 0 0 11px}
   .etapa:last-child{border-radius:0 11px 11px 0;border-right:1px solid var(--line)}
   .etapa::before{counter-increment:et;content:counter(et);position:absolute;left:9px;top:50%;transform:translateY(-50%);width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11.5px;font-weight:800;background:var(--line);color:var(--muted)}
@@ -458,13 +458,14 @@
   .etapa b{display:block;font-size:12.5px;color:var(--ink);line-height:1.25}
   .etapa span{display:block;font-size:11.5px;color:var(--muted);line-height:1.3;margin-top:1px}
   .etapa:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
-  /* fora da etapa 2, o formulário sai de cena; a prévia fica também na conferência */
-  body[data-etapa-atual]:not([data-etapa-atual="2"]) .form-cards,
-  body[data-etapa-atual]:not([data-etapa-atual="2"]) .actions,
-  body[data-etapa-atual]:not([data-etapa-atual="2"]) #validacaoBox{display:none!important}
-  body[data-etapa-atual="1"] #previewCard,body[data-etapa-atual="4"] #previewCard,body[data-etapa-atual="5"] #previewCard,body[data-etapa-atual="6"] #previewCard{display:none!important}
-  body[data-etapa-atual="3"] #protoSolic{display:none!important}
-  body[data-etapa-atual="4"] #btnGateEmail{display:none!important}
+  /* fora da etapa 3 (formulário), o formulário sai de cena; a prévia fica também na conferência (4).
+     v1.70: 1 Pedido · 2 Análise · 3 Dados do ato · 4 Conferência · 5 Confirmação · 6 Documento · 7 Protocolo */
+  body[data-etapa-atual]:not([data-etapa-atual="3"]) .form-cards,
+  body[data-etapa-atual]:not([data-etapa-atual="3"]) .actions,
+  body[data-etapa-atual]:not([data-etapa-atual="3"]) #validacaoBox{display:none!important}
+  body[data-etapa-atual="1"] #previewCard,body[data-etapa-atual="2"] #previewCard,body[data-etapa-atual="5"] #previewCard,body[data-etapa-atual="6"] #previewCard,body[data-etapa-atual="7"] #previewCard{display:none!important}
+  body[data-etapa-atual="4"] #protoSolic{display:none!important}
+  body[data-etapa-atual="5"] #btnGateEmail{display:none!important}
   .etapa-painel{margin-bottom:16px}
   .etapa-painel .modal-hosp{min-width:0}
   .et-duas{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
@@ -494,6 +495,23 @@
   .socio.recolhido>.rec-linha{margin-bottom:0}
   .socio.recolhido>.rec-linha .rec-seta{transform:none}
   .socio.recolhido>:not(.tag):not(.rec-linha){display:none!important}
+  /* v1.70: a filial recolhida também esconde os campos (a classe era aplicada, mas não havia regra) */
+  .filial.recolhido{padding-bottom:8px}
+  .filial.recolhido>.rec-linha{margin-bottom:0}
+  .filial.recolhido>.rec-linha .rec-seta{transform:none}
+  .filial.recolhido>:not(.tag):not(.rec-linha){display:none!important}
+  /* etapa 2: análise da empresa */
+  .an-cab{font-size:15px;margin:2px 0 8px}
+  .an-tag{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--line);color:var(--ink2);margin-left:6px;vertical-align:middle}
+  .an-tag.ok{background:#e3f4e9;color:var(--ok)} .an-tag.bad{background:#fbe6e4;color:var(--err)}
+  .an-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px}
+  .an-k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.02em}
+  .an-v{font-size:13.5px;color:var(--ink);line-height:1.35}
+  .an-det{margin-top:8px;font-size:13px} .an-det summary{cursor:pointer;color:var(--navy);font-weight:600} .an-det ul{margin:4px 0 0 18px;padding:0} .an-det li{margin:2px 0}
+  .an-simples{margin-top:10px;padding:8px 10px;border-radius:9px;background:#f2f6fb;font-size:13px}
+  .an-simples.ok{background:#e3f4e9} .an-simples.w{background:#fff5d6}
+  .an-rodape{margin-top:6px}
+  @media(max-width:760px){ .an-blocos{grid-template-columns:1fr} }
   .rec-todos{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:0 0 10px}
   .rec-todos .hint{margin-right:auto}
 
@@ -531,6 +549,6 @@
   @media(max-width:760px){ .actions .status{white-space:normal} #btnProximo{margin-left:0} }
   /* v1.67 */
   #procCab{scroll-margin-top:calc(var(--alturaCab,66px) + 10px)}
-  body[data-etapa-atual="4"] #gateBloco1{display:none!important}
+  body[data-etapa-atual="5"] #gateBloco1{display:none!important}
   /* comercial: a aba Equipe é só do administrador */
   body.so-solic .cfg-aba[data-cfg="equipe"]{display:none!important}

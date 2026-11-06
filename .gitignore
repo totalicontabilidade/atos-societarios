@@ -36,3 +36,7 @@ Desktop.ini
 
 # Dependência só da bateria no GitHub (o sistema não usa)
 /node_modules/
+
+# Pesquisa e relatórios de planejamento (trabalho interno, não vão para o site público)
+/research_notes/
+/reports/

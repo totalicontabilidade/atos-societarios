@@ -90,8 +90,15 @@ window.TINA=(function(){
   function validaCPF(cpf){cpf=(cpf||"").replace(/\D/g,"");if(cpf.length!==11||/^(\d)\1{10}$/.test(cpf))return false;
     let s=0;for(let i=0;i<9;i++)s+=parseInt(cpf[i])*(10-i);let r=(s*10)%11;if(r===10)r=0;if(r!==parseInt(cpf[9]))return false;
     s=0;for(let i=0;i<10;i++)s+=parseInt(cpf[i])*(11-i);r=(s*10)%11;if(r===10)r=0;return r===parseInt(cpf[10]);}
+  /* Toda consulta externa tem prazo: sem isto, uma API que não responde deixava o campo em
+     "buscando…" para sempre (v1.70). O prazo vence → cai no catch como "sem conexão". */
+  async function fetchComTempo(url,ms,opts){ const ctl=(typeof AbortController!=="undefined")?new AbortController():null;
+    const t=ctl?setTimeout(()=>ctl.abort(),ms||8000):0;
+    try{ return await fetch(url,Object.assign({cache:"no-store"},opts||{},ctl?{signal:ctl.signal}:{})); } finally{ if(t) clearTimeout(t); } }
   async function buscaCep(raw){const c=(raw||"").replace(/\D/g,"");if(c.length!==8)return{ok:false,fmt:false,msg:"CEP deve ter 8 dígitos"};
-    try{const r=await fetch("https://viacep.com.br/ws/"+c+"/json/",{cache:"no-store"});const j=await r.json();
+    try{const r=await fetchComTempo("https://viacep.com.br/ws/"+c+"/json/",8000);
+      if(!r.ok)return{ok:false,fmt:true,msg:"consulta de CEP indisponível (erro "+r.status+")"};
+      const j=await r.json();
       if(j.erro)return{ok:false,fmt:true,msg:"CEP não encontrado"};return{ok:true,data:j};}catch(e){return{ok:false,fmt:true,offline:true,msg:"sem conexão — formato ok"};}}
   function attachCep(cepEl,statEl,tg){cepEl.addEventListener("input",()=>cepEl.value=fmtCep(cepEl.value));
     cepEl.addEventListener("blur",async()=>{const raw=cepEl.value.trim();if(!raw){statEl.textContent="";cepEl.classList.remove("good","bad");return;}
@@ -107,8 +114,8 @@ window.TINA=(function(){
      Sem internet, o campo continua editável à mão: a consulta é conveniência, não dependência. */
   async function buscaCnpj(raw){const c=(raw||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase();
     if(c.length!==14)return{ok:false,msg:"CNPJ deve ter 14 caracteres"};
-    if(/^\d+$/.test(c) && !validaCNPJ(c))return{ok:false,msg:"CNPJ inválido"};
-    try{const r=await fetch("https://brasilapi.com.br/api/cnpj/v1/"+c,{cache:"no-store"});
+    if(!validaCNPJ(c))return{ok:false,msg:"CNPJ inválido"};
+    try{const r=await fetchComTempo("https://brasilapi.com.br/api/cnpj/v1/"+c,9000);
       if(r.status===404)return{ok:false,msg:"CNPJ não encontrado na Receita"};
       if(!r.ok)return{ok:false,msg:"consulta indisponível (erro "+r.status+")"};
       return{ok:true,data:await r.json()};}
@@ -3493,7 +3500,7 @@ window.TINA=(function(){
       const emp=(($("razao")||{}).value||"").trim();
       if(confirm("O formulário está com outro ato"+(emp?" ("+emp+")":"")+".\n\nSalvar esse ato (ele fica na lista de processos) e começar o de "+(r.empresa||"esta solicitação")+"?")){
         if(emp){ const c=registrarCaso(); salvarTrabalho(c.id); }
-        limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; renderLigacao(); livre=true;
+        limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; _analise=null; renderLigacao(); livre=true;
         if($("cmdRapido")) $("cmdRapido").value=""; _pdfNomeAnterior=""; _atoAlterado=false;
       }
     }
@@ -3501,7 +3508,7 @@ window.TINA=(function(){
     renderSolic();
     if(!calado){
       // a solicitação é o pedido; o ato nasce do documento: vai direto ao formulário, no leitor
-      if(livre || _solicLigada===id){ sairDaFila(2);
+      if(livre || _solicLigada===id){ sairDaFila(ET.FORM);
         const cr=$("cardRapido"); if(cr && cr.offsetParent!==null && cr.scrollIntoView) cr.scrollIntoView({behavior:"smooth",block:"start"}); else rolarAoProcesso(); }
       toast(( eraNova ? "Em andamento — o comercial já está vendo. " : "Já estava em andamento. " )
         +"Comece o ato pelo cartão CNPJ ou pelo contrato: a solicitação é o pedido, não a fonte dos dados.","ok");
@@ -3594,7 +3601,7 @@ window.TINA=(function(){
       renderPainel(); }
     const moveu=sid ? moverSolic("protocolada",["nova","andamento","cliente","exigencia"]) : false;
     if(!moveu) toast(c ? ("Protocolo registrado no Painel de casos em "+c.protocoladoEm+".") : "Salve o caso (Painel de casos) para registrar o protocolo.", c?"ok":"warn");
-    renderLigacao(); atualizarEtapas(); if(_etapa===6) preencherEtapa6();
+    renderLigacao(); atualizarEtapas(); if(_etapa===ET.PROTO) preencherEtapaProto();
   }
   function renderLigacao(){
     const bar=$("solicLigadaBar"), sid=(_solicLigada===null)?"":_solicLigada;
@@ -3632,7 +3639,7 @@ window.TINA=(function(){
        && !confirm("O formulário já está preenchido. Ler este anexo apaga o que está lá.\n\nPara não perder, cancele e use “Guardar e fazer outro”. Continuar mesmo assim?")) return;
     toast("Baixando “"+(a.nome||"anexo")+"”…","info");
     let blob;
-    try{ const resp=await fetch(a.url); if(!resp.ok) throw new Error("erro "+resp.status); blob=await resp.blob(); }
+    try{ const resp=await fetchComTempo(a.url,60000); if(!resp.ok) throw new Error("erro "+resp.status); blob=await resp.blob(); }
     catch(e){ toast("Não foi possível baixar o anexo ("+((e&&e.message)||"falha")+"). Abra o anexo, salve o arquivo e escolha-o no campo “Contrato atual”.","err",9000); return; }
     // a aba do ato pedido; sem leitor nela (pedido lançado com o tipo errado), a aba atual ou a alteração de Ltda
     switchMode(modoTemLeitor(r.tipo)?r.tipo:(modoTemLeitor(MODE)?MODE:"alt"));
@@ -4770,7 +4777,7 @@ window.TINA=(function(){
     $("valorQuota").value="1.00";$("enquadramento").value=(MODE.startsWith("sa_")&&MODE!=="sa_transf_sa_ltda")?"DEMAIS":"ME";$("modoAdm").value="ISOLADAMENTE e/ou CONJUNTAMENTE";if($("integralizacao"))$("integralizacao").value="moeda";if($("socioRetiraSexo"))$("socioRetiraSexo").value="M";
     $("socios").innerHTML="";$("numQuotas").value="";if($("s_cep_stat"))$("s_cep_stat").textContent="";const b=$("valCapital");if(b)b.style.display="none";
     if(umComponenteSo())socioCard();}  // modos de titular único: recria o card
-  function limpar(){ limparCampos();
+  function limpar(){ limparCampos(); _analise=null;
     _solicLigada=null; renderLigacao();   // formulário zerado não é mais o ato daquela solicitação
     if($("cmdRapido"))$("cmdRapido").value="";
     if($("pdfContrato"))$("pdfContrato").value="";if($("pdfStat"))$("pdfStat").textContent="";if($("rapidoStat"))$("rapidoStat").textContent="";
@@ -6574,7 +6581,7 @@ window.TINA=(function(){
       const lista=(el.type==="checkbox")?DRAFT_CHECKS:DRAFT_FIELDS; if(lista.indexOf(el.id)<0) lista.push(el.id); }); });
   // a mesa da assembleia é escolhida entre os sócios: as opções só existem depois que os cartões voltam
   const CAMPOS_MESA=["saPresMesa","saSecMesa","coopPresMesa","coopSecMesa"];
-  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig,solic:_solicLigada};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});o.rapido=_snapRapido();return o;}
+  function snapshotForm(){const o={mode:(typeof MODE!=="undefined"?MODE:""),ts:Date.now(),fields:{},checks:{},socios:readSocios(true),filiais:readFiliais(),clausulas:_clausulasOrig,solic:_solicLigada};DRAFT_FIELDS.forEach(id=>{if($(id))o.fields[id]=$(id).value;});DRAFT_CHECKS.forEach(id=>{if($(id))o.checks[id]=$(id).checked;});o.rapido=_snapRapido();o.analise=(_analise&&typeof _analise==="object")?_analise:null;return o;}
   // O rascunho contém dados pessoais dos sócios (CPF, RG, nascimento, endereço). Por isso ele VENCE:
   // passadas 24h sem uso, é descartado sozinho, para não ficar legível num computador compartilhado.
   const DRAFT_VALIDADE_MS=24*60*60*1000;
@@ -6724,23 +6731,27 @@ window.TINA=(function(){
     uiProprio();
     _clausulasOrig=Array.isArray(o.clausulas)?o.clausulas:[]; mostrarPreservacao();
     _solicLigada=(typeof o.solic==="string")?o.solic:null; renderLigacao();
+    _analise=(o.analise&&typeof o.analise==="object")?o.analise:null;   // v1.70: a análise da empresa anda com o trabalho
     ["wrapAdmNaoSocio","wrapConselho","wrapCessao"].forEach((w,i)=>{const ck=["admNaoSocio","cl_conselho","alt_cessao"][i]; if($(w)&&$(ck))$(w).style.display=$(ck).checked?"":"none";});
     // trabalho guardado antes de existir a UF do foro/do ato: começa com a da sede, à vista para conferir
     _ufAtoManual=!!(o.fields&&o.fields.atoUF); completarUFs();
     if(typeof recalc==="function")recalc();
   }finally{_suppressDraft=false;}salvarRascunho();}
 
-  /* ===== O ato como processo: lista de processos e as seis etapas =====
+  /* ===== O ato como processo: lista de processos e as sete etapas =====
      A tela inicial é a lista de processos: a lista de solicitações em página inteira, mais os atos
-     abertos sem solicitação. Abrir um processo leva ao ato, com as etapas no topo. A etapa 2 é o
-     formulário de sempre; as outras mostram NA TELA o conteúdo das janelas que já existiam
+     abertos sem solicitação. Abrir um processo leva ao ato, com as etapas no topo. A etapa 3 (ET.FORM)
+     é o formulário de sempre; a 2 é a análise da empresa (v1.70); as outras mostram NA TELA o conteúdo das janelas que já existiam
      (pré-protocolo, antes e depois, e-mail, confirmação, envio, protocolo). É o MESMO conteúdo,
      emprestado da janela enquanto a etapa está aberta e devolvido ao sair dela — por isso as
      regras, os botões e as travas continuam exatamente os de antes. `var` de propósito: a lista
      pode ser desenhada antes desta linha rodar. */
   var _atoAlterado=false;
-  var _etapa=2, _etapaVolta=2, _pendIdx=-1, _ultPrePro=-1, _etSeq=0, _filaInicial=false, _hosp=[];
-  const NOME_ET={1:"Pedido",2:"Dados do ato",3:"Conferência",4:"Confirmação do cliente",5:"Documento e assinatura",6:"Protocolo"};
+  /* v1.70: SETE etapas. Nenhum número de etapa fica solto pelo código: cada uma tem um nome aqui
+     (ET.FORM é o formulário). Inserir ou mover uma etapa muda só esta tabela, o CSS e o HTML. */
+  var ET={PEDIDO:1,ANALISE:2,FORM:3,CONF:4,CLIENTE:5,DOC:6,PROTO:7}, ET_ULT=7;
+  var _etapa=ET.FORM, _etapaVolta=ET.FORM, _pendIdx=-1, _ultPrePro=-1, _etSeq=0, _filaInicial=false, _hosp=[];
+  const NOME_ET={1:"Pedido",2:"Análise da empresa",3:"Dados do ato",4:"Conferência",5:"Confirmação do cliente",6:"Documento e assinatura",7:"Protocolo"};
   function hospedar(el,destino){ if(!el||!destino||!el.parentNode) return; _hosp=_hosp||[]; const marca=document.createComment("hospedado"); el.parentNode.insertBefore(marca,el); destino.appendChild(el); _hosp.push({el,marca}); }
   function hospedarModal(id,destino){ const m=$(id), mb=m&&m.querySelector(".mb"); if(mb) hospedar(mb,destino); }
   function devolverHospedes(){ _hosp=_hosp||[]; while(_hosp.length){ const h=_hosp.pop(); if(h.marca.parentNode){ h.marca.parentNode.insertBefore(h.el,h.marca); h.marca.remove(); } } }
@@ -6759,7 +6770,7 @@ window.TINA=(function(){
   // ---- a lista de processos (tela inicial)
   function abrirFila(){
     if(_modoComercial){ abrirSolic(); sincronizarSolic(); return; }
-    _etapaVolta=_etapa||2; if(_etapa!==2) devolverHospedes();
+    _etapaVolta=_etapa||ET.FORM; if(_etapa!==ET.FORM) devolverHospedes();
     document.body.classList.add("na-fila"); medirCabecalho(); tituloLista(true);
     abrirSolic(); sincronizarSolic(); atualizarCabProc(); setTimeout(ajustarCabecalho,0);
   }
@@ -6771,9 +6782,9 @@ window.TINA=(function(){
     document.body.classList.remove("na-fila");   // antes de fechar: o observador da janela não precisa agir
     tituloLista(false);
     if(m && m.classList.contains("open") && !_modoComercial){ if(_formSolicAberto()) cancelarFormSolic(); m.classList.remove("open"); }
-    irEtapa(et||_etapa||2); atualizarCabProc();
+    irEtapa(et||_etapa||ET.FORM); atualizarCabProc();
   }
-  function voltarAoAto(){ sairDaFila(_etapaVolta||2); }
+  function voltarAoAto(){ sairDaFila(_etapaVolta||ET.FORM); }
   /* ===== Salvar o ato para continuar depois =====
      O sistema não salva sozinho: ao sair de um ato com alterações, ele PERGUNTA. Salvo, o ato vai
      para a lista de processos do jeito que está — campos, sócios, filiais, o texto do
@@ -6816,10 +6827,10 @@ window.TINA=(function(){
     }
   }
   function novoAto(){
-    const comecar=()=>{ limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; renderLigacao();
+    const comecar=()=>{ limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; _analise=null; renderLigacao();
       if($("cmdRapido")) $("cmdRapido").value=""; _pdfNomeAnterior=""; _atoAlterado=false;
-      sairDaFila(2); window.scrollTo(0,0); atualizarCabProc(); };
-    if(!_formOcupado()){ sairDaFila(2); window.scrollTo(0,0); atualizarCabProc(); return; }
+      sairDaFila(ET.FORM); window.scrollTo(0,0); atualizarCabProc(); };
+    if(!_formOcupado()){ sairDaFila(ET.FORM); window.scrollTo(0,0); atualizarCabProc(); return; }
     if(!_precisaSalvar()){ comecar(); return; }
     pedirSalvar(comecar,{com:"💾 Salvar e começar outro",sem:"Começar sem salvar"});
   }
@@ -6855,7 +6866,7 @@ window.TINA=(function(){
       el.querySelectorAll("[data-ca]").forEach(b=>b.addEventListener("click",()=>{ const k=b.dataset.ca;
         if(k==="abrir"){ if(_formOcupado() && casoAtualId!==id && !confirm("Abrir este ato?\n\nO que está no formulário agora será substituído (guarde antes, se precisar).")) return;
           if(abrirTrabalho(id)){ sairDaFila(proximaEtapa()); rolarAoProcesso(); } }
-        else if(k==="dup"){ duplicarCaso(id); sairDaFila(2); }
+        else if(k==="dup"){ duplicarCaso(id); sairDaFila(ET.FORM); }
         else if(k==="gmail") localizarGmail(id);
         else if(k==="just") verJustificativa(id);
         else if(k==="del") excluirCaso(id);
@@ -6932,8 +6943,9 @@ window.TINA=(function(){
       vz.innerHTML=_atosAbertosSemSolic()
         ? "Nenhum pedido do comercial em aberto."
         : "<b>Nenhum processo em andamento.</b><br>Aqui aparecem os pedidos do comercial e os atos salvos para continuar depois.<br>Para começar um ato, use <b>＋ Novo ato</b>; para registrar o pedido de um cliente, <b>＋ Nova solicitação</b>."; }
-    if(_etapa===1) renderEtapaPedido();
-    if(_etapa===6) preencherEtapa6();
+    if(_etapa===ET.PEDIDO) renderEtapaPedido();
+    if(_etapa===ET.ANALISE) renderEtapaAnalise();
+    if(_etapa===ET.PROTO) preencherEtapaProto();
     atualizarEtapas();
   }
 
@@ -6950,21 +6962,22 @@ window.TINA=(function(){
   }
   function estadoEtapas(){
     let d={}; try{ d=coletar(); }catch(e){}
-    const sid=(_solicLigada===null||_solicLigada===undefined)?"":_solicLigada, r=sid?lerSolic().find(x=>x.id===sid):null;
+    const sid=(_solicLigada===null||_solicLigada===undefined)?solicDoAto():_solicLigada, r=sid?lerSolic().find(x=>x.id===sid):null;
     const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null;
     const temPrev=!!document.querySelector("#preview section.docxprev");
     let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(d)); }catch(e){}
     if(temPrev && !(_ultPrePro>=0)){ try{ _ultPrePro=preProtocolo().filter(i=>!i.ok && i.tema!=="Confirmação do cliente registrada").length; }catch(e){ _ultPrePro=-1; } }
     const orgao=(MODE||"").startsWith("sia")?"OAB":"Junta";
-    return {
-      1: r?["f",SOLIC_STATUS[r.status]||"ligado"]:["","sem pedido ligado"],
-      2: !(d.razao||"").trim()?["","formulário"]:((_pendIdx>0)?["a","⚠ "+_pendIdx+(_pendIdx>1?" pendências":" pendência")]:["f","campos ok"]),
-      3: !temPrev?["","pré-protocolo"]:((_ultPrePro>0)?["a","⚠ "+_ultPrePro+" ponto(s)"]:["f","sem pendências"]),
-      4: ok?["f","confirmado "+(c.confirmadoEm||"")]:((c&&c.confirmado)?["a","⚠ venceu: reconfirmar"]:((r&&r.status==="cliente")?["a","aguardando o cliente"]:["","e-mail + “de acordo”"])),
-      5: (c&&c.concluidoEm)?["f","documento baixado"]:["",".docx · PDF · enviar"],
-      6: r?(r.status==="exigencia"?["x","em exigência"]:(r.status==="protocolada"?["f","protocolada"]:(r.status==="concluida"?["f","finalizada"]:(r.status==="cancelada"?["x","cancelada"]:["",orgao]))))
-          :((c&&c.protocoladoEm)?["f","protocolado "+c.protocoladoEm]:["",orgao])
-    };
+    const E={};
+    E[ET.PEDIDO]= r?["f",SOLIC_STATUS[r.status]||"ligado"]:["","sem pedido ligado"];
+    E[ET.ANALISE]= estadoAnalise(d);
+    E[ET.FORM]= !(d.razao||"").trim()?["","formulário"]:((_pendIdx>0)?["a","⚠ "+_pendIdx+(_pendIdx>1?" pendências":" pendência")]:["f","campos ok"]);
+    E[ET.CONF]= !temPrev?["","pré-protocolo"]:((_ultPrePro>0)?["a","⚠ "+_ultPrePro+" ponto(s)"]:["f","sem pendências"]);
+    E[ET.CLIENTE]= ok?["f","confirmado "+(c.confirmadoEm||"")]:((c&&c.confirmado)?["a","⚠ venceu: reconfirmar"]:((r&&r.status==="cliente")?["a","aguardando o cliente"]:["","e-mail + “de acordo”"]));
+    E[ET.DOC]= (c&&c.concluidoEm)?["f","documento baixado"]:["",".docx · PDF · enviar"];
+    E[ET.PROTO]= r?(r.status==="exigencia"?["x","em exigência"]:(r.status==="protocolada"?["f","protocolada"]:(r.status==="concluida"?["f","finalizada"]:(r.status==="cancelada"?["x","cancelada"]:["",orgao]))))
+          :((c&&c.protocoladoEm)?["f","protocolado "+c.protocoladoEm]:["",orgao]);
+    return E;
   }
   function atualizarEtapas(){
     const nav=$("etapas"); if(!nav) return;
@@ -6974,24 +6987,154 @@ window.TINA=(function(){
       const sp=b.querySelector("span"); if(sp) sp.textContent=e[1]; });
     atualizarCabProc();
   }
-  function proximaEtapa(){ const E=estadoEtapas(); for(const k of [2,3,4,5,6]) if(E[k][0]!=="f") return k; return 6; }
+  // a análise (etapa 2) é opcional e nunca segura o processo: a reabertura procura a partir do formulário
+  function proximaEtapa(){ const E=estadoEtapas(); for(const k of [ET.FORM,ET.CONF,ET.CLIENTE,ET.DOC,ET.PROTO]) if(E[k][0]!=="f") return k; return ET.PROTO; }
 
   // ---- as etapas
   const _navEt=(ant,prox)=>'<div class="et-nav">'+(ant?'<button type="button" class="btn s" data-ir-etapa="'+ant+'">← '+NOME_ET[ant]+"</button>":"")
     +'<span class="esp"></span>'+(prox?'<button type="button" class="btn p" data-ir-etapa="'+prox+'">Próximo: '+NOME_ET[prox].toLowerCase()+" →</button>":"")+"</div>";
-  const MOLDE_ET={
-    1:()=>'<div class="card"><h2>Pedido do cliente</h2><div id="etPedido"></div></div>'+_navEt(0,2),
-    3:()=>'<div class="et-duas"><div class="card"><h2>✓ Pré-protocolo <span class="hint">— as conferências do texto do documento</span></h2><div class="modal-hosp" data-slot="proto"></div></div>'
-      +'<div class="card"><h2>⇄ Antes e depois</h2><div class="modal-hosp" data-slot="comp"></div></div></div>'+_navEt(2,4)+'<div class="hint">O documento está logo abaixo.</div>',
-    4:()=>'<div class="card"><h2>🔒 Confirmação do cliente</h2><div id="etConfSt"></div><div class="et-duas">'
+  const _nav=n=>_navEt(n>ET.PEDIDO?n-1:0, n<ET_ULT?n+1:0);   // anterior/próximo saem da ordem, não de números soltos
+  const MOLDE_ET={};
+  MOLDE_ET[ET.PEDIDO]=()=>'<div class="card"><h2>Pedido do cliente</h2><div id="etPedido"></div></div>'+_nav(ET.PEDIDO);
+  MOLDE_ET[ET.ANALISE]=()=>'<div class="card" id="etAnalise"><h2>🔎 Análise da empresa <span class="hint">— olhar a empresa antes de mexer no ato</span></h2><div id="anStatus"></div>'
+      +'<div class="et-duas an-blocos"><div><div class="et-h4">1. Ficha na Receita Federal</div><div id="anFicha"></div></div>'
+      +'<div><div class="et-h4">2. Pendências · 3. Enquadramento · 4. Laudo</div><div id="anResto" class="hint">Checklist de certidões (federal, estadual e municipal), enquadramento no Simples (anexo, Fator R, pró-labore) e laudo assinado entram nas próximas versões desta etapa.</div></div></div>'
+      +'<div class="bar" id="anAcoes" style="margin-top:12px"></div></div>'+_nav(ET.ANALISE);
+  MOLDE_ET[ET.CONF]=()=>'<div class="et-duas"><div class="card"><h2>✓ Pré-protocolo <span class="hint">— as conferências do texto do documento</span></h2><div class="modal-hosp" data-slot="proto"></div></div>'
+      +'<div class="card"><h2>⇄ Antes e depois</h2><div class="modal-hosp" data-slot="comp"></div></div></div>'+_nav(ET.CONF)+'<div class="hint">O documento está logo abaixo.</div>';
+  MOLDE_ET[ET.CLIENTE]=()=>'<div class="card"><h2>🔒 Confirmação do cliente</h2><div id="etConfSt"></div><div class="et-duas">'
       +'<div><div class="et-h4">1. E-mail de confirmação</div><div class="modal-hosp" data-slot="email"></div></div>'
-      +'<div><div class="modal-hosp" data-slot="gate"></div></div></div></div>'+_navEt(3,5),
-    5:()=>'<div class="et-duas"><div class="card"><h2>Documento</h2><div id="etDocSt"></div><div class="bar"><button type="button" class="btn g" data-et-baixar="docx">⬇ .docx</button><button type="button" class="btn o" data-et-baixar="pdf">⬇ PDF</button></div>'
+      +'<div><div class="modal-hosp" data-slot="gate"></div></div></div></div>'+_nav(ET.CLIENTE);
+  MOLDE_ET[ET.DOC]=()=>'<div class="et-duas"><div class="card"><h2>Documento</h2><div id="etDocSt"></div><div class="bar"><button type="button" class="btn g" data-et-baixar="docx">⬇ .docx</button><button type="button" class="btn o" data-et-baixar="pdf">⬇ PDF</button></div>'
       +'<div class="hint" style="margin-top:10px">✍ A assinatura é feita fora do sistema. Para o arquivamento valer desde a assinatura, protocole em até 30 dias da data do ato (art. 36 da Lei nº 8.934/1994).</div></div>'
-      +'<div class="card"><h2>📤 Enviar ao cliente</h2><div class="modal-hosp" data-slot="enviar"></div></div></div>'+_navEt(4,6),
-    6:()=>'<div class="card"><h2>Protocolo na <span id="etOrgao">Junta Comercial</span></h2><div id="etProtoSt"></div><div class="modal-hosp" data-slot="protocolei"></div>'
-      +'<div class="bar" id="etProtoAcoes" style="margin-top:10px"></div><div id="etExig"></div></div>'+_navEt(5,0)
-  };
+      +'<div class="card"><h2>📤 Enviar ao cliente</h2><div class="modal-hosp" data-slot="enviar"></div></div></div>'+_nav(ET.DOC);
+  MOLDE_ET[ET.PROTO]=()=>'<div class="card"><h2>Protocolo na <span id="etOrgao">Junta Comercial</span></h2><div id="etProtoSt"></div><div class="modal-hosp" data-slot="protocolei"></div>'
+      +'<div class="bar" id="etProtoAcoes" style="margin-top:10px"></div><div id="etExig"></div></div>'+_nav(ET.PROTO);
+
+  /* ===== Etapa 2: Análise da empresa (v1.70) =====
+     Antes de mexer no ato, o sistema olha a empresa. Nesta versão: a FICHA na base pública da
+     Receita, lida por APIs gratuitas em cascata (a BrasilAPI é um espelho do minhareceita; a
+     OpenCNPJ é fonte independente; cnpj.ws fecha a fila). Só sai daqui o número do CNPJ. A etapa é
+     VIVA e OPCIONAL: nunca trava o processo, pode ser marcada "não se aplica" (abertura sem CNPJ,
+     ato sem interesse tributário), e se o ato muda CNAE, capital ou sócios depois de concluída,
+     ela volta a pedir conferência. O que ela guarda anda com o rascunho e com o trabalho salvo. */
+  var _analise=null;
+  const FONTES_CNPJ=[
+    {nome:"BrasilAPI",     url:c=>"https://brasilapi.com.br/api/cnpj/v1/"+c, norm:j=>_fichaDeBrasilAPI(j)},
+    {nome:"OpenCNPJ",      url:c=>"https://api.opencnpj.org/"+c,             norm:j=>_fichaDeOpenCNPJ(j)},
+    {nome:"minhareceita",  url:c=>"https://minhareceita.org/"+c,             norm:j=>_fichaDeBrasilAPI(j)},
+    {nome:"cnpj.ws",       url:c=>"https://publica.cnpj.ws/cnpj/"+c,         norm:j=>_fichaDeCnpjWs(j)}
+  ];
+  const _cnaeFmt=cod=>{ const d=String(cod||"").replace(/\D/g,""); return d.length===7?d.slice(0,4)+"-"+d[4]+"/"+d.slice(5):String(cod||""); };
+  const _simNao=v=>{ if(v===true||v===false) return v; if(v===null||v===undefined||v==="") return null;
+    const s=String(v).trim().toLowerCase(); return (s==="sim"||s==="s"||s==="true")?true:((s==="não"||s==="nao"||s==="n"||s==="false")?false:null); };
+  const _capital=v=>{ if(typeof v==="number") return v; const s=String(v||"").trim(); if(!s) return null;
+    const n=/^\d+(\.\d+)?$/.test(s)?parseFloat(s):parseFloat(s.replace(/\./g,"").replace(",",".")); return isNaN(n)?null:n; };
+  const _fmtCnpj14=c=>String(c||"").replace(/^(..)(...)(...)(....)(..)$/,"$1.$2.$3/$4-$5");
+  function _fichaDeBrasilAPI(j){ if(!j||!j.razao_social) return null; return {
+    razao:j.razao_social, fantasia:j.nome_fantasia||"", situacao:{txt:j.descricao_situacao_cadastral||"",data:j.data_situacao_cadastral||""},
+    natureza:j.natureza_juridica||"", porte:j.porte||j.descricao_porte||"", capital:_capital(j.capital_social), inicio:j.data_inicio_atividade||"",
+    endereco:{log:[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(" "),num:j.numero||"",comp:j.complemento||"",bairro:j.bairro||"",mun:j.municipio||"",uf:j.uf||"",cep:String(j.cep||"")},
+    cnaePrincipal:{codigo:_cnaeFmt(j.cnae_fiscal),descricao:j.cnae_fiscal_descricao||""},
+    cnaes:(j.cnaes_secundarios||[]).filter(x=>x&&Number(x.codigo)).map(x=>({codigo:_cnaeFmt(x.codigo),descricao:x.descricao||""})),
+    qsa:(j.qsa||[]).map(s=>({nome:s.nome_socio||"",qualificacao:s.qualificacao_socio||"",entrada:s.data_entrada_sociedade||""})),
+    simples:{optante:_simNao(j.opcao_pelo_simples),desde:j.data_opcao_pelo_simples||"",mei:_simNao(j.opcao_pelo_mei),meiDesde:j.data_opcao_pelo_mei||""}, base:"" }; }
+  function _fichaDeOpenCNPJ(j){ if(!j||!j.razao_social) return null;
+    const lista=Array.isArray(j.cnaes)?j.cnaes:[], sec=Array.isArray(j.cnaes_secundarios)?j.cnaes_secundarios:[], princ=lista.find(x=>x&&x.is_principal)||null;
+    return { razao:j.razao_social, fantasia:j.nome_fantasia||"", situacao:{txt:j.situacao_cadastral||"",data:j.data_situacao_cadastral||""},
+      natureza:j.natureza_juridica||"", porte:j.porte_empresa||j.porte||"", capital:_capital(j.capital_social), inicio:j.data_inicio_atividade||"",
+      endereco:{log:[j.tipo_logradouro,j.logradouro].filter(Boolean).join(" "),num:j.numero||"",comp:j.complemento||"",bairro:j.bairro||"",mun:j.municipio||"",uf:j.uf||"",cep:String(j.cep||"")},
+      cnaePrincipal:{codigo:_cnaeFmt(j.cnae_principal||(princ&&princ.codigo)),descricao:(princ&&princ.descricao)||j.cnae_principal_descricao||""},
+      cnaes:lista.length?lista.filter(x=>x&&!x.is_principal).map(x=>({codigo:_cnaeFmt(x.codigo),descricao:x.descricao||""}))
+                        :sec.map(x=>(x&&typeof x==="object")?{codigo:_cnaeFmt(x.codigo),descricao:x.descricao||""}:{codigo:_cnaeFmt(x),descricao:""}),
+      qsa:(j.QSA||j.qsa||[]).map(s=>({nome:s.nome_socio||s.nome||"",qualificacao:s.qualificacao_socio||"",entrada:s.data_entrada_sociedade||s.data_entrada||""})),
+      simples:{optante:_simNao(j.opcao_simples),desde:j.data_opcao_simples||"",mei:_simNao(j.opcao_mei),meiDesde:j.data_opcao_mei||""}, base:"" }; }
+  function _fichaDeCnpjWs(j){ if(!j||!j.razao_social) return null; const e=j.estabelecimento||{}, s=j.simples||null;
+    return { razao:j.razao_social, fantasia:e.nome_fantasia||"", situacao:{txt:e.situacao_cadastral||"",data:e.data_situacao_cadastral||""},
+      natureza:(j.natureza_juridica||{}).descricao||"", porte:(j.porte||{}).descricao||"", capital:_capital(j.capital_social), inicio:e.data_inicio_atividade||"",
+      endereco:{log:[e.tipo_logradouro,e.logradouro].filter(Boolean).join(" "),num:e.numero||"",comp:e.complemento||"",bairro:e.bairro||"",mun:(e.cidade||{}).nome||"",uf:(e.estado||{}).sigla||"",cep:String(e.cep||"")},
+      cnaePrincipal:{codigo:_cnaeFmt((e.atividade_principal||{}).id),descricao:(e.atividade_principal||{}).descricao||""},
+      cnaes:(e.atividades_secundarias||[]).map(x=>({codigo:_cnaeFmt(x.id),descricao:x.descricao||""})),
+      qsa:(j.socios||[]).map(x=>({nome:x.nome||"",qualificacao:(x.qualificacao_socio||{}).descricao||"",entrada:x.data_entrada||""})),
+      simples:{optante:s?_simNao(s.simples):null,desde:(s&&s.data_opcao_simples)||"",mei:s?_simNao(s.mei):null,meiDesde:(s&&s.data_opcao_mei)||""},
+      base:String(j.atualizado_em||"").slice(0,10) }; }
+  async function consultarCnpjCascata(c){
+    c=_cnpjLimpo(c); if(c.length!==14) return {ok:false,msg:"CNPJ deve ter 14 caracteres"};
+    if(!validaCNPJ(c)) return {ok:false,msg:"CNPJ inválido (dígito verificador não fecha)"};
+    let naoAchou=0; const erros=[];
+    for(const f of FONTES_CNPJ){
+      try{ const r=await fetchComTempo(f.url(c),9000);
+        if(r.status===404){ naoAchou++; if(naoAchou>=2) break; continue; }   // duas fontes sem o CNPJ: não consta na base mensal
+        if(r.status===429){ erros.push(f.nome+": limite de consultas"); continue; }
+        if(!r.ok){ erros.push(f.nome+": erro "+r.status); continue; }
+        const ficha=f.norm(await r.json()); if(!ficha){ erros.push(f.nome+": resposta sem dados"); continue; }
+        ficha.cnpj=c; ficha.fonte=f.nome; ficha.consultadoEm=new Date().toISOString(); return {ok:true,ficha};
+      }catch(e){ erros.push(f.nome+": "+((e&&e.name==="AbortError")?"tempo esgotado":"sem resposta")); }
+    }
+    if(naoAchou && !erros.length) return {ok:false,naoExiste:true,msg:"CNPJ não consta na base pública da Receita (a base é mensal: empresa muito nova pode ainda não aparecer)"};
+    return {ok:false,offline:true,msg:"nenhuma fonte respondeu — "+(erros.join("; ")||"sem conexão")};
+  }
+  function cnpjDaAnalise(){
+    const f=_cnpjLimpo(($("cnpj")||{}).value||""); if(f.length===14) return f;
+    const sid=(_solicLigada===null||_solicLigada===undefined)?solicDoAto():_solicLigada, r=sid?lerSolic().find(x=>x.id===sid):null;
+    const s=_cnpjLimpo((r&&r.cnpj)||""); return s.length===14?s:"";
+  }
+  // o que, mudando no ato depois da análise concluída, pede nova conferência
+  function _assinaturaAnalise(d){ try{ d=d||coletar(); return JSON.stringify({o:(d.objeto||"").trim(),c:d.capital||0,s:(d.socios||[]).map(x=>(x.nome||"").trim()).filter(Boolean).sort(),j:_cnpjLimpo(d.cnpj||"")}); }catch(e){ return ""; } }
+  function estadoAnalise(d){
+    const a=_analise||{};
+    if(a.naoSeAplica) return ["f","não se aplica"];
+    if(a.concluidaEm){ return (a.assinatura && a.assinatura!==_assinaturaAnalise(d))?["a","⚠ o ato mudou: reconferir"]:["f","analisada "+a.concluidaEm]; }
+    if(a.ficha) return ["","ficha lida · concluir"];
+    return ["",cnpjDaAnalise()?"ficha · pendências · enquadramento":"sem CNPJ (abertura)"];
+  }
+  function marcarAnalise(campos){ if(!_analise||typeof _analise!=="object") _analise={}; Object.assign(_analise,campos||{}); _atoAlterado=true; salvarRascunho(); renderEtapaAnalise(); atualizarEtapas(); }
+  const _brl=v=>(v===null||v===undefined||isNaN(v))?"":"R$ "+Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const _dataISOouBR=s=>{ s=String(s||""); const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[3]+"/"+m[2]+"/"+m[1]:s; };
+  function _htmlFicha(f){
+    const kv=(k,v)=>v?'<div><div class="an-k">'+k+'</div><div class="an-v">'+v+'</div></div>':"";
+    const sit=(f.situacao.txt||"").toUpperCase(), ativa=/ATIVA/.test(sit)&&!/INATIVA/.test(sit);
+    const simples=f.simples||{}; let sTxt, sCls="";
+    if(simples.optante===true){ sTxt="Optante pelo Simples Nacional"+(simples.desde?" desde "+_dataISOouBR(simples.desde):""); sCls="ok"; }
+    else if(simples.optante===false){ sTxt="Não optante pelo Simples (segundo a base mensal)"; sCls="w"; }
+    else sTxt="Simples: sem informação na base";
+    if(simples.mei===true) sTxt+=" · MEI"+(simples.meiDesde?" desde "+_dataISOouBR(simples.meiDesde):"");
+    const end=[f.endereco.log,f.endereco.num,f.endereco.comp].filter(Boolean).join(", ")+(f.endereco.bairro?" — "+f.endereco.bairro:"")+(f.endereco.mun?", "+f.endereco.mun+"/"+f.endereco.uf:"")+(f.endereco.cep?" · CEP "+f.endereco.cep.replace(/^(\d{5})(\d{3})$/,"$1-$2"):"");
+    return '<div class="an-cab"><b>'+escHtml(f.razao)+'</b>'+(f.fantasia?' <span class="hint">('+escHtml(f.fantasia)+')</span>':"")
+      +' <span class="an-tag '+(ativa?"ok":"bad")+'">'+escHtml(f.situacao.txt||"situação ?")+(f.situacao.data?" desde "+escHtml(_dataISOouBR(f.situacao.data)):"")+'</span></div>'
+      +'<div class="an-grid">'+kv("CNPJ",escHtml(_fmtCnpj14(f.cnpj)))+kv("Natureza jurídica",escHtml(f.natureza))+kv("Porte",escHtml(f.porte))+kv("Capital social",escHtml(_brl(f.capital)))
+      +kv("Início de atividade",escHtml(_dataISOouBR(f.inicio)))+kv("Endereço",escHtml(end))+'</div>'
+      +'<div class="an-k" style="margin-top:8px">CNAE principal</div><div class="an-v"><b>'+escHtml(f.cnaePrincipal.codigo)+'</b> '+escHtml(f.cnaePrincipal.descricao)+'</div>'
+      +(f.cnaes.length?'<details class="an-det"><summary>'+f.cnaes.length+' CNAE'+(f.cnaes.length>1?"s secundários":" secundário")+'</summary><ul>'+f.cnaes.map(x=>'<li><b>'+escHtml(x.codigo)+'</b> '+escHtml(x.descricao)+'</li>').join("")+'</ul></details>':'<div class="hint">Sem CNAE secundário.</div>')
+      +(f.qsa.length?'<details class="an-det" open><summary>Quadro societário ('+f.qsa.length+')</summary><ul>'+f.qsa.map(s=>'<li>'+escHtml(s.nome)+(s.qualificacao?' <span class="hint">— '+escHtml(s.qualificacao)+'</span>':"")+(s.entrada?' <span class="hint">· desde '+escHtml(_dataISOouBR(s.entrada))+'</span>':"")+'</li>').join("")+'</ul></details>':"")
+      +'<div class="an-simples '+sCls+'">'+escHtml(sTxt)+' <span class="hint">· a prova oficial é a <a href="https://consopt.www8.receita.fazenda.gov.br/consultaoptantes" target="_blank" rel="noopener">Consulta Optantes</a></span></div>'
+      +'<div class="hint an-rodape">Base pública da Receita (carga mensal'+(f.base?", "+escHtml(_dataISOouBR(f.base)):"")+') via '+escHtml(f.fonte)+' · consultado em '+escHtml(_dataISOouBR(f.consultadoEm))+'</div>';
+  }
+  function renderEtapaAnalise(){
+    const box=$("etAnalise"); if(!box) return;
+    const a=_analise||{}, c=cnpjDaAnalise(), E=estadoAnalise();
+    const st=$("anStatus"); if(st) st.innerHTML=a.naoSeAplica
+      ?'<div class="hint" style="margin-bottom:10px">Marcada como <b>não se aplica</b>'+(a.naoSeAplicaEm?" em "+escHtml(a.naoSeAplicaEm):"")+'. O que foi lido fica guardado; reabra se mudar de ideia.</div>'
+      :(a.concluidaEm?(E[0]==="a"?'<div class="et-av">⚠ O ato mudou (objeto, capital, sócios ou CNPJ) depois da análise de '+escHtml(a.concluidaEm)+': confira de novo e conclua outra vez.</div>'
+                                 :'<div class="et-ok">✓ Análise concluída em '+escHtml(a.concluidaEm)+(a.concluidaPor?" por "+escHtml(a.concluidaPor):"")+'. Se o ato mudar objeto, capital ou sócios, ela pede nova conferência.</div>')
+        :'<div class="hint" style="margin-bottom:10px">Olhe a empresa antes de mexer no ato. A ficha vem da base pública da Receita, atualizada por mês; ela não substitui a Consulta Optantes nem as certidões.</div>');
+    const f=$("anFicha"); if(!f) return;
+    if(!c) f.innerHTML='<div class="hint">Sem CNPJ no ato nem no pedido. Numa <b>abertura</b> a ficha ainda não existe: siga para a etapa '+ET.FORM+' ou marque a análise como “não se aplica”.</div>';
+    else if(!a.ficha || a.ficha.cnpj!==c) f.innerHTML='<div class="bar"><span class="hint">CNPJ '+escHtml(_fmtCnpj14(c))+'</span><button type="button" class="btn p mini" id="anConsultar">🔎 Consultar na Receita</button></div><div id="anFichaMsg" class="hint"></div>';
+    else f.innerHTML=_htmlFicha(a.ficha)+'<div class="bar" style="margin-top:8px"><button type="button" class="btn o mini" id="anConsultar">↻ Atualizar</button></div><div id="anFichaMsg" class="hint"></div>';
+    const b=$("anConsultar"); if(b) b.addEventListener("click",async()=>{ const cc=cnpjDaAnalise(); if(!cc) return; b.disabled=true;
+      const m=$("anFichaMsg"); if(m){ m.className="hint"; m.textContent="consultando a base pública…"; }
+      const res=await consultarCnpjCascata(cc); b.disabled=false;
+      if(!res.ok){ if(m){ m.className=res.naoExiste?"et-av":"hint"; m.textContent=(res.offline?"⚠ ":"✗ ")+res.msg; } return; }
+      marcarAnalise({ficha:res.ficha}); toast("Ficha da empresa lida ("+res.ficha.fonte+").","ok"); });
+    const ac=$("anAcoes"); if(!ac) return;
+    ac.innerHTML=(a.naoSeAplica||(a.concluidaEm&&E[0]!=="a"))?'<button type="button" class="btn o mini" data-an="reabrir">↺ Reabrir a análise</button>'
+      :'<button type="button" class="btn ok mini" data-an="concluir">✓ Concluir a análise</button><button type="button" class="btn o mini" data-an="nao">Não se aplica a este ato</button>';
+    ac.querySelectorAll("[data-an]").forEach(x=>x.addEventListener("click",()=>{ const k=x.dataset.an, hoje=hojeBR();
+      if(k==="reabrir") marcarAnalise({naoSeAplica:false,naoSeAplicaEm:"",concluidaEm:"",concluidaPor:"",assinatura:""});
+      else if(k==="nao") marcarAnalise({naoSeAplica:true,naoSeAplicaEm:hoje});
+      else if(k==="concluir") marcarAnalise({concluidaEm:hoje,concluidaPor:_quem(_meuEmail()),assinatura:_assinaturaAnalise()}); }));
+  }
   function renderEtapaPedido(){
     const box=$("etPedido"); if(!box) return;
     const sid=(_solicLigada===null)?solicDoAto():_solicLigada, r=sid?lerSolic().find(x=>x.id===sid):null;
@@ -7005,19 +7148,19 @@ window.TINA=(function(){
       +'<div class="bar" style="margin-top:8px"><button type="button" class="btn o mini" id="etCriarSolic">＋ Criar uma solicitação para este ato</button><span class="hint">— para o comercial acompanhar e o Hub receber o aviso.</span></div>';
     const b=$("etLigarBtn"); if(b) b.addEventListener("click",()=>{ const v=$("etLigarSel").value; if(v){ ligarSolic(v); toast("Ato ligado à solicitação.","ok"); renderEtapaPedido(); atualizarEtapas(); } });
     const cr=$("etCriarSolic"); if(cr) cr.addEventListener("click",()=>{
-      if(!((($("razao")||{}).value||"").trim())){ toast("Preencha ao menos a razão social do ato (etapa 2) antes.","warn"); return; }
+      if(!((($("razao")||{}).value||"").trim())){ toast("Preencha ao menos a razão social do ato (etapa "+ET.FORM+") antes.","warn"); return; }
       const c=registrarCaso(); salvarTrabalho(c.id); const r=criarSolicDoAto(c.id);
       if(r){ _solicLigada=r.id; renderLigacao(); renderEtapaPedido(); atualizarEtapas(); } });
   }
   function statusConfirmacao(){
     const box=$("etConfSt"); if(!box) return;
     const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null; let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(coletar())); }catch(e){}
-    box.innerHTML=ok?'<div class="et-ok">✓ O cliente confirmou'+(c.confirmadoPor?" ("+escHtml(c.confirmadoPor)+")":"")+" em "+escHtml(c.confirmadoEm||"")+'. O documento já pode ser baixado na etapa 5.</div>'
+    box.innerHTML=ok?'<div class="et-ok">✓ O cliente confirmou'+(c.confirmadoPor?" ("+escHtml(c.confirmadoPor)+")":"")+" em "+escHtml(c.confirmadoEm||"")+'. O documento já pode ser baixado na etapa '+ET.DOC+'.</div>'
       :((c&&c.confirmado)?'<div class="et-av">⚠ O ato mudou depois da confirmação de '+escHtml(c.confirmadoEm||"")+': mande o e-mail de novo e registre a nova resposta (ou use a liberação de emergência).</div>'
       :'<div class="hint" style="margin-bottom:10px">Mande o resumo ao cliente; quando ele responder “de acordo”, registre ao lado. Ao abrir o e-mail, o ato fica salvo na lista de processos.</div>');
   }
-  function preencherEtapa6(){
-    if(_etapa!==6 || !$("etProtoSt")) return;
+  function preencherEtapaProto(){
+    if(_etapa!==ET.PROTO || !$("etProtoSt")) return;
     const orgao=(MODE||"").startsWith("sia")?"OAB":"Junta Comercial"; if($("etOrgao")) $("etOrgao").textContent=orgao;
     const sid=(_solicLigada===null)?solicDoAto():_solicLigada, r=sid?lerSolic().find(x=>x.id===sid):null;
     const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null;
@@ -7037,15 +7180,16 @@ window.TINA=(function(){
     const box=$("etProtoAcoes");
     box.innerHTML=ac.map(a=>'<button type="button" class="btn '+a[2]+' mini" data-et-p="'+a[0]+'">'+a[1]+"</button>").join("");
     box.querySelectorAll("[data-et-p]").forEach(b=>b.addEventListener("click",()=>{ const k=b.dataset.etP;
-      if(k==="exig") registrarExigencia(r.id); else if(k==="reproto") reprotocolar(r.id); else if(k==="corrigir") irEtapa(2);
+      if(k==="exig") registrarExigencia(r.id); else if(k==="reproto") reprotocolar(r.id); else if(k==="corrigir") irEtapa(ET.FORM);
       else if(k==="fim") finalizarSolic(r.id,true); else if(k==="cancelar") finalizarSolic(r.id,"cancelar"); else if(k==="reabrir") finalizarSolic(r.id,false);
       else if(k==="cliente") avisarCliente(r.id); }));
     const ex=(r&&r.exigencias)||[];
     $("etExig").innerHTML=ex.length?'<div class="et-h4" style="margin-top:12px">Exigências deste pedido</div>'+ex.map((e,i)=>'<div class="sol-exig">'+(i+1)+"ª · "+escHtml(_dataBR(e.em))+(e.cat?" — "+escHtml(e.cat):"")+(e.txt?": "+escHtml(e.txt):"")+"</div>").join(""):"";
   }
-  const PREENCHE_ET={
-    1:async()=>{ renderEtapaPedido(); },
-    3:async(p,seq)=>{
+  const PREENCHE_ET={};
+  PREENCHE_ET[ET.PEDIDO]=async()=>{ renderEtapaPedido(); };
+  PREENCHE_ET[ET.ANALISE]=async()=>{ renderEtapaAnalise(); };
+  PREENCHE_ET[ET.CONF]=async(p,seq)=>{
       if(!document.querySelector("#preview section.docxprev")){ await gerarPreview(); if(seq!==_etSeq) return; }
       hospedarModal("protoModal",p.querySelector('[data-slot="proto"]'));
       if(_comparacao.length) hospedarModal("compModal",p.querySelector('[data-slot="comp"]'));
@@ -7053,33 +7197,32 @@ window.TINA=(function(){
       await abrirPreProtocolo(); if(seq!==_etSeq) return;
       if(_comparacao.length) abrirComparacao();
       fitPreview();
-    },
-    4:async(p)=>{
-      if(!((($("razao")||{}).value||"").trim())){ $("etConfSt").innerHTML='<div class="et-av">Preencha o ato (etapa 2) antes de pedir a confirmação do cliente.</div>'; return; }
+    };
+  PREENCHE_ET[ET.CLIENTE]=async(p)=>{
+      if(!((($("razao")||{}).value||"").trim())){ $("etConfSt").innerHTML='<div class="et-av">Preencha o ato (etapa '+ET.FORM+') antes de pedir a confirmação do cliente.</div>'; return; }
       hospedarModal("emailModal",p.querySelector('[data-slot="email"]'));
       hospedarModal("gateModal",p.querySelector('[data-slot="gate"]'));
       if(!_emailEditado || !emailIdAtual) gerarEmail();
       abrirGateSoRegistro();
       statusConfirmacao();
-    },
-    5:async(p)=>{
+    };
+  PREENCHE_ET[ET.DOC]=async(p)=>{
       hospedarModal("enviarModal",p.querySelector('[data-slot="enviar"]'));
       abrirEnviar();
       p.querySelectorAll("[data-et-baixar]").forEach(b=>b.addEventListener("click",()=>{ const bt=$(b.dataset.etBaixar==="pdf"?"btnPDF":"btnBaixar"); if(bt) bt.click(); }));
       const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null; let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(coletar())); }catch(e){}
       $("etDocSt").innerHTML=(ok?'<div class="et-ok">✓ Confirmado pelo cliente em '+escHtml(c.confirmadoEm||"")+". O documento sai direto.</div>"
-        :'<div class="et-av">O cliente ainda não confirmou. Ao baixar, o sistema pede o registro da confirmação (etapa 4) ou a liberação de emergência, com justificativa.</div>')
+        :'<div class="et-av">O cliente ainda não confirmou. Ao baixar, o sistema pede o registro da confirmação (etapa '+ET.CLIENTE+') ou a liberação de emergência, com justificativa.</div>')
         +((c&&c.concluidoEm)?'<div class="hint" style="margin-bottom:8px">Último download em '+escHtml(_dataBR(c.concluidoEm))+".</div>":"");
-    },
-    6:async(p)=>{ hospedar($("protoSolic"),p.querySelector('[data-slot="protocolei"]')); preencherEtapa6(); }
-  };
+    };
+  PREENCHE_ET[ET.PROTO]=async(p)=>{ hospedar($("protoSolic"),p.querySelector('[data-slot="protocolei"]')); preencherEtapaProto(); };
   async function irEtapa(n){
-    n=Math.min(6,Math.max(1,Number(n)||2));
+    n=Math.min(ET_ULT,Math.max(1,Number(n)||ET.FORM));
     devolverHospedes(); _etapa=n; const seq=++_etSeq;
     document.body.dataset.etapaAtual=String(n);
     document.querySelectorAll("#etapas .etapa").forEach(b=>{ const on=Number(b.dataset.etapa)===n; b.classList.toggle("on",on); if(on) b.setAttribute("aria-current","step"); else b.removeAttribute("aria-current"); });
     const p=$("etapaPainel"); if(!p) return;
-    if(n===2){ p.innerHTML=""; p.style.display="none"; agendarIndice(); fitPreview(); atualizarEtapas(); return; }
+    if(n===ET.FORM){ p.innerHTML=""; p.style.display="none"; agendarIndice(); fitPreview(); atualizarEtapas(); return; }
     p.style.display=""; p.innerHTML=MOLDE_ET[n]();
     p.querySelectorAll("[data-ir-etapa]").forEach(b=>b.addEventListener("click",()=>{ irEtapa(b.dataset.irEtapa); rolarAoProcesso(); }));
     try{ await PREENCHE_ET[n](p,seq); }catch(e){ console.error(e); }
@@ -7088,13 +7231,13 @@ window.TINA=(function(){
   // depois do download o envio ao cliente não abre mais sozinho (abria duas vezes com .docx e PDF): fica na etapa 5
   function aposBaixar(){
     atualizarEtapas();
-    if(_etapa===5){ abrirEnviar(); return; }
-    toast("✓ Documento baixado. Para mandar ao cliente conferir e assinar: etapa 5 — Documento e assinatura.","ok",6500);
+    if(_etapa===ET.DOC){ abrirEnviar(); return; }
+    toast("✓ Documento baixado. Para mandar ao cliente conferir e assinar: etapa "+ET.DOC+" — Documento e assinatura.","ok",6500);
   }
   function ligarProcesso(){
-    document.body.dataset.etapaAtual=String(_etapa||2);
-    document.querySelectorAll("#etapas .etapa").forEach(b=>b.addEventListener("click",()=>{ irEtapa(b.dataset.etapa); if(Number(b.dataset.etapa)!==2) rolarAoProcesso(); }));
-    if($("btnProximo")) $("btnProximo").addEventListener("click",()=>{ irEtapa(3); rolarAoProcesso(); });
+    document.body.dataset.etapaAtual=String(_etapa||ET.FORM);
+    document.querySelectorAll("#etapas .etapa").forEach(b=>b.addEventListener("click",()=>{ irEtapa(b.dataset.etapa); if(Number(b.dataset.etapa)!==ET.FORM) rolarAoProcesso(); }));
+    if($("btnProximo")) $("btnProximo").addEventListener("click",()=>{ irEtapa(ET.CONF); rolarAoProcesso(); });
     if($("btnVoltarFila")) $("btnVoltarFila").addEventListener("click",()=>pedirSalvar(abrirFila));
     if($("btnSalvarAto")) $("btnSalvarAto").addEventListener("click",()=>{
       if(!_formOcupado()){ toast("O formulário está vazio: não há o que salvar.","warn"); return; } salvarAtoAtual(); });
@@ -7124,7 +7267,7 @@ window.TINA=(function(){
     document.querySelectorAll("[data-rec]").forEach(b=>b.addEventListener("click",()=>{
       const sel=b.dataset.recDe==="filiais"?"#filiais > .filial":"#socios > .socio";
       document.querySelectorAll(sel).forEach(c=>alternarCard(c,b.dataset.rec==="fechar")); }));
-    document.addEventListener("focusin",e=>{ const c=e.target&&e.target.closest&&e.target.closest(".socio.recolhido"); if(c && !e.target.closest(".rec-linha")) alternarCard(c,false); });
+    document.addEventListener("focusin",e=>{ const c=e.target&&e.target.closest&&e.target.closest(".socio.recolhido, .filial.recolhido"); if(c && !e.target.closest(".rec-linha")) alternarCard(c,false); });
     // janela emprestada a uma etapa: em vez de abrir por cima, o conteúdo já está na tela
     ["protoModal","compModal","emailModal","gateModal","enviarModal"].forEach(id=>{ const m=$(id); if(!m) return;
       new MutationObserver(()=>{ if(m.classList.contains("open") && modalHospedado(m)){ m.classList.remove("open"); } }).observe(m,{attributes:true,attributeFilter:["class"]}); });
@@ -7132,14 +7275,14 @@ window.TINA=(function(){
     { const m=$("solicModal"); if(m) new MutationObserver(()=>{
         setTimeout(ajustarCabecalho,0);
         if(!m.classList.contains("open") && document.body.classList.contains("na-fila")){
-          document.body.classList.remove("na-fila"); tituloLista(false); irEtapa(2); atualizarCabProc(); }
+          document.body.classList.remove("na-fila"); tituloLista(false); irEtapa(ET.FORM); atualizarCabProc(); }
       }).observe(m,{attributes:true,attributeFilter:["class"]}); }
-    // etapa 4: confirmou → etapa 5; "Guardar e fazer outro" → volta à lista
+    // confirmação do cliente: confirmou → documento; "Guardar e fazer outro" → volta à lista
     ["btnGateRegistrar","btnGateEmergencia"].forEach(id=>{ if($(id)) $(id).addEventListener("click",()=>setTimeout(()=>{
-      if(_etapa!==4) return; const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null; let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(coletar())); }catch(e){}
-      if(ok){ irEtapa(5); rolarAoProcesso(); } else statusConfirmacao(); },60)); });
+      if(_etapa!==ET.CLIENTE) return; const c=casoAtualId?lerCasos().find(x=>x.id===casoAtualId):null; let ok=false; try{ ok=!!(c&&c.confirmado&&c.confirmHash===hashConfirmacao(coletar())); }catch(e){}
+      if(ok){ irEtapa(ET.DOC); rolarAoProcesso(); } else statusConfirmacao(); },60)); });
     if($("btnGateGuardar")) $("btnGateGuardar").addEventListener("click",()=>setTimeout(()=>{
-      if(_etapa!==2 && !casoAtualId && !_formOcupado()){ irEtapa(2); abrirFila(); } },0));
+      if(_etapa!==ET.FORM && !casoAtualId && !_formOcupado()){ irEtapa(ET.FORM); abrirFila(); } },0));
     atualizarEtapas();
   }
 
@@ -7577,7 +7720,7 @@ window.TINA=(function(){
       const c=registrarCaso();                                  // garante o caso (e o ID) para pendurar o trabalho
       if(!salvarTrabalho(c.id)){ if($("gateStat")){$("gateStat").style.color="var(--err)";$("gateStat").textContent="Não foi possível guardar (armazenamento cheio). Exporte um backup e remova casos antigos.";} return; }
       _gateAcao=null; _fecharGate();
-      limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; renderLigacao();
+      limparCampos(); aplicarPadroesForm(); limparRascunho(); casoAtualId=null; _solicLigada=null; _analise=null; renderLigacao();
       if($("cmdRapido")) $("cmdRapido").value=""; _pdfNomeAnterior=""; _atoAlterado=false;
       toast("Ato guardado no caso #"+c.id+". Formulário livre para o próximo — ele fica na lista de processos para você continuar.","ok");
     });
@@ -7728,7 +7871,7 @@ window.TINA=(function(){
     let draftSalvo=null; try{draftSalvo=JSON.parse(localStorage.getItem("tinaDraft")||"null");}catch(e){}
     if(draftVencido(draftSalvo)){ limparRascunho(); draftSalvo=null; }   // rascunho velho (24h+) é apagado sozinho — contém dados pessoais
     if(draftTemConteudo(draftSalvo) && $("draftBanner")){ $("draftBanner").classList.add("show");
-      if($("btnDraftRestore")) $("btnDraftRestore").addEventListener("click",()=>{restaurarForm(draftSalvo);$("draftBanner").classList.remove("show");toast("Rascunho restaurado.","ok");sairDaFila(2);});
+      if($("btnDraftRestore")) $("btnDraftRestore").addEventListener("click",()=>{restaurarForm(draftSalvo);$("draftBanner").classList.remove("show");toast("Rascunho restaurado.","ok");sairDaFila(ET.FORM);});
       if($("btnDraftDiscard")) $("btnDraftDiscard").addEventListener("click",()=>{limparRascunho();$("draftBanner").classList.remove("show");toast("Rascunho descartado.","info");}); }
     document.addEventListener("input",salvarRascunhoDeb);
     document.addEventListener("change",salvarRascunhoDeb);
@@ -7765,7 +7908,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,corrigirRedacaoMantida,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,corrigirRedacaoMantida,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,analiseAtual:()=>_analise,marcarAnalise,consultarCnpjCascata,fichaDeBrasilAPI:_fichaDeBrasilAPI,fichaDeOpenCNPJ:_fichaDeOpenCNPJ,fichaDeCnpjWs:_fichaDeCnpjWs,estadoAnalise,etapas:()=>ET,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();

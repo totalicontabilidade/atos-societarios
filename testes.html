@@ -1490,18 +1490,22 @@
       reg("A página declara uma política de segurança", !!meta);
       var csp=meta?meta.getAttribute("content"):"";
       var conn=(csp.match(/connect-src([^;]*)/)||["",""])[1];
-      // o código saiu do index.html na v1.51 (js/app.js): procura nos dois
-      var fonte=await (await W.fetch("index.html?csp="+Date.now(),{cache:"no-store"})).text()
-               +await (await W.fetch("js/app.js?csp="+Date.now(),{cache:"no-store"})).text();
+      // o código saiu do index.html na v1.51 (js/app.js) e hoje está em vários js/*.js: varre todos os que o index carrega
+      var fonte=await (await W.fetch("index.html?csp="+Date.now(),{cache:"no-store"})).text();
+      var srcs=[], reSrc=/<script[^>]+src="(js\/[^"?]+)/g, ms; while(ms=reSrc.exec(fonte)){ if(srcs.indexOf(ms[1])<0) srcs.push(ms[1]); }
+      for(var si=0; si<srcs.length; si++){ fonte+=await (await W.fetch(srcs[si]+"?csp="+Date.now(),{cache:"no-store"})).text(); }
+      reg("A varredura da CSP cobre todos os scripts do index ("+srcs.length+")", srcs.length>=5 && srcs.indexOf("js/app.js")>=0, srcs.join(", "));
       /* Só conta o que é CONEXÃO (fetch/XHR). Abrir o WhatsApp ou o Gmail é NAVEGAÇÃO — sai da
          página, não busca dado de dentro dela, e connect-src não tem nada a ver com isso. */
-      var usados=[]; var re=/fetch\(\s*["'`]https:\/\/([a-z0-9.-]+)/gi, m;
+      var usados=[]; var re=/fetch(?:ComTempo)?\(\s*["'`]https:\/\/([a-z0-9.-]+)/gi, m;
       while(m=re.exec(fonte)){ if(usados.indexOf(m[1])<0) usados.push(m[1]); }
+      // as fontes de CNPJ em cascata (v1.70) ficam numa tabela, não em fetch("...") literal
+      var reUrl=/url:c=>["'`]https:\/\/([a-z0-9.-]+)/gi; while(m=reUrl.exec(fonte)){ if(usados.indexOf(m[1])<0) usados.push(m[1]); }
       var faltando=usados.filter(function(h){ return conn.indexOf(h)<0; });
       reg("Todo endereço externo chamado pelo código está liberado na CSP",
         faltando.length===0, faltando.length?("faltam: "+faltando.join(", ")):conn.trim().slice(0,120));
       // e os quatro que o login e a nuvem precisam, nominalmente
-      ["identitytoolkit.googleapis.com","securetoken.googleapis.com","firestore.googleapis.com","brasilapi.com.br"]
+      ["identitytoolkit.googleapis.com","securetoken.googleapis.com","firestore.googleapis.com","brasilapi.com.br","api.opencnpj.org","minhareceita.org","publica.cnpj.ws","viacep.com.br"]
         .forEach(function(h){ reg("CSP libera "+h, conn.indexOf(h)>=0); });
       reg("A CSP continua fechada para o resto", /default-src 'self'/.test(csp) && /object-src 'none'/.test(csp));
     }catch(e){ reg("Bateria de CSP",false,String(e&&e.message||e).slice(0,120)); }
@@ -1544,7 +1548,7 @@
         "razão “"+($("razao")||{}).value+"” · CNPJ “"+($("cnpj")||{}).value+"”");
       reg("Ao trabalhar, a solicitação sai de “Nova”",
         (JSON.parse(W.localStorage.getItem("tinaSolic")||"[]")[0]||{}).status==="andamento");
-      reg("E vai direto para o ato, na etapa “Dados do ato” (sem copiar nada da solicitação)", !$("solicModal").classList.contains("open") && D.body.dataset.etapaAtual==="2");
+      reg("E vai direto para o ato, na etapa “Dados do ato” (sem copiar nada da solicitação)", !$("solicModal").classList.contains("open") && D.body.dataset.etapaAtual==="3");
       try{ W.localStorage.removeItem("tinaSolic"); }catch(e){}
     }catch(e){ reg("Bateria de solicitações",false,String(e&&e.message||e).slice(0,120)); }
 
@@ -2867,9 +2871,9 @@
       }
       await ate(function(){ return /Documento baixado|Baixado/.test(($("toastWrap")||{}).innerText||"") || /Baixado|PDF/.test(($("status")||{}).textContent||""); }, 15000);
       await espera(400);
-      reg("Depois do PDF, o envio ao cliente não abre sozinho por cima (fica na etapa 5)", !$("enviarModal").classList.contains("open"));
-      D.querySelector('#etapas [data-etapa="5"]').click(); await espera(700);
-      reg("Na etapa 5 o envio ao cliente aparece na tela", !!$("etapaPainel").querySelector("#envMsg") && !$("enviarModal").classList.contains("open"));
+      reg("Depois do PDF, o envio ao cliente não abre sozinho por cima (fica na etapa 6)", !$("enviarModal").classList.contains("open"));
+      D.querySelector('#etapas [data-etapa="6"]').click(); await espera(700);
+      reg("Na etapa 6 o envio ao cliente aparece na tela", !!$("etapaPainel").querySelector("#envMsg") && !$("enviarModal").classList.contains("open"));
       reg("Aviso do envio sem a frase retirada", !/menos exig[êe]ncia na Junta/i.test((($("etapaPainel")||{}).innerText||"")));
       // no desktop o compartilhamento com arquivo falha: o botão não pode aparecer
       var ehCelular=(W.navigator.maxTouchPoints||0)>0 && /Android|iPhone|iPad|iPod/i.test(W.navigator.userAgent||"");
@@ -2889,8 +2893,8 @@
       aberto=null; $("btnEnvWhats").click(); await espera(300);
       reg("Número incompleto é barrado", !aberto && /incompleto/i.test($("envStat").textContent||""));
       W.open=openOrig;
-      D.querySelector('#etapas [data-etapa="2"]').click(); await espera(300);
-      reg("Ao voltar à etapa 2, o envio volta para a sua janela", !!$("enviarModal").querySelector("#envMsg"));
+      D.querySelector('#etapas [data-etapa="3"]').click(); await espera(300);
+      reg("Ao voltar à etapa 3, o envio volta para a sua janela", !!$("enviarModal").querySelector("#envMsg"));
       if($("enviarModal")) $("enviarModal").classList.remove("open");
     }catch(e){ reg("Bateria de envio ao cliente",false,String(e&&e.message||e).slice(0,110)); }
 
@@ -2900,7 +2904,29 @@
       await recarregar(); $=function(id){ return D.getElementById(id); };
       ["tinaSolic","tinaCasos","tinaTrabalhos","tinaDraft","tinaZoom"].forEach(function(k){ try{ W.localStorage.removeItem(k); }catch(e){} });
       var et=function(n){ return D.querySelector('#etapas [data-etapa="'+n+'"]'); };
-      reg("Seis etapas no topo do ato", D.querySelectorAll("#etapas .etapa").length===6 && D.body.dataset.etapaAtual==="2");
+      reg("Sete etapas no topo do ato (v1.70)", D.querySelectorAll("#etapas .etapa").length===7 && D.body.dataset.etapaAtual==="3");
+      reg("A etapa 2 é a análise da empresa e a 3 o formulário", /Análise da empresa/.test(et(2).textContent) && /Dados do ato/.test(et(3).textContent) && /Protocolo/.test(et(7).textContent));
+      // etapa 2: análise da empresa (ficha em cascata, "não se aplica", etapa viva)
+      et(2).click(); await espera(300);
+      reg("Etapa 2 abre a análise na tela e esconde o formulário", !!$("etAnalise") && !!$("anFicha") && !D.querySelector(".form-cards").offsetParent && !$("previewCard").offsetParent);
+      reg("Sem CNPJ, a ficha explica a abertura e oferece “não se aplica”", /Sem CNPJ/.test($("anFicha").textContent) && !!$("anAcoes").querySelector('[data-an="nao"]'));
+      $("anAcoes").querySelector('[data-an="nao"]').click(); await espera(150);
+      reg("“Não se aplica” marca a etapa como feita e guarda no rascunho", et(2).classList.contains("f") && /não se aplica/.test(et(2).textContent) && !!(W.TINA._ux.snapshotForm().analise||{}).naoSeAplica);
+      $("anAcoes").querySelector('[data-an="reabrir"]').click(); await espera(150);
+      reg("“Reabrir” desfaz a marca", !et(2).classList.contains("f"));
+      var fichaBA=W.TINA._ux.fichaDeBrasilAPI({razao_social:"EMPRESA TESTE LTDA",descricao_situacao_cadastral:"ATIVA",cnae_fiscal:6201501,cnae_fiscal_descricao:"Desenvolvimento de programas",cnaes_secundarios:[{codigo:0,descricao:"Não informada"},{codigo:6202300,descricao:"Software customizável"}],qsa:[{nome_socio:"MARIA",qualificacao_socio:"Sócio-Administrador"}],opcao_pelo_simples:true,data_opcao_pelo_simples:"2020-01-01",capital_social:10000,municipio:"ARACAJU",uf:"SE"});
+      reg("Ficha da BrasilAPI normalizada (CNAE formatado, secundário vazio fora, Simples lido)", fichaBA.cnaePrincipal.codigo==="6201-5/01" && fichaBA.cnaes.length===1 && fichaBA.simples.optante===true && fichaBA.qsa[0].nome==="MARIA");
+      var fichaOC=W.TINA._ux.fichaDeOpenCNPJ({razao_social:"X",situacao_cadastral:"Ativa",cnae_principal:"8411600",cnaes_secundarios:["4711302"],opcao_simples:"Não",QSA:[{nome_socio:"JOSE"}],capital_social:"1000.00"});
+      var fichaWS=W.TINA._ux.fichaDeCnpjWs({razao_social:"Y",capital_social:"120000000000.00",natureza_juridica:{descricao:"Ltda"},estabelecimento:{situacao_cadastral:"Ativa",atividade_principal:{id:"6422100",descricao:"Bancos"},atividades_secundarias:[],cidade:{nome:"Aracaju"},estado:{sigla:"SE"}},socios:[{nome:"ANA",qualificacao_socio:{descricao:"Sócio"}}],simples:{simples:"Sim",mei:"Não"},atualizado_em:"2026-10-10T03:00:00.000Z"});
+      reg("Fichas da OpenCNPJ e do cnpj.ws normalizadas para o mesmo formato", fichaOC.simples.optante===false && fichaOC.cnaes[0].codigo==="4711-3/02" && fichaOC.qsa[0].nome==="JOSE" && fichaWS.capital===120000000000 && fichaWS.simples.optante===true && fichaWS.base==="2026-10-10" && fichaWS.cnaePrincipal.codigo==="6422-1/00");
+      var cascata=await W.TINA._ux.consultarCnpjCascata("11.111.111/1111-11");
+      reg("CNPJ com dígito errado é barrado antes de sair para a rede", !cascata.ok && /inválido/.test(cascata.msg));
+      // ficha guardada + ato mudando depois da análise concluída = etapa pede reconferência
+      W.TINA._ux.marcarAnalise({ficha:Object.assign(fichaBA,{cnpj:"00000000000191",fonte:"teste",consultadoEm:"2026-11-06"})}); await espera(100);
+      reg("Com a ficha guardada e sem CNPJ no ato, a etapa pede para consultar o CNPJ do ato", !!$("anConsultar") || /Sem CNPJ/.test($("anFicha").textContent));
+      $("anAcoes").querySelector('[data-an="concluir"]').click(); await espera(150);
+      reg("Concluir marca a etapa como analisada", et(2).classList.contains("f") && /analisada/.test(et(2).textContent));
+      et(3).click(); await espera(200);
       reg("Cabeçalho: “Processos” e “Novo ato”; Painel de casos e E-mail continuam no ☰",
         /Processos/.test($("btnSolic").textContent) && !!$("btnNovoAto") && !!$("btnPainelM") && !!$("btnEmailM") && $("btnPainel").hidden && $("btnEmail").hidden);
       modo("alt"); await espera(200); $("btnExemplo").click(); await espera(700);
@@ -2924,6 +2950,7 @@
       reg("Filial nova nasce aberta, com o que falta no resumo", fl && !fl.classList.contains("recolhido") && /falta: CEP/.test((fl.querySelector(".rec-linha")||{}).textContent||""));
       fl.querySelector(".rec-linha").click();
       reg("Filial recolhe com um clique na linha", fl.classList.contains("recolhido"));
+      reg("Filial recolhida esconde os campos de verdade (v1.70)", !fl.querySelector('[data-g="cep"]').offsetParent && !!fl.querySelector(".rec-linha").offsetParent);
       fl.querySelector("[data-rem]").click(); await espera(100);
       // Exemplo/Limpar na linha do tipo de ato
       reg("“Preencher exemplo” e “Limpar” ficam na linha do tipo de ato", !!$("btnExemplo").closest(".sub-linha"));
@@ -2936,22 +2963,22 @@
       var pg=D.querySelector("#preview .docxprev-wrapper > section"), zAntes=pg.style.zoom;
       try{ W.TINA._ux.domToPdfmake(); }catch(e){}
       reg("O PDF lê a prévia sem o zoom, e o zoom da tela volta depois", pg.style.zoom===zAntes);
-      // etapa 3: pré-protocolo na tela
-      et(3).click(); await espera(1500);
-      reg("Etapa 3 mostra o pré-protocolo na tela, sem abrir janela", !!$("etapaPainel").querySelector("#protoLista") && !$("protoModal").classList.contains("open") && !D.querySelector(".form-cards").offsetParent);
+      // conferência (etapa 4): pré-protocolo na tela
+      et(4).click(); await espera(1500);
+      reg("Etapa 4 (conferência) mostra o pré-protocolo na tela, sem abrir janela", !!$("etapaPainel").querySelector("#protoLista") && !$("protoModal").classList.contains("open") && !D.querySelector(".form-cards").offsetParent);
       reg("Na conferência o documento continua à vista", !!$("previewCard").offsetParent);
-      // etapa 4: e-mail e confirmação na tela; registrar leva à 5
-      et(4).click(); await espera(900);
-      reg("Etapa 4 mostra o e-mail e a resposta do cliente na tela", !!$("etapaPainel").querySelector("#emailCorpo") && !!$("etapaPainel").querySelector("#btnGateRegistrar") && !$("emailModal").classList.contains("open") && !$("gateModal").classList.contains("open"));
+      // confirmação (etapa 5): e-mail e confirmação na tela; registrar leva à 6
+      et(5).click(); await espera(900);
+      reg("Etapa 5 (confirmação) mostra o e-mail e a resposta do cliente na tela", !!$("etapaPainel").querySelector("#emailCorpo") && !!$("etapaPainel").querySelector("#btnGateRegistrar") && !$("emailModal").classList.contains("open") && !$("gateModal").classList.contains("open"));
       reg("O e-mail já mostra o pré-protocolo", /pré-protocolo/i.test(($("emailPrePro")||{}).textContent||""));
       val("gateData","05/11/2026"); val("gateContato","Cliente"); val("gateNota","De acordo");
       $("btnGateRegistrar").click(); await espera(900);
-      reg("Registrar o “de acordo” leva à etapa 5", D.body.dataset.etapaAtual==="5" && /confirmado/.test(et(4).textContent));
-      // etapa 6
-      et(6).click(); await espera(500);
-      reg("Etapa 6 tem o “Protocolei” na tela", !!$("etapaPainel").querySelector("#btnProtocolei") && $("protoSolic").style.display!=="none");
-      et(2).click(); await espera(300);
-      reg("Voltando à etapa 2, tudo volta às janelas de origem", $("protoModal").contains($("protoSolic")) && !!$("emailModal").querySelector("#emailCorpo") && !!$("gateModal").querySelector("#btnGateRegistrar") && !!D.querySelector(".form-cards").offsetParent);
+      reg("Registrar o “de acordo” leva à etapa 6 (documento)", D.body.dataset.etapaAtual==="6" && /confirmado/.test(et(5).textContent));
+      // protocolo (etapa 7)
+      et(7).click(); await espera(500);
+      reg("Etapa 7 (protocolo) tem o “Protocolei” na tela", !!$("etapaPainel").querySelector("#btnProtocolei") && $("protoSolic").style.display!=="none");
+      et(3).click(); await espera(300);
+      reg("Voltando à etapa 3 (formulário), tudo volta às janelas de origem", $("protoModal").contains($("protoSolic")) && !!$("emailModal").querySelector("#emailCorpo") && !!$("gateModal").querySelector("#btnGateRegistrar") && !!D.querySelector(".form-cards").offsetParent);
       // lista de processos como página, com os atos sem solicitação (em aberto = ato salvo para continuar)
       $("btnSalvarAto").click(); await espera(300);
       $("btnSolic").click(); await espera(500);
