@@ -2924,6 +2924,39 @@
       // ficha guardada + ato mudando depois da análise concluída = etapa pede reconferência
       W.TINA._ux.marcarAnalise({ficha:Object.assign(fichaBA,{cnpj:"00000000000191",fonte:"teste",consultadoEm:"2026-11-06"})}); await espera(100);
       reg("Com a ficha guardada e sem CNPJ no ato, a etapa pede para consultar o CNPJ do ato", !!$("anConsultar") || /Sem CNPJ/.test($("anFicha").textContent));
+      val("cnpj","00.000.000/0001-91"); W.TINA._ux.marcarAnalise({}); await espera(150);
+      reg("Com o CNPJ no ato, a ficha guardada aparece e os blocos 2 a 4 abrem", /BANCO|EMPRESA TESTE/.test($("anFicha").textContent) && !!$("anPend") && !!$("anEnq") && !!$("anLaudo") && $("anPend").querySelectorAll("[data-pend]").length>=24);
+      // motor tributário (v1.71): confere contra os casos calculados em Decimal
+      var UX=W.TINA._ux, PTR=W.PARAMETROS_TRIBUTARIOS, ruins=[];
+      PTR.oraculo.simples.forEach(function(o){ var ef=UX.aliquotaEfetiva(o.anexo,o.rbt12,o.ano||2026); var das=Math.round((o.receitaMes*ef+Number.EPSILON)*100)/100; if(Math.abs(ef-Number(o.efetiva))>6e-9 || das!==Number(o.das)) ruins.push(o.anexo+"/"+o.rbt12+": "+ef+" "+das+" ≠ "+o.efetiva+" "+o.das); });
+      reg("Alíquota efetiva e DAS batem com o oráculo em Decimal ("+PTR.oraculo.simples.length+" casos, inclusive 2027)", ruins.length===0, ruins.join(" | "));
+      ruins=[]; PTR.oraculo.irrf2026.forEach(function(o){ var r=UX.irrfProLabore(Number(o.bruto),"2026-06-30"); if(r.inss!==Number(o.inss)||r.irrf!==Number(o.irrf)) ruins.push(o.bruto+": "+r.inss+"/"+r.irrf+" ≠ "+o.inss+"/"+o.irrf); });
+      reg("INSS e IRRF 2026 do pró-labore batem com o oráculo (R$ 6.000 → 380,02; R$ 7.350 → 890,18)", ruins.length===0, ruins.join(" | "));
+      var rep=UX.reparticaoSimples("III",3000000,2026);
+      reg("Teto do ISS de 5% na 5ª faixa do Anexo III (o excesso vai aos federais)", Math.abs(rep.tributos.ISS-0.05)<1e-12 && Math.abs(Object.keys(rep.tributos).reduce(function(sum,k){return sum+rep.tributos[k];},0)-rep.efetiva)<1e-9, JSON.stringify(rep.tributos));
+      var k1=UX.classificarCnae("6201501",2026), k2=UX.classificarCnae("6422-1/00",2026), k3=UX.classificarCnae("4711302",2026), k4=UX.classificarCnae("6911701",2026), k5=UX.classificarCnae("1011201",2027), k6=UX.classificarCnae("8299799",2026);
+      reg("CNAE: software = III ou V (Fator R); banco = impeditivo; supermercado = I; advocacia = IV; indústria em 2027 = I; 8299-7/99 = ambíguo", k1.anexo==="III ou V" && k2.situacao==="impeditivo" && k3.anexo==="I" && k4.anexo==="IV" && k5.anexo==="I" && k6.situacao==="ambiguo", [k1.anexo,k2.situacao,k3.anexo,k4.anexo,k5.anexo,k6.situacao].join(","));
+      var ved=UX.vedacoesSimples({natureza:"Sociedade Anônima Fechada",qsa:[{nome:"HOLDING X",tipo:"PJ"}],cnaePrincipal:{codigo:"6422-1/00"},cnaes:[]},{rbt12:5000000,ano:2026});
+      reg("Vedações: S/A, sócio PJ, CNAE impeditivo e receita acima do limite são apontadas", ved.filter(function(v){return v.nivel==="veda";}).length===4, ved.map(function(v){return v.nivel;}).join(","));
+      var cmp=UX.compararRegimes({ano:2026,rbt12:480000,fs12:60000,proLabore:5000,socios:1,iss:5,anexo:"III ou V",margem:30,creditos:0,ratTerceiros:""});
+      reg("Comparação: Fator R 12,5% leva ao Anexo V e aponta o que falta para o III", cmp.simples.anexo==="V" && !!cmp.fatorRInfo && Math.abs(cmp.fatorRInfo.faltaFolha-(0.28*480000-60000))<0.01 && cmp.ranking.length===3 && cmp.fontes.length>=6, JSON.stringify(cmp.ranking));
+      var cmp2=UX.compararRegimes({ano:2026,rbt12:480000,fs12:140000,proLabore:5000,socios:1,iss:5,anexo:"III ou V",margem:30,creditos:0,ratTerceiros:""});
+      reg("Com folha de 29% a mesma empresa cai no Anexo III e o Simples fica mais barato", cmp2.simples.anexo==="III" && cmp2.simples.total<cmp.simples.total, cmp.simples.total+" → "+cmp2.simples.total);
+      var ok1=false; try{ UX.paramVigente("salario_minimo","2025-06-30"); }catch(e){ ok1=/sem vigência/.test(e.message); }
+      reg("Parâmetro sem vigência para a data é recusado (nunca um padrão calado)", ok1 && UX.paramVigente("salario_minimo","2026-03-01").valor===1621);
+      var c1=UX.interpretarCertidao("MINISTÉRIO DA FAZENDA SECRETARIA DA RECEITA FEDERAL DO BRASIL PROCURADORIA-GERAL DA FAZENDA NACIONAL CERTIDÃO NEGATIVA DE DÉBITOS RELATIVOS AOS TRIBUTOS FEDERAIS E À DÍVIDA ATIVA DA UNIÃO Nome: EMPRESA X CNPJ: 00.000.000/0001-91 Ressalvado o direito... Emitida às 10:11:12 do dia 29/04/2026 <hora e data de Brasília>. Válida até 26/10/2026. Código de controle da certidão: AB12.CD34.EF56.GH78","cnd_rfb");
+      var c2=UX.interpretarCertidao("CAIXA Certificado de Regularidade do FGTS - CRF Inscrição: 00.000.000/0001-91 Razão Social: EMPRESA X A Caixa Econômica Federal, no uso da atribuição que lhe confere o Art. 7, da Lei 8.036, certifica que, nesta data, a empresa acima identificada encontra-se em situação regular perante o Fundo de Garantia do Tempo de Serviço - FGTS. Validade: 22/05/2026 a 20/06/2026 Certificação Número: 2026052201234567890123","crf");
+      var c3=UX.interpretarCertidao("PODER JUDICIÁRIO JUSTIÇA DO TRABALHO CERTIDÃO NEGATIVA DE DÉBITOS TRABALHISTAS Nome: EMPRESA X (MATRIZ E FILIAIS) CNPJ: 00.000.000/0001-91 Certidão nº: 12345678/2026 Expedição: 05/11/2026, às 09:00:00 Validade: 03/05/2027 - 180 (cento e oitenta) dias, contados da data de sua expedição. Certifica-se que EMPRESA X NÃO CONSTA como inadimplente no Banco Nacional de Devedores Trabalhistas.","cndt");
+      var c4=UX.interpretarCertidao("PODER JUDICIÁRIO CERTIDÃO NEGATIVA DE DÉBITOS TRABALHISTAS CNPJ: 00.000.000/0001-91 Certidão nº: 1/2026 Validade: 03/05/2027","cnd_rfb");
+      reg("Leitura das certidões: CND (válida até, código), CRF (regular, validade de-a, número) e CNDT (negativa, nº, expedição, validade)", c1.situacao==="negativa" && c1.validade==="26/10/2026" && c1.emitida==="29/04/2026" && c1.numero==="AB12.CD34.EF56.GH78" && c1.cnpj==="00000000000191" && c2.situacao==="regular" && c2.emitida==="22/05/2026" && c2.validade==="20/06/2026" && /^2026/.test(c2.numero) && c3.situacao==="negativa" && c3.numero==="12345678/2026" && c3.emitida==="05/11/2026" && c3.validade==="03/05/2027", JSON.stringify([c1,c2,c3]).slice(0,400));
+      reg("PDF do tipo errado é avisado (CNDT lida como CND)", c4.detectado==="cndt" && c4.avisos.length>0);
+      $("anPend").querySelector('[data-pend="cndt"][data-sit="conferido_ok"]').click(); await espera(150);
+      reg("Conferência na tela fica registrada com quem e quando", /Conferido: sem pendência/.test($("anPend").textContent) && (W.TINA._ux.snapshotForm().analise.pend||{}).cndt.situacao==="conferido_ok" && !!W.TINA._ux.snapshotForm().analise.pend.cndt.em);
+      val("enq_rbt12","480000"); $("enq_rbt12").dispatchEvent(new W.Event("change",{bubbles:true})); await espera(200);
+      reg("Enquadramento na tela: com a receita, os três regimes aparecem e a base legal é listada", $("anEnq").querySelectorAll(".an-reg").length===3 && /Base legal e parâmetros/.test($("anEnq").textContent) && /Anexo/.test($("anEnq").textContent));
+      var lt=UX.textoLaudo(UX.dadosLaudo());
+      reg("O laudo em texto traz as quatro partes, a pendência conferida e os parâmetros", /1\. FICHA/.test(lt) && /2\. PENDÊNCIAS/.test(lt) && /3\. ENQUADRAMENTO/.test(lt) && /4\. CONCLUSÃO/.test(lt) && /trabalhistas.*Conferido: sem pendência/.test(lt) && /Parâmetros:/.test(lt));
+      var blobL=await UX.gerarLaudoPdf(); reg("O laudo sai em PDF", !!blobL && blobL.size>1000, (blobL&&blobL.size)+" bytes");
       $("anAcoes").querySelector('[data-an="concluir"]').click(); await espera(150);
       reg("Concluir marca a etapa como analisada", et(2).classList.contains("f") && /analisada/.test(et(2).textContent));
       et(3).click(); await espera(200);

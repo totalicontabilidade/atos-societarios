@@ -512,6 +512,24 @@
   .an-simples.ok{background:#e3f4e9} .an-simples.w{background:#fff5d6}
   .an-rodape{margin-top:6px}
   @media(max-width:760px){ .an-blocos{grid-template-columns:1fr} }
+  .an-bloco{min-width:0}
+  .pend-tab{width:100%;border-collapse:collapse;font-size:13px}
+  .pend-tab td{padding:6px 6px;border-top:1px solid var(--line);vertical-align:top}
+  .pend-tab .pend-esf td{background:#f2f6fb;font-weight:700;color:var(--navy);font-size:12px;text-transform:uppercase;letter-spacing:.03em;border-top:0}
+  .pend-nome{min-width:0} .pend-badge{white-space:nowrap} .pend-acoes{white-space:nowrap;text-align:right}
+  .pend-acoes .btn,.pend-acoes label.btn{margin:1px 0 1px 3px;display:inline-block}
+  .pend-st{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--line);color:var(--ink2)}
+  .pend-st.ok{background:#e3f4e9;color:var(--ok)} .pend-st.bad{background:#fbe6e4;color:var(--err)} .pend-st.warn{background:#fff1c2;color:#7a5d00} .pend-st.na{background:#eef0f3;color:var(--muted)} .pend-st.falta{background:#eef0f3;color:var(--muted)}
+  .pend-av{margin-top:4px;font-size:12px}
+  .an-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px 14px;margin-bottom:6px}
+  .an-inp{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted)} .an-inp input,.an-inp select,.an-inp textarea{font:inherit;color:var(--ink);padding:6px 8px;border:1px solid var(--line);border-radius:8px;min-width:0}
+  .an-cnaes,.an-ved,.an-avisos{margin:4px 0 0 18px;padding:0;font-size:13px} .an-cnaes li,.an-ved li,.an-avisos li{margin:3px 0}
+  .an-ved li.veda{color:var(--err);font-weight:600} .an-ved li.alerta{color:#7a5d00} .an-ved li.perguntar{color:var(--ink2)} .an-ved li.info{color:var(--muted)}
+  .an-avisos{color:var(--muted);font-size:12.5px}
+  .an-regs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
+  .an-reg{border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff} .an-reg.melhor{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
+  .an-reg-t{font-weight:700;color:var(--navy)} .an-reg-v{font-size:19px;font-weight:800;color:var(--ink);margin:2px 0 4px} .an-reg-v .hint{font-size:12px;font-weight:400;margin-left:6px}
+  .an-fr{margin-top:8px;padding:8px 10px;border-radius:9px;background:#f2f6fb;font-size:13px}
   .rec-todos{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:0 0 10px}
   .rec-todos .hint{margin-right:auto}
 

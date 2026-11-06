@@ -6997,8 +6997,10 @@ window.TINA=(function(){
   const MOLDE_ET={};
   MOLDE_ET[ET.PEDIDO]=()=>'<div class="card"><h2>Pedido do cliente</h2><div id="etPedido"></div></div>'+_nav(ET.PEDIDO);
   MOLDE_ET[ET.ANALISE]=()=>'<div class="card" id="etAnalise"><h2>🔎 Análise da empresa <span class="hint">— olhar a empresa antes de mexer no ato</span></h2><div id="anStatus"></div>'
-      +'<div class="et-duas an-blocos"><div><div class="et-h4">1. Ficha na Receita Federal</div><div id="anFicha"></div></div>'
-      +'<div><div class="et-h4">2. Pendências · 3. Enquadramento · 4. Laudo</div><div id="anResto" class="hint">Checklist de certidões (federal, estadual e municipal), enquadramento no Simples (anexo, Fator R, pró-labore) e laudo assinado entram nas próximas versões desta etapa.</div></div></div>'
+      +'<div class="et-duas an-blocos"><div class="an-bloco"><div class="et-h4">1. Ficha na Receita Federal</div><div id="anFicha"></div></div>'
+      +'<div class="an-bloco"><div class="et-h4">2. Pendências <span class="hint">— federal, estadual, municipal e Junta</span></div><div id="anPend"></div></div></div>'
+      +'<div class="an-bloco" style="margin-top:12px"><div class="et-h4">3. Enquadramento tributário <span class="hint">— Simples (anexo, Fator R, vedações) × Presumido × Real, pró-labore e IRRF</span></div><div id="anEnq"></div></div>'
+      +'<div class="an-bloco" style="margin-top:12px"><div class="et-h4">4. Laudo <span class="hint">— o que foi visto, por quem, com as fontes</span></div><div id="anLaudo"></div></div>'
       +'<div class="bar" id="anAcoes" style="margin-top:12px"></div></div>'+_nav(ET.ANALISE);
   MOLDE_ET[ET.CONF]=()=>'<div class="et-duas"><div class="card"><h2>✓ Pré-protocolo <span class="hint">— as conferências do texto do documento</span></h2><div class="modal-hosp" data-slot="proto"></div></div>'
       +'<div class="card"><h2>⇄ Antes e depois</h2><div class="modal-hosp" data-slot="comp"></div></div></div>'+_nav(ET.CONF)+'<div class="hint">O documento está logo abaixo.</div>';
@@ -7028,6 +7030,7 @@ window.TINA=(function(){
   const _cnaeFmt=cod=>{ const d=String(cod||"").replace(/\D/g,""); return d.length===7?d.slice(0,4)+"-"+d[4]+"/"+d.slice(5):String(cod||""); };
   const _simNao=v=>{ if(v===true||v===false) return v; if(v===null||v===undefined||v==="") return null;
     const s=String(v).trim().toLowerCase(); return (s==="sim"||s==="s"||s==="true")?true:((s==="não"||s==="nao"||s==="n"||s==="false")?false:null); };
+  const _tipoSocio=v=>{ if(v===1||v==="1") return "PJ"; if(v===2||v==="2") return "PF"; if(v===3||v==="3") return "EX"; const s=String(v||"").toUpperCase(); return /JUR/.test(s)?"PJ":(/ESTRANG/.test(s)?"EX":(/F[IÍ]S/.test(s)?"PF":"")); };
   const _capital=v=>{ if(typeof v==="number") return v; const s=String(v||"").trim(); if(!s) return null;
     const n=/^\d+(\.\d+)?$/.test(s)?parseFloat(s):parseFloat(s.replace(/\./g,"").replace(",",".")); return isNaN(n)?null:n; };
   const _fmtCnpj14=c=>String(c||"").replace(/^(..)(...)(...)(....)(..)$/,"$1.$2.$3/$4-$5");
@@ -7037,7 +7040,7 @@ window.TINA=(function(){
     endereco:{log:[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(" "),num:j.numero||"",comp:j.complemento||"",bairro:j.bairro||"",mun:j.municipio||"",uf:j.uf||"",cep:String(j.cep||"")},
     cnaePrincipal:{codigo:_cnaeFmt(j.cnae_fiscal),descricao:j.cnae_fiscal_descricao||""},
     cnaes:(j.cnaes_secundarios||[]).filter(x=>x&&Number(x.codigo)).map(x=>({codigo:_cnaeFmt(x.codigo),descricao:x.descricao||""})),
-    qsa:(j.qsa||[]).map(s=>({nome:s.nome_socio||"",qualificacao:s.qualificacao_socio||"",entrada:s.data_entrada_sociedade||""})),
+    qsa:(j.qsa||[]).map(s=>({nome:s.nome_socio||"",qualificacao:s.qualificacao_socio||"",entrada:s.data_entrada_sociedade||"",tipo:_tipoSocio(s.identificador_de_socio)})),
     simples:{optante:_simNao(j.opcao_pelo_simples),desde:j.data_opcao_pelo_simples||"",mei:_simNao(j.opcao_pelo_mei),meiDesde:j.data_opcao_pelo_mei||""}, base:"" }; }
   function _fichaDeOpenCNPJ(j){ if(!j||!j.razao_social) return null;
     const lista=Array.isArray(j.cnaes)?j.cnaes:[], sec=Array.isArray(j.cnaes_secundarios)?j.cnaes_secundarios:[], princ=lista.find(x=>x&&x.is_principal)||null;
@@ -7047,7 +7050,7 @@ window.TINA=(function(){
       cnaePrincipal:{codigo:_cnaeFmt(j.cnae_principal||(princ&&princ.codigo)),descricao:(princ&&princ.descricao)||j.cnae_principal_descricao||""},
       cnaes:lista.length?lista.filter(x=>x&&!x.is_principal).map(x=>({codigo:_cnaeFmt(x.codigo),descricao:x.descricao||""}))
                         :sec.map(x=>(x&&typeof x==="object")?{codigo:_cnaeFmt(x.codigo),descricao:x.descricao||""}:{codigo:_cnaeFmt(x),descricao:""}),
-      qsa:(j.QSA||j.qsa||[]).map(s=>({nome:s.nome_socio||s.nome||"",qualificacao:s.qualificacao_socio||"",entrada:s.data_entrada_sociedade||s.data_entrada||""})),
+      qsa:(j.QSA||j.qsa||[]).map(s=>({nome:s.nome_socio||s.nome||"",qualificacao:s.qualificacao_socio||"",entrada:s.data_entrada_sociedade||s.data_entrada||"",tipo:_tipoSocio(s.identificador_socio||s.identificador_de_socio||s.tipo)})),
       simples:{optante:_simNao(j.opcao_simples),desde:j.data_opcao_simples||"",mei:_simNao(j.opcao_mei),meiDesde:j.data_opcao_mei||""}, base:"" }; }
   function _fichaDeCnpjWs(j){ if(!j||!j.razao_social) return null; const e=j.estabelecimento||{}, s=j.simples||null;
     return { razao:j.razao_social, fantasia:e.nome_fantasia||"", situacao:{txt:e.situacao_cadastral||"",data:e.data_situacao_cadastral||""},
@@ -7055,7 +7058,7 @@ window.TINA=(function(){
       endereco:{log:[e.tipo_logradouro,e.logradouro].filter(Boolean).join(" "),num:e.numero||"",comp:e.complemento||"",bairro:e.bairro||"",mun:(e.cidade||{}).nome||"",uf:(e.estado||{}).sigla||"",cep:String(e.cep||"")},
       cnaePrincipal:{codigo:_cnaeFmt((e.atividade_principal||{}).id),descricao:(e.atividade_principal||{}).descricao||""},
       cnaes:(e.atividades_secundarias||[]).map(x=>({codigo:_cnaeFmt(x.id),descricao:x.descricao||""})),
-      qsa:(j.socios||[]).map(x=>({nome:x.nome||"",qualificacao:(x.qualificacao_socio||{}).descricao||"",entrada:x.data_entrada||""})),
+      qsa:(j.socios||[]).map(x=>({nome:x.nome||"",qualificacao:(x.qualificacao_socio||{}).descricao||"",entrada:x.data_entrada||"",tipo:_tipoSocio(x.tipo)})),
       simples:{optante:s?_simNao(s.simples):null,desde:(s&&s.data_opcao_simples)||"",mei:s?_simNao(s.mei):null,meiDesde:(s&&s.data_opcao_mei)||""},
       base:String(j.atualizado_em||"").slice(0,10) }; }
   async function consultarCnpjCascata(c){
@@ -7085,7 +7088,7 @@ window.TINA=(function(){
     const a=_analise||{};
     if(a.naoSeAplica) return ["f","não se aplica"];
     if(a.concluidaEm){ return (a.assinatura && a.assinatura!==_assinaturaAnalise(d))?["a","⚠ o ato mudou: reconferir"]:["f","analisada "+a.concluidaEm]; }
-    if(a.ficha) return ["","ficha lida · concluir"];
+    if(a.ficha||a.pend||a.enq){ let r={ruim:0}; try{ r=resumoPendencias(); }catch(e){} return r.ruim?["a","⚠ "+r.ruim+(r.ruim>1?" pendências":" pendência")]:["","em andamento · concluir"]; }
     return ["",cnpjDaAnalise()?"ficha · pendências · enquadramento":"sem CNPJ (abertura)"];
   }
   function marcarAnalise(campos){ if(!_analise||typeof _analise!=="object") _analise={}; Object.assign(_analise,campos||{}); _atoAlterado=true; salvarRascunho(); renderEtapaAnalise(); atualizarEtapas(); }
@@ -7127,6 +7130,7 @@ window.TINA=(function(){
       const res=await consultarCnpjCascata(cc); b.disabled=false;
       if(!res.ok){ if(m){ m.className=res.naoExiste?"et-av":"hint"; m.textContent=(res.offline?"⚠ ":"✗ ")+res.msg; } return; }
       marcarAnalise({ficha:res.ficha}); toast("Ficha da empresa lida ("+res.ficha.fonte+").","ok"); });
+    renderBlocosAnalise();
     const ac=$("anAcoes"); if(!ac) return;
     ac.innerHTML=(a.naoSeAplica||(a.concluidaEm&&E[0]!=="a"))?'<button type="button" class="btn o mini" data-an="reabrir">↺ Reabrir a análise</button>'
       :'<button type="button" class="btn ok mini" data-an="concluir">✓ Concluir a análise</button><button type="button" class="btn o mini" data-an="nao">Não se aplica a este ato</button>';
@@ -7135,6 +7139,309 @@ window.TINA=(function(){
       else if(k==="nao") marcarAnalise({naoSeAplica:true,naoSeAplicaEm:hoje});
       else if(k==="concluir") marcarAnalise({concluidaEm:hoje,concluidaPor:_quem(_meuEmail()),assinatura:_assinaturaAnalise()}); }));
   }
+  /* ===== Etapa 2, blocos 2 a 4 (v1.71): pendências, enquadramento e laudo =====
+     Tudo baseado em js/parametros-tributarios.js: valor + vigência + fonte. O motor NÃO tem
+     número solto: pede o parâmetro pela data e recusa data sem vigência. O que é interpretação
+     (CNAE → anexo) é dito como sugestão; o que é estimativa (Lucro Real) é dito como estimativa.
+     A IA não entra aqui: é conta, lei e a assinatura de quem conferiu. */
+  const PT=()=>{ const p=window.PARAMETROS_TRIBUTARIOS; if(!p) throw new Error("parâmetros tributários não carregados"); return p; };
+  const _isoHoje=()=>{ const h=new Date(); return h.getFullYear()+"-"+String(h.getMonth()+1).padStart(2,"0")+"-"+String(h.getDate()).padStart(2,"0"); };
+  // valor vigente de um parâmetro numa data ISO (aaaa-mm-dd); sem vigência = erro, nunca um padrão calado
+  function paramVigente(nome,dataISO){
+    const p=PT().parametros[nome]; if(!p) throw new Error("parâmetro desconhecido: "+nome);
+    const d=dataISO||_isoHoje(); let achado=null;
+    for(const v of p.valores){ if(v.de<=d && (!v.ate || d<=v.ate)) achado=v; }
+    if(!achado) throw new Error("sem vigência de "+nome+" para "+d);
+    return {valor:achado.valor, de:achado.de, ate:achado.ate||"", status:achado.status||"vigente", fonte:p.fonte, descricao:p.descricao, nome};
+  }
+  const _r2=v=>Math.round((Number(v)+Number.EPSILON)*100)/100;
+  // ---- Simples Nacional: faixa, alíquota efetiva, repartição
+  function faixasSimples(anexo,ano){
+    const A=PT().anexos; const tab=A.ate2026[anexo]; if(!tab) throw new Error("anexo inválido: "+anexo);
+    return tab.map((l,i)=>({n:i+1,teto:l[0],aliq:(ano>=2027&&ano<=2028&&i===5)?Number(A.sexta_faixa_2027_2028[anexo])/100:Number(l[1])/100,pd:Number(l[2])}));
+  }
+  function faixaSimples(anexo,rbt12,ano){ const fs=faixasSimples(anexo,ano); for(const f of fs) if(rbt12<=f.teto) return f; return null; }
+  // (RBT12 × alíquota nominal − parcela a deduzir) ÷ RBT12 — LC 123, art. 18, § 1º-A; sem arredondar
+  function aliquotaEfetiva(anexo,rbt12,ano){ rbt12=Number(rbt12); if(!(rbt12>0)) throw new Error("RBT12 tem de ser maior que zero");
+    const f=faixaSimples(anexo,rbt12,ano); if(!f) return null; return (rbt12*f.aliq-f.pd)/rbt12; }
+  // percentual efetivo de cada tributo = efetiva × repartição; ISS limitado a 5% nos Anexos III e IV (nota *)
+  function reparticaoSimples(anexo,rbt12,ano){
+    const ef=aliquotaEfetiva(anexo,rbt12,ano); if(ef===null) return null; const f=faixaSimples(anexo,rbt12,ano);
+    const R=PT().reparticao, linha=R.ate2026[anexo][f.n-1], teto=paramVigente("iss_teto",ano+"-12-31").valor, out={};
+    Object.keys(linha).forEach(t=>{ out[t]=ef*linha[t]; });
+    if(out.ISS!==undefined && out.ISS>teto && R.tetoIss[anexo]){ const exc=out.ISS-teto; out.ISS=teto; Object.keys(R.tetoIss[anexo]).forEach(t=>{ out[t]=(out[t]||0)+exc*R.tetoIss[anexo][t]; }); }
+    return {efetiva:ef,faixa:f,tributos:out};
+  }
+  function fatorR(fs12,rbt12){ fs12=Number(fs12)||0; rbt12=Number(rbt12); if(!(rbt12>0)) return null; return fs12/rbt12; }
+  function anexoPorFatorR(fs12,rbt12,ano){ const r=fatorR(fs12,rbt12); if(r===null) return null; return r>=paramVigente("fator_r_minimo",ano+"-12-31").valor?"III":"V"; }
+  // ---- CNAE: impeditivo, ambíguo ou sugestão de anexo (interpretação declarada)
+  function classificarCnae(codigo,ano){
+    const c=String(codigo||"").replace(/\D/g,""); if(c.length!==7) return {codigo:String(codigo||""),situacao:"invalido"};
+    const fmt=c.slice(0,4)+"-"+c[4]+"/"+c.slice(5), K=PT().cnae;
+    if(K.impeditivos.indexOf(fmt)>=0) return {codigo:fmt,situacao:"impeditivo",anexo:null,base:"Res. CGSN 140/2018, Anexo VI (art. 8º, § 1º)",texto:"Atividade impeditiva ao Simples Nacional"};
+    if(K.ambiguos.indexOf(fmt)>=0) return {codigo:fmt,situacao:"ambiguo",anexo:null,base:"Res. CGSN 140/2018, Anexo VII (art. 8º, § 2º)",texto:"Subclasse que abrange atividade impeditiva e permitida: só pode optar quem exerce apenas a permitida (declaração no PGDAS)"};
+    if(K.revenda.indexOf(fmt)>=0) return {codigo:fmt,situacao:"anexo",anexo:"I",base:"LC 123/2006, art. 18, § 4º, I",texto:"Revenda de mercadorias (sugestão por interpretação)"};
+    if(K.industria.indexOf(fmt)>=0) return {codigo:fmt,situacao:"anexo",anexo:(ano>=2027?"I":"II"),base:"LC 123/2006, art. 18, § 4º, II"+(ano>=2027?" e § 5º (redação da LC 214/2025: Anexo I desde 2027, salvo produto com IPI)":""),texto:"Industrialização (sugestão por interpretação)"};
+    for(const g of K.servicos){ if(g.cnaes.indexOf(fmt)>=0) return {codigo:fmt,situacao:"anexo",anexo:g.anexo,base:"LC 123/2006, art. 18, "+g.base,texto:g.atividade+" (sugestão por interpretação)"}; }
+    return {codigo:fmt,situacao:"sem_classificacao",anexo:null,base:"",texto:"Sem classificação automática: o contador decide o anexo pela atividade (a lei descreve a atividade, não o código)"};
+  }
+  // ---- pró-labore: INSS do sócio e IRRF 2026 (dedução legal × simplificado, o maior; redução do art. 3º-A sobre o bruto)
+  function inssSocio(bruto,dataISO){ const teto=paramVigente("inss_teto",dataISO).valor, a=paramVigente("inss_socio",dataISO).valor; return _r2(Math.min(Number(bruto)||0,teto)*a); }
+  function irrfProLabore(bruto,dataISO,dependentes){
+    bruto=Number(bruto)||0; const T=paramVigente("irrf_tabela",dataISO).valor, inss=inssSocio(bruto,dataISO);
+    const legal=inss+(Number(dependentes)||0)*T.dependente, ded=Math.max(legal,T.simplificado), base=Math.max(0,bruto-ded);
+    let imp=0; for(const f of T.faixas){ if(f[0]===null || base<=f[0]){ imp=_r2(base*f[1]-f[2]); break; } }
+    imp=Math.max(0,imp); let red=0, R=null;
+    try{ R=paramVigente("irrf_reducao",dataISO).valor; }catch(e){}
+    if(R){ if(bruto<=R.isencaoAte) red=Math.min(imp,R.reducaoMax); else if(bruto<=R.limite) red=Math.max(0,_r2(R.coefA-R.coefB*bruto)); }
+    return {bruto,inss,deducao:ded,usouSimplificado:ded===T.simplificado&&legal<T.simplificado,base,impostoTabela:imp,reducao:red,irrf:_r2(Math.max(0,imp-red))};
+  }
+  // ---- vedações ao Simples pela ficha (o que dá para ver de fora; o resto é pergunta ao cliente)
+  function vedacoesSimples(ficha,ent){
+    const av=[]; const ano=ent.ano, d=ano+"-12-31";
+    const lim=paramVigente("simples_limite",d), sub=paramVigente("simples_sublimite",d);
+    if(ent.rbt12>lim.valor) av.push({nivel:"veda",texto:"Receita dos últimos 12 meses acima de "+_brl(lim.valor)+": fora do Simples",base:lim.fonte});
+    else if(ent.rbt12>sub.valor) av.push({nivel:"alerta",texto:"Acima do sublimite de "+_brl(sub.valor)+": ICMS e ISS saem do DAS e são apurados no regime normal",base:sub.fonte});
+    (ficha&&ficha.cnaes?[ficha.cnaePrincipal].concat(ficha.cnaes):[]).forEach(x=>{ if(!x||!x.codigo) return; const k=classificarCnae(x.codigo,ano);
+      if(k.situacao==="impeditivo") av.push({nivel:"veda",texto:"CNAE "+k.codigo+" ("+(x.descricao||"")+") é impeditivo",base:k.base});
+      if(k.situacao==="ambiguo") av.push({nivel:"alerta",texto:"CNAE "+k.codigo+" ("+(x.descricao||"")+") é ambíguo: confirmar que só exerce a atividade permitida",base:k.base}); });
+    const nat=(ficha&&ficha.natureza||"").toLowerCase();
+    if(/sociedade an[oô]nima|por a[çc][õo]es/.test(nat)) av.push({nivel:"veda",texto:"Sociedade por ações não pode optar pelo Simples",base:"LC 123/2006, art. 3º, § 4º, X"});
+    if(/cooperativa/.test(nat) && !/consumo/.test(nat)) av.push({nivel:"veda",texto:"Cooperativa (salvo de consumo) não pode optar",base:"LC 123/2006, art. 3º, § 4º, VI"});
+    const pj=(ficha&&ficha.qsa||[]).filter(s=>s.tipo==="PJ"); if(pj.length) av.push({nivel:"veda",texto:"Há pessoa jurídica no quadro societário ("+pj.map(s=>s.nome).join(", ")+")",base:"LC 123/2006, art. 3º, § 4º, I"});
+    const ex=(ficha&&ficha.qsa||[]).filter(s=>s.tipo==="EX"); if(ex.length) av.push({nivel:"alerta",texto:"Sócio estrangeiro no quadro: verificar domicílio (vedação só se domiciliado no exterior)",base:"LC 123/2006, art. 3º, § 4º, II"});
+    av.push({nivel:"perguntar",texto:"Perguntar ao cliente: algum sócio participa de outra empresa (soma das receitas acima do limite) ou é administrador de outra PJ com fins lucrativos? Há débito com INSS, Receita ou PGFN sem exigibilidade suspensa?",base:"LC 123/2006, art. 3º, § 4º, III, IV e V; art. 17, V"});
+    if(ficha&&ficha.simples&&ficha.simples.optante===false) av.push({nivel:"info",texto:"A base mensal da Receita indica empresa NÃO optante hoje; a opção se faz em janeiro (ou em até 30 dias da inscrição, para empresa nova)",base:"LC 123/2006, art. 16, § 2º; Res. CGSN 140, art. 6º"});
+    return av;
+  }
+  // ---- comparação Simples × Presumido × Real (anual, simplificada e dita como tal)
+  function compararRegimes(ent){
+    const ano=Number(ent.ano)||new Date().getFullYear(), d=ano+"-06-30", rbt12=Number(ent.rbt12)||0, fs12=Number(ent.fs12)||0, pl=Number(ent.proLabore)||0, nSoc=Math.max(1,Number(ent.socios)||1);
+    const issAliq=(Number(ent.iss)||0)/100, folhaEmp=Math.max(0,fs12-pl*12*nSoc), ratT=(ent.ratTerceiros===""||ent.ratTerceiros===undefined)?paramVigente("rat_terceiros_padrao",d).valor:(Number(ent.ratTerceiros)||0)/100;
+    const avisos=[], fontes=[];
+    const usa=n=>{ const p=paramVigente(n,d); if(!fontes.some(f=>f.nome===n)) fontes.push(p); return p.valor; };
+    // sócio: INSS e IRRF iguais em todos os regimes (o que muda é a CPP patronal)
+    const ir=irrfProLabore(pl,d), socioAno=(ir.inss+ir.irrf)*12*nSoc; usa("inss_socio"); usa("inss_teto"); usa("irrf_tabela"); try{ usa("irrf_reducao"); }catch(e){}
+    // Simples
+    let anexo=ent.anexo||"III"; const r=fatorR(fs12,rbt12);
+    if(anexo==="III ou V"){ anexo=anexoPorFatorR(fs12,rbt12,ano)||"V"; usa("fator_r_minimo"); }
+    const rep=rbt12>0?reparticaoSimples(anexo,rbt12,ano):null; usa("simples_limite"); usa("simples_sublimite");
+    const simples={regime:"Simples Nacional",anexo,fatorR:r,aplicavel:!!rep && rbt12<=usa("simples_limite")};
+    if(rep){ simples.efetiva=rep.efetiva; simples.faixa=rep.faixa.n; simples.das=_r2(rbt12*rep.efetiva); simples.tributos=rep.tributos;
+      simples.cpp=anexo==="IV"?_r2(folhaEmp*(usa("inss_patronal")+ratT)+pl*12*nSoc*usa("inss_patronal")):0;
+      simples.socio=socioAno; simples.total=_r2(simples.das+simples.cpp+simples.socio);
+      if(rbt12>usa("simples_sublimite")) avisos.push("Simples acima do sublimite: ICMS/ISS fora do DAS não estão na conta.");
+      if(ano>=2027) avisos.push("2027: tabelas do Simples com a 6ª faixa da LC 214 e CBS/IBS dentro do DAS; a repartição por tributo mostrada é a de até 2026."); }
+    else simples.motivo=rbt12>0?"receita acima do limite do Simples":"informe a receita";
+    // Presumido
+    const P=usa("presumido"); const tipo=(anexo==="I")?"comercio":(anexo==="II"?"industria":((anexo==="III"||anexo==="IV"||anexo==="V")&&rbt12<=120000&&ent.servicosAte120k?"servicos_ate_120k":"servicos"));
+    const pres=P.presuncao[tipo], basIR=rbt12*pres.irpj, basCS=rbt12*pres.csll;
+    const adic=Math.max(0,basIR-P.adicionalTrimestre*4)*P.adicional;
+    let pisCof, pisCofNota; if(ano>=2027){ pisCof=rbt12*usa("cbs"); pisCofNota="CBS "+(usa("cbs")*100).toFixed(1).replace(".",",")+"% (esperado) no lugar de PIS/COFINS"; } else { pisCof=rbt12*(P.pis+P.cofins); pisCofNota="PIS 0,65% + COFINS 3%"; }
+    const ehServico=(tipo==="servicos"||tipo==="servicos_ate_120k"), iss=ehServico?rbt12*issAliq:0;
+    const cppP=folhaEmp*(usa("inss_patronal")+ratT)+pl*12*nSoc*usa("inss_patronal");
+    const presumido={regime:"Lucro Presumido",tipo,presuncao:pres,irpj:_r2(basIR*P.irpj),adicional:_r2(adic),csll:_r2(basCS*P.csll),pisCofins:_r2(pisCof),pisCofNota,iss:_r2(iss),cpp:_r2(cppP),socio:socioAno,aplicavel:rbt12<=P.limite};
+    presumido.total=_r2(presumido.irpj+presumido.adicional+presumido.csll+presumido.pisCofins+presumido.iss+presumido.cpp+presumido.socio);
+    if(!ehServico) avisos.push("Comércio/indústria: ICMS e IPI não entram na comparação (dependem do produto, da ST e do Estado).");
+    // Real (estimativa pela margem informada)
+    const Rl=usa("real"); const margem=(Number(ent.margem)||0)/100, lucro=Math.max(0,rbt12*margem - 0), cred=(Number(ent.creditos)||0)/100;
+    const adR=Math.max(0,lucro-Rl.adicionalAno)*Rl.adicional;
+    let pcR, pcRNota; if(ano>=2027){ pcR=rbt12*usa("cbs")*(1-cred); pcRNota="CBS (esperado) sobre a receita líquida de créditos informados"; } else { pcR=rbt12*(1-cred)*(Rl.pis+Rl.cofins); pcRNota="PIS 1,65% + COFINS 7,6% não cumulativos sobre a receita menos "+(cred*100).toFixed(0)+"% de créditos informados"; }
+    const real={regime:"Lucro Real (estimativa)",margem,lucro:_r2(lucro),irpj:_r2(lucro*Rl.irpj),adicional:_r2(adR),csll:_r2(lucro*Rl.csll),pisCofins:_r2(pcR),pisCofNota:pcRNota,iss:_r2(iss),cpp:_r2(cppP),socio:socioAno,aplicavel:true};
+    real.total=_r2(real.irpj+real.adicional+real.csll+real.pisCofins+real.iss+real.cpp+real.socio);
+    // Fator R: o que falta de folha para o Anexo III e quanto custa
+    let fr=null;
+    if(ent.anexo==="III ou V" && rbt12>0){ const min=usa("fator_r_minimo"); const falta=Math.max(0,min*rbt12-fs12);
+      const e3=aliquotaEfetiva("III",rbt12,ano), e5=aliquotaEfetiva("V",rbt12,ano);
+      fr={fatorR:r,minimo:min,anexoHoje:anexo,faltaFolha:_r2(falta),dasIII:e3!==null?_r2(rbt12*e3):null,dasV:e5!==null?_r2(rbt12*e5):null,
+          proLaboreParaIII:nSoc?_r2((min*rbt12-folhaEmp)/12/nSoc):null};
+      if(fr.dasIII!==null&&fr.dasV!==null) fr.economiaDAS=_r2(fr.dasV-fr.dasIII); }
+    const lista=[simples,presumido,real].filter(x=>x.aplicavel&&x.total!==undefined).sort((a,b)=>a.total-b.total);
+    avisos.push("Comparação anual simplificada: não considera FGTS (igual nos três), retenções na fonte, benefícios, parcelamentos, a distribuição de lucros isenta nem os 10% de IRRF sobre lucros acima de R$ 50 mil/mês (Lei 15.270/2025). O Lucro Real é estimativa pela margem informada.");
+    return {ano,entradas:ent,simples,presumido,real,fatorRInfo:fr,melhor:lista[0]?lista[0].regime:"",ranking:lista.map(x=>({regime:x.regime,total:x.total})),avisos,fontes:fontes.map(f=>({nome:f.nome,descricao:f.descricao,valor:f.valor,de:f.de,status:f.status,fonte:f.fonte}))};
+  }
+
+  /* ---- Pendências: o checklist humano com as telas oficiais e a leitura dos PDFs ---- */
+  const PEND_ITENS=[
+    {id:"cnd_rfb",esfera:"Federal",nome:"Certidão de débitos federais e dívida ativa (CND/CPEN)",orgao:"RFB/PGFN",url:"https://servicos.receitafederal.gov.br/servico/certidoes/",dias:180,tipo:"cnd_rfb",nota:"hCaptcha; 180 dias (Portaria Conjunta RFB/PGFN 1.751/2014)"},
+    {id:"crf",esfera:"Federal",nome:"Regularidade do FGTS (CRF)",orgao:"Caixa",url:"https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf",dias:30,tipo:"crf",nota:"captcha; 30 dias"},
+    {id:"cndt",esfera:"Federal",nome:"Certidão de débitos trabalhistas (CNDT)",orgao:"TST",url:"https://cndt-certidao.tst.jus.br/gerarCertidao",dias:180,tipo:"cndt",nota:"captcha próprio; 180 dias. Validação em cndt-certidao.tst.jus.br/consultarCertidao (número + ano)"},
+    {id:"optantes",esfera:"Federal",nome:"Consulta Optantes do Simples Nacional",orgao:"RFB",url:"https://consopt.www8.receita.fazenda.gov.br/consultaoptantes",dias:0,tipo:"optantes",nota:"hCaptcha; é a prova oficial da opção (a ficha acima é base mensal)"},
+    {id:"sitfiscal",esfera:"Federal",nome:"Minhas Dívidas e Pendências (situação fiscal)",orgao:"e-CAC",url:"https://www.gov.br/pt-br/servicos/consultar-dividas-e-pendencias",dias:0,tipo:"sitfiscal",nota:"gov.br prata/ouro com procuração; substituiu o Relatório de Situação Fiscal em 09/03/2026"},
+    {id:"sefaz_se",esfera:"Estadual (SE)",nome:"Certidão negativa de débitos estaduais",orgao:"SEFAZ/SE",url:"https://sic-emissao.apps.sefaz.se.gov.br/certidao-negativa",dias:30,tipo:"sefaz_se",nota:"reCAPTCHA, sem login; 30 dias (Portaria SEFAZ 283/2001)"},
+    {id:"municipal",esfera:"Municipal",nome:"Certidão negativa municipal (ISS/IPTU/taxas)",orgao:"Prefeitura",url:"",dias:0,tipo:"municipal",nota:"a tela depende do município; validade conforme a certidão"},
+    {id:"junta",esfera:"Junta",nome:"Situação na JUCESE (viabilidade / certidão simplificada)",orgao:"JUCESE · Agiliza",url:"https://www.agiliza.se.gov.br/",dias:0,tipo:"junta",nota:"login gov.br; só a Consulta de Informação é pública"}
+  ];
+  const PEND_MUNICIPIOS={
+    "ARACAJU":{url:"https://fazenda.aracaju.se.gov.br/app-semfaz/",nota:"CND sem login (reCAPTCHA); autenticidade por código de 16 dígitos"},
+    "ITABAIANA":{url:"https://itabaiana.se.gov.br/",nota:"AtriosSys (reCAPTCHA v2)"},
+    "NOSSA SENHORA DO SOCORRO":{url:"https://gestor.tributosmunicipais.com.br/redesim/prefeitura/socorro/",nota:"Gestor Tributos Municipais"},
+    "SAO CRISTOVAO":{url:"https://gestor.tributosmunicipais.com.br/redesim/prefeitura/saocristovao/",nota:"Gestor Tributos Municipais"},
+    "LAGARTO":{url:"https://gestor.tributosmunicipais.com.br/redesim/prefeitura/lagarto/",nota:"Gestor Tributos Municipais (“Certidão Negativa Mercantil”)"},
+    "ESTANCIA":{url:"https://pmestancia-se.link3.com.br/l3-grp/Servicos.html",nota:"Link3/GRP"}
+  };
+  const _semAcento=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().trim();
+  function municipioDaAnalise(){ const a=_analise||{}; let m=(a.ficha&&a.ficha.endereco&&a.ficha.endereco.mun)||""; if(!m){ try{ m=coletar().mun||""; }catch(e){} } return m; }
+  function itensPendencias(){ const mun=_semAcento(municipioDaAnalise()); return PEND_ITENS.map(it=>{ if(it.tipo!=="municipal") return it; const m=PEND_MUNICIPIOS[mun]; return Object.assign({},it,{orgao:"Prefeitura"+(mun?" de "+mun:""),url:m?m.url:"",nota:m?m.nota:(mun?"município sem tela cadastrada: informe o endereço da certidão":"informe o município na ficha ou no formulário")}); }); }
+  const _dBR2ISO=s=>{ const m=String(s||"").match(/(\d{2})\/(\d{2})\/(\d{4})/); return m?m[3]+"-"+m[2]+"-"+m[1]:""; };
+  // interpreta o texto de uma certidão: situação, datas, número — por rótulos conhecidos (ver relatório de validação)
+  function interpretarCertidao(txt,tipo){
+    const t=String(txt||"").replace(/\s+/g," "), T=t.toUpperCase(), r={tipo,detectado:"",situacao:"",emitida:"",validade:"",numero:"",cnpj:"",avisos:[]};
+    const cnpj=t.match(/\b(\d{2}\.?[0-9A-Z]{3}\.?[0-9A-Z]{3}\/?[0-9A-Z]{4}-?\d{2})\b/); if(cnpj) r.cnpj=_cnpjLimpo(cnpj[1]);
+    if(/CERTID[ÃA]O (NEGATIVA|POSITIVA)[^.]{0,60}D[ÉE]BITOS RELATIVOS AOS TRIBUTOS FEDERAIS/.test(T)) r.detectado="cnd_rfb";
+    else if(/CERTIFICADO DE REGULARIDADE DO FGTS/.test(T)) r.detectado="crf";
+    else if(/CERTID[ÃA]O (NEGATIVA|POSITIVA)[^.]{0,40}D[ÉE]BITOS TRABALHISTAS/.test(T)) r.detectado="cndt";
+    else if(/SIMPLES NACIONAL/.test(T) && /OPTANTE/.test(T)) r.detectado="optantes";
+    else if(/D[ÉE]BITOS ESTADUAIS/.test(T) || /SEFAZ|FAZENDA DO ESTADO DE SERGIPE/.test(T)) r.detectado="sefaz_se";
+    else if(/SITUA[ÇC][ÃA]O FISCAL|D[ÍI]VIDAS E PEND[ÊE]NCIAS/.test(T)) r.detectado="sitfiscal";
+    else if(/CERTID[ÃA]O (NEGATIVA|POSITIVA)/.test(T) && /MUNIC[ÍI]PIO|PREFEITURA/.test(T)) r.detectado="municipal";
+    if(r.detectado && tipo && r.detectado!==tipo) r.avisos.push("O PDF parece ser "+(PEND_ITENS.find(x=>x.tipo===r.detectado)||{}).nome+", não "+(PEND_ITENS.find(x=>x.tipo===tipo)||{}).nome+".");
+    const k=r.detectado||tipo;
+    if(k==="cnd_rfb"){ r.situacao=/POSITIVA COM EFEITOS DE NEGATIVA/.test(T)?"positiva_efeitos_negativa":(/CERTID[ÃA]O POSITIVA/.test(T)?"positiva":(/CERTID[ÃA]O NEGATIVA/.test(T)?"negativa":""));
+      const e=t.match(/Emitida [àa]s [\d:]+ do dia (\d{2}\/\d{2}\/\d{4})/i); if(e) r.emitida=e[1]; const v=t.match(/V[áa]lida at[ée]\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i); if(v) r.validade=v[1];
+      const c=t.match(/C[óo]digo de controle da certid[ãa]o\s*:?\s*([0-9A-Z]{4}\.[0-9A-Z]{4}\.[0-9A-Z]{4}\.[0-9A-Z]{4})/i); if(c) r.numero=c[1]; }
+    else if(k==="crf"){ r.situacao=/SITUA[ÇC][ÃA]O REGULAR|REGULAR PERANTE O FGTS|est[áa] regular/i.test(t)?"regular":""; const v=t.match(/Validade\s*:?\s*(\d{2}\/\d{2}\/\d{4})\s*a\s*(\d{2}\/\d{2}\/\d{4})/i); if(v){ r.emitida=v[1]; r.validade=v[2]; }
+      const n=t.match(/Certifica[çc][ãa]o N[úu]mero\s*:?\s*(\d{10,24})/i); if(n) r.numero=n[1]; }
+    else if(k==="cndt"){ r.situacao=/POSITIVA[^.]{0,40}EFEITO[S]? DE NEGATIVA/.test(T)?"positiva_efeitos_negativa":(/CERTID[ÃA]O POSITIVA/.test(T)?"positiva":(/CERTID[ÃA]O NEGATIVA|N[ÃA]O CONSTA/.test(T)?"negativa":""));
+      const n=t.match(/Certid[ãa]o n[ºo°.]*\s*:?\s*(\d{4,12}\/\d{4})/i); if(n) r.numero=n[1]; const e=t.match(/Expedi[çc][ãa]o\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i); if(e) r.emitida=e[1]; const v=t.match(/Validade\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i); if(v) r.validade=v[1]; }
+    else if(k==="optantes"){ r.situacao=/N[ÃA]O OPTANTE/.test(T)?"nao_optante":(/OPTANTE PELO SIMPLES NACIONAL/.test(T)?"optante":""); const d=t.match(/desde\s*(\d{2}\/\d{2}\/\d{4})/i); if(d) r.emitida=d[1]; if(/MEI/.test(T)&&/SIMEI/.test(T)) r.avisos.push("Consta enquadramento no SIMEI (MEI)."); }
+    else if(k==="sefaz_se"||k==="municipal"){ r.situacao=/POSITIVA COM EFEITO[S]? DE NEGATIVA/.test(T)?"positiva_efeitos_negativa":(/CERTID[ÃA]O POSITIVA/.test(T)?"positiva":(/CERTID[ÃA]O NEGATIVA|NADA CONSTA|N[ÃA]O CONSTA/.test(T)?"negativa":""));
+      const v=t.match(/V[áa]lida? (?:at[ée]|por)\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i)||t.match(/Validade\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i); if(v) r.validade=v[1]; const e=t.match(/Emitida (?:em|[àa]s [\d:]+ do dia)\s*(\d{2}\/\d{2}\/\d{4})/i)||t.match(/Data de emiss[ãa]o\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i); if(e) r.emitida=e[1];
+      const c=t.match(/C[óo]digo de (?:controle|autenticidade|verifica[çc][ãa]o)[^0-9A-Z]{0,20}([0-9A-Z.\-]{8,40})/i); if(c) r.numero=c[1]; }
+    else if(k==="sitfiscal"){ r.situacao=/N[ÃA]O (?:FORAM|H[ÁA]) (?:ENCONTRADAS? )?PEND[ÊE]NCIAS|SEM PEND[ÊE]NCIAS|REGULAR/i.test(t)?"regular":(/PEND[ÊE]NCIA/.test(T)?"com_pendencia":""); const e=t.match(/(\d{2}\/\d{2}\/\d{4})/); if(e) r.emitida=e[1]; }
+    if(!r.detectado && !r.situacao) r.avisos.push("Não reconheci o tipo de certidão pelo texto; confira e registre à mão.");
+    return r;
+  }
+  const PEND_SIT={negativa:["ok","Negativa"],positiva_efeitos_negativa:["ok","Positiva com efeitos de negativa"],regular:["ok","Regular"],optante:["ok","Optante"],positiva:["bad","Positiva (há débito)"],nao_optante:["warn","Não optante"],com_pendencia:["bad","Com pendência"],nao_se_aplica:["na","Não se aplica"],conferido_ok:["ok","Conferido: sem pendência"],conferido_pend:["bad","Conferido: com pendência"]};
+  function pendRegistro(id){ const a=_analise||{}; return (a.pend||{})[id]||{}; }
+  function gravarPendencia(id,campos){ if(!_analise||typeof _analise!=="object") _analise={}; _analise.pend=_analise.pend||{}; _analise.pend[id]=Object.assign({},_analise.pend[id]||{},campos,{em:hojeBR(),por:_quem(_meuEmail())}); _atoAlterado=true; salvarRascunho(); renderPendencias(); atualizarEtapas(); }
+  function pendVencida(reg){ if(!reg||!reg.validade) return false; const iso=_dBR2ISO(reg.validade); return !!iso && iso<_isoHoje(); }
+  function resumoPendencias(){ const its=itensPendencias(); let ok=0,ruim=0,falta=0; its.forEach(it=>{ const r=pendRegistro(it.id); const s=PEND_SIT[r.situacao]; if(!s){ falta++; return; } if(s[0]==="bad"||pendVencida(r)) ruim++; else if(s[0]==="ok") ok++; }); return {ok,ruim,falta,total:its.length}; }
+  async function lerCertidaoArquivo(id,file){
+    const it=PEND_ITENS.find(x=>x.id===id); if(!it||!file) return;
+    toast("Lendo “"+file.name+"”…","info");
+    let ext; try{ ext=await extrairTextoPDF(file,()=>{}); }catch(e){ toast("Não consegui ler o PDF: "+((e&&e.message)||e),"err",7000); return; }
+    const r=interpretarCertidao((ext.txt||"")+"\n"+(ext.ocr||""),it.tipo);
+    const c=cnpjDaAnalise(); if(c && r.cnpj && r.cnpj!==c) r.avisos.push("O CNPJ do PDF ("+_fmtCnpj14(r.cnpj)+") não é o da empresa analisada ("+_fmtCnpj14(c)+").");
+    gravarPendencia(id,{situacao:r.situacao||"",emitida:r.emitida,validade:r.validade,numero:r.numero,arquivo:file.name,origem:"pdf",avisos:r.avisos,detectado:r.detectado});
+    toast(r.situacao?("Certidão lida: "+PEND_SIT[r.situacao][1]+(r.validade?" · válida até "+r.validade:"")):"PDF lido, mas a situação não ficou clara: registre à mão.",r.situacao?"ok":"warn",6000);
+  }
+  function renderPendencias(){
+    const box=$("anPend"); if(!box) return; const its=itensPendencias(), c=cnpjDaAnalise();
+    if(!c){ box.innerHTML='<div class="hint">Sem CNPJ não há certidão a tirar: numa abertura, as pendências são dos sócios (CPF) e ficam fora desta versão.</div>'; return; }
+    let esf=""; box.innerHTML='<table class="pend-tab"><tbody>'+its.map(it=>{ const r=pendRegistro(it.id), s=PEND_SIT[r.situacao]||null, venc=pendVencida(r);
+      const cab=(it.esfera!==esf)?'<tr class="pend-esf"><td colspan="3">'+escHtml(it.esfera)+'</td></tr>':""; esf=it.esfera;
+      const badge=s?'<span class="pend-st '+(venc&&s[0]==="ok"?"warn":s[0])+'">'+escHtml(s[1])+(venc?" · VENCIDA":"")+'</span>':'<span class="pend-st falta">a conferir</span>';
+      const det=[r.validade?"válida até "+escHtml(r.validade):"",r.emitida?"emitida "+escHtml(r.emitida):"",r.numero?"nº "+escHtml(r.numero):"",r.por?"por "+escHtml(r.por)+(r.em?" em "+escHtml(r.em):""):""].filter(Boolean).join(" · ");
+      const av=(r.avisos||[]).map(x=>'<div class="et-av pend-av">⚠ '+escHtml(x)+'</div>').join("");
+      return cab+'<tr><td class="pend-nome"><b>'+escHtml(it.nome)+'</b><div class="hint">'+escHtml(it.orgao)+(it.dias?" · "+it.dias+" dias":"")+(it.nota?" · "+escHtml(it.nota):"")+'</div>'+(det?'<div class="hint">'+det+'</div>':"")+av+'</td>'
+        +'<td class="pend-badge">'+badge+'</td>'
+        +'<td class="pend-acoes">'+(it.url?'<a class="btn o mini" href="'+escHtml(it.url)+'" target="_blank" rel="noopener">↗ Emitir</a>':'')
+        +'<label class="btn o mini">📎 Ler PDF<input type="file" accept="application/pdf" data-pend-pdf="'+it.id+'" hidden></label>'
+        +'<button type="button" class="btn ok mini" data-pend="'+it.id+'" data-sit="conferido_ok" title="Conferi na tela oficial: sem pendência">✓</button>'
+        +'<button type="button" class="btn o mini" data-pend="'+it.id+'" data-sit="conferido_pend" title="Conferi: há pendência">⚠</button>'
+        +'<button type="button" class="btn s mini" data-pend="'+it.id+'" data-sit="nao_se_aplica" title="Não se aplica a esta empresa">—</button></td></tr>'; }).join("")+'</tbody></table>'
+      +'<div class="hint" style="margin-top:6px">As telas oficiais têm captcha: o contador emite, baixa o PDF e lê aqui (o Atos confere tipo, situação, validade e CNPJ). “✓” e “⚠” registram uma conferência feita na tela, com quem e quando.</div>';
+    box.querySelectorAll("[data-pend-pdf]").forEach(inp=>inp.addEventListener("change",()=>{ const f=inp.files&&inp.files[0]; if(f) lerCertidaoArquivo(inp.dataset.pendPdf,f); }));
+    box.querySelectorAll("[data-pend]").forEach(b=>b.addEventListener("click",()=>{ const sit=b.dataset.sit; const extra=sit==="conferido_pend"?(prompt("Qual a pendência? (fica no laudo)")||""):""; gravarPendencia(b.dataset.pend,{situacao:sit,origem:"tela",obs:extra,validade:(sit==="nao_se_aplica"?"":pendRegistro(b.dataset.pend).validade||""),avisos:[]}); }));
+  }
+
+  /* ---- Enquadramento: entradas, cálculo, tela ---- */
+  function enqEntradas(){ const a=_analise||{}; const e=Object.assign({ano:new Date().getFullYear(),rbt12:"",fs12:"",proLabore:"",socios:"",iss:"5",anexo:"",margem:"",creditos:"0",ratTerceiros:"",servicosAte120k:false},a.enq&&a.enq.entradas||{});
+    if(!e.socios){ try{ const d=coletar(); e.socios=String((d.socios||[]).filter(s=>(s.nome||"").trim()).length||1); }catch(x){ e.socios="1"; } }
+    if(!e.anexo){ const f=a.ficha; if(f&&f.cnaePrincipal&&f.cnaePrincipal.codigo){ const k=classificarCnae(f.cnaePrincipal.codigo,Number(e.ano)); if(k.anexo) e.anexo=k.anexo; } }
+    if(!e.anexo) e.anexo="III ou V";
+    return e; }
+  function calcularEnquadramento(){
+    const e=enqEntradas(); const a=_analise||{};
+    const ent=Object.assign({},e,{ano:Number(e.ano)||new Date().getFullYear(),rbt12:Number(String(e.rbt12).replace(/\./g,"").replace(",","."))||0,fs12:Number(String(e.fs12).replace(/\./g,"").replace(",","."))||0,proLabore:Number(String(e.proLabore).replace(/\./g,"").replace(",","."))||0,socios:Number(e.socios)||1,iss:Number(String(e.iss).replace(",","."))||0,margem:Number(String(e.margem).replace(",","."))||0,creditos:Number(String(e.creditos).replace(",","."))||0,ratTerceiros:e.ratTerceiros===""?"":Number(String(e.ratTerceiros).replace(",","."))});
+    let res=null, erro=""; try{ res=ent.rbt12>0?compararRegimes(ent):null; }catch(x){ erro=(x&&x.message)||String(x); }
+    const ved=vedacoesSimples(a.ficha||null,ent); const cnaes=[]; const f=a.ficha; if(f){ [f.cnaePrincipal].concat(f.cnaes||[]).forEach((x,i)=>{ if(x&&x.codigo) cnaes.push(Object.assign({principal:i===0,descricao:x.descricao||""},classificarCnae(x.codigo,ent.ano))); }); }
+    return {entradas:e,ent,res,erro,vedacoes:ved,cnaes};
+  }
+  function gravarEnq(campos){ if(!_analise||typeof _analise!=="object") _analise={}; _analise.enq=Object.assign({},_analise.enq||{},campos); _atoAlterado=true; salvarRascunho(); }
+  const _pct=v=>(v===null||v===undefined||isNaN(v))?"":(Number(v)*100).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+"%";
+  function renderEnquadramento(){
+    const box=$("anEnq"); if(!box) return; const E=calcularEnquadramento(), e=E.entradas, a=_analise||{};
+    const inp=(id,rot,val,extra)=>'<label class="an-inp"><span>'+rot+'</span><input id="enq_'+id+'" data-enq="'+id+'" value="'+escHtml(val==null?"":String(val))+'" '+(extra||"")+'></label>';
+    const opc=["I","II","III","IV","V","III ou V"].map(x=>'<option value="'+x+'"'+(e.anexo===x?" selected":"")+'>'+(x==="III ou V"?"III ou V (Fator R)":"Anexo "+x)+'</option>').join("");
+    let h='<div class="an-form">'+inp("rbt12","Receita bruta dos últimos 12 meses (R$)",e.rbt12,'inputmode="decimal" placeholder="ex.: 480000"')+inp("fs12","Folha de salários dos 12 meses, com pró-labore, 13º, FGTS e CPP (R$)",e.fs12,'inputmode="decimal"')
+      +inp("proLabore","Pró-labore mensal por sócio (R$)",e.proLabore,'inputmode="decimal"')+inp("socios","Sócios com pró-labore",e.socios,'inputmode="numeric"')
+      +'<label class="an-inp"><span>Anexo da atividade principal</span><select id="enq_anexo" data-enq="anexo">'+opc+'</select></label>'+inp("iss","ISS do município (%)",e.iss,'inputmode="decimal"')
+      +inp("ano","Ano de apuração",e.ano,'inputmode="numeric"')+inp("margem","Margem de lucro estimada para o Lucro Real (%)",e.margem,'inputmode="decimal" placeholder="ex.: 20"')
+      +inp("creditos","Créditos de PIS/COFINS no Real (% da receita)",e.creditos,'inputmode="decimal"')+inp("ratTerceiros","RAT + terceiros sobre a folha (%; vazio = 5,8 estimado)",e.ratTerceiros,'inputmode="decimal"')+'</div>';
+    // CNAEs
+    if(E.cnaes.length) h+='<div class="an-k" style="margin-top:8px">CNAEs da ficha</div><ul class="an-cnaes">'+E.cnaes.map(k=>'<li><b>'+escHtml(k.codigo)+'</b>'+(k.principal?' <span class="an-tag">principal</span>':"")+' <span class="hint">'+escHtml(k.descricao)+'</span><br><span class="pend-st '+(k.situacao==="impeditivo"?"bad":(k.situacao==="ambiguo"?"warn":(k.situacao==="anexo"?"ok":"falta")))+'">'+(k.situacao==="anexo"?"Anexo "+k.anexo:(k.situacao==="impeditivo"?"Impeditivo":(k.situacao==="ambiguo"?"Ambíguo":"Sem classificação")))+'</span> <span class="hint">'+escHtml(k.texto)+(k.base?" — "+escHtml(k.base):"")+'</span></li>').join("")+'</ul>';
+    // vedações
+    h+='<div class="an-k" style="margin-top:8px">Simples Nacional: vedações e alertas</div><ul class="an-ved">'+E.vedacoes.map(v=>'<li class="'+v.nivel+'">'+(v.nivel==="veda"?"⛔ ":(v.nivel==="alerta"?"⚠ ":(v.nivel==="perguntar"?"❓ ":"ℹ ")))+escHtml(v.texto)+(v.base?' <span class="hint">— '+escHtml(v.base)+'</span>':"")+'</li>').join("")+'</ul>';
+    if(E.erro) h+='<div class="et-av">Não foi possível calcular: '+escHtml(E.erro)+'</div>';
+    const R=E.res;
+    if(R){ const cartao=(x,extra)=>'<div class="an-reg'+(x.regime===R.melhor?" melhor":"")+'"><div class="an-reg-t">'+escHtml(x.regime)+(x.regime===R.melhor?' <span class="an-tag ok">menor carga</span>':"")+'</div>'+(x.aplicavel&&x.total!==undefined?'<div class="an-reg-v">'+_brl(x.total)+'<span class="hint">/ano · '+_pct(x.total/E.ent.rbt12)+' da receita</span></div>'+extra:'<div class="hint">'+escHtml(x.motivo||"não se aplica")+'</div>')+'</div>';
+      const simplesExtra=R.simples.aplicavel?'<div class="hint">Anexo '+R.simples.anexo+(R.simples.fatorR!==null?' · Fator R '+_pct(R.simples.fatorR):"")+' · '+R.simples.faixa+'ª faixa · alíquota efetiva '+_pct(R.simples.efetiva)+'<br>DAS '+_brl(R.simples.das)+(R.simples.cpp?' · CPP patronal (Anexo IV) '+_brl(R.simples.cpp):"")+' · INSS+IRRF dos sócios '+_brl(R.simples.socio)+'</div>'
+        +'<details class="an-det"><summary>Repartição por tributo</summary><ul>'+Object.keys(R.simples.tributos).map(t=>'<li>'+t+': '+_pct(R.simples.tributos[t])+'</li>').join("")+'</ul></details>':"";
+      const presExtra='<div class="hint">IRPJ '+_brl(R.presumido.irpj)+(R.presumido.adicional?' + adicional '+_brl(R.presumido.adicional):"")+' · CSLL '+_brl(R.presumido.csll)+' · '+escHtml(R.presumido.pisCofNota)+' '+_brl(R.presumido.pisCofins)+(R.presumido.iss?' · ISS '+_brl(R.presumido.iss):"")+' · CPP '+_brl(R.presumido.cpp)+' · sócios '+_brl(R.presumido.socio)+'<br>presunção IRPJ '+_pct(R.presumido.presuncao.irpj)+' / CSLL '+_pct(R.presumido.presuncao.csll)+'</div>';
+      const realExtra='<div class="hint">Lucro estimado '+_brl(R.real.lucro)+' ('+_pct(R.real.margem)+') · IRPJ '+_brl(R.real.irpj)+(R.real.adicional?' + adicional '+_brl(R.real.adicional):"")+' · CSLL '+_brl(R.real.csll)+' · '+escHtml(R.real.pisCofNota)+' '+_brl(R.real.pisCofins)+(R.real.iss?' · ISS '+_brl(R.real.iss):"")+' · CPP '+_brl(R.real.cpp)+' · sócios '+_brl(R.real.socio)+'</div>';
+      h+='<div class="an-regs">'+cartao(R.simples,simplesExtra)+cartao(R.presumido,presExtra)+cartao(R.real,realExtra)+'</div>';
+      const ir=irrfProLabore(E.ent.proLabore,R.ano+"-06-30");
+      h+='<div class="hint" style="margin-top:6px">Pró-labore de '+_brl(E.ent.proLabore)+': INSS do sócio '+_brl(ir.inss)+' e IRRF '+_brl(ir.irrf)+' por mês'+(ir.usouSimplificado?" (desconto simplificado)":" (INSS deduzido)")+(ir.reducao?', já com a redução de '+_brl(ir.reducao)+' da Lei 15.270/2025':"")+'.</div>';
+      if(R.fatorRInfo){ const f=R.fatorRInfo; h+='<div class="an-fr"><b>Fator R:</b> '+_pct(f.fatorR)+' (mínimo '+_pct(f.minimo)+') → Anexo '+f.anexoHoje+'. '+(f.anexoHoje==="V"?'Para o Anexo III faltam '+_brl(f.faltaFolha)+' de folha nos 12 meses'+(f.proLaboreParaIII!==null?' (pró-labore de cerca de '+_brl(f.proLaboreParaIII)+'/mês por sócio, só com a folha de hoje)':"")+'; o DAS cairia de '+_brl(f.dasV)+' para '+_brl(f.dasIII)+' (economia de '+_brl(f.economiaDAS)+'/ano), contra o custo de INSS e IRRF da folha a mais.':'Já está no Anexo III (DAS '+_brl(f.dasIII)+' contra '+_brl(f.dasV)+' no V).')+'</div>'; }
+      h+='<ul class="an-avisos">'+R.avisos.map(x=>'<li>'+escHtml(x)+'</li>').join("")+'</ul>';
+      h+='<details class="an-det"><summary>Base legal e parâmetros usados (valor · vigência · fonte)</summary><ul>'+R.fontes.map(p=>'<li><b>'+escHtml(p.descricao)+'</b>: '+escHtml(typeof p.valor==="object"?"tabela":String(p.valor))+' · desde '+escHtml(_dataISOouBR(p.de))+(p.status&&p.status!=="vigente"?' · <i>'+escHtml(p.status)+'</i>':"")+' · '+escHtml(p.fonte)+'</li>').join("")+'<li>Tabelas: '+escHtml(PT().anexos.fonte)+'</li><li>CNAE: '+escHtml(PT().cnae.fonte)+'</li></ul></details>'; }
+    else h+='<div class="hint">Informe a receita dos últimos 12 meses para comparar os regimes.</div>';
+    box.innerHTML=h;
+    const salva=()=>{ const o={}; box.querySelectorAll("[data-enq]").forEach(i=>{ o[i.dataset.enq]=i.value; }); gravarEnq({entradas:o,em:hojeBR()}); };
+    box.querySelectorAll("[data-enq]").forEach(i=>{ i.addEventListener("change",()=>{ salva(); renderEnquadramento(); renderLaudo(); atualizarEtapas(); }); });
+  }
+
+  /* ---- Laudo: o que foi visto, por quem, com as fontes; PDF pelo mesmo pdfmake do documento ---- */
+  function dadosLaudo(){
+    const a=_analise||{}, E=calcularEnquadramento(), its=itensPendencias(), c=cnpjDaAnalise();
+    return {empresa:(a.ficha&&a.ficha.razao)||(function(){ try{ return coletar().razao||""; }catch(e){ return ""; } })(),cnpj:c?_fmtCnpj14(c):"",ficha:a.ficha||null,
+      pend:its.map(it=>Object.assign({nome:it.nome,esfera:it.esfera},pendRegistro(it.id))),enq:E,obs:(a.laudo&&a.laudo.obs)||"",concluidaEm:a.concluidaEm||"",concluidaPor:a.concluidaPor||"",geradoEm:hojeBR(),geradoPor:_quem(_meuEmail())};
+  }
+  function textoLaudo(L){
+    const linhas=[]; const S=PEND_SIT;
+    linhas.push("LAUDO DE ANÁLISE DA EMPRESA"); linhas.push((L.empresa||"(empresa)")+(L.cnpj?" — CNPJ "+L.cnpj:"")); linhas.push("Gerado em "+L.geradoEm+(L.geradoPor?" por "+L.geradoPor:"")+(L.concluidaEm?" · análise concluída em "+L.concluidaEm+(L.concluidaPor?" por "+L.concluidaPor:""):""));
+    linhas.push(""); linhas.push("1. FICHA NA RECEITA FEDERAL");
+    if(L.ficha){ const f=L.ficha; linhas.push("Situação: "+(f.situacao.txt||"?")+(f.situacao.data?" desde "+_dataISOouBR(f.situacao.data):"")+" · Natureza: "+(f.natureza||"?")+" · Porte: "+(f.porte||"?")+" · Capital: "+_brl(f.capital)+" · Início: "+_dataISOouBR(f.inicio));
+      linhas.push("CNAE principal: "+f.cnaePrincipal.codigo+" "+f.cnaePrincipal.descricao); if(f.cnaes.length) linhas.push("Secundários: "+f.cnaes.map(x=>x.codigo).join(", "));
+      linhas.push("Quadro societário: "+(f.qsa.map(s=>s.nome+(s.qualificacao?" ("+s.qualificacao+")":"")).join("; ")||"—"));
+      linhas.push("Simples (base mensal): "+(f.simples.optante===true?"optante"+(f.simples.desde?" desde "+_dataISOouBR(f.simples.desde):""):(f.simples.optante===false?"não optante":"sem informação"))+(f.simples.mei===true?" · MEI":"")+" · fonte "+f.fonte+" · consultado em "+_dataISOouBR(f.consultadoEm)); }
+    else linhas.push("Sem ficha (empresa sem CNPJ ou consulta não feita).");
+    linhas.push(""); linhas.push("2. PENDÊNCIAS");
+    L.pend.forEach(p=>{ const s=S[p.situacao]; linhas.push("- "+p.esfera+" · "+p.nome+": "+(s?s[1]:"não conferida")+(p.validade?" · válida até "+p.validade:"")+(p.numero?" · nº "+p.numero:"")+(p.obs?" · "+p.obs:"")+(p.por?" · por "+p.por+" em "+p.em:"")); });
+    linhas.push(""); linhas.push("3. ENQUADRAMENTO TRIBUTÁRIO");
+    const E=L.enq; E.cnaes.forEach(k=>linhas.push("- CNAE "+k.codigo+(k.principal?" (principal)":"")+": "+(k.situacao==="anexo"?"Anexo "+k.anexo:(k.situacao==="impeditivo"?"IMPEDITIVO":(k.situacao==="ambiguo"?"AMBÍGUO":"sem classificação automática")))+(k.base?" — "+k.base:"")));
+    E.vedacoes.forEach(v=>linhas.push("- "+(v.nivel==="veda"?"VEDAÇÃO":(v.nivel==="alerta"?"ALERTA":(v.nivel==="perguntar"?"CONFIRMAR COM O CLIENTE":"INFO")))+": "+v.texto+(v.base?" ("+v.base+")":"")));
+    if(E.res){ const R=E.res; linhas.push("Receita 12 meses "+_brl(E.ent.rbt12)+" · folha 12 meses "+_brl(E.ent.fs12)+" · pró-labore "+_brl(E.ent.proLabore)+"/mês × "+E.ent.socios+" · ano "+R.ano);
+      if(R.simples.aplicavel) linhas.push("Simples Nacional — Anexo "+R.simples.anexo+(R.simples.fatorR!==null?" (Fator R "+_pct(R.simples.fatorR)+")":"")+", "+R.simples.faixa+"ª faixa, alíquota efetiva "+_pct(R.simples.efetiva)+": DAS "+_brl(R.simples.das)+(R.simples.cpp?" + CPP "+_brl(R.simples.cpp):"")+" + sócios "+_brl(R.simples.socio)+" = "+_brl(R.simples.total)+"/ano"); else linhas.push("Simples Nacional: "+(R.simples.motivo||"não se aplica"));
+      linhas.push("Lucro Presumido — "+_brl(R.presumido.total)+"/ano (IRPJ "+_brl(R.presumido.irpj+R.presumido.adicional)+", CSLL "+_brl(R.presumido.csll)+", "+R.presumido.pisCofNota+" "+_brl(R.presumido.pisCofins)+(R.presumido.iss?", ISS "+_brl(R.presumido.iss):"")+", CPP "+_brl(R.presumido.cpp)+", sócios "+_brl(R.presumido.socio)+")");
+      linhas.push("Lucro Real (estimativa, margem "+_pct(R.real.margem)+") — "+_brl(R.real.total)+"/ano");
+      linhas.push("Menor carga na comparação: "+R.melhor+"."); if(R.fatorRInfo&&R.fatorRInfo.anexoHoje==="V") linhas.push("Fator R: faltam "+_brl(R.fatorRInfo.faltaFolha)+" de folha para o Anexo III; economia potencial no DAS de "+_brl(R.fatorRInfo.economiaDAS)+"/ano.");
+      R.avisos.forEach(x=>linhas.push("Ressalva: "+x)); linhas.push("Parâmetros: "+R.fontes.map(p=>p.descricao+" = "+(typeof p.valor==="object"?"tabela":p.valor)+" (desde "+_dataISOouBR(p.de)+(p.status&&p.status!=="vigente"?", "+p.status:"")+"; "+p.fonte+")").join(" | ")); }
+    else linhas.push("Comparação de regimes não calculada (sem receita informada).");
+    linhas.push(""); linhas.push("4. CONCLUSÃO E OBSERVAÇÕES DO CONTADOR"); linhas.push(L.obs||"(sem observações)");
+    linhas.push(""); linhas.push("Este laudo reúne dados públicos (base mensal da Receita), certidões emitidas nas telas oficiais e uma comparação tributária simplificada feita com os parâmetros e fontes acima. Não substitui a apuração contábil nem a Consulta Optantes.");
+    return linhas.join("\n");
+  }
+  function renderLaudo(){
+    const box=$("anLaudo"); if(!box) return; const a=_analise||{}, L=dadosLaudo(), r=resumoPendencias();
+    box.innerHTML='<div class="hint">Resumo: '+(L.ficha?"ficha lida":"sem ficha")+' · pendências: '+r.ok+' ok, '+r.ruim+' com problema, '+r.falta+' a conferir · '+(L.enq.res?"regimes comparados (menor carga: "+escHtml(L.enq.res.melhor)+")":"regimes não comparados")+'</div>'
+      +'<label class="an-inp" style="margin-top:6px"><span>Conclusão e observações (vão para o laudo)</span><textarea id="anLaudoObs" rows="4">'+escHtml(L.obs)+'</textarea></label>'
+      +'<div class="bar" style="margin-top:6px"><button type="button" class="btn p mini" id="anLaudoPdf">⬇ Laudo em PDF</button><button type="button" class="btn o mini" id="anLaudoTxt">📋 Copiar texto</button>'+(a.laudo&&a.laudo.geradoEm?'<span class="hint">último PDF em '+escHtml(a.laudo.geradoEm)+(a.laudo.geradoPor?" por "+escHtml(a.laudo.geradoPor):"")+'</span>':"")+'</div>';
+    const obs=$("anLaudoObs"); obs.addEventListener("change",()=>{ if(!_analise||typeof _analise!=="object") _analise={}; _analise.laudo=Object.assign({},_analise.laudo||{},{obs:obs.value}); _atoAlterado=true; salvarRascunho(); });
+    $("anLaudoTxt").addEventListener("click",async()=>{ const t=textoLaudo(dadosLaudo()); try{ await navigator.clipboard.writeText(t); toast("Texto do laudo copiado.","ok"); }catch(e){ prompt("Copie o texto:",t); } });
+    $("anLaudoPdf").addEventListener("click",async()=>{ try{ const blob=await gerarLaudoPdf(); const nome="LAUDO-ANALISE-"+slugArq(L.empresa||"empresa")+".pdf"; const url=URL.createObjectURL(blob); const el=document.createElement("a"); el.href=url; el.download=nome; document.body.appendChild(el); el.click(); el.remove(); setTimeout(()=>URL.revokeObjectURL(url),6000);
+        if(!_analise||typeof _analise!=="object") _analise={}; _analise.laudo=Object.assign({},_analise.laudo||{},{geradoEm:hojeBR(),geradoPor:_quem(_meuEmail()),arquivo:nome}); _atoAlterado=true; salvarRascunho(); renderLaudo(); toast("✓ Laudo baixado: "+nome,"ok"); }
+      catch(e){ toast("Erro ao gerar o laudo: "+((e&&e.message)||e),"err",7000); console.error(e); } });
+  }
+  function conteudoLaudoPdf(L){
+    const t=textoLaudo(L).split("\n"), content=[]; t.forEach((l,i)=>{ if(i===0) content.push({text:l,fontSize:14,bold:true,margin:[0,0,0,6]}); else if(/^\d\. /.test(l)) content.push({text:l,bold:true,margin:[0,10,0,3]}); else if(!l) content.push({text:" ",margin:[0,2,0,2]}); else content.push({text:l,margin:[0,1,0,1]}); });
+    return content;
+  }
+  function gerarLaudoPdf(){ if(!window.pdfMake) throw new Error("pdfmake não carregou"); const L=dadosLaudo(); const dd={pageSize:"A4",pageMargins:[56,56,56,56],defaultStyle:{font:"Times",fontSize:10.5,lineHeight:1.2},info:{title:"Laudo de análise — "+(L.empresa||"")},content:conteudoLaudoPdf(L)};
+    return new Promise((res,rej)=>{ try{ pdfMake.createPdf(dd).getBlob(res); }catch(e){ rej(e); } }); }
+  function renderBlocosAnalise(){ try{ renderPendencias(); }catch(e){ console.error(e); } try{ renderEnquadramento(); }catch(e){ console.error(e); const b=$("anEnq"); if(b) b.innerHTML='<div class="et-av">'+escHtml((e&&e.message)||String(e))+'</div>'; } try{ renderLaudo(); }catch(e){ console.error(e); } }
   function renderEtapaPedido(){
     const box=$("etPedido"); if(!box) return;
     const sid=(_solicLigada===null)?solicDoAto():_solicLigada, r=sid?lerSolic().find(x=>x.id===sid):null;
@@ -7908,7 +8215,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,corrigirRedacaoMantida,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,analiseAtual:()=>_analise,marcarAnalise,consultarCnpjCascata,fichaDeBrasilAPI:_fichaDeBrasilAPI,fichaDeOpenCNPJ:_fichaDeOpenCNPJ,fichaDeCnpjWs:_fichaDeCnpjWs,estadoAnalise,etapas:()=>ET,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,corrigirRedacaoMantida,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,analiseAtual:()=>_analise,marcarAnalise,paramVigente,aliquotaEfetiva,reparticaoSimples,fatorR,classificarCnae,irrfProLabore,compararRegimes,vedacoesSimples,interpretarCertidao,textoLaudo,dadosLaudo,gerarLaudoPdf,gravarPendencia,resumoPendencias,consultarCnpjCascata,fichaDeBrasilAPI:_fichaDeBrasilAPI,fichaDeOpenCNPJ:_fichaDeOpenCNPJ,fichaDeCnpjWs:_fichaDeCnpjWs,estadoAnalise,etapas:()=>ET,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();
