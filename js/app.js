@@ -3750,7 +3750,8 @@ window.TINA=(function(){
     const a=[], fim=SOLIC_FIM.indexOf(r.status)>=0;
     const podeEditar=!_modoComercial || r.status==="nova";   // depois que o trabalho começou, o comercial fala pela resposta
     if(!_modoComercial){
-      a.push(["abrir",B("data-sol-abrir","p","Trabalhar","Marca o processo como em andamento e abre o ato. Não preenche o formulário: os dados do ato vêm do cartão CNPJ ou do contrato.")]);
+      // "Trabalhar" é o primeiro passo (pedido novo); depois disso quem leva ao ato é o "Continuar o ato", que faz o mesmo quando preciso
+      if(r.status==="nova") a.push(["abrir",B("data-sol-abrir","p","Trabalhar","Marca o processo como em andamento e abre o ato. Não preenche o formulário: os dados do ato vêm do cartão CNPJ ou do contrato.")]);
       if(r.status!=="nova" && !fim) a.push(["continuar",B("data-sol-continuar","p","▶ Continuar o ato","Abre o ato desta solicitação na etapa em que ele está")]);
       if(r.status==="protocolada") a.push(["exig",B("data-sol-exig","o","⚠ Exigência","A Junta devolveu com exigência: registra o motivo")]);
       if(r.status==="exigencia") a.push(["reproto",B("data-sol-reproto","o","↻ Protocolei de novo","Exigência cumprida e ato protocolado de novo")]);
@@ -3971,7 +3972,12 @@ window.TINA=(function(){
      Daqui em diante a conclusão carimba concluidoEm. Os atos antigos não têm esse carimbo, e para
      eles vale a confirmação do cliente: o documento só é liberado depois dela, e gerar o documento
      sempre apagou o trabalho — então quem está confirmado já foi entregue. */
-  function _atoConcluido(c){ return !!(c && (c.concluidoEm || c.confirmado)); }
+  /* CUIDADO: só os atos confirmados ANTES do carimbo (09/09/2026) valem como concluídos pela
+     confirmação. Os de depois só são concluídos com concluidoEm (download ou "Marcar como
+     concluído"). Antes valia para todos — e a faxina apagava o trabalho salvo de quem tinha
+     registrado o "de acordo" e ainda não tinha baixado o documento. */
+  const CORTE_CONCLUIDO=Date.parse("2026-09-10T00:00:00-03:00");
+  function _atoConcluido(c){ return !!(c && (c.concluidoEm || (c.confirmado && !((c.confirmadoTs||0)>=CORTE_CONCLUIDO)))); }
   /* Varre a nuvem e tira o trabalho dos concluídos. Roda junto da sincronização, sem avisar nada
      na tela: é faxina, não é assunto do usuário. */
   function limparConcluidosNaNuvem(itens){
@@ -6869,7 +6875,8 @@ window.TINA=(function(){
     const cs=lerCasos(), c=cs.find(x=>x.id===casoId), l=lerSolic(), r=l.find(x=>x.id===sid); if(!c||!r) return;
     c.solicId=sid; c.alteradoEm=new Date().toISOString(); salvarCasos(cs);
     r.atoId=casoId; r.alteradoEm=c.alteradoEm;
-    if(r.status==="nova"){ r.status="andamento"; passoSolic(r,"andamento"); if(!r.trabalhandoPor){ r.trabalhandoPor=_meuEmail(); r.trabalhandoDesde=r.alteradoEm; } }
+    if(r.status==="nova"){ r.status="andamento"; passoSolic(r,"andamento"); }
+    if(!r.trabalhandoPor){ r.trabalhandoPor=_meuEmail(); r.trabalhandoDesde=r.alteradoEm; }
     salvarSolic(l);
     if(window.Nuvem&&window.Nuvem.podeGravar()){ window.Nuvem.salvar("atos",casoId,{solicId:sid,alteradoEm:c.alteradoEm});
       window.Nuvem.salvar("solicitacoes",sid,{atoId:casoId,status:r.status,historico:r.historico||[],trabalhandoPor:r.trabalhandoPor||"",trabalhandoDesde:r.trabalhandoDesde||"",alteradoEm:r.alteradoEm}); }
@@ -6883,6 +6890,7 @@ window.TINA=(function(){
     const r={id:"S"+Date.now().toString(36).toUpperCase(),empresa:c.empresa||"",cnpj:c.cnpj||"",tipo:c.modo||"",pedidos:[],docsOk:[],
       status:"nova",obs:"Aberta pelo cadastro a partir do ato #"+c.id+".",criadoEm:agora,alteradoEm:agora,abertaPor:eu,anexos:[]};
     passoSolic(r,"nova");
+    if(c.protocoladoEm){ const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(c.protocoladoEm); r.status="protocolada"; r.protocoladaEm=m?new Date(+m[3],+m[2]-1,+m[1],12).toISOString():agora; passoSolic(r,"protocolada"); }
     const l=lerSolic(); l.unshift(r); salvarSolic(l);
     if(window.Nuvem&&window.Nuvem.podeGravar()) window.Nuvem.salvar("solicitacoes",r.id,r);
     avisarIntegracao("solicitacao.criada",r,true);
@@ -6903,8 +6911,22 @@ window.TINA=(function(){
       else if(k==="ligar") ligarCasoASolic(casoId,box.querySelector("select").value);
       else if(k==="criar") criarSolicDoAto(casoId); }));
   }
+  function _atosAbertosSemSolic(){
+    if(_modoComercial) return 0;
+    const sols=lerSolic(), ids=new Set(sols.map(r=>r.atoId).filter(Boolean)), sids=new Set(sols.map(r=>r.id));
+    return lerCasos().filter(c=>c && c.id && !ids.has(c.id) && !(c.solicId && sids.has(c.solicId)) && temTrabalho(c.id) && !c.concluidoEm).length;
+  }
   function _posRenderSolic(f,q){
     renderFilaAtos(f,q);
+    // "Em aberto" conta tudo o que está em andamento: pedidos do comercial e atos salvos
+    if(!_modoComercial){ const ch=document.querySelector('#solicChips [data-f="abertas"] b'), n=_atosAbertosSemSolic();
+      if(ch && n) ch.textContent=String((parseInt(ch.textContent,10)||0)+n); }
+    // lista vazia: diz o que aparece aqui e como começar
+    const vz=document.querySelector("#solicLista .sol-vazio");
+    if(vz && !_modoComercial && f==="abertas" && !q){
+      vz.innerHTML=_atosAbertosSemSolic()
+        ? "Nenhum pedido do comercial em aberto."
+        : "<b>Nenhum processo em andamento.</b><br>Aqui aparecem os pedidos do comercial e os atos salvos para continuar depois.<br>Para começar um ato, use <b>＋ Novo ato</b>; para registrar o pedido de um cliente, <b>＋ Nova solicitação</b>."; }
     if(_etapa===1) renderEtapaPedido();
     if(_etapa===6) preencherEtapa6();
     atualizarEtapas();
@@ -6958,7 +6980,7 @@ window.TINA=(function(){
       +'<div class="card"><h2>⇄ Antes e depois</h2><div class="modal-hosp" data-slot="comp"></div></div></div>'+_navEt(2,4)+'<div class="hint">O documento está logo abaixo.</div>',
     4:()=>'<div class="card"><h2>🔒 Confirmação do cliente</h2><div id="etConfSt"></div><div class="et-duas">'
       +'<div><div class="et-h4">1. E-mail de confirmação</div><div class="modal-hosp" data-slot="email"></div></div>'
-      +'<div><div class="et-h4">2. Resposta do cliente</div><div class="modal-hosp" data-slot="gate"></div></div></div></div>'+_navEt(3,5),
+      +'<div><div class="modal-hosp" data-slot="gate"></div></div></div></div>'+_navEt(3,5),
     5:()=>'<div class="et-duas"><div class="card"><h2>Documento</h2><div id="etDocSt"></div><div class="bar"><button type="button" class="btn g" data-et-baixar="docx">⬇ .docx</button><button type="button" class="btn o" data-et-baixar="pdf">⬇ PDF</button></div>'
       +'<div class="hint" style="margin-top:10px">✍ A assinatura é feita fora do sistema. Para o arquivamento valer desde a assinatura, protocole em até 30 dias da data do ato (art. 36 da Lei nº 8.934/1994).</div></div>'
       +'<div class="card"><h2>📤 Enviar ao cliente</h2><div class="modal-hosp" data-slot="enviar"></div></div></div>'+_navEt(4,6),

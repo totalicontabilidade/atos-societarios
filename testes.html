@@ -3013,6 +3013,22 @@
       var bConc=D.querySelector('#filaAtos [data-ca="concluir"]'); if(bConc) bConc.click(); await espera(300);
       reg("“Marcar como concluído” tira o ato da lista e apaga o trabalho", !/EXEMPLO SALVAR/.test($("filaAtos").textContent) && !JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}")[idS]);
       $("btnSolicClose").click(); await espera(200);
+      // v1.67: registrar o "de acordo" não pode apagar o trabalho do ato ainda não baixado (a faxina
+      // da nuvem tratava todo ato confirmado como entregue); o ato antigo, sem carimbo, continua entregue
+      try{
+        var nvOrig={p:W.Nuvem.podeGravar,l:W.Nuvem.listar,s:W.Nuvem.salvar,t:W.Nuvem.trilha}, agoraIso=new Date().toISOString();
+        var snapF={mode:"alt",fields:{razao:"CONFIRMADO EM ANDAMENTO"},checks:{},socios:[],filiais:[]};
+        W.Nuvem.podeGravar=function(){ return true; };
+        W.Nuvem.listar=function(){ return Promise.resolve({ok:true,itens:[
+          {id:"20261106-0077",empresa:"CONFIRMADO EM ANDAMENTO",tipo:"x",data:"06/11/2026",modo:"alt",criadoEm:Date.now(),alteradoEm:agoraIso,confirmado:true,confirmadoTs:Date.now(),confirmadoEm:"06/11/2026",trabalho:snapF},
+          {id:"20260801-0078",empresa:"CONFIRMADO ANTIGO",tipo:"x",data:"01/08/2026",modo:"alt",criadoEm:1,alteradoEm:agoraIso,confirmado:true,confirmadoEm:"01/08/2026",trabalho:snapF}]}); };
+        W.Nuvem.salvar=function(){ return Promise.resolve({ok:true}); }; W.Nuvem.trilha=function(){ return Promise.resolve({ok:true}); };
+        await W.TINA._ux.sincronizarAtos(); await espera(400);
+        var trsC=JSON.parse(W.localStorage.getItem("tinaTrabalhos")||"{}");
+        reg("Ato confirmado e ainda não baixado mantém o trabalho salvo", !!trsC["20261106-0077"]);
+        reg("Ato confirmado antigo (antes do carimbo de concluído) continua tratado como entregue", !trsC["20260801-0078"]);
+        W.Nuvem.podeGravar=nvOrig.p; W.Nuvem.listar=nvOrig.l; W.Nuvem.salvar=nvOrig.s; W.Nuvem.trilha=nvOrig.t;
+      }catch(e){ reg("Faxina dos concluídos x ato confirmado",false,String(e&&e.message||e).slice(0,120)); }
       ["tinaSolic","tinaCasos","tinaTrabalhos","tinaDraft","tinaZoom"].forEach(function(k){ try{ W.localStorage.removeItem(k); }catch(e){} });
     }catch(e){ reg("Bateria do processo e etapas",false,String(e&&e.message||e).slice(0,140)); }
 

@@ -529,3 +529,6 @@
   .actions .sec{padding:1px 8px;font-size:11.5px}
   #btnProximo{margin-left:auto}
   @media(max-width:760px){ .actions .status{white-space:normal} #btnProximo{margin-left:0} }
+  /* v1.67 */
+  #procCab{scroll-margin-top:calc(var(--alturaCab,66px) + 10px)}
+  body[data-etapa-atual="4"] #gateBloco1{display:none!important}
