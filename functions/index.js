@@ -19,7 +19,10 @@ const parser = require("./parser");
 const evolution = require("./evolution");
 const dialogo = require("./dialogo");
 
-setGlobalOptions({ region: "southamerica-east1", maxInstances: 3, minInstances: 0, memory: "256MiB", timeoutSeconds: 120 });
+// A conta de computação padrão do projeto nasce sem papéis nesta organização. As funções rodam com a
+// conta do Admin SDK do Firebase, que já tem Firestore (Admin SDK) e Storage (administrador de armazenamento).
+setGlobalOptions({ region: "southamerica-east1", maxInstances: 3, minInstances: 0, memory: "256MiB", timeoutSeconds: 120,
+  serviceAccount: "firebase-adminsdk-fbsvc@atos-societarios.iam.gserviceaccount.com" });
 admin.initializeApp();
 const db = admin.firestore();
 const bucket = () => admin.storage().bucket();
@@ -40,6 +43,10 @@ const chaveChat = (jid) => String(jid || "").replace(/[^0-9A-Za-z]/g, "_");
 const agoraISO = () => new Date().toISOString();
 
 // ─── webhook ────────────────────────────────────────────────────────────────
+// Quem chama é a Evolution, que não tem identidade Google. A organização Totali bloqueia "allUsers"
+// (Compartilhamento restrito de domínio), então o acesso público é feito no Cloud Run, só neste serviço,
+// desligando a verificação de IAM do invocador (ver functions/README.md). A proteção é o token do
+// webhook conferido logo abaixo, em tempo constante; sem ele, 401 e nada é lido.
 exports.whatsappWebhook = onRequest({ secrets: [WEBHOOK_TOKEN, API_KEY] }, async (req, res) => {
   if (req.method !== "POST") { res.status(405).send("POST"); return; }
   const recebido = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "") || String(req.headers["x-webhook-token"] || "");

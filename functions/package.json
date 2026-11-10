@@ -3,7 +3,7 @@
   "description": "Robô do WhatsApp dos Atos Societários (Totali): webhook da Evolution API, diálogo guiado sem IA, solicitações no Firestore",
   "private": true,
   "main": "index.js",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "scripts": {
     "test": "node --test",
     "serve": "firebase emulators:start --only functions",

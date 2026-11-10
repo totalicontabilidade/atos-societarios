@@ -8,7 +8,7 @@ grava a solicitação no Atos, com os documentos em anexo. Custo zero dentro das
 WhatsApp ──► Evolution API v2.3.7 (VPS Magalu, container atos_whatsapp, instância "atos")
                  │ webhook HTTPS + token
                  ▼
-         Cloud Function whatsappWebhook (southamerica-east1, Blaze/cota gratuita)
+         Cloud Function whatsappWebhook (southamerica-east1, Node 22, https://whatsappwebhook-dvjo4cygzq-rj.a.run.app)
                  │ dialogo.js (estado em Firestore: conversas/{chat})
                  ├─► Firestore: solicitacoes (origem "whatsapp"), vinculos, whatsapp_eventos
                  ├─► Storage: whatsapp/{chat}/{arquivo}  (CPF, RG, contratos: ficam no Brasil)
@@ -72,6 +72,36 @@ docker exec atos_whatsapp sh -c 'curl -s -X POST -H "apikey: $AUTHENTICATION_API
 Endereço público da Evolution: `https://atos-wa.totalicontabilidade.com.br` (registro A no Cloudflare →
 201.54.20.97, proxied; certificado pelo Traefik/Let's Encrypt). A Cloud Function só precisa dele
 para **responder** e **baixar mídia**; o webhook é a Evolution chamando a função.
+
+## Acesso público do webhook (organização com domínio restrito)
+
+A organização Google da Totali tem a política **Compartilhamento restrito de domínio**
+(`iam.allowedPolicyMemberDomains`): só contas do Workspace podem receber papéis. Por isso o deploy
+não consegue dar o papel de invocador a `allUsers`, e a Evolution (que não tem conta Google) leva 403.
+
+Solução que não mexe na política da organização: no Cloud Run, só no serviço `whatsappwebhook`,
+**desligar a verificação de IAM do invocador** (Cloud Run → whatsappwebhook → Segurança →
+"Permitir acesso público"). A proteção continua sendo o token do webhook. Se um dia o serviço for
+recriado do zero (excluir e publicar de novo), repita esse passo.
+
+Teste rápido: sem o cabeçalho `authorization` a função tem de responder **401 da própria função**
+(JSON `{"ok":false,"erro":"token do webhook inválido"}`), não 403 do Google.
+
+## Contas de serviço desta organização
+
+- **Build:** a conta de computação padrão (`127923457771-compute@…`) tem só o papel
+  *Conta de serviço do Cloud Build* (concedido em 10/11/2026); a organização não dá papéis
+  automáticos a ela.
+- **Execução:** as funções rodam como `firebase-adminsdk-fbsvc@atos-societarios.iam.gserviceaccount.com`
+  (`serviceAccount` em `setGlobalOptions`), que já tem Firestore (Admin SDK) e Storage. O deploy dá a
+  ela acesso aos dois segredos.
+- **Runtime:** Node.js 22 (o 20 foi desativado em 30/10/2026).
+
+## Conectar o chip
+
+No computador do Raoni: `%USERPROFILE%\.atos-whatsapp\conectar-whatsapp-atos.ps1` (botão direito →
+Executar com o PowerShell). Ele abre uma página com o QR, que se renova a cada 25 s, até o número
+conectar. No celular: WhatsApp → Aparelhos conectados → Conectar um aparelho.
 
 ## Dados e LGPD
 
