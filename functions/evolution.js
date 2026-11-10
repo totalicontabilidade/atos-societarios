@@ -59,4 +59,10 @@ async function perfilInstancia() {
   return { ok: true, data: { numero, nome: (i && i.profileName) || null, estado: (i && i.connectionStatus) || null } };
 }
 
-module.exports = { enviarTexto, baixarMidia, perfilInstancia, cfg };
+// Nome (assunto) do grupo, só para a tela. Falha aqui não impede nada.
+async function nomeDoGrupo(groupJid) {
+  const r = await chamar(`/group/findGroupInfos/${inst()}?groupJid=${encodeURIComponent(groupJid)}`, { timeoutMs: 30000 });
+  return r.ok ? (r.data && r.data.subject) || null : null;
+}
+
+module.exports = { enviarTexto, baixarMidia, perfilInstancia, nomeDoGrupo, cfg };

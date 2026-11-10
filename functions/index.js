@@ -18,6 +18,7 @@ const crypto = require("crypto");
 const parser = require("./parser");
 const evolution = require("./evolution");
 const dialogo = require("./dialogo");
+const portaria = require("./portaria");
 
 // A conta de computação padrão do projeto nasce sem papéis nesta organização. As funções rodam com a
 // conta do Admin SDK do Firebase, que já tem Firestore (Admin SDK) e Storage (administrador de armazenamento).
@@ -72,18 +73,23 @@ async function processarEvento(payload) {
   }
   if (ev.evento === "ignorado") return { ignorado: ev.motivo };
 
+  // PORTARIA (v1.73): o número é o do escritório. Só o grupo ativado é atendido; privado e outros
+  // grupos são descartados AQUI, antes de qualquer gravação e sem resposta nenhuma.
+  const decisao = portaria.decidir(ev, await configWhats());
+  if (decisao.acao === "ignorar") return { ignorado: decisao.motivo };
+
   // de-duplicação pelo id da mensagem (a Evolution repete o webhook quando não recebe 200)
   if (ev.waId) {
     try { await db.collection("whatsapp_eventos").doc(ev.waId.replace(/[^0-9A-Za-z_-]/g, "_")).create({ em: admin.firestore.FieldValue.serverTimestamp(), chat: ev.chatJid }); }
     catch (e) { if (e && (e.code === 6 || /already exists/i.test(e.message || ""))) return { repetida: ev.waId }; throw e; }
   }
 
-  // grupo só é atendido quando ligado a um processo (#vincular); privado sempre
   const chatRef = db.collection("conversas").doc(chaveChat(ev.chatJid));
+  if (decisao.acao === "ativar") return ativarGrupo(ev, chatRef, decisao.codigo);
+  // dentro do grupo do robô, "vincular 123456" liga a conversa a um processo do Atos
   if (ev.codigoVinculo) return vincular(ev, chatRef);
   const snap = await chatRef.get();
   let estado = snap.exists ? snap.data() : null;
-  if (ev.grupo && !(estado && estado.vinculo)) return { ignorado: "grupo não ligado a nenhum processo" };
   if (!estado) estado = dialogo.novoEstado({ chatJid: ev.chatJid, grupo: ev.grupo });
 
   // mídia: baixa pela Evolution e guarda no Storage antes de o diálogo decidir o que é
@@ -106,20 +112,66 @@ async function processarEvento(payload) {
   return resultado;
 }
 
+// Configuração do robô (solicitacoes/__whatsapp), lida com cache curto: o webhook recebe TODAS as
+// mensagens do escritório e não pode ler o banco a cada uma.
+let _cfgWhats = null, _cfgWhatsEm = 0;
+async function configWhats(forcar) {
+  if (!forcar && _cfgWhats && Date.now() - _cfgWhatsEm < 20000) return _cfgWhats;
+  const s = await db.collection("solicitacoes").doc(ID_CFG_WHATS).get();
+  _cfgWhats = s.exists ? (s.data() || {}) : {}; _cfgWhatsEm = Date.now();
+  return _cfgWhats;
+}
+
+// Só responde DENTRO do grupo ativado. Trava dupla: mesmo que alguma linha acima errasse, nada sai
+// para privado de cliente nem para outro grupo.
 async function responder(ev, texto) {
-  const destino = ev.grupo ? ev.chatJid : (ev.remetenteTel || ev.chatJid);
-  const r = await evolution.enviarTexto(destino, texto, { citar: ev.grupo ? { waId: ev.waId, participante: ev.participante } : null });
+  const cfg = await configWhats();
+  if (!ev.grupo || !cfg.grupoJid || ev.chatJid !== cfg.grupoJid) { logger.warn("resposta bloqueada fora do grupo do robô", { chat: ev.chatJid }); return false; }
+  const destino = ev.chatJid;
+  const r = await evolution.enviarTexto(destino, texto, { citar: { waId: ev.waId, participante: ev.participante } });
   if (!r.ok) logger.warn("não consegui responder", { destino, erro: r.erro });
   return r.ok;
 }
 
-// "#vincular 123456" — liga este chat (grupo ou privado) ao processo que gerou o código no Atos.
+// "#ativar-atos 123456" — escolhe ESTE grupo como o grupo do robô. O código precisa ter sido gerado
+// por um ADMINISTRADOR na tela do Atos (tipo "grupo", 10 minutos, uso único). Código inválido não
+// recebe resposta: a mensagem pode ter vindo de um grupo de cliente.
+async function ativarGrupo(ev, chatRef, codigo) {
+  const ref = db.collection("codigos_vinculo").doc(codigo);
+  const agora = new Date();
+  const r = await db.runTransaction(async (tx) => {
+    const s = await tx.get(ref); if (!s.exists) return { erro: "inexistente" };
+    const c = s.data();
+    if (c.tipo !== "grupo") return { erro: "não é código de grupo" };
+    if (c.usadoEm) return { erro: "usado" };
+    const exp = c.expiraEm && c.expiraEm.toDate ? c.expiraEm.toDate() : new Date(c.expiraEm);
+    if (!(exp > agora)) return { erro: "vencido" };
+    const eq = c.autorUid ? await tx.get(db.collection("equipe").doc(String(c.autorUid))) : null;
+    if (!(eq && eq.exists && eq.data().ativo === true && eq.data().admin === true)) return { erro: "código não gerado por administrador" };
+    tx.update(ref, { usadoEm: admin.firestore.FieldValue.serverTimestamp(), usadoPor: ev.remetenteNome || ev.remetenteTel || "", chatJid: ev.chatJid });
+    return { ok: true, codigo: c };
+  });
+  if (!r.ok) { logger.warn("ativação de grupo recusada (sem resposta)", { motivo: r.erro, chat: ev.chatJid }); return { ativacao: r.erro }; }
+  const nome = await evolution.nomeDoGrupo(ev.chatJid).catch(() => null);
+  const anterior = (await configWhats(true)).grupoJid || "";
+  await db.collection("solicitacoes").doc(ID_CFG_WHATS).set({ id: ID_CFG_WHATS, grupoJid: ev.chatJid, grupoNome: nome || "", grupoAtivadoEm: agoraISO(),
+    grupoAtivadoPor: r.codigo.autorEmail || "", grupoAnterior: anterior && anterior !== ev.chatJid ? anterior : "", alteradoEm: agoraISO() }, { merge: true });
+  _cfgWhats = Object.assign({}, _cfgWhats || {}, { grupoJid: ev.chatJid, grupoNome: nome || "" }); _cfgWhatsEm = Date.now();
+  const estado = dialogo.novoEstado({ chatJid: ev.chatJid, grupo: true, lgpdEm: agoraISO() });
+  await chatRef.set(estado, { merge: false });
+  await responder(ev, `✅ Este grupo agora é o grupo do robô dos Atos Societários da Totali. Só aqui eu respondo.\n\n${dialogo.LGPD}\n\n${dialogo.menuTexto(estado)}`);
+  logger.info("grupo do robô ativado", { grupo: ev.chatJid, anterior });
+  return { ativacao: "ok" };
+}
+
+// "vincular 123456" (no grupo do robô) — liga a conversa do grupo ao processo que gerou o código no Atos.
 async function vincular(ev, chatRef) {
   const ref = db.collection("codigos_vinculo").doc(ev.codigoVinculo);
   const agora = new Date();
   const resultado = await db.runTransaction(async (tx) => {
     const s = await tx.get(ref); if (!s.exists) return { erro: "inexistente" };
     const c = s.data();
+    if (c.tipo === "grupo") return { erro: "código de ativação de grupo" };
     if (c.usadoEm) return { erro: "usado" };
     const exp = c.expiraEm && c.expiraEm.toDate ? c.expiraEm.toDate() : new Date(c.expiraEm);
     if (!(exp > agora)) return { erro: "vencido" };

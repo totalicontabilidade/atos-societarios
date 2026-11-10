@@ -1,11 +1,11 @@
 # Robô do WhatsApp dos Atos Societários
 
-Recebe pedidos de abertura e alteração de empresa pelo WhatsApp, pergunta o que falta num
+Atende, só no grupo do robô (WhatsApp do escritório), pedidos de abertura e alteração de empresa, pergunta o que falta num
 **diálogo guiado sem IA** (perguntas numeradas, validação de CPF/CNPJ/CEP/data por código) e
 grava a solicitação no Atos, com os documentos em anexo. Custo zero dentro das cotas gratuitas.
 
 ```
-WhatsApp ──► Evolution API v2.3.7 (VPS Magalu, container atos_whatsapp, instância "atos")
+WhatsApp do escritório ──► Evolution API v2.3.7 (VPS Magalu, container atos_whatsapp, instância "atos")
                  │ webhook HTTPS + token
                  ▼
          Cloud Function whatsappWebhook (southamerica-east1, Node 22, https://whatsappwebhook-dvjo4cygzq-rj.a.run.app)
@@ -21,23 +21,35 @@ WhatsApp ──► Evolution API v2.3.7 (VPS Magalu, container atos_whatsapp, in
 |---|---|
 | `functions/index.js` | webhook (token, de-duplicação, mídia → Storage, resposta pela Evolution), `vincular`, gravação da solicitação, aviso ao Hub, faxina diária |
 | `functions/dialogo.js` | catálogo de fluxos (abrir, alterar, fechar, transformar, advocacia, outro), validações, resumo, correção, comandos (*voltar*, *resumo*, *menu*, *equipe*, *cancelar*) |
+| `functions/portaria.js` | decide antes de gravar: só o grupo ativado é atendido; privado e outros grupos são descartados |
 | `functions/parser.js` | tradução do evento da Evolution (copiado do TotaliFinance, adaptado ao privado) |
 | `functions/evolution.js` | `sendText`, `getBase64FromMediaMessage`, `fetchInstances` |
 | `functions/test/` | `node --test` — o diálogo conversado de ponta a ponta, sem rede |
 | VPS `~/atos-whatsapp/` | `docker-compose.yml` (Evolution + Postgres próprios) e `.env` (segredos) |
-| App, etapa 1 | botão **Gerar código de vínculo**: grava `codigos_vinculo/{código}` (10 min) |
+| App, etapa 1 | **Gerar código para o grupo** (`vincular`) e, para administrador, **código de ativação** do grupo (`#ativar-atos`) em `codigos_vinculo/{código}` (10 min) |
 
-## Como o cliente entra
+## Como funciona (v1.73: só no grupo do robô)
 
-- **Privado:** qualquer pessoa que mandar mensagem ao número do robô recebe o aviso de LGPD e o
-  menu. No fim, nasce uma solicitação `nova` com `abertaPor: "whatsapp"`.
-- **Processo já aberto:** na etapa 1 do Atos, gere o código e mande ao cliente a mensagem
-  `vincular 123456`. O robô liga a conversa (privado ou grupo) àquela solicitação e completa os
-  dados nela, marcando `respostaNova` e `pendencia` para o comercial ver.
-- **Grupo:** só é atendido depois do `vincular` (como no Finance). Mensagens de grupo não ligado
-  são ignoradas e nada é guardado.
-- **Equipe humana:** `0` ou *equipe* em qualquer momento marca a pendência na solicitação.
-- Áudio não é lido (o robô pede por escrito). Figurinhas são ignoradas.
+O número conectado à instância `atos` é o **WhatsApp do escritório**. Chegam ao webhook as mensagens
+de todos os clientes, e a `portaria.js` descarta tudo o que não é do grupo do robô **antes de gravar
+qualquer coisa** e sem responder nada. A função `responder` tem uma segunda trava: não manda mensagem
+para fora do grupo ativado, mesmo que outra parte do código erre.
+
+- **Privado:** sempre ignorado. Cliente que escreve no privado do escritório não recebe nada do robô.
+- **Outros grupos:** ignorados. A única coisa examinada neles é o código de ativação.
+- **Ativar o grupo:** um **administrador** gera, na etapa 1 de qualquer processo, o código de ativação
+  (10 minutos, uso único) e manda `#ativar-atos 123456` dentro do grupo escolhido. A função confere
+  que quem gerou é administrador ativo e grava o grupo em `solicitacoes/__whatsapp`
+  (`grupoJid`, `grupoNome`). Código inválido, vencido ou de não administrador não recebe resposta.
+  Ativar outro grupo troca o grupo: o anterior deixa de ser atendido.
+- **No grupo do robô:** qualquer participante conversa com o diálogo guiado. A conversa do grupo é
+  uma só: duas pessoas respondendo ao mesmo tempo se misturam. No fim, nasce uma solicitação `nova`
+  (`abertaPor: "whatsapp"`) e o Hub recebe o aviso.
+- **Processo já aberto:** na etapa 1, "Gerar código para o grupo" e mandar `vincular 123456` no grupo
+  do robô. As respostas completam aquela solicitação.
+- **Mensagens do próprio número** (do celular do escritório ou do robô) são ignoradas: quem conversa
+  no grupo precisa usar outro número.
+- Áudio não é lido (o robô pede por escrito). Figurinhas e reações são ignoradas.
 
 ## Operação
 
@@ -106,7 +118,7 @@ conectar. No celular: WhatsApp → Aparelhos conectados → Conectar um aparelho
 ## Dados e LGPD
 
 - A Evolution **não guarda mensagens** (`DATABASE_SAVE_DATA_NEW_MESSAGE=false`); só a sessão.
-- `whatsapp_eventos` (de-duplicação) é apagado após 30 dias; códigos vencidos após 1 dia (faxina 03:20).
+- De mensagens de fora do grupo do robô nada é gravado. `whatsapp_eventos` (de-duplicação, só do grupo) é apagado após 30 dias; códigos vencidos após 1 dia (faxina 03:20).
 - Conversa, respostas e anexos ficam no Firestore e no Storage do projeto `atos-societarios`.
 - Nenhum dado de cliente vai para modelo de linguagem de terceiros.
 
