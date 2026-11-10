@@ -49,7 +49,16 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
   do robô. As respostas completam aquela solicitação.
 - **Mensagens do próprio número** (do celular do escritório ou do robô) são ignoradas: quem conversa
   no grupo precisa usar outro número.
-- Áudio não é lido (o robô pede por escrito). Figurinhas e reações são ignoradas.
+- **Arquivos:** só foto, PDF e Word. Vídeo, áudio e outros formatos são recusados com aviso, antes de
+  baixar; acima de 25 MB também. Arquivo pedido numa pergunta de documento entra com o rótulo dela
+  (ex.: "Documentos pessoais de Ana Lima — cnh.jpg"). Arquivo que chega **fora da hora** faz o robô
+  perguntar **que documento é** (RG/CNH, CPF, comprovante de residência, endereço da empresa, IPTU,
+  contrato, CCMEI, OAB, outro, ou "mandei por engano", que apaga o arquivo). Depois do pedido
+  enviado, o arquivo classificado é **juntado à solicitação** já criada, com aviso a quem cadastra.
+- **Apagar anexo:** tirar um anexo do WhatsApp da solicitação apaga o arquivo do Storage (a regra
+  deixa a equipe apagar em `whatsapp/`, nunca gravar).
+- Um pedido novo no mesmo grupo, depois de um enviado, começa limpo: não herda empresa nem processo.
+- Figurinhas e reações são ignoradas.
 
 ## Operação
 

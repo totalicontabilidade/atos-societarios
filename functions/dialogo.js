@@ -166,6 +166,29 @@ const FLUXOS = {
 };
 const MENU = [["abrir", "Abrir uma empresa"], ["alterar", "Alterar uma empresa que já existe"], ["fechar", "Fechar uma empresa"], ["transformar", "Mudar o tipo (MEI/EI → Ltda)"], ["advocacia", "Sociedade de advocacia (OAB)"], ["outro", "Outro assunto"]];
 
+// Tipo de um arquivo que chega fora de uma pergunta de documento. [chave, rótulo, documento da lista da solicitação]
+const TIPOS_ARQ = [
+  ["rg", "RG ou CNH", "pessoas"], ["cpf", "CPF", "pessoas"], ["residencia", "Comprovante de residência de sócio", "pessoas"],
+  ["endereco", "Comprovante do endereço da empresa", "endereco"], ["iptu", "Carnê ou inscrição do IPTU", "iptu"],
+  ["contrato", "Contrato social ou alteração", "contrato"], ["ccmei", "CCMEI ou requerimento de empresário", "contrato"],
+  ["oab", "Carteira da OAB", "oab"], ["outro", "Outro documento", ""], ["descartar", "Mandei por engano (descartar)", ""],
+];
+// Rótulo do anexo pedido numa pergunta de documento, pela chave do documento
+const ROTULO_DOC = { pessoas: "Documentos pessoais", endereco: "Comprovante de endereço", iptu: "IPTU", contrato: "Contrato social / CCMEI", oab: "Carteira da OAB", atividades: "Atividades", capital: "Capital", fechar: "Encerramento" };
+function perguntaTipoArquivo(estado) {
+  const f = estado.arquivosPendentes[0];
+  return `📎 Recebi *${f.nome}*. Que documento é esse?\n` + TIPOS_ARQ.map((o, i) => `*${i + 1}* — ${o[1]}`).join("\n");
+}
+// Depois de resolver um arquivo, volta para onde a conversa estava
+function retomar(estado, msgs) {
+  if (!estado.fluxo) { msgs.push(menuTexto(estado)); return; }
+  if (estado.aguardandoCorrecao) { msgs.push("Qual item quer corrigir? Digite o *número* (veja o resumo)."); return; }
+  const p0 = passoAtual(estado);
+  if (p0) msgs.push(textoPergunta(p0, estado));
+  else if (estado.respostas.confirmar === undefined) msgs.push(resumo(estado) + "\n\nEstá tudo certo? *1* — Confirmar e enviar · *2* — Corrigir algo");
+  else msgs.push("Se precisar de outra coisa, mande *menu*.");
+}
+
 const LGPD = "Ao continuar, você concorda que os dados e documentos enviados aqui sejam usados pela Totali Soluções Contábeis para preparar o ato da empresa (LGPD, art. 7º, V). Eles ficam guardados no sistema do escritório; as mensagens brutas são apagadas em 30 dias.";
 const AJUDA = "A qualquer momento: *voltar* (pergunta anterior) · *resumo* · *menu* (recomeçar) · *equipe* (falar com uma pessoa) · *cancelar*.";
 
@@ -250,7 +273,7 @@ function receber(estadoIn, entrada) {
   // comandos globais
   if (/^(0|equipe|atendente|humano|pessoa|falar com (alguém|alguem|a equipe))$/i.test(t)) { out.acao = "humano"; msgs.push("Certo, vou avisar a equipe da Totali para falar com você por aqui. O que você já respondeu fica guardado."); return out; }
   if (/^(menu|recomeçar|recomecar|início|inicio|oi|olá|ola|bom dia|boa tarde|boa noite)$/i.test(t) && (!estado.fluxo || /^(menu|recomeçar|recomecar)$/i.test(t))) {
-    if (estado.fluxo && Object.keys(estado.respostas).length) { estado.cancelando = "menu"; msgs.push("Recomeçar apaga o que já foi respondido neste pedido. Confirma? *1* — Sim, recomeçar · *2* — Não, continuar"); return out; }
+    if (estado.fluxo && Object.keys(estado.respostas).length && estado.respostas.confirmar !== "sim") { estado.cancelando = "menu"; msgs.push("Recomeçar apaga o que já foi respondido neste pedido. Confirma? *1* — Sim, recomeçar · *2* — Não, continuar"); return out; }
     estado.fluxo = null; estado.respostas = {}; estado.ordem = []; if (!estado.lgpdEm) { msgs.push(LGPD); estado.lgpdEm = new Date().toISOString(); } msgs.push(menuTexto(estado)); return out;
   }
   if (estado.cancelando) {
@@ -266,11 +289,35 @@ function receber(estadoIn, entrada) {
   }
   if (/^ajuda$/i.test(t)) { msgs.push(AJUDA); const p0 = passoAtual(estado); if (p0) msgs.push(textoPergunta(p0, estado)); return out; }
 
+  // Arquivo que chega fora de uma pergunta de documento: o robô pergunta que documento é (v1.74)
+  const passoArq = (estado.fluxo && !estado.aguardandoCorrecao) ? passoAtual(estado) : null;
+  if (midia && !(passoArq && passoArq.tipo === "arquivo")) {
+    estado.arquivosPendentes = (estado.arquivosPendentes || []).concat([midia]);
+    if (estado.arquivosPendentes.length === 1) msgs.push(perguntaTipoArquivo(estado));
+    else msgs.push(`📎 Recebi também *${midia.nome}*. Antes, me diga que documento é o anterior.`);
+    return out;
+  }
+  if (Array.isArray(estado.arquivosPendentes) && estado.arquivosPendentes.length) {
+    const tipo = escolherOpcao(texto, TIPOS_ARQ.map((x) => [x[0], x[1]]));
+    if (!tipo) { msgs.push("Responda com o *número* do tipo de documento.\n\n" + perguntaTipoArquivo(estado)); return out; }
+    const arq = estado.arquivosPendentes.shift(), def = TIPOS_ARQ.find((x) => x[0] === tipo);
+    if (tipo === "descartar") { out.descartar = (out.descartar || []).concat([arq]); msgs.push(`🗑 Descartei *${arq.nome}*.`); }
+    else {
+      const item = Object.assign({}, arq, { doc: def[2], docNome: def[1], nome: `${def[1]} — ${arq.nome}` });
+      if (estado.respostas.confirmar === "sim") { out.anexar = (out.anexar || []).concat([item]); out.acao = out.acao || "anexar"; msgs.push(`📎 *${arq.nome}* guardado como ${def[1]} e juntado ao pedido já enviado.`); }
+      else { estado.respostas["_arq.avulsos"] = (estado.respostas["_arq.avulsos"] || []).concat([item]); msgs.push(`📎 *${arq.nome}* guardado como ${def[1]}.`); }
+    }
+    if (estado.arquivosPendentes.length) { msgs.push(perguntaTipoArquivo(estado)); return out; }
+    retomar(estado, msgs); return out;
+  }
+
   // sem fluxo: a resposta é o menu
   if (!estado.fluxo) {
     if (!estado.lgpdEm) { estado.lgpdEm = new Date().toISOString(); msgs.push(LGPD); }
     const v = escolherOpcao(texto, MENU);
     if (!v) { guardarMidiaSolta(); msgs.push(menuTexto(estado)); return out; }
+    // pedido novo depois de um enviado: não herda o processo nem a empresa do anterior
+    if (estado.encerrado) { estado.solicId = ""; estado.empresa = ""; estado.cnpj = ""; estado.vinculo = null; estado.casoId = ""; estado.encerrado = false; }
     estado.fluxo = v; estado.respostas = {}; estado.ordem = [];
     if (estado.cnpj && FLUXOS[v].passos.some((p) => p.id === "cnpj")) { estado.respostas.cnpj = fmtCNPJ(estado.cnpj); estado.ordem.push("cnpj"); }
     msgs.push(`Vamos lá: *${FLUXOS[v].nome}*.`);
@@ -289,7 +336,7 @@ function receber(estadoIn, entrada) {
   if (!p) {
     // tudo respondido: confirmação final
     if (estado.respostas.confirmar === undefined) {
-      if (/^(1|sim|confirmar|confirmo|ok)$/i.test(t)) { estado.respostas.confirmar = "sim"; out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); msgs.push("✅ Pedido enviado para a equipe da Totali. Em breve alguém entra em contato por aqui. Obrigado!"); return out; }
+      if (/^(1|sim|confirmar|confirmo|ok)$/i.test(t)) { estado.respostas.confirmar = "sim"; estado.encerrado = true; out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); msgs.push("✅ Pedido enviado para a equipe da Totali. Em breve alguém entra em contato por aqui. Obrigado!"); return out; }
       if (/^(2|corrigir|não|nao|n)$/i.test(t)) { estado.aguardandoCorrecao = true; msgs.push(resumo(estado) + "\n\nQual item quer corrigir? Digite o *número*."); return out; }
       guardarMidiaSolta();
       msgs.push(resumo(estado) + "\n\nEstá tudo certo? *1* — Confirmar e enviar · *2* — Corrigir algo"); return out;
@@ -315,8 +362,11 @@ function montarSolicitacao(estado) {
   const f = FLUXOS[estado.fluxo] || FLUXOS.outro, r = estado.respostas, passos = passosAtivos(estado);
   const pedidos = typeof f.pedidos === "function" ? f.pedidos(r) : f.pedidos;
   const docsOk = []; const anexos = [];
-  passos.forEach((p) => { const v = r[p.id]; if (v === undefined || v === "" || (Array.isArray(v) && !v.length)) return; if (p.docKey && !docsOk.includes(p.docKey)) docsOk.push(p.docKey); if (p.tipo === "arquivo") v.forEach((a) => anexos.push(Object.assign({ passo: p.id }, a))); });
-  (r["_arq.avulsos"] || []).forEach((a) => anexos.push(Object.assign({ passo: "avulso" }, a)));
+  passos.forEach((p) => { const v = r[p.id]; if (v === undefined || v === "" || (Array.isArray(v) && !v.length)) return; if (p.docKey && !docsOk.includes(p.docKey)) docsOk.push(p.docKey);
+    if (p.tipo === "arquivo") { const m = /^s(\d+)\./.exec(p.id), socio = m ? String(r[`s${m[1]}.nome`] || "").trim() : "", rot = (ROTULO_DOC[p.docKey] || "Documento") + (socio ? " de " + socio : "");
+      v.forEach((a) => anexos.push(Object.assign({ passo: p.id, doc: p.docKey || "", docNome: rot }, a, { nome: `${rot} — ${a.nome}` }))); } });
+  (r["_arq.avulsos"] || []).forEach((a) => { anexos.push(Object.assign({ passo: "avulso" }, a)); if (a.doc && !docsOk.includes(a.doc)) docsOk.push(a.doc); });
+  (estado.arquivosPendentes || []).forEach((a) => anexos.push(Object.assign({ passo: "avulso", doc: "", docNome: "Não identificado" }, a, { nome: `Não identificado — ${a.nome}` })));
   const linhas = passos.filter((p) => r[p.id] !== undefined && p.tipo !== "arquivo").map((p) => `${rotuloPasso(p, estado)}: ${valorLegivel(p, r[p.id])}`);
   const cnpj = r.cnpj ? cnpjLimpo(r.cnpj) : (estado.cnpj || "");
   const empresa = estado.empresa || r.nomeEmpresa || r.novoNome || (cnpj ? "CNPJ " + fmtCNPJ(cnpj) : "") || (r.contatoNome ? "Pedido de " + r.contatoNome : "Pedido pelo WhatsApp");
@@ -330,4 +380,4 @@ function montarSolicitacao(estado) {
   };
 }
 
-module.exports = { FLUXOS, MENU, LGPD, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto };
+module.exports = { FLUXOS, MENU, LGPD, TIPOS_ARQ, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto };

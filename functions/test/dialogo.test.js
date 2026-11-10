@@ -53,7 +53,7 @@ test("fluxo 'fechar' de ponta a ponta: validações, arquivo, resumo, confirmaç
   assert.equal(s.tipo, "dist_ltda"); assert.deepEqual(s.pedidos, ["fechar"]);
   assert.equal(s.cnpj, "00.000.000/0001-91"); assert.equal(s.fone, "5579999990000"); assert.equal(s.contato, "Maria Souza");
   assert.ok(s.docsOk.includes("contrato") && s.docsOk.includes("fechar"));
-  assert.equal(s.anexos.length, 1); assert.equal(s.anexos[0].nome, "contrato.pdf");
+  assert.equal(s.anexos.length, 1); assert.equal(s.anexos[0].nome, "Contrato social / CCMEI — contrato.pdf"); assert.equal(s.anexos[0].doc, "contrato");
   assert.match(s.obs, /Quem vai guardar os livros/);
 });
 

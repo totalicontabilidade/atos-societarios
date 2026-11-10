@@ -34,6 +34,9 @@ const API_KEY = defineSecret("WHATSAPP_API_KEY");
 const ID_CFG_INTEGRA = "__integracao";   // mesmo documento reservado que o app usa para o Hub
 const ID_CFG_WHATS = "__whatsapp";       // número conectado, para a tela do Atos mostrar
 const LIMITE_ANEXO = 25 * 1024 * 1024;
+// Só o que serve de documento: foto e PDF (e Word, que alguns clientes mandam). Vídeo, áudio, planilha,
+// zip e o resto são recusados ANTES de baixar.
+const MIME_OK = /^(image\/(jpeg|jpg|png|webp|heic|heif)|application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document)$/i;
 const DIAS_EVENTOS = 30, DIAS_CODIGO = 1;
 
 const tokenConfere = (recebido, esperado) => {
@@ -97,6 +100,9 @@ async function processarEvento(payload) {
   if (ev.temMidia) {
     if (ev.tipo === "audio") { await responder(ev, "🎤 Não consigo ouvir áudio. Pode escrever, por favor?"); return { audio: true }; }
     if (ev.tipo === "figurinha") return { ignorado: "figurinha" };
+    if (ev.tipo === "video") { await responder(ev, "🎬 Vídeo não serve para o processo. Mande *foto* ou *PDF* do documento, por favor."); return { recusado: "video" }; }
+    if (ev.midiaMime && !MIME_OK.test(String(ev.midiaMime).split(";")[0].trim())) { await responder(ev, `Esse tipo de arquivo (${String(ev.midiaMime).split(";")[0]}) não serve para o processo. Mande *foto* ou *PDF* do documento, por favor.`); return { recusado: ev.midiaMime }; }
+    if (ev.midiaTamanho && ev.midiaTamanho > LIMITE_ANEXO) { await responder(ev, "Esse arquivo passa de 25 MB. Mande uma foto ou um PDF menor, por favor."); return { recusado: "tamanho" }; }
     midia = await guardarMidia(ev, chatRef.id);
     if (!midia) { await responder(ev, "Não consegui baixar esse arquivo. Pode mandar de novo? Se for grande, o limite é 25 MB."); return { midiaFalhou: true }; }
   }
@@ -104,7 +110,9 @@ async function processarEvento(payload) {
   const r = dialogo.receber(estado, { texto: ev.texto, midia, remetenteTel: ev.remetenteTel, remetenteNome: ev.remetenteNome });
   const novo = Object.assign(r.estado, { chatJid: ev.chatJid, grupo: ev.grupo, ultimaMsgEm: ev.enviadaEm.toISOString(), atualizadoEm: agoraISO() });
   let resultado = { acao: r.acao || null };
-  if (r.acao === "criar_solicitacao") resultado.solicId = await gravarSolicitacao(novo, r.dados);
+  if (r.acao === "criar_solicitacao") { resultado.solicId = await gravarSolicitacao(novo, r.dados); novo.solicId = resultado.solicId; }
+  if (r.acao === "anexar" && r.anexar && r.anexar.length) resultado.anexados = await anexarNaSolicitacao(novo, r.anexar);
+  if (r.descartar && r.descartar.length) await Promise.all(r.descartar.map((a) => a.caminho ? bucket().file(a.caminho).delete().catch((e) => logger.warn("arquivo descartado não apagado", { e: e.message })) : null));
   if (r.acao === "humano") resultado.solicId = await pedirHumano(novo, ev);
   if (r.acao === "cancelado") novo.canceladoEm = agoraISO();
   await chatRef.set(novo, { merge: false });
@@ -242,6 +250,18 @@ async function gravarSolicitacao(estado, dados) {
   await db.collection("solicitacoes").doc(id).set(reg);
   await avisarHub("solicitacao.criada", reg);
   return id;
+}
+
+// Arquivo mandado depois de o pedido ter sido enviado: junta à solicitação e avisa quem cadastra.
+async function anexarNaSolicitacao(estado, itens) {
+  if (!estado.solicId) return 0;
+  const ref = db.collection("solicitacoes").doc(estado.solicId), s = await ref.get();
+  if (!s.exists) return 0;
+  const atual = s.data() || {}, agora = agoraISO();
+  const docsOk = Array.from(new Set([].concat(atual.docsOk || [], itens.map((a) => a.doc).filter(Boolean))));
+  await ref.set({ anexos: [].concat(atual.anexos || [], itens), docsOk, respostaNova: true,
+    pendencia: `O cliente mandou ${itens.length > 1 ? itens.length + " documentos novos" : "um documento novo"} pelo WhatsApp: ${itens.map((a) => a.docNome).join(", ")}.`, pendenciaEm: agora, alteradoEm: agora }, { merge: true });
+  return itens.length;
 }
 
 async function pedirHumano(estado, ev) {
