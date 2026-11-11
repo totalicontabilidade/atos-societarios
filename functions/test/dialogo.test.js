@@ -80,14 +80,17 @@ test("alterar: CNPJ pré-preenchido pelo vínculo, multi-escolha e perguntas con
   assert.ok(ativos.includes("novoCapital") && !ativos.includes("novoNome") && !ativos.includes("socioMov"));
 });
 
-test("corrigir um item depois do resumo e 'equipe' a qualquer momento", () => {
+test("corrigir um item depois do resumo; 'equipe' e '0' não existem mais", () => {
   const r = conversa(["6", "Bia", "este", "pular", "preciso regularizar a empresa", "ok", "não", "não", "2", "1", "Beatriz", "1"]);
   assert.match(r.saidas[8], /Qual item quer corrigir/);
   assert.match(r.saidas[9], /seu nome/);
   assert.equal(r.ultimo.acao, "criar_solicitacao");
   assert.equal(r.ultimo.dados.contato, "Beatriz");
-  const h = conversa(["1", "Zé", "0"]);
-  assert.equal(h.ultimo.acao, "humano");
+  const h = conversa(["0"]);
+  assert.notEqual(h.ultimo.acao, "humano");
+  assert.doesNotMatch(h.saidas.join("\n"), /\*0\*|\*equipe\*|Falar com uma pessoa/);
+  const e = conversa(["1", "Zé", "equipe"]);
+  assert.notEqual(e.ultimo.acao, "humano");
 });
 
 test("cancelar pede confirmação; recomeçar com respostas pede confirmação", () => {

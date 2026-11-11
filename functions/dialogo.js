@@ -190,7 +190,7 @@ function retomar(estado, msgs) {
 }
 
 const LGPD = "Ao continuar, você concorda que os dados e documentos enviados aqui sejam usados pela Totali Soluções Contábeis para preparar o ato da empresa (LGPD, art. 7º, V). Eles ficam guardados no sistema do escritório; as mensagens brutas são apagadas em 30 dias.";
-const AJUDA = "A qualquer momento: *voltar* (pergunta anterior) · *resumo* · *menu* (recomeçar) · *equipe* (falar com uma pessoa) · *cancelar*.";
+const AJUDA = "A qualquer momento: *voltar* (pergunta anterior) · *resumo* · *menu* (recomeçar) · *cancelar*.";
 
 // ─── motor ─────────────────────────────────────────────────────────────────
 function novoEstado(extra) { return Object.assign({ fluxo: null, respostas: {}, ordem: [], criadoEm: new Date().toISOString() }, extra || {}); }
@@ -205,8 +205,8 @@ function textoPergunta(p, estado) {
   return t;
 }
 function menuTexto(estado) {
-  const cab = estado.empresa ? `Olá! Este atendimento está ligado a *${estado.empresa}*${estado.cnpj ? " (CNPJ " + fmtCNPJ(estado.cnpj) + ")" : ""}.\n` : "Olá! Sou o assistente da *Totali* para abertura e alteração de empresas. Vou fazer algumas perguntas e no fim a equipe recebe tudo organizado.\n";
-  return cab + "\nO que você precisa?\n" + MENU.map((o, i) => `*${i + 1}* — ${o[1]}`).join("\n") + "\n*0* — Falar com uma pessoa da equipe\n\n" + AJUDA;
+  const cab = estado.empresa ? `Olá! Este atendimento está ligado a *${estado.empresa}*${estado.cnpj ? " (CNPJ " + fmtCNPJ(estado.cnpj) + ")" : ""}.\n` : "Olá! Sou o assistente da *Totali* para abertura e alteração de empresas. Vou fazer algumas perguntas e no fim o pedido entra no Atos, organizado para a legalização.\n";
+  return cab + "\nO que você precisa?\n" + MENU.map((o, i) => `*${i + 1}* — ${o[1]}`).join("\n") + "\n\n" + AJUDA;
 }
 function escolherOpcao(texto, opcoes) {
   const t = String(texto || "").trim().toLowerCase();
@@ -271,7 +271,6 @@ function receber(estadoIn, entrada) {
   const guardarMidiaSolta = () => { if (midia) { estado.respostas["_arq.avulsos"] = (estado.respostas["_arq.avulsos"] || []).concat([midia]); } };
 
   // comandos globais
-  if (/^(0|equipe|atendente|humano|pessoa|falar com (alguém|alguem|a equipe))$/i.test(t)) { out.acao = "humano"; msgs.push("Certo, vou avisar a equipe da Totali para falar com você por aqui. O que você já respondeu fica guardado."); return out; }
   if (/^(menu|recomeçar|recomecar|início|inicio|oi|olá|ola|bom dia|boa tarde|boa noite)$/i.test(t) && (!estado.fluxo || /^(menu|recomeçar|recomecar)$/i.test(t))) {
     if (estado.fluxo && Object.keys(estado.respostas).length && estado.respostas.confirmar !== "sim") { estado.cancelando = "menu"; msgs.push("Recomeçar apaga o que já foi respondido neste pedido. Confirma? *1* — Sim, recomeçar · *2* — Não, continuar"); return out; }
     estado.fluxo = null; estado.respostas = {}; estado.ordem = []; if (!estado.lgpdEm) { msgs.push(LGPD); estado.lgpdEm = new Date().toISOString(); } msgs.push(menuTexto(estado)); return out;
@@ -336,12 +335,12 @@ function receber(estadoIn, entrada) {
   if (!p) {
     // tudo respondido: confirmação final
     if (estado.respostas.confirmar === undefined) {
-      if (/^(1|sim|confirmar|confirmo|ok)$/i.test(t)) { estado.respostas.confirmar = "sim"; estado.encerrado = true; out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); msgs.push("✅ Pedido enviado para a equipe da Totali. Em breve alguém entra em contato por aqui. Obrigado!"); return out; }
+      if (/^(1|sim|confirmar|confirmo|ok)$/i.test(t)) { estado.respostas.confirmar = "sim"; estado.encerrado = true; out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); msgs.push("✅ Pedido enviado: já está no Atos, na lista de solicitações, para a legalização."); return out; }
       if (/^(2|corrigir|não|nao|n)$/i.test(t)) { estado.aguardandoCorrecao = true; msgs.push(resumo(estado) + "\n\nQual item quer corrigir? Digite o *número*."); return out; }
       guardarMidiaSolta();
       msgs.push(resumo(estado) + "\n\nEstá tudo certo? *1* — Confirmar e enviar · *2* — Corrigir algo"); return out;
     }
-    msgs.push("Este pedido já foi enviado. Se precisar de outra coisa, mande *menu*; para falar com a equipe, *equipe*."); guardarMidiaSolta(); return out;
+    msgs.push("Este pedido já foi enviado. Para um pedido novo, mande *menu*."); guardarMidiaSolta(); return out;
   }
 
   const v = validar(p, texto, midia, estado);

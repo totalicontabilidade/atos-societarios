@@ -121,7 +121,6 @@ async function processarEvento(payload) {
   if (r.acao === "criar_solicitacao") { resultado.solicId = await gravarSolicitacao(novo, r.dados); novo.solicId = resultado.solicId; }
   if (r.acao === "anexar" && r.anexar && r.anexar.length) resultado.anexados = await anexarNaSolicitacao(novo, r.anexar);
   if (r.descartar && r.descartar.length) await Promise.all(r.descartar.map((a) => a.caminho ? bucket().file(a.caminho).delete().catch((e) => logger.warn("arquivo descartado não apagado", { e: e.message })) : null));
-  if (r.acao === "humano") resultado.solicId = await pedirHumano(novo, ev);
   if (r.acao === "cancelado") novo.canceladoEm = agoraISO();
   await chatRef.set(novo, { merge: false });
   for (const m of r.mensagens) await responder(ev, m);
@@ -194,7 +193,7 @@ async function vincular(ev, chatRef) {
     tx.update(ref, { usadoEm: admin.firestore.FieldValue.serverTimestamp(), usadoPor: ev.remetenteNome || ev.remetenteTel || ev.chatJid, chatJid: ev.chatJid });
     return { ok: true, codigo: c };
   });
-  if (!resultado.ok) { await responder(ev, "Código inválido ou vencido. Peça um novo à equipe da Totali (ele vale 10 minutos) e mande de novo: *vincular 123456*."); return { vinculo: resultado.erro }; }
+  if (!resultado.ok) { await responder(ev, "Código inválido ou vencido. Gere outro na etapa 1 do processo no Atos (ele vale 10 minutos) e mande de novo: *vincular 123456*."); return { vinculo: resultado.erro }; }
   const c = resultado.codigo;
   const snap = await chatRef.get();
   const estado = dialogo.novoEstado(Object.assign(snap.exists ? snap.data() : {}, {
@@ -241,7 +240,7 @@ async function gravarSolicitacao(estado, dados) {
         pedidos, docsOk, anexos: [].concat(atual.anexos || [], dados.anexos || []),
         obs: ((atual.obs || "") + "\n\n" + dados.obs).trim(), pedidoTexto: atual.pedidoTexto || dados.pedidoTexto,
         contato: atual.contato || dados.contato, fone: atual.fone || dados.fone, prazo: atual.prazo || dados.prazo,
-        cnpj: atual.cnpj || dados.cnpj, respostaNova: true, pendencia: "O cliente respondeu ao robô do WhatsApp: pedido completo, confira os dados e anexos.", pendenciaEm: agora,
+        cnpj: atual.cnpj || dados.cnpj, respostaNova: true, pendencia: "Pedido completo pelo robô do WhatsApp: confira os dados e anexos.", pendenciaEm: agora,
         whatsapp: Object.assign({}, atual.whatsapp || {}, { respostasEm: agora, fluxo: dados.fluxo, respostas: dados.respostas }), alteradoEm: agora,
       }, { merge: true });
       await avisarHub("solicitacao.respondida", Object.assign({}, atual, { id, status: atual.status || "nova", pedidoTexto: dados.pedidoTexto, pendencia: "Cliente respondeu pelo WhatsApp" }));
@@ -268,30 +267,8 @@ async function anexarNaSolicitacao(estado, itens) {
   const atual = s.data() || {}, agora = agoraISO();
   const docsOk = Array.from(new Set([].concat(atual.docsOk || [], itens.map((a) => a.doc).filter(Boolean))));
   await ref.set({ anexos: [].concat(atual.anexos || [], itens), docsOk, respostaNova: true,
-    pendencia: `O cliente mandou ${itens.length > 1 ? itens.length + " documentos novos" : "um documento novo"} pelo WhatsApp: ${itens.map((a) => a.docNome).join(", ")}.`, pendenciaEm: agora, alteradoEm: agora }, { merge: true });
+    pendencia: `Chegou pelo WhatsApp ${itens.length > 1 ? itens.length + " documentos novos" : "um documento novo"} pelo WhatsApp: ${itens.map((a) => a.docNome).join(", ")}.`, pendenciaEm: agora, alteradoEm: agora }, { merge: true });
   return itens.length;
-}
-
-async function pedirHumano(estado, ev) {
-  const agora = agoraISO();
-  const parcial = estado.fluxo ? dialogo.montarSolicitacao(estado) : null;
-  const texto = `Cliente pediu para falar com a equipe pelo WhatsApp (${ev.remetenteTel || ev.chatJid}).`;
-  if (estado.solicId) {
-    await db.collection("solicitacoes").doc(estado.solicId).set({ pendencia: texto, pendenciaEm: agora, respostaNova: true, alteradoEm: agora, whatsapp: { pediuHumanoEm: agora, respostas: (parcial && parcial.respostas) || null } }, { merge: true }).catch(() => {});
-    return estado.solicId;
-  }
-  const id = "W" + Date.now().toString(36).toUpperCase() + "H";
-  const reg = Object.assign({
-    id, empresa: (parcial && parcial.empresa) || (ev.remetenteNome ? "Contato de " + ev.remetenteNome : "Contato pelo WhatsApp"), cnpj: (parcial && parcial.cnpj) || "", tipo: (parcial && parcial.tipo) || "",
-    pedidos: (parcial && parcial.pedidos) || ["outro"], docsOk: (parcial && parcial.docsOk) || [], status: "nova", obs: (parcial && parcial.obs) || texto, pedidoTexto: texto,
-    contato: (parcial && parcial.contato) || ev.remetenteNome || "", fone: ev.remetenteTel || "", prazo: "", responsavel: "", anexos: (parcial && parcial.anexos) || [],
-    historico: [{ status: "nova", em: agora, por: "robô do WhatsApp" }], criadoEm: agora, alteradoEm: agora, abertaPor: "whatsapp", origem: "whatsapp",
-    pendencia: texto, pendenciaEm: agora, respostaNova: true, whatsapp: { chatJid: estado.chatJid, grupo: !!estado.grupo, pediuHumanoEm: agora, fluxo: estado.fluxo || null, respostas: (parcial && parcial.respostas) || null },
-  });
-  await db.collection("solicitacoes").doc(id).set(reg);
-  estado.solicId = id;
-  await avisarHub("solicitacao.criada", reg);
-  return id;
 }
 
 // Aviso ao Hub (Apps Script), com o endereço e o segredo que o app guarda em solicitacoes/__integracao.

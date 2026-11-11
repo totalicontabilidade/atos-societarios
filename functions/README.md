@@ -20,14 +20,14 @@ WhatsApp do escritório ──► Evolution API v2.3.7 (VPS Magalu, container at
 | Onde | O quê |
 |---|---|
 | `functions/index.js` | webhook (token, de-duplicação, mídia → Storage, resposta pela Evolution), `vincular`, gravação da solicitação, aviso ao Hub, faxina diária |
-| `functions/dialogo.js` | catálogo de fluxos (abrir, alterar, fechar, transformar, advocacia, outro), validações, resumo, correção, comandos (*voltar*, *resumo*, *menu*, *equipe*, *cancelar*) |
+| `functions/dialogo.js` | catálogo de fluxos (abrir, alterar, fechar, transformar, advocacia, outro), validações, resumo, correção, comandos (*voltar*, *resumo*, *menu*, *cancelar*) |
 | `functions/portaria.js` | decide antes de gravar: só o grupo ativado é atendido; privado e outros grupos são descartados |
 | `functions/parser.js` | tradução do evento da Evolution (copiado do TotaliFinance, adaptado ao privado) |
 | `functions/painel.js` | rota `/painel` da aba Configurações › WhatsApp: estado e QR, só para administrador logado |
 | `functions/evolution.js` | `sendText`, `getBase64FromMediaMessage`, `fetchInstances` |
 | `functions/test/` | `node --test` — o diálogo conversado de ponta a ponta, sem rede |
 | VPS `~/atos-whatsapp/` | `docker-compose.yml` (Evolution + Postgres próprios) e `.env` (segredos) |
-| App, etapa 1 | **Gerar código para o grupo** (`vincular`) e, para administrador, **código de ativação** do grupo (`#ativar-atos`) em `codigos_vinculo/{código}` (10 min) |
+| App | etapa 1: **Gerar código para o grupo** (`vincular`); Configurações › WhatsApp (administrador): QR code e **código de ativação** do grupo (`#ativar-atos`), em `codigos_vinculo/{código}` (10 min) |
 
 ## Como funciona (v1.73: só no grupo do robô)
 
@@ -38,7 +38,7 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
 
 - **Privado:** sempre ignorado. Cliente que escreve no privado do escritório não recebe nada do robô.
 - **Outros grupos:** ignorados. A única coisa examinada neles é o código de ativação.
-- **Ativar o grupo:** um **administrador** gera, na etapa 1 de qualquer processo, o código de ativação
+- **Ativar o grupo:** um **administrador** gera, em Configurações › WhatsApp, o código de ativação
   (10 minutos, uso único) e manda `#ativar-atos 123456` dentro do grupo escolhido. A função confere
   que quem gerou é administrador ativo e grava o grupo em `solicitacoes/__whatsapp`
   (`grupoJid`, `grupoNome`). Código inválido, vencido ou de não administrador não recebe resposta.
@@ -60,6 +60,7 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
   deixa a equipe apagar em `whatsapp/`, nunca gravar).
 - Um pedido novo no mesmo grupo, depois de um enviado, começa limpo: não herda empresa nem processo.
 - Figurinhas e reações são ignoradas.
+- **Sem atendimento humano pelo robô:** o grupo é interno (comercial e legalização), não tem cliente. Não existe o comando *equipe* nem a opção *0* (tirados na v1.75).
 
 ## Operação
 
