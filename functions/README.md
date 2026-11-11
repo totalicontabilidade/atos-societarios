@@ -24,7 +24,7 @@ WhatsApp do escritório ──► Evolution API v2.3.7 (VPS Magalu, container at
 | `functions/portaria.js` | decide antes de gravar: só o grupo ativado é atendido; privado e outros grupos são descartados |
 | `functions/parser.js` | tradução do evento da Evolution (copiado do TotaliFinance, adaptado ao privado) |
 | `functions/painel.js` | rota `/painel` da aba Configurações › WhatsApp: estado e QR, só para administrador logado |
-| `functions/evolution.js` | `sendText`, `getBase64FromMediaMessage`, `fetchInstances` |
+| `functions/evolution.js` | `sendText`, `getBase64FromMediaMessage` (com a mensagem **inteira**: a instância não guarda mensagens, e só com a chave a Evolution responde *Message not found*), `fetchInstances` |
 | `functions/test/` | `node --test` — o diálogo conversado de ponta a ponta, sem rede |
 | VPS `~/atos-whatsapp/` | `docker-compose.yml` (Evolution + Postgres próprios) e `.env` (segredos) |
 | App | etapa 1: **Gerar código para o grupo** (`vincular`); Configurações › WhatsApp (administrador): QR code e **código de ativação** do grupo (`#ativar-atos`), em `codigos_vinculo/{código}` (10 min) |

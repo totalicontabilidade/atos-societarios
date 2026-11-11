@@ -144,4 +144,10 @@ test("parser: evento da Evolution vira mensagem; status e fromMe são ignorados;
   const g = P.normalizarEvento({ event: "MESSAGES_UPSERT", data: { key: { remoteJid: "1203@g.us", fromMe: false, id: "Z", participant: "5579988887777@s.whatsapp.net" }, message: { imageMessage: { mimetype: "image/jpeg", caption: "RG do João" } } } });
   assert.equal(g.grupo, true); assert.equal(g.tipo, "imagem"); assert.equal(g.temMidia, true); assert.equal(g.remetenteTel, "5579988887777");
   assert.equal(g.texto, "RG do João");
+  // a mensagem inteira vai junto para o download (a Evolution não guarda mensagens: só a chave dá "Message not found")
+  assert.deepEqual(g.mensagemBruta, { imageMessage: { mimetype: "image/jpeg", caption: "RG do João" } });
+  const doc = P.normalizarEvento({ event: "messages.upsert", data: { key: { remoteJid: "1203@g.us", id: "D", participant: "5579988887777@s.whatsapp.net" },
+    message: { documentWithCaptionMessage: { message: { documentMessage: { mimetype: "application/pdf", fileName: "contrato.pdf", caption: "contrato social" } } } } } });
+  assert.equal(doc.tipo, "documento"); assert.equal(doc.texto, "contrato social"); assert.equal(doc.midiaNome, "contrato.pdf"); assert.ok(doc.mensagemBruta.documentWithCaptionMessage);
+  assert.equal(P.normalizarEvento({ event: "messages.upsert", data: { key: { remoteJid: "1203@g.us", id: "T" }, message: { conversation: "oi" } } }).mensagemBruta, null);
 });

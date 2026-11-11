@@ -213,13 +213,16 @@ async function vincular(ev, chatRef) {
 
 // Baixa a mídia pela Evolution e grava no Storage em whatsapp/{chat}/{waId}-{nome}; devolve o anexo no formato do app.
 async function guardarMidia(ev, chatId) {
-  const r = await evolution.baixarMidia({ id: ev.waId, remoteJid: ev.chatJid, fromMe: false, ...(ev.participante ? { participant: ev.participante } : {}) });
+  const key = { id: ev.waId, remoteJid: ev.chatJid, fromMe: false, ...(ev.participante ? { participant: ev.participante } : {}) };
+  const r = ev.midiaBase64 ? { ok: true, data: { base64: ev.midiaBase64, mime: ev.midiaMime || "", nome: ev.midiaNome || "" } }
+    : await evolution.baixarMidia(key, ev.mensagemBruta);
   if (!r.ok) { logger.warn("mídia não baixou", { erro: r.erro }); return null; }
   const buf = Buffer.from(r.data.base64, "base64");
   if (buf.length > LIMITE_ANEXO) return null;
   const mime = r.data.mime || ev.midiaMime || "application/octet-stream";
   const ext = mime.includes("pdf") ? ".pdf" : (mime.includes("png") ? ".png" : (mime.includes("jpeg") || mime.includes("jpg") ? ".jpg" : (mime.includes("webp") ? ".webp" : "")));
-  const nomeBase = (ev.midiaNome || r.data.nome || (ev.tipo === "imagem" ? "foto" : "arquivo")).replace(/[^\w.\-]+/g, "_").slice(0, 80);
+  // foto do WhatsApp não tem nome (a Evolution devolve o id da mensagem): vira "foto"
+  const nomeBase = (ev.midiaNome || (ev.tipo === "imagem" ? "foto" : r.data.nome || "arquivo")).replace(/[^\w.\-]+/g, "_").slice(0, 80);
   const nome = /\.[a-z0-9]{2,5}$/i.test(nomeBase) ? nomeBase : nomeBase + ext;
   const caminho = `whatsapp/${chatId}/${ev.waId.replace(/[^0-9A-Za-z_-]/g, "_")}-${nome}`;
   const token = crypto.randomUUID();

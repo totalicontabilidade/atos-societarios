@@ -112,6 +112,10 @@ function normalizarEvento(payload) {
     midiaMime: midia ? midia.mime : null,
     midiaNome: midia ? midia.nomeArquivo : null,
     midiaTamanho: midia ? midia.tamanho : 0,
+    // o conteúdo da mensagem vai junto para baixar o arquivo: a Evolution não guarda as mensagens
+    // (sem isso o download responde "Message not found")
+    mensagemBruta: midia ? d.message : null,
+    midiaBase64: midia && typeof d.message.base64 === "string" ? d.message.base64 : null,
     enviadaEm: dataDoTimestamp(d.messageTimestamp),
     codigoVinculo: codigoDeVinculo(texto),
   };

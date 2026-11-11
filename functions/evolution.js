@@ -40,9 +40,12 @@ async function enviarTexto(destino, texto, { citar } = {}) {
   return r.ok ? { ok: true, data: { waId: r.data && r.data.key && r.data.key.id || null } } : r;
 }
 
-// Baixa a mídia de uma mensagem em base64 (a Evolution descriptografa e devolve).
-async function baixarMidia(key) {
-  const r = await chamar(`/chat/getBase64FromMediaMessage/${inst()}`, { method: "POST", timeoutMs: 60000, body: { message: { key }, convertToMp4: false } });
+// Baixa a mídia de uma mensagem em base64 (a Evolution descriptografa e devolve). Vai a mensagem
+// INTEIRA (com mediaKey e directPath): esta instância não guarda mensagens, e só com a chave a
+// Evolution responde "Message not found".
+async function baixarMidia(key, mensagem) {
+  const message = mensagem ? { key, message: mensagem } : { key };
+  const r = await chamar(`/chat/getBase64FromMediaMessage/${inst()}`, { method: "POST", timeoutMs: 60000, body: { message, convertToMp4: false } });
   if (!r.ok) return r;
   const d = r.data || {};
   if (!d.base64) return { ok: false, erro: "a Evolution não devolveu o arquivo" };
