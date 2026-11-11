@@ -65,4 +65,12 @@ async function nomeDoGrupo(groupJid) {
   return r.ok ? (r.data && r.data.subject) || null : null;
 }
 
-module.exports = { enviarTexto, baixarMidia, perfilInstancia, nomeDoGrupo, cfg };
+// QR code para conectar o número (imagem em base64). Sem QR quando já está conectado.
+async function obterQr() {
+  const r = await chamar(`/instance/connect/${inst()}`, { timeoutMs: 30000 });
+  if (!r.ok) return r;
+  if (r.data && r.data.instance && r.data.instance.state === "open") return { ok: true, data: { qr: null, estado: "open" } };
+  return { ok: true, data: { qr: (r.data && r.data.base64) || null, estado: "connecting" } };
+}
+
+module.exports = { enviarTexto, baixarMidia, perfilInstancia, nomeDoGrupo, obterQr, cfg };

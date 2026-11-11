@@ -7459,16 +7459,12 @@ window.TINA=(function(){
     if(w.vinculadoEm) h+='<div class="et-ok">✓ Conversa do grupo ligada a este processo em '+escHtml(_dataBR(w.vinculadoEm))+'.'+(w.respostasEm?' Respostas recebidas em '+escHtml(_dataBR(w.respostasEm))+': confira os dados e os anexos na solicitação.':'')+'</div>';
     if(!(window.Nuvem&&window.Nuvem.podeGravar())) h+='<div class="hint">Entre com o seu login para gerar o código que liga a conversa do grupo a este pedido.</div>';
     else {
-      if(cfg.estado && cfg.estado!=="open") h+='<div class="et-av">O WhatsApp do robô está desconectado ('+escHtml(cfg.estado)+'). Conecte pelo QR code antes de usar o grupo.</div>';
-      if(!grupo) h+='<div class="et-av">Nenhum grupo do robô foi ativado ainda.'+(est.admin?' Use “Ativar o grupo do robô” abaixo.':' Peça a um administrador para ativar.')+'</div>';
+      if(cfg.estado && cfg.estado!=="open") h+='<div class="et-av">O WhatsApp do robô está desconectado ('+escHtml(cfg.estado)+'). Um administrador conecta em ☰ › Configurações › WhatsApp.</div>';
+      if(!grupo) h+='<div class="et-av">Nenhum grupo do robô foi ativado ainda.'+(est.admin?' Ative em ☰ › Configurações › WhatsApp.':' Peça a um administrador para ativar em Configurações › WhatsApp.')+'</div>';
       else {
         h+='<div class="hint">Grupo do robô: <b>'+escHtml(grupo)+'</b>. Gere o código e mande <b>vincular CÓDIGO</b> no grupo: o robô pergunta o que falta e manda tudo para este pedido.</div>';
         if(_codigoWhats && _codigoWhats.tipo==="processo" && _codigoWhats.solicId===r.id && _codigoWhats.expira>Date.now()) h+='<div class="whats-cod"><b>vincular '+_codigoWhats.codigo.slice(0,3)+' '+_codigoWhats.codigo.slice(3)+'</b><span class="hint">vale até '+new Date(_codigoWhats.expira).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+'</span><button type="button" class="btn o mini" id="etWhatsCopiar">📋 Copiar</button></div>';
         h+='<div class="bar"><button type="button" class="btn p mini" id="etWhatsGerar">'+((_codigoWhats&&_codigoWhats.tipo==="processo"&&_codigoWhats.solicId===r.id)?"↻ Novo código":"📱 Gerar código para o grupo (10 min)")+'</button></div>';
-      }
-      if(est.admin){
-        if(_codigoWhats && _codigoWhats.tipo==="grupo" && _codigoWhats.expira>Date.now()) h+='<div class="whats-cod"><b>#ativar-atos '+_codigoWhats.codigo.slice(0,3)+' '+_codigoWhats.codigo.slice(3)+'</b><span class="hint">mande no grupo escolhido até '+new Date(_codigoWhats.expira).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+' (o WhatsApp do escritório precisa estar no grupo)</span></div>';
-        h+='<details class="an-det"><summary>'+(grupo?"Trocar o grupo do robô (administrador)":"Ativar o grupo do robô (administrador)")+'</summary><div class="hint" style="margin:6px 0">Gera um código de uso único. Mandado dentro de um grupo, faz dele o único grupo em que o robô responde'+(grupo?' (o atual deixa de ser atendido)':'')+'. Mandado em qualquer outro lugar, é ignorado.</div><button type="button" class="btn o mini" id="etWhatsAtivar">🔑 Gerar código de ativação</button></details>';
       }
     }
     box.innerHTML=h+'</div>';
@@ -7477,8 +7473,70 @@ window.TINA=(function(){
       if(!res.ok){ toast("Não foi possível gerar o código: "+(res.msg||"falha")+(/permission|insufficient/i.test(res.msg||"")?" — publique as regras do Firestore":""),"err",8000); return; }
       _codigoWhats=Object.assign({codigo,tipo,expira:exp},extra||{}); renderWhatsPedido(r); toast("Código gerado. Vale 10 minutos.","ok"); };
     const g=$("etWhatsGerar"); if(g) g.addEventListener("click",async()=>{ g.disabled=true; await gerar("processo",{solicId:r.id,casoId:casoAtualId||"",empresa:r.empresa||"",cnpj:r.cnpj||""}); g.disabled=false; });
-    const at=$("etWhatsAtivar"); if(at) at.addEventListener("click",async()=>{ at.disabled=true; await gerar("grupo",{}); at.disabled=false; });
     const c=$("etWhatsCopiar"); if(c) c.addEventListener("click",async()=>{ const t="vincular "+_codigoWhats.codigo; try{ await navigator.clipboard.writeText(t); toast("Copiado: "+t,"ok"); }catch(e){ prompt("Copie:",t); } });
+  }
+
+  /* ===== Configurações › WhatsApp (v1.74, só administrador) =====
+     Conectar o WhatsApp do escritório ao robô (QR code) e escolher o grupo do robô, sem sair do Atos.
+     A tela não fala com a Evolution: chama a rota /painel da função, com o token do login; a função
+     confere que é administrador e só ela usa a chave da Evolution. O QR se renova a cada 25 s e a
+     tela confere a conexão a cada 5 s, por até 5 minutos. */
+  const URL_PAINEL_WHATS="https://whatsappwebhook-dvjo4cygzq-rj.a.run.app/painel";
+  let _qrLaco=null;
+  async function painelWhats(acao){
+    if(!(window.Nuvem&&window.Nuvem.idToken)) return {ok:false,erro:"sem login"};
+    let tok=""; try{ tok=await window.Nuvem.idToken(); }catch(e){ return {ok:false,erro:"login vencido: entre de novo"}; }
+    try{ const r=await fetchComTempo(URL_PAINEL_WHATS,40000,{method:"POST",headers:{"authorization":"Bearer "+tok,"content-type":"application/json"},body:JSON.stringify({acao})});
+      let j={}; try{ j=await r.json(); }catch(e){} if(!r.ok) return Object.assign({ok:false,erro:"erro "+r.status},j); return j; }
+    catch(e){ return {ok:false,erro:(e&&e.name==="AbortError")?"o robô demorou para responder":"sem conexão com o robô"}; }
+  }
+  function _pararQr(){ if(_qrLaco){ clearInterval(_qrLaco.estado); clearInterval(_qrLaco.qr); clearTimeout(_qrLaco.fim); _qrLaco=null; } }
+  function _whatsAbaVisivel(){ const p=document.querySelector('.cfg-painel[data-cfg="whatsapp"]'), m=$("configModal"); return !!(p&&!p.hidden&&m&&m.classList.contains("open")); }
+  async function renderWhatsConfig(){
+    const box=$("whatsCfg"); if(!box) return;
+    const est=(window.Nuvem&&window.Nuvem.estado)?window.Nuvem.estado():{};
+    if(!est.admin){ box.innerHTML='<div class="hint">Só administradores conectam o WhatsApp e escolhem o grupo do robô. Entre na aba <b>Nuvem</b> com uma conta de administrador.</div>'; return; }
+    box.innerHTML='<div class="hint">Consultando o robô…</div>';
+    const e=await painelWhats("estado");
+    if(!e.ok){ box.innerHTML='<div class="et-av">Não foi possível falar com o robô: '+escHtml(e.erro||"falha")+'.</div><div class="bar" style="margin-top:8px"><button type="button" class="btn o mini" id="wcTentar">↻ Tentar de novo</button></div>';
+      $("wcTentar").addEventListener("click",renderWhatsConfig); return; }
+    _whatsCfg=Object.assign({},_whatsCfg||{},{estado:e.estado,numero:e.numero,grupoJid:e.grupoJid,grupoNome:e.grupoNome});
+    const on=e.estado==="open", num=e.numero?fmtTel(String(e.numero).replace(/^55/,"")):"";
+    let h='<div class="et-h4">1. Conexão</div>';
+    h+=on?'<div class="et-ok">✓ Conectado'+(num?' ao número <b>'+escHtml(num)+'</b>':'')+(e.nome?' ('+escHtml(e.nome)+')':'')+'.</div>'
+         :'<div class="et-av">Desconectado ('+escHtml(e.estado||"?")+'). Conecte o WhatsApp do escritório pelo QR code.</div>';
+    if(!on) h+='<div class="hint" style="margin:6px 0">No celular do escritório: WhatsApp › <b>Aparelhos conectados</b> › <b>Conectar um aparelho</b> e leia o código. O robô entra como mais um aparelho: o celular continua funcionando, e ele não marca mensagens como lidas nem fica online.</div>'
+      +'<div class="bar"><button type="button" class="btn p mini" id="wcQr">📷 Mostrar QR code</button></div><div id="wcQrBox"></div>';
+    h+='<div class="et-h4" style="margin-top:14px">2. Grupo do robô</div>';
+    h+=e.grupoJid?'<div class="et-ok">✓ O robô responde só no grupo <b>'+escHtml(e.grupoNome||"(sem nome)")+'</b>'+(e.grupoAtivadoEm?' (ativado em '+escHtml(_dataBR(e.grupoAtivadoEm))+')':'')+'. Clientes no privado e outros grupos são ignorados.</div>'
+                 :'<div class="et-av">Nenhum grupo ativado: por enquanto o robô não responde em lugar nenhum.</div>';
+    h+='<div class="hint" style="margin:6px 0">Para '+(e.grupoJid?'trocar de':'escolher o')+' grupo: o WhatsApp do escritório precisa estar no grupo. Gere o código e mande a mensagem <b>de um celular pessoal</b> (o robô ignora o que sai do próprio número do escritório). Vale 10 minutos e uma vez só.</div>';
+    if(_codigoWhats && _codigoWhats.tipo==="grupo" && _codigoWhats.expira>Date.now()) h+='<div class="whats-cod"><b>#ativar-atos '+_codigoWhats.codigo.slice(0,3)+' '+_codigoWhats.codigo.slice(3)+'</b><span class="hint">vale até '+new Date(_codigoWhats.expira).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+'</span><button type="button" class="btn o mini" id="wcCopiar">📋 Copiar</button></div>';
+    h+='<div class="bar"><button type="button" class="btn o mini" id="wcAtivar">🔑 Gerar código de ativação</button><button type="button" class="btn s mini" id="wcAtualizar">↻ Atualizar</button></div>';
+    box.innerHTML=h;
+    $("wcAtualizar").addEventListener("click",()=>{ _pararQr(); renderWhatsConfig(); });
+    $("wcAtivar").addEventListener("click",async()=>{ const b=$("wcAtivar"); b.disabled=true; const codigo=_codigoSeis(), exp=Date.now()+10*60*1000;
+      const res=await window.Nuvem.salvarCru("codigos_vinculo",codigo,{codigo,tipo:"grupo",criadoEm:new Date().toISOString(),expiraEm:firebase.firestore.Timestamp.fromMillis(exp)});
+      b.disabled=false; if(!res.ok){ toast("Não foi possível gerar o código: "+(res.msg||"falha"),"err",8000); return; }
+      _codigoWhats={codigo,tipo:"grupo",expira:exp}; renderWhatsConfig(); toast("Código gerado. Mande no grupo escolhido em até 10 minutos.","ok"); });
+    const cp=$("wcCopiar"); if(cp) cp.addEventListener("click",async()=>{ const t="#ativar-atos "+_codigoWhats.codigo; try{ await navigator.clipboard.writeText(t); toast("Copiado: "+t,"ok"); }catch(e){ prompt("Copie:",t); } });
+    const bq=$("wcQr"); if(bq) bq.addEventListener("click",()=>iniciarQr());
+  }
+  async function iniciarQr(){
+    _pararQr(); const box=$("wcQrBox"); if(!box) return;
+    box.innerHTML='<div class="hint">Gerando o QR code…</div>';
+    const mostrar=async()=>{ if(!_whatsAbaVisivel()){ _pararQr(); return; }
+      const q=await painelWhats("qr"); const b=$("wcQrBox"); if(!b) return;
+      if(!q.ok){ b.innerHTML='<div class="et-av">Não foi possível gerar o QR: '+escHtml(q.erro||"falha")+'.</div>'; return; }
+      if(q.estado==="open"||!q.qr){ _pararQr(); renderWhatsConfig(); toast("✓ WhatsApp conectado ao robô.","ok"); return; }
+      const src=/^data:image\//.test(q.qr)?q.qr:"data:image/png;base64,"+q.qr;
+      b.innerHTML='<div class="whats-qr"><img id="wcQrImg" alt="QR code para conectar o WhatsApp do escritório" src="'+escHtml(src)+'"><div class="hint">Atualizado às '+new Date().toLocaleTimeString("pt-BR")+'. Ele se renova sozinho; deixe esta tela aberta.</div><button type="button" class="btn s mini" id="wcQrParar">Parar</button></div>';
+      $("wcQrParar").addEventListener("click",()=>{ _pararQr(); const bb=$("wcQrBox"); if(bb) bb.innerHTML=""; });
+    };
+    await mostrar();
+    _qrLaco={ qr:setInterval(mostrar,25000),
+      estado:setInterval(async()=>{ if(!_whatsAbaVisivel()){ _pararQr(); return; } const e=await painelWhats("estado"); if(e.ok&&e.estado==="open"){ _pararQr(); renderWhatsConfig(); toast("✓ WhatsApp conectado ao robô.","ok"); } },5000),
+      fim:setTimeout(()=>{ _pararQr(); const b=$("wcQrBox"); if(b) b.innerHTML='<div class="hint">O QR parou de se renovar depois de 5 minutos. Clique em <b>Mostrar QR code</b> de novo.</div>'; },5*60*1000) };
   }
   function renderEtapaPedido(){
     const box=$("etPedido"); if(!box) return;
@@ -7780,6 +7838,7 @@ window.TINA=(function(){
       document.querySelectorAll(".cfg-painel").forEach(p=>{ p.hidden=(p.dataset.cfg!==alvo); });
       const mb=b.closest(".mb"); if(mb) mb.scrollTop=0;
       if(alvo==="erros") renderErros();
+      if(alvo==="whatsapp") renderWhatsConfig(); else _pararQr();
     }));
     if($("btnErrosAtualizar")) $("btnErrosAtualizar").addEventListener("click",()=>{ window.__enviarErros(); renderErros(); });
     setTimeout(()=>window.__enviarErros(),8000);   // o que ficou guardado de uma sessão sem login sobe quando houver
@@ -7973,6 +8032,7 @@ window.TINA=(function(){
         const eb=$("equipeBloco"); if(eb) eb.style.display=e.admin?"":"none";
         const semAdm=$("equipeSemAdmin"); if(semAdm) semAdm.style.display=e.admin?"none":"";
         const abaEq=$("cfgAbaEquipe"); if(abaEq) abaEq.style.display=e.configurado?"":"none";
+        const abaWa=$("cfgAbaWhats"); if(abaWa) abaWa.style.display=e.admin?"":"none";   // v1.74: WhatsApp só para administrador
         if(e.admin && window.__renderEquipe) window.__renderEquipe();
         /* O comercial não abre o gerador nem o painel de casos: não há por que trazer para o celular
            dele os atos guardados, que levam CPF, RG e endereço dos sócios. */
@@ -8253,7 +8313,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,corrigirRedacaoMantida,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,analiseAtual:()=>_analise,marcarAnalise,paramVigente,aliquotaEfetiva,reparticaoSimples,fatorR,classificarCnae,irrfProLabore,compararRegimes,vedacoesSimples,interpretarCertidao,textoLaudo,dadosLaudo,gerarLaudoPdf,gravarPendencia,resumoPendencias,consultarCnpjCascata,fichaDeBrasilAPI:_fichaDeBrasilAPI,fichaDeOpenCNPJ:_fichaDeOpenCNPJ,fichaDeCnpjWs:_fichaDeCnpjWs,estadoAnalise,etapas:()=>ET,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,corrigirRedacaoMantida,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,renderWhatsConfig,painelWhats,analiseAtual:()=>_analise,marcarAnalise,paramVigente,aliquotaEfetiva,reparticaoSimples,fatorR,classificarCnae,irrfProLabore,compararRegimes,vedacoesSimples,interpretarCertidao,textoLaudo,dadosLaudo,gerarLaudoPdf,gravarPendencia,resumoPendencias,consultarCnpjCascata,fichaDeBrasilAPI:_fichaDeBrasilAPI,fichaDeOpenCNPJ:_fichaDeOpenCNPJ,fichaDeCnpjWs:_fichaDeCnpjWs,estadoAnalise,etapas:()=>ET,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();

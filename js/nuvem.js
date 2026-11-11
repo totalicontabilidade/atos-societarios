@@ -194,6 +194,12 @@
       .catch(function (e) { return { ok: false, msg: (e && e.message) || "falha ao gravar" }; });
   }
 
+  // token do login atual, para a tela falar com a função do robô (Configurações › WhatsApp) — v1.74
+  function idToken() {
+    if (!(auth && auth.currentUser)) return Promise.reject(new Error("sem login"));
+    return auth.currentUser.getIdToken();
+  }
+
   // grava SEM clonar em JSON: serve para campos especiais do Firestore (Timestamp do código de vínculo) — v1.72
   function salvarCru(colecao, id, dados) {
     if (!podeGravar()) return Promise.resolve({ ok: false, msg: "não conectado" });
@@ -395,6 +401,7 @@
     ouvirNovos: ouvirNovos,
     ouvirColecao: ouvirColecao,
     salvarCru: salvarCru,
+    idToken: idToken,
     enviarAnexo: enviarAnexo,
     listarTrilha: listarTrilha,
     excluirAnexo: excluirAnexo,

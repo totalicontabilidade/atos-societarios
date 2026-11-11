@@ -23,6 +23,7 @@ WhatsApp do escritório ──► Evolution API v2.3.7 (VPS Magalu, container at
 | `functions/dialogo.js` | catálogo de fluxos (abrir, alterar, fechar, transformar, advocacia, outro), validações, resumo, correção, comandos (*voltar*, *resumo*, *menu*, *equipe*, *cancelar*) |
 | `functions/portaria.js` | decide antes de gravar: só o grupo ativado é atendido; privado e outros grupos são descartados |
 | `functions/parser.js` | tradução do evento da Evolution (copiado do TotaliFinance, adaptado ao privado) |
+| `functions/painel.js` | rota `/painel` da aba Configurações › WhatsApp: estado e QR, só para administrador logado |
 | `functions/evolution.js` | `sendText`, `getBase64FromMediaMessage`, `fetchInstances` |
 | `functions/test/` | `node --test` — o diálogo conversado de ponta a ponta, sem rede |
 | VPS `~/atos-whatsapp/` | `docker-compose.yml` (Evolution + Postgres próprios) e `.env` (segredos) |
@@ -118,11 +119,17 @@ Teste rápido: sem o cabeçalho `authorization` a função tem de responder **40
   ela acesso aos dois segredos.
 - **Runtime:** Node.js 22 (o 20 foi desativado em 30/10/2026).
 
-## Conectar o chip
+## Conectar o WhatsApp do escritório e escolher o grupo (dentro do Atos)
 
-No computador do Raoni: `%USERPROFILE%\.atos-whatsapp\conectar-whatsapp-atos.ps1` (botão direito →
-Executar com o PowerShell). Ele abre uma página com o QR, que se renova a cada 25 s, até o número
-conectar. No celular: WhatsApp → Aparelhos conectados → Conectar um aparelho.
+**☰ › Configurações › WhatsApp** (a aba só aparece para administrador):
+- **Mostrar QR code:** a tela pede o QR à função (rota `/painel`, com o token do login do Atos); a
+  função confere em `/equipe` que é administrador ativo e só ela usa a chave da Evolution. O QR se
+  renova a cada 25 s e a tela confere a conexão a cada 5 s, por até 5 minutos.
+- **Gerar código de ativação:** `#ativar-atos CÓDIGO`, para mandar no grupo escolhido de um celular
+  pessoal (o robô ignora o que sai do número do escritório).
+
+A rota `/painel` responde CORS só para o site publicado e para as portas locais 9120/9121. O script
+`%USERPROFILE%\.atos-whatsapp\conectar-whatsapp-atos.ps1` continua funcionando como reserva.
 
 ## Dados e LGPD
 

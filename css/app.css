@@ -530,6 +530,8 @@
   .an-reg{border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff} .an-reg.melhor{border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
   .an-reg-t{font-weight:700;color:var(--navy)} .an-reg-v{font-size:19px;font-weight:800;color:var(--ink);margin:2px 0 4px} .an-reg-v .hint{font-size:12px;font-weight:400;margin-left:6px}
   .an-fr{margin-top:8px;padding:8px 10px;border-radius:9px;background:#f2f6fb;font-size:13px}
+  .whats-qr{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:8px}
+  .whats-qr img{width:260px;height:260px;image-rendering:pixelated;border:1px solid var(--line);border-radius:10px;background:#fff;padding:6px}
   .whats-cod{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0;font-size:22px;letter-spacing:.06em;color:var(--navy)}
   .rec-todos{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:0 0 10px}
   .rec-todos .hint{margin-right:auto}

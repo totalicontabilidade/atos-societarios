@@ -19,6 +19,7 @@ const parser = require("./parser");
 const evolution = require("./evolution");
 const dialogo = require("./dialogo");
 const portaria = require("./portaria");
+const painel = require("./painel");
 
 // A conta de computação padrão do projeto nasce sem papéis nesta organização. As funções rodam com a
 // conta do Admin SDK do Firebase, que já tem Firestore (Admin SDK) e Storage (administrador de armazenamento).
@@ -52,6 +53,13 @@ const agoraISO = () => new Date().toISOString();
 // desligando a verificação de IAM do invocador (ver functions/README.md). A proteção é o token do
 // webhook conferido logo abaixo, em tempo constante; sem ele, 401 e nada é lido.
 exports.whatsappWebhook = onRequest({ secrets: [WEBHOOK_TOKEN, API_KEY] }, async (req, res) => {
+  // /painel: a aba WhatsApp das Configurações do Atos (só administrador logado; ver painel.js)
+  if (painel.ehPainel(req)) {
+    process.env.WHATSAPP_API_KEY = API_KEY.value();
+    try { await painel.atender(req, res, { admin, db, evolution, configWhats }); }
+    catch (e) { logger.error("erro no painel", { erro: e && e.message }); if (!res.headersSent) res.status(500).json({ ok: false, erro: "erro no painel" }); }
+    return;
+  }
   if (req.method !== "POST") { res.status(405).send("POST"); return; }
   const recebido = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "") || String(req.headers["x-webhook-token"] || "");
   if (!tokenConfere(recebido, WEBHOOK_TOKEN.value())) { res.status(401).json({ ok: false, erro: "token do webhook inválido" }); return; }
