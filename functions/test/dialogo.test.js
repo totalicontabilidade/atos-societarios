@@ -52,10 +52,7 @@ test("fluxo 'fechar' de ponta a ponta: validações, documentação, resumo, con
     "José da Silva",                    // livros
     "9",                                // opção fora da lista
     "1",                                // débitos: não
-    "Maria Souza",                      // nome do cliente
-    "79 99999-0000",                    // telefone do cliente
-    "não",                              // prazo
-    "pular",                            // obs
+    "Maria Souza 79 99999-0000",        // contato do cliente, numa mensagem só
     "1",                                // confirmar
   ]);
   assert.match(saidas[2], /CNPJ não confere/);
@@ -63,9 +60,9 @@ test("fluxo 'fechar' de ponta a ponta: validações, documentação, resumo, con
   assert.match(saidas[4], /Contrato social, alteração, estatuto ou ata ✓/);
   assert.match(saidas[6], /dd\/mm\/aaaa/);
   assert.match(saidas[9], /número/);
-  assert.match(saidas[10], /Nome do \*cliente\*/);
-  assert.match(saidas[14], /Está tudo certo\?/);
-  assert.match(saidas[15], /já está no Atos/);
+  assert.match(saidas[10], /Algo mais para a legalização\?/); assert.match(saidas[10], /\*enviar\* manda só o que já tem/);
+  assert.match(saidas[11], /Está tudo certo\?/);
+  assert.match(saidas[12], /já está no Atos/);
   assert.equal(ultimo.acao, "criar_solicitacao");
   const s = ultimo.dados;
   assert.equal(s.tipo, "dist_ltda"); assert.deepEqual(s.pedidos, ["fechar"]);
@@ -105,10 +102,10 @@ test("alterar: CNPJ pré-preenchido pelo vínculo; a documentação pede o que a
 });
 
 test("corrigir um item depois do resumo; 'equipe' e '0' não existem", () => {
-  const r = conversa(["6", "pular", "preciso regularizar a empresa", "ok", "Bia", "pular", "não", "não", "2", "4", "Beatriz", "1"]);
+  const r = conversa(["6", "pular", "preciso regularizar a empresa", "ok", "Bia", "2", "4", "Beatriz", "1"]);
   assert.match(r.saidas[3], /Sem documentos por enquanto/);
-  assert.match(r.saidas[8], /Qual item quer corrigir/);
-  assert.match(r.saidas[9], /Nome do \*cliente\*/);
+  assert.match(r.saidas[5], /Qual item quer corrigir/);
+  assert.match(r.saidas[6], /contato do cliente/);
   assert.equal(r.ultimo.acao, "criar_solicitacao");
   assert.equal(r.ultimo.dados.contato, "Beatriz");
   const h = conversa(["0"]);
@@ -160,14 +157,14 @@ test("sem pedido escolhido: texto livre já abre o pedido certo e vira anotaçã
   assert.equal(a("novo estatuto e eleição da diretoria"), "outro"); assert.equal(a("bom dia pessoal"), null);
   const r = conversa([{ texto: "", midia: arq("1._Ata_-_Novo_Estatuto.pdf") }, "Alteração do nome da empresa", "Urgente, cliente aguardando"]);
   assert.match(r.saidas[0], /estatuto ou ata: guardado/);
-  assert.match(r.saidas[1], /Vamos lá: \*Alterar/); assert.match(r.saidas[1], /Entendi pela mensagem/); assert.match(r.saidas[1], /Já está guardado/);
+  assert.match(r.saidas[1], /Vamos lá: \*Alterar/); assert.match(r.saidas[1], /Entendi pela mensagem/); assert.doesNotMatch(r.saidas[1], /Já está guardado/); assert.equal(r.estado.respostas["_arq.docs"].length, 1);
   assert.equal(r.estado.fluxo, "alterar"); assert.deepEqual(r.estado.respostas._notas, ["Alteração do nome da empresa", "Urgente, cliente aguardando"]);
   assert.match(r.saidas[2], /Anotado/);
   const o = conversa(["novo estatuto e eleição da diretoria"]);
   assert.equal(o.estado.fluxo, "outro"); assert.equal(o.estado.respostas.descricao, "novo estatuto e eleição da diretoria");
   const n = conversa(["preciso ver isso com calma"]);
   assert.equal(n.estado.fluxo, null); assert.match(n.saidas[0], /Anotei/); assert.match(n.saidas[0], /Qual é o pedido/);
-  const f = conversa(["preciso ver isso com calma", "3", "00.000.000/0001-91", "ok", "30/06/2026", "Ana", "1", "pular", "pular", "não", "pular", "1"]);
+  const f = conversa(["preciso ver isso com calma", "3", "00.000.000/0001-91", "ok", "30/06/2026", "Ana", "1", "pular", "1"]);
   assert.match(f.ultimo.dados.obs, /Anotações da equipe: preciso ver isso com calma/);
 });
 
@@ -202,4 +199,43 @@ test("áudio transcrito vira texto como se fosse digitado", () => {
   assert.match(r.saidas[2], /Documentos pessoais de sócio/);
   const a = P.normalizarEvento({ event: "messages.upsert", data: { key: { remoteJid: "1203@g.us", id: "A", participant: "5579988887777@s.whatsapp.net" }, message: { audioMessage: { mimetype: "audio/ogg; codecs=opus", seconds: 14, ptt: true } } } });
   assert.equal(a.tipo, "audio"); assert.equal(a.temMidia, true); assert.equal(a.midiaSegundos, 14); assert.ok(a.mensagemBruta.audioMessage);
+});
+
+test("'enviar' manda o pedido com o que já tem, em qualquer pergunta; o que faltou vai listado", () => {
+  // o caso do grupo: ata mandada, pedido escrito, "o CNPJ consta no cabeçalho da ata", e manda
+  const r = conversa([{ texto: "", midia: arq("1._Ata_-_Novo_Estatuto.pdf") }, "Preciso que altere a denominação social", "O CNPJ consta no cabeçalho dessa ata", "enviar"]);
+  assert.match(r.saidas[1], /Vamos lá: \*Alterar empresa\*/);
+  assert.match(r.saidas[1], /\*enviar\* manda só o que já tem/);
+  assert.deepEqual(r.estado.respostas.oQueMuda, ["nome"]);                    // "denominação social" = muda o nome
+  assert.match(r.saidas[2], /fica para ver no documento/); assert.match(r.saidas[2], /Mande a \*documentação\*/); assert.match(r.saidas[2], /Já recebi: Contrato social/);
+  assert.match(r.saidas[3], /Pedido enviado com o que já tem/); assert.match(r.saidas[3], /Ficou para a legalização ver nos documentos: CNPJ da empresa; Novo nome da empresa\./);
+  assert.equal(r.ultimo.acao, "criar_solicitacao");
+  const s = r.ultimo.dados;
+  assert.equal(s.anexos.length, 1); assert.match(s.anexos[0].nome, /estatuto ou ata/);
+  assert.match(s.obs, /Anotações da equipe: Preciso que altere a denominação social \/ CNPJ da empresa: O CNPJ consta/);
+  assert.match(s.obs, /Enviado antes do fim/);
+  // arquivo sem tipo na documentação vai como "Não identificado"; nada para enviar = não envia
+  const p = conversa(["1", { midia: arq("IMG-9.jpg") }, "enviar"]);
+  assert.equal(p.ultimo.acao, "criar_solicitacao"); assert.match(p.ultimo.dados.anexos[0].nome, /^Não identificado/);
+  const v = conversa(["1", "enviar"]);
+  assert.notEqual(v.ultimo.acao, "criar_solicitacao"); assert.match(v.saidas[1], /nada para enviar/);
+  assert.match(conversa(["enviar"]).saidas[0], /Primeiro escolha o pedido/);
+  assert.doesNotMatch(conversa(["1"]).saidas[0], /\*enviar\*/);     // só aparece quando já há algo
+});
+
+test("extras: contato, telefone e prazo tirados de uma mensagem só", () => {
+  const e = D.extrasDoTexto;
+  assert.deepEqual(e("Maria Souza 79 99999-0000, prazo 30/11/2026"), { contatoNome: "Maria Souza", contatoFone: "79999990000", prazo: "30/11/2026", obs: "" });
+  assert.equal(e("cliente quer rápido, sem pressa de assinatura").obs, "cliente quer rápido, sem pressa de assinatura");
+  assert.equal(e("Beatriz").contatoNome, "Beatriz");
+  const r = conversa(["3", "00.000.000/0001-91", "ok", "30/06/2026", "Ana", "1", "João 79 98888-7777 até 15/12/2026 urgente", "1"]);
+  assert.equal(r.ultimo.dados.contato, "João"); assert.equal(r.ultimo.dados.fone, "79988887777"); assert.equal(r.ultimo.dados.prazo, "15/12/2026");
+});
+
+test("alteração: o que muda é tirado da mensagem", () => {
+  const m = D.mudancasDoTexto;
+  assert.deepEqual(m("altere a denominação social"), ["nome"]); assert.deepEqual(m("entrada de sócio e mudança de endereço"), ["endereco", "socios"]);
+  assert.deepEqual(m("aumento de capital"), ["capital"]); assert.deepEqual(m("preciso de uma alteração"), []);
+  const r = conversa(["entrada de sócio e novo endereço na Padaria X"]);
+  assert.equal(r.estado.fluxo, "alterar"); assert.deepEqual(r.estado.respostas.oQueMuda, ["endereco", "socios"]);
 });

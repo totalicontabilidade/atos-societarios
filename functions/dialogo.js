@@ -77,8 +77,18 @@ function adivinharFluxo(texto) {
   if (/\b(fechar|fechamento|encerrar|encerramento|baixa|baixar|dissoluc\w*|distrato|extinc\w*|extinguir)\b/.test(t)) return "fechar";
   if (/\bfilial\b/.test(t)) return "alterar";
   if (/\b(abrir|abertura|constituir|constituicao|nova empresa|empresa nova)\b/.test(t)) return "abrir";
-  if (/\b(alterar|alteracao|alteracoes|mudar|mudanca|trocar|troca|entrada|saida|incluir|retirar|aumento|reducao|endereco|capital|nome empresarial|razao social|cnae|atividade|administrador)\b/.test(t)) return "alterar";
+  if (/\b(alter\w*|denominac\w*|mud\w*|troc\w*|entrada|saida|incluir|retirar|aumento|reducao|endereco|capital|nome empresarial|razao social|cnae|atividade|administrador)\b/.test(t)) return "alterar";
   return null;
+}
+// O que muda numa alteração, dito em texto livre
+function mudancasDoTexto(texto) {
+  const t = " " + semAcento(texto) + " ", m = [];
+  if (/\b(endereco|sede|mudanca de endereco|transferencia)\b/.test(t)) m.push("endereco");
+  if (/\b(socios?|socias?|entrada|saida|retirada|quotas?|cotas?)\b/.test(t)) m.push("socios");
+  if (/\b(atividades?|cnaes?|objeto social)\b/.test(t)) m.push("atividades");
+  if (/\bcapital\b/.test(t)) m.push("capital");
+  if (/\b(denominac\w*|nome empresarial|nome da empresa|razao social|nome fantasia|novo nome|troca de nome|mudanca de nome|alteracao do nome)\b/.test(t)) m.push("nome");
+  return m;
 }
 // Anotação da equipe (texto que não é resposta de pergunta): vai junto na solicitação
 function anotar(estado, texto) { estado.respostas._notas = (estado.respostas._notas || []).concat([String(texto).trim().slice(0, 300)]).slice(-10); }
@@ -127,12 +137,26 @@ function blocoEndereco(prefixo, rotulo) {
   ];
 }
 // Contato do cliente, para a legalização falar com ele se precisar
+// Uma pergunta só no fim (antes eram 4, quase sempre puladas): contato, telefone, prazo e observação
+// numa mensagem; o telefone e a data são tirados do texto (ver extrasDoTexto).
 const PERGUNTA_FIM = [
-  { id: "contatoNome", tipo: "texto", pergunta: "Nome do *cliente* para contato:", opcional: true },
-  { id: "contatoFone", tipo: "fone", pergunta: "Telefone do cliente, com DDD:", opcional: true },
-  { id: "prazo", tipo: "texto", pergunta: "Data limite para ficar pronto? (dd/mm/aaaa, ou *não*)", opcional: true },
-  { id: "obs", tipo: "texto", pergunta: "Alguma *observação* para a legalização? (ou *não*)", opcional: true },
+  { id: "extras", tipo: "texto", opcional: true,
+    pergunta: "Algo mais para a legalização? Numa mensagem só: *contato do cliente* (nome e telefone), *prazo* (dd/mm/aaaa) e *observações*." },
 ];
+function extrasDoTexto(texto) {
+  let t = String(texto || "").trim(); const r = { contatoNome: "", contatoFone: "", prazo: "", obs: "" };
+  if (!t) return r;
+  const data = /\b(\d{2}\/\d{2}\/\d{4})\b/.exec(t); if (data && validaData(data[1])) { r.prazo = data[1]; t = t.replace(data[0], " "); }
+  const fone = /(\+?55[\s.-]?)?\(?\b\d{2}\)?[\s.-]?9?\d{4}[\s.-]?\d{4}\b/.exec(t);
+  if (fone) { const d = fone[0].replace(/\D/g, ""); if (d.length >= 10 && d.length <= 13) { r.contatoFone = d; t = t.replace(fone[0], " "); } }
+  if (!data && !fone) { const so = t.trim(); return Object.assign(r, so.split(/\s+/).length <= 4 && /^[A-ZÀ-Ý][A-Za-zÀ-ÿ' ]+$/.test(so) ? { contatoNome: so } : { obs: so }); }
+  t = t.replace(/\b(prazo|telefone|fone|tel|contato|whats(app)?)\b\s*:?/gi, " ").replace(/\b(cliente|at[eé])\s*:/gi, " ").replace(/[\s,;:.\-–]+$/g, "").replace(/^[\s,;:.\-–]+/g, "").replace(/\s+/g, " ").trim();
+  // o nome é o começo em maiúsculas ("Maria da Silva 79 9…"); o resto é observação
+  const m = /^([A-ZÀ-Ý][a-zà-ÿ']+(?:\s+(?:d[aeo]s?\s+)?[A-ZÀ-Ý][a-zà-ÿ']+){0,4})(.*)$/.exec(t);
+  if (m && r.contatoFone) { r.contatoNome = m[1].trim(); r.obs = m[2].replace(/^[\s,;:.\-–]+/, "").replace(/^(at[eé]|prazo)(?=\s|$)\s*/i, "").trim(); }
+  else r.obs = t;
+  return r;
+}
 function socios(prefixoQtd, rotuloFn) {
   const out = [];
   for (let n = 1; n <= LIMITE_SOCIOS; n++) blocoSocio(n, rotuloFn ? rotuloFn(n) : null).forEach((s) => out.push(Object.assign({}, s, { quando: (r) => Number(r[prefixoQtd]) >= n && (!s.quando || s.quando(r)) })));
@@ -243,7 +267,7 @@ function retomar(estado, msgs) {
 }
 
 const LGPD = "🔒 Os dados e documentos mandados aqui vão para o Atos e só servem para preparar o ato (LGPD). Mande só o que for do processo.";
-const AJUDA = "Comandos: *voltar* (pergunta anterior) · *resumo* · *menu* (recomeçar) · *cancelar*.";
+const AJUDA = "Comandos: *enviar* (manda o pedido com o que já tem) · *voltar* (pergunta anterior) · *resumo* · *menu* (recomeçar) · *cancelar*.";
 
 // ─── motor ─────────────────────────────────────────────────────────────────
 function novoEstado(extra) { return Object.assign({ fluxo: null, respostas: {}, ordem: [], criadoEm: new Date().toISOString() }, extra || {}); }
@@ -254,9 +278,21 @@ function interpolar(texto, r) { return String(texto || "").replace(/\{([\w.]+)\}
 function textoPergunta(p, estado) {
   let t = interpolar(typeof p.pergunta === "function" ? p.pergunta(estado.respostas) : p.pergunta, estado.respostas);
   if (p.tipo === "opcao" || p.tipo === "multi") t += "\n" + p.opcoes.map((o, i) => `*${i + 1}* — ${o[1]}`).join("\n") + (p.tipo === "multi" ? "\n(responda com os números, ex.: 1,3)" : "");
-  if (p.opcional && p.tipo !== "arquivo") t += "\n_(ou digite *pular*)_";
-  if (p.opcional && p.tipo === "arquivo") t += "\n_(sem documentos agora? digite *pular*)_";
+  const lista = p.tipo === "arquivo" ? estado.respostas["_arq." + p.id] : null;
+  if (Array.isArray(lista) && lista.length) t += `\n\nJá recebi: ${lista.map((a) => (a.pendente ? a.nome : descricaoCurta(a))).join("; ")}.`;
+  const env = temAlgo(estado) ? "*enviar* manda só o que já tem" : "";
+  if (p.opcional && p.tipo !== "arquivo") t += `\n_(ou *pular*${env ? "; " + env : ""})_`;
+  else if (p.tipo === "arquivo" && Array.isArray(lista) && lista.length) t += `\n_(mande mais ou digite *ok*${env ? "; " + env : ""})_`;
+  else if (p.opcional && p.tipo === "arquivo") t += `\n_(sem documentos agora? *pular*${env ? "; " + env : ""})_`;
+  else if (env) t += `\n_(${env})_`;
   return t;
+}
+// Já tem o que mandar? (algum arquivo, resposta ou anotação além do que veio do vínculo)
+function temAlgo(estado) {
+  if (!estado.fluxo) return false;
+  const r = estado.respostas || {};
+  if ((estado.arquivosPendentes || []).length) return true;
+  return Object.keys(r).some((k) => k !== "confirmar" && (Array.isArray(r[k]) ? r[k].length > 0 : r[k] !== "" && r[k] != null) && !(k === "cnpj" && estado.cnpj && estado.ordem.length <= 1));
 }
 function menuTexto(estado) {
   const cab = estado.empresa ? `Esta conversa está ligada a *${estado.empresa}*${estado.cnpj ? " (CNPJ " + fmtCNPJ(estado.cnpj) + ")" : ""}.\n` : "🤖 Robô de pedidos de atos da Totali. Peço a documentação e os dados, e no fim o pedido entra no Atos para a legalização.\n";
@@ -333,6 +369,7 @@ function textoFalado(texto) {
   return t;
 }
 const NUMERICOS = ["cpf", "cnpj", "cep", "data", "fone", "dinheiro", "inteiro", "email"];
+const RE_ENVIAR = /^(enviar|envia|envie|enviar assim|enviar agora|pode enviar|manda assim|mandar assim|pode mandar|enviar só isso|enviar so isso)$/i;
 const RE_PRONTO = /^(ok|okay|pronto|continuar|seguir|terminei|só isso|so isso|é isso|e isso|acabou|fim|foi tudo|é tudo|e tudo)$/i;
 const RE_PULAR = /^(pular|nao|não|n[aã]o tenho|sem|nenhum[ao]?|depois)$/i;
 function zerarPedido(estado) { estado.fluxo = null; estado.respostas = {}; estado.ordem = []; estado.arquivosPendentes = []; estado.destinoPendentes = null; estado.rotuloProximo = null; estado.aguardandoCorrecao = false; }
@@ -383,6 +420,12 @@ function receberMensagem(estadoIn, entrada) {
       estado.cancelando = null; msgs.push("Seguimos de onde paramos."); retomar(estado, msgs); return out;
     }
     if (/^cancelar$/i.test(t)) { if (!estado.fluxo) { msgs.push("Não há pedido em andamento. Mande *menu* para começar."); return out; } estado.cancelando = "cancelar"; msgs.push(CONF_CANCELAR); return out; }
+    if (RE_ENVIAR.test(t)) {
+      if (!estado.fluxo) { msgs.push("Primeiro escolha o pedido."); msgs.push(menuTexto(estado)); return out; }
+      if (estado.respostas.confirmar === "sim") { msgs.push("Este pedido já foi enviado. Arquivos mandados agora entram nele; para um pedido novo, mande *menu*."); return out; }
+      if (!temAlgo(estado)) { msgs.push("Ainda não há nada para enviar: mande a documentação ou responda a pergunta."); retomar(estado, msgs); return out; }
+      enviarAgora(estado, out, msgs); return out;
+    }
     if (/^resumo$/i.test(t)) { msgs.push(resumo(estado)); retomar(estado, msgs); return out; }
     if (/^voltar$/i.test(t) && !(estado.arquivosPendentes || []).length) {
       if (!estado.fluxo) { msgs.push(menuTexto(estado)); return out; }
@@ -471,12 +514,15 @@ function receberMensagem(estadoIn, entrada) {
     if (estado.encerrado) { estado.solicId = ""; estado.empresa = ""; estado.cnpj = ""; estado.vinculo = null; estado.casoId = ""; estado.encerrado = false; }
     const av = estado.respostas["_arq.avulsos"], notas = estado.respostas._notas;   // mandados antes de escolher o pedido
     estado.fluxo = v; estado.respostas = {}; estado.ordem = []; estado.rotuloProximo = null;
-    if (av) estado.respostas["_arq.avulsos"] = av;
+    const passoDocs = FLUXOS[v].passos.find((p) => p.tipo === "arquivo");
+    if (av && av.length && passoDocs) estado.respostas["_arq." + passoDocs.id] = av; else if (av) estado.respostas["_arq.avulsos"] = av;
     if (notas && notas.length) { if (v === "outro") estado.respostas.descricao = notas.join(" / "); else estado.respostas._notas = notas; }
     if (estado.cnpj && FLUXOS[v].passos.some((p) => p.id === "cnpj")) { estado.respostas.cnpj = fmtCNPJ(estado.cnpj); estado.ordem.push("cnpj"); }
     if (estado.respostas.descricao) estado.ordem.push("descricao");
+    // alteração: o que muda já dito na mensagem ("altere a denominação social") não é perguntado
+    if (v === "alterar" && notas && notas.length) { const m = mudancasDoTexto(notas.join(" ")); if (m.length) { estado.respostas.oQueMuda = m; estado.ordem.push("oQueMuda"); } }
     msgs.push(`Vamos lá: *${FLUXOS[v].nome}*.` + (adivinhado ? " (Entendi pela mensagem. Se não for isso, mande *menu*.)" : ""));
-    if (av && av.length) msgs.push(`Já está guardado: ${av.map(descricaoCurta).join("; ")}.`);
+    if (av && av.length && !passoDocs) msgs.push(`Já está guardado: ${av.map(descricaoCurta).join("; ")}.`);
     const p0 = passoAtual(estado); if (p0) msgs.push(textoPergunta(p0, estado)); return out;
   }
 
@@ -506,6 +552,14 @@ function receberMensagem(estadoIn, entrada) {
   }
 
   const v = validar(p, texto);
+  // "está no documento" / "consta na ata": a informação já veio nos arquivos; não insiste
+  if (!v.ok && NUMERICOS.includes(p.tipo) && !/\d/.test(texto) && /\b(document\w*|ata|contrato|anexo|cabecalho|consta|arquivo|pdf|ccmei|cartao)\b/.test(semAcento(texto))) {
+    anotar(estado, `${rotuloPasso(p, estado)}: ${texto.slice(0, 200)}`); estado.respostas[p.id] = ""; estado.ordem.push(p.id);
+    msgs.push(`📝 Certo, ${rotuloPasso(p, estado).replace(/\?$/, "")} fica para ver no documento.`);
+    const prox = passoAtual(estado);
+    if (prox) msgs.push(textoPergunta(prox, estado)); else msgs.push(resumo(estado) + "\n\nEstá tudo certo? *1* — Confirmar e enviar · *2* — Corrigir algo");
+    return out;
+  }
   // frase sem número numa pergunta de número/data/e-mail ("cliente com pressa" no CNPJ) é anotação, não erro
   if (!v.ok && NUMERICOS.includes(p.tipo) && !/\d/.test(texto) && texto.split(/\s+/).length >= 3) {
     anotar(estado, texto); msgs.push(`📝 Anotado: _${texto.slice(0, 120)}_ (vai junto no pedido).`); msgs.push(textoPergunta(p, estado)); return out;
@@ -516,6 +570,22 @@ function receberMensagem(estadoIn, entrada) {
   if (prox) msgs.push(textoPergunta(prox, estado));
   else msgs.push(resumo(estado) + "\n\nEstá tudo certo? *1* — Confirmar e enviar · *2* — Corrigir algo");
   return out;
+}
+// "enviar": fecha a documentação em aberto e manda o pedido com o que já tem; o que faltou vai listado
+function enviarAgora(estado, out, msgs) {
+  const r = estado.respostas;
+  Object.keys(r).filter((k) => k.startsWith("_arq.") && k !== "_arq.avulsos").forEach((k) => {
+    const id = k.slice(5), lista = Array.isArray(r[k]) ? r[k] : [];
+    const pend = lista.filter((a) => a.pendente).map((a) => { const c = Object.assign({}, a); delete c.pendente; return c; });
+    if (r[id] === undefined) { r[id] = lista.filter((a) => !a.pendente); estado.ordem.push(id); } else r[id] = (r[id] || []).concat(lista.filter((a) => !a.pendente));
+    estado.arquivosPendentes = (estado.arquivosPendentes || []).concat(pend); delete r[k];
+  });
+  estado.cancelando = null; estado.aguardandoCorrecao = false; estado.rotuloProximo = null;
+  r.confirmar = "sim"; estado.encerrado = true; estado.enviadoAntesDoFim = true;
+  out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado);
+  const faltou = out.dados.faltou || [];
+  msgs.push(resumo(estado) + "\n\n✅ Pedido enviado com o que já tem: está no Atos, na lista de solicitações, para a legalização." +
+    (faltou.length ? `\nFicou para a legalização ver nos documentos: ${faltou.join("; ").replace(/\?$/, "")}.` : "") + "\nArquivos mandados agora ainda entram neste pedido.");
 }
 // Arquivo já identificado: entra na documentação do pedido em andamento, ou é juntado ao pedido já enviado
 function guardarClassificado(estado, out, msgs, item) {
@@ -538,16 +608,21 @@ function montarSolicitacao(estado) {
   (estado.arquivosPendentes || []).forEach((a) => anexos.push(Object.assign({ passo: "avulso", doc: "", docNome: "Não identificado" }, a, { nome: `Não identificado — ${a.nome}` })));
   const linhas = passos.filter((p) => r[p.id] !== undefined && p.tipo !== "arquivo").map((p) => `${rotuloPasso(p, estado)}: ${valorLegivel(p, r[p.id])}`);
   const cnpj = r.cnpj ? cnpjLimpo(r.cnpj) : (estado.cnpj || "");
-  const empresa = estado.empresa || r.nomeEmpresa || r.novoNome || (cnpj ? "CNPJ " + fmtCNPJ(cnpj) : "") || (r.contatoNome ? "Pedido de " + r.contatoNome : "Pedido pelo WhatsApp");
-  const prazo = /^\d{2}\/\d{2}\/\d{4}$/.test(String(r.prazo || "")) ? r.prazo : "";
+  const ex = extrasDoTexto(r.extras);
+  const empresa = estado.empresa || r.nomeEmpresa || r.novoNome || (cnpj ? "CNPJ " + fmtCNPJ(cnpj) : "") || (r.contatoNome || ex.contatoNome ? "Pedido de " + (r.contatoNome || ex.contatoNome) : "Pedido pelo WhatsApp");
+  const contatoNome = r.contatoNome || ex.contatoNome, contatoFone = r.contatoFone || ex.contatoFone;
+  const prazoTxt = r.prazo || ex.prazo;
+  const prazo = /^\d{2}\/\d{2}\/\d{4}$/.test(String(prazoTxt || "")) ? prazoTxt : "";
+  const faltou = passos.filter((p) => !p.opcional && p.tipo !== "arquivo" && (r[p.id] === undefined || r[p.id] === "")).map((p) => rotuloPasso(p, estado));
   const quem = estado.remetenteNome || estado.remetenteTel || "";
   return {
     empresa, cnpj: cnpj ? fmtCNPJ(cnpj) : "", tipo: f.tipoAto, pedidos, docsOk,
-    contato: r.contatoNome || "", fone: r.contatoFone || "", prazo, solicitante: quem,
+    contato: contatoNome || "", fone: contatoFone || "", prazo, solicitante: quem, faltou,
     pedidoTexto: `${f.nome} — pedido feito pelo WhatsApp${quem ? " por " + quem : ""}.` + (r.descricao ? " " + r.descricao : "") + (r.outroDetalhe ? " " + r.outroDetalhe : "") + ((r._notas || []).length ? " Anotações: " + r._notas.join(" / ") : ""),
-    obs: `Pedido pelo WhatsApp (${f.nome})${quem ? ", feito por " + quem : ""}, ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.\n` + linhas.join("\n") + ((r._notas || []).length ? "\nAnotações da equipe: " + r._notas.join(" / ") : ""),
+    obs: `Pedido pelo WhatsApp (${f.nome})${quem ? ", feito por " + quem : ""}, ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.\n` + linhas.join("\n") + ((r._notas || []).length ? "\nAnotações da equipe: " + r._notas.join(" / ") : "")
+      + (faltou.length ? "\nEnviado antes do fim; ver nos documentos: " + faltou.join("; ") : ""),
     anexos, respostas: r, fluxo: estado.fluxo,
   };
 }
 
-module.exports = { FLUXOS, MENU, LGPD, TIPOS_ARQ, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto, classificarDoc, adivinharFluxo, mensagemAtual, textoFalado };
+module.exports = { FLUXOS, MENU, LGPD, TIPOS_ARQ, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto, classificarDoc, adivinharFluxo, mensagemAtual, textoFalado, extrasDoTexto, mudancasDoTexto };

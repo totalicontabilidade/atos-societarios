@@ -91,24 +91,24 @@ test("arquivo antes de escolher o pedido: pergunta o tipo, mostra o menu e o arq
   assert.match(r.saidas[0], /que documento é\?/);
   assert.match(r.saidas[1], /Qual é o pedido\?/);
   assert.match(r.saidas[2], /Vamos lá: \*Abrir empresa\*/);
-  assert.equal(r.estado.respostas["_arq.avulsos"].length, 1);
+  assert.equal(r.estado.respostas["_arq.docs"].length, 1);   // já conta na documentação do pedido
 });
 
 test("arquivo depois do pedido enviado: é juntado à solicitação já criada", () => {
-  const fim = ["6", "pular", "regularizar", "ok", "pular", "pular", "não", "não", "1"];
+  const fim = ["6", "pular", "regularizar", "ok", "pular", "1"];
   let r = conversa(fim.concat([{ midia: arq("iptu.pdf") }]));
   assert.equal(r.estado.respostas.confirmar, "sim");
   assert.equal(r.ultimo.acao, "anexar");
   assert.equal(r.ultimo.anexar[0].doc, "iptu"); assert.equal(r.ultimo.anexar[0].nome, "Carnê ou inscrição do IPTU — iptu.pdf");
-  assert.match(r.saidas[9], /juntado ao pedido já enviado/);
+  assert.match(r.saidas[6], /juntado ao pedido já enviado/);
   r = conversa(fim.concat([{ midia: arq("x.jpg") }, "6"]));
   assert.equal(r.ultimo.acao, "anexar"); assert.equal(r.ultimo.anexar[0].doc, "iptu");
 });
 
 test("pedido novo no mesmo grupo depois de um enviado não herda o processo anterior", () => {
   const est = D.novoEstado({ lgpdEm: "x", solicId: "S123", empresa: "EMPRESA A", cnpj: "00000000000191", vinculo: { codigo: "1" } });
-  const r = conversa(["6", "regularizar", "ok", "pular", "pular", "não", "não", "1", "menu", "6"], est);
-  assert.equal(r.saidas[7].includes("já está no Atos"), true);
+  const r = conversa(["6", "regularizar", "ok", "pular", "1", "menu", "6"], est);
+  assert.equal(r.saidas[4].includes("já está no Atos"), true);
   assert.equal(r.estado.solicId, ""); assert.equal(r.estado.empresa, ""); assert.equal(r.estado.vinculo, null);
-  assert.match(r.saidas[8], /Qual é o pedido\?/);       // "menu" depois de enviado não pede confirmação
+  assert.match(r.saidas[5], /Qual é o pedido\?/);       // "menu" depois de enviado não pede confirmação
 });

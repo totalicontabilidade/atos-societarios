@@ -74,6 +74,13 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
   pedido certo (estatuto, ata e eleição vão para *Outro assunto*); frase que não responde à pergunta
   (sem número numa pergunta de CNPJ, data etc., ou sem tipo de documento na documentação) vira
   **anotação**, que aparece no resumo e vai na observação da solicitação.
+- **Enviar com o que tem:** o comando *enviar* (também *pode enviar*, *enviar assim*) manda o pedido
+  na hora, em qualquer pergunta, com o resumo na mesma mensagem; o que ficou sem resposta vai listado na
+  solicitação ("ver nos documentos"). A dica aparece nas perguntas quando já há algo para mandar. As
+  perguntas do fim são **uma só** (contato, telefone, prazo e observação numa mensagem: telefone e data
+  são tirados do texto). "Consta no documento" numa pergunta de CNPJ/número vira anotação e segue. Na
+  alteração, o que muda dito na mensagem (*altere a denominação social*) não é perguntado. Arquivo
+  mandado antes de escolher o pedido já entra na documentação dele.
 - **Áudio** (até 2 minutos): é baixado, transcrito pelo **Whisper** da própria VPS (container
   `atos_transcricao`, imagem `onerahmet/openai-whisper-asr-webservice:v1.10.0`, modelo *small* em CPU,
   limitado a 1,5 CPU e 2 GB) e segue como texto. O robô mostra *🎤 Entendi: …* antes. O áudio não é
