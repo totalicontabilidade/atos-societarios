@@ -54,8 +54,9 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
   **documentação** (em alteração, fechamento e transformação, logo depois do CNPJ). Os dados que já estão nos
   documentos (nascimento, endereço residencial) não são perguntados. No fim, nome e telefone do cliente
   (opcionais) e quem fez o pedido (nome no WhatsApp) vão para a solicitação.
-- **Arquivos:** só foto, PDF e Word. Vídeo, áudio e outros formatos são recusados com aviso, antes de
-  baixar; acima de 25 MB também. O robô entende o que é cada arquivo pela **legenda** (ex.: *RG do João*),
+- **Arquivos:** só foto, PDF e Word. Vídeo e outros formatos são recusados com aviso, antes de
+  baixar; acima de 25 MB também. Para baixar, a função manda à Evolution a **mensagem inteira** do
+  webhook (a instância não guarda mensagens; só com a chave a Evolution responde *Message not found*). O robô entende o que é cada arquivo pela **legenda** (ex.: *RG do João*),
   pelo **nome do arquivo** (ex.: `contrato_social.pdf`) ou por uma **mensagem escrita** na documentação:
   escrita depois de arquivos sem legenda, vale para eles; escrita antes, vale para os próximos. O que
   não der para saber, ele pergunta no fim da documentação (lista de 11 tipos, inclusive "mandei por
@@ -63,6 +64,22 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
   sem legenda, o robô pergunta. Depois do pedido enviado, é **juntado à solicitação** já criada.
 - **Fotos em lote:** a conversa é lida e gravada numa transação do Firestore, para que várias fotos
   chegando ao mesmo tempo não se apaguem umas às outras.
+- **Mensagens mandadas juntas** (um PDF e duas mensagens, um lote de fotos) passam por uma fila por
+  conversa (`conversas_fila/{chat}`): cada uma é tratada na ordem em que foi mandada no WhatsApp (o PDF
+  demora mais para baixar e não é ultrapassado pelo texto), e quem termina por último manda **uma
+  resposta só**, com os avisos de todas e a pergunta que vale no fim (`dialogo.receber` devolve
+  `avisos` e `pergunta`; `dialogo.mensagemAtual` diz a pergunta de agora). Uma mensagem travada sai
+  da fila em 90 s.
+- **Texto livre:** sem pedido escolhido, uma frase como *alteração do nome da empresa* já abre o
+  pedido certo (estatuto, ata e eleição vão para *Outro assunto*); frase que não responde à pergunta
+  (sem número numa pergunta de CNPJ, data etc., ou sem tipo de documento na documentação) vira
+  **anotação**, que aparece no resumo e vai na observação da solicitação.
+- **Áudio** (até 2 minutos): é baixado, transcrito pelo **Whisper** da própria VPS (container
+  `atos_transcricao`, imagem `onerahmet/openai-whisper-asr-webservice:v1.10.0`, modelo *small* em CPU,
+  limitado a 1,5 CPU e 2 GB) e segue como texto. O robô mostra *🎤 Entendi: …* antes. O áudio não é
+  gravado em lugar nenhum (nem Storage, nem VPS). A rota é `https://atos-wa…/transcrever/asr`, com
+  senha (usuário `atos` + a API key da Evolution); sem senha, 401. Número ditado pode perder dígitos:
+  a validação de CPF/CNPJ recusa e o robô pede de novo.
 - **Cancelar / recomeçar** um pedido não enviado apaga do Storage os arquivos dele.
 - **Apagar anexo:** tirar um anexo do WhatsApp da solicitação apaga o arquivo do Storage (a regra
   deixa a equipe apagar em `whatsapp/`, nunca gravar).

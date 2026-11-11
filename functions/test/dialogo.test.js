@@ -190,3 +190,16 @@ test("frase sem número numa pergunta de número vira anotação e a pergunta se
   assert.equal(r.estado.respostas.cnpj, "00.000.000/0001-91"); assert.deepEqual(r.estado.respostas._notas, ["cliente com pressa, prioridade"]);
   assert.match(conversa(["3", "123"]).saidas[1], /não confere/);
 });
+
+test("áudio transcrito vira texto como se fosse digitado", () => {
+  const f = D.textoFalado;
+  assert.equal(f("Um."), "1"); assert.equal(f("Opção três."), "3"); assert.equal(f("Dois"), "2");
+  assert.equal(f("Sim."), "sim"); assert.equal(f("Não."), "não"); assert.equal(f("Cancelar."), "cancelar"); assert.equal(f("Ok."), "ok");
+  assert.equal(f("111.444.777-35."), "111.444.777-35"); assert.equal(f("111 444 777 35"), "11144477735");
+  assert.equal(f("0,0\n0,0,0\n0,0,0\n0,0,0,1\n9,1\n"), "00000000000191");
+  assert.equal(f("Esses são os documentos da Maria Pereira."), "Esses são os documentos da Maria Pereira");
+  const r = conversa(["1", f("Esses são os documentos da Maria Pereira."), { texto: "", midia: arq("IMG-1.jpg") }]);
+  assert.match(r.saidas[2], /Documentos pessoais de sócio/);
+  const a = P.normalizarEvento({ event: "messages.upsert", data: { key: { remoteJid: "1203@g.us", id: "A", participant: "5579988887777@s.whatsapp.net" }, message: { audioMessage: { mimetype: "audio/ogg; codecs=opus", seconds: 14, ptt: true } } } });
+  assert.equal(a.tipo, "audio"); assert.equal(a.temMidia, true); assert.equal(a.midiaSegundos, 14); assert.ok(a.mensagemBruta.audioMessage);
+});

@@ -52,6 +52,29 @@ async function baixarMidia(key, mensagem) {
   return { ok: true, data: { base64: d.base64, mime: d.mimetype || d.mimeType || "", nome: d.fileName || "" } };
 }
 
+// Áudio → texto pelo Whisper da mesma VPS (container atos_transcricao, rota /transcrever protegida por
+// senha: usuário "atos" + a API key da Evolution). O áudio não é gravado em lugar nenhum.
+const VOCABULARIO = "Pedido de ato societário: CNPJ, CPF, CEP, contrato social, alteração contratual, sócio, sócia, Ltda, MEI, capital social, Junta Comercial, Sergipe, Itabaiana, Aracaju.";
+async function transcrever(base64, mime) {
+  const c = cfg();
+  if (!c.url || !c.apiKey) return { ok: false, erro: "WHATSAPP_URL ou WHATSAPP_API_KEY não configurados" };
+  const tipo = String(mime || "audio/ogg").split(";")[0].trim();
+  const ext = /mpeg|mp3/.test(tipo) ? "mp3" : (/mp4|m4a|aac/.test(tipo) ? "m4a" : (/wav/.test(tipo) ? "wav" : "ogg"));
+  const fd = new FormData();
+  fd.append("audio_file", new Blob([Buffer.from(base64, "base64")], { type: tipo }), "audio." + ext);
+  const q = new URLSearchParams({ task: "transcribe", language: "pt", output: "json", encode: "true", vad_filter: "true", initial_prompt: VOCABULARIO });
+  try {
+    const r = await fetch(`${c.url}/transcrever/asr?${q}`, { method: "POST", body: fd, signal: AbortSignal.timeout(95000),
+      headers: { authorization: "Basic " + Buffer.from("atos:" + c.apiKey).toString("base64") } });
+    if (!r.ok) return { ok: false, erro: `transcrição HTTP ${r.status}` };
+    const j = await r.json().catch(() => null);
+    const texto = String((j && (j.text || (j.segments || []).map((x) => x.text).join(" "))) || "").replace(/\s+/g, " ").trim();
+    return texto ? { ok: true, data: { texto } } : { ok: false, erro: "áudio sem fala" };
+  } catch (e) {
+    return { ok: false, erro: /abort|timeout/i.test(e && e.message || "") ? "a transcrição demorou demais" : `sem resposta da transcrição (${e && e.message})` };
+  }
+}
+
 async function perfilInstancia() {
   const r = await chamar(`/instance/fetchInstances?instanceName=${inst()}`);
   if (!r.ok) return r;
@@ -76,4 +99,4 @@ async function obterQr() {
   return { ok: true, data: { qr: (r.data && r.data.base64) || null, estado: "connecting" } };
 }
 
-module.exports = { enviarTexto, baixarMidia, perfilInstancia, nomeDoGrupo, obterQr, cfg };
+module.exports = { enviarTexto, baixarMidia, transcrever, perfilInstancia, nomeDoGrupo, obterQr, cfg };

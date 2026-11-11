@@ -320,6 +320,18 @@ function todosArquivos(estado) {
   (estado.arquivosPendentes || []).forEach((a) => a && a.caminho && out.push(a));
   return out;
 }
+// Texto transcrito de áudio → como se tivesse sido digitado: sem o ponto final, número falado por
+// extenso vira algarismo ("Um." → "1", "dois" → "2") e CPF/CNPJ/telefone ditados ficam só com os dígitos.
+const POR_EXTENSO = { zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11 };
+function textoFalado(texto) {
+  let t = String(texto || "").replace(/\s+/g, " ").trim().replace(/[.!?…]+$/, "").trim();
+  const sa = semAcento(t).replace(/^(opcao|numero|item)\s+/, "").trim();
+  if (POR_EXTENSO[sa] !== undefined) return String(POR_EXTENSO[sa]);
+  // número ditado: o Whisper separa as pausas com vírgula ou espaço ("0,0 0,0,0 0,0,0 0,0,0,1 9,1")
+  if (/^[\d\s.,\-\/]+$/.test(t) && t.replace(/\D/g, "").length >= 8) return /[\s,]/.test(t) ? t.replace(/\D/g, "") : t;
+  if (/^(sim|nao|não|ok|pular|cancelar|menu|resumo|voltar|ajuda|pronto)$/i.test(semAcento(t).replace(/[,.]/g, ""))) return semAcento(t).replace(/[,.]/g, "").replace("nao", "não");
+  return t;
+}
 const NUMERICOS = ["cpf", "cnpj", "cep", "data", "fone", "dinheiro", "inteiro", "email"];
 const RE_PRONTO = /^(ok|okay|pronto|continuar|seguir|terminei|só isso|so isso|é isso|e isso|acabou|fim|foi tudo|é tudo|e tudo)$/i;
 const RE_PULAR = /^(pular|nao|não|n[aã]o tenho|sem|nenhum[ao]?|depois)$/i;
@@ -538,4 +550,4 @@ function montarSolicitacao(estado) {
   };
 }
 
-module.exports = { FLUXOS, MENU, LGPD, TIPOS_ARQ, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto, classificarDoc, adivinharFluxo, mensagemAtual };
+module.exports = { FLUXOS, MENU, LGPD, TIPOS_ARQ, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto, classificarDoc, adivinharFluxo, mensagemAtual, textoFalado };

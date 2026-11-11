@@ -121,8 +121,14 @@ async function tratar(ev, chatRef, filaRef, n, saida) {
   if (ev.codigoVinculo) { await naVez(); return vincular(ev, chatRef, falar); }
   // mídia: baixa pela Evolution e guarda no Storage antes de o diálogo decidir o que é
   let midia = null;
+  // áudio vira texto (Whisper na VPS) e segue como se tivesse sido digitado
+  if (ev.temMidia && ev.tipo === "audio") {
+    const t = await transcreverAudio(ev);
+    if (!t.ok) { falar(t.aviso); return { audio: t.erro }; }
+    falar(`🎤 Entendi: _${t.texto.slice(0, 500)}_`);
+    ev = Object.assign({}, ev, { texto: dialogo.textoFalado(t.texto), temMidia: false, mensagemBruta: null, midiaBase64: null });
+  }
   if (ev.temMidia) {
-    if (ev.tipo === "audio") { falar("🎤 Não consigo ouvir áudio. Pode escrever, por favor?"); return { audio: true }; }
     if (ev.tipo === "figurinha") return { ignorado: "figurinha" };
     if (ev.tipo === "video") { falar("🎬 Vídeo não serve para o processo. Mande *foto* ou *PDF* do documento, por favor."); return { recusado: "video" }; }
     if (ev.midiaMime && !MIME_OK.test(String(ev.midiaMime).split(";")[0].trim())) { falar(`Esse tipo de arquivo (${String(ev.midiaMime).split(";")[0]}) não serve para o processo. Mande *foto* ou *PDF* do documento, por favor.`); return { recusado: ev.midiaMime }; }
@@ -292,6 +298,18 @@ async function vincular(ev, chatRef, falar) {
   falar(`✅ Conversa ligada ao processo de *${c.empresa || "empresa sem nome"}* no Atos.\n\n${dialogo.LGPD}\n\n${dialogo.menuTexto(estado)}`);
   estado.lgpdEm = agoraISO(); await chatRef.set({ lgpdEm: estado.lgpdEm }, { merge: true });
   return { vinculo: "ok", solicId: c.solicId || null };
+}
+
+// Áudio: baixa pela Evolution e manda ao Whisper da VPS. Só o texto segue; o áudio não é gravado.
+const LIMITE_AUDIO_S = 120;
+async function transcreverAudio(ev) {
+  if (ev.midiaSegundos > LIMITE_AUDIO_S) return { ok: false, erro: "longo", aviso: `🎤 Áudio de até ${LIMITE_AUDIO_S / 60} minutos, por favor (este tem ${Math.ceil(ev.midiaSegundos / 60)}). Pode dividir ou escrever.` };
+  const key = { id: ev.waId, remoteJid: ev.chatJid, fromMe: false, ...(ev.participante ? { participant: ev.participante } : {}) };
+  const b = ev.midiaBase64 ? { ok: true, data: { base64: ev.midiaBase64, mime: ev.midiaMime || "" } } : await evolution.baixarMidia(key, ev.mensagemBruta);
+  if (!b.ok) { logger.warn("áudio não baixou", { erro: b.erro }); return { ok: false, erro: "download", aviso: "🎤 Não consegui baixar o áudio. Pode mandar de novo ou escrever?" }; }
+  const t = await evolution.transcrever(b.data.base64, b.data.mime || ev.midiaMime);
+  if (!t.ok) { logger.warn("áudio não transcrito", { erro: t.erro }); return { ok: false, erro: t.erro, aviso: t.erro === "áudio sem fala" ? "🎤 Não ouvi fala nesse áudio. Pode repetir ou escrever?" : "🎤 Não consegui entender o áudio agora. Pode escrever, por favor?" }; }
+  return { ok: true, texto: t.data.texto };
 }
 
 // Baixa a mídia pela Evolution e grava no Storage em whatsapp/{chat}/{waId}-{nome}; devolve o anexo no formato do app.

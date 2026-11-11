@@ -59,7 +59,7 @@ function midiaDaMensagem(message) {
   const m = miolo(message);
   const x = m.imageMessage || m.videoMessage || m.audioMessage || m.documentMessage || m.stickerMessage || m.ptvMessage;
   if (!x) return null;
-  return { mime: x.mimetype || "", nomeArquivo: x.fileName || "", tamanho: Number(x.fileLength && (x.fileLength.low || x.fileLength)) || 0 };
+  return { mime: x.mimetype || "", nomeArquivo: x.fileName || "", tamanho: Number(x.fileLength && (x.fileLength.low || x.fileLength)) || 0, segundos: Number(x.seconds) || 0 };
 }
 function dataDoTimestamp(ts) {
   const n = typeof ts === "object" && ts ? Number(ts.low != null ? ts.low : ts.seconds) : Number(ts);
@@ -112,6 +112,7 @@ function normalizarEvento(payload) {
     midiaMime: midia ? midia.mime : null,
     midiaNome: midia ? midia.nomeArquivo : null,
     midiaTamanho: midia ? midia.tamanho : 0,
+    midiaSegundos: midia ? midia.segundos : 0,
     // o conteúdo da mensagem vai junto para baixar o arquivo: a Evolution não guarda as mensagens
     // (sem isso o download responde "Message not found")
     mensagemBruta: midia ? d.message : null,
