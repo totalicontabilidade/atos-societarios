@@ -55,7 +55,7 @@ test("arquivo sem legenda no meio de uma pergunta de texto: pergunta o tipo e re
 
 test("arquivo com legenda fora da documentação: entende sem perguntar", () => {
   const r = conversa(["1", "ok", com("contrato social", "a.jpg")]);
-  assert.match(r.saidas[2], /Contrato social ou alteração \(contrato social\): guardado/);
+  assert.match(r.saidas[2], /Contrato social, alteração, estatuto ou ata \(contrato social\): guardado/);
   assert.doesNotMatch(r.saidas[2], /que documento é/);
   assert.equal(r.estado.arquivosPendentes, undefined);
 });
@@ -71,7 +71,7 @@ test("tipo respondido por escrito; resposta que não diz nada pergunta de novo s
 test("vários arquivos seguidos fora da documentação: pergunta um de cada vez", () => {
   const r = conversa(["1", "ok", { midia: arq("a.jpg") }, { midia: arq("b.jpg") }, "7", "5"]);
   assert.match(r.saidas[3], /Recebi também \*b\.jpg\*/);
-  assert.match(r.saidas[4], /Contrato social ou alteração: guardado/);
+  assert.match(r.saidas[4], /Contrato social, alteração, estatuto ou ata: guardado/);
   assert.match(r.saidas[4], /\*b\.jpg\*: que documento é\?/);
   assert.match(r.saidas[5], /Comprovante do endereço da empresa: guardado/);
   assert.deepEqual(r.estado.respostas["_arq.avulsos"].map((a) => a.doc), ["contrato", "endereco"]);

@@ -97,22 +97,43 @@ async function processarEvento(payload) {
 
   const chatRef = db.collection("conversas").doc(chaveChat(ev.chatJid));
   if (decisao.acao === "ativar") return ativarGrupo(ev, chatRef, decisao.codigo);
+  // FILA: mensagens mandadas juntas (um PDF e duas mensagens, um lote de fotos) chegam em paralelo e o
+  // arquivo demora para baixar. Cada uma pega um número na chegada, é tratada NA ORDEM em que chegou
+  // e deixa seus avisos na fila; quem termina por último manda UMA resposta com tudo e a pergunta
+  // que vale no fim, uma vez só.
+  const filaRef = db.collection("conversas_fila").doc(chatRef.id);
+  const n = await chegada(filaRef, ev);
+  const saida = { avisos: [], perguntar: false, esperou: false };
+  let resultado = null;
+  try { resultado = await tratar(ev, chatRef, filaRef, n, saida); }
+  finally {
+    if (!saida.esperou) await esperarVez(filaRef, n).catch(() => null);
+    await concluir(filaRef, n, saida).catch((e) => logger.warn("fila não concluída", { e: e.message }));
+  }
+  await despachar(filaRef, chatRef, ev).catch((e) => logger.warn("resposta da fila não saiu", { e: e.message }));
+  return resultado;
+}
+
+async function tratar(ev, chatRef, filaRef, n, saida) {
+  const falar = (m) => { saida.avisos.push(m); };
+  const naVez = async () => { if (!saida.esperou) { await esperarVez(filaRef, n); saida.esperou = true; } };
   // dentro do grupo do robô, "vincular 123456" liga a conversa a um processo do Atos
-  if (ev.codigoVinculo) return vincular(ev, chatRef);
+  if (ev.codigoVinculo) { await naVez(); return vincular(ev, chatRef, falar); }
   // mídia: baixa pela Evolution e guarda no Storage antes de o diálogo decidir o que é
   let midia = null;
   if (ev.temMidia) {
-    if (ev.tipo === "audio") { await responder(ev, "🎤 Não consigo ouvir áudio. Pode escrever, por favor?"); return { audio: true }; }
+    if (ev.tipo === "audio") { falar("🎤 Não consigo ouvir áudio. Pode escrever, por favor?"); return { audio: true }; }
     if (ev.tipo === "figurinha") return { ignorado: "figurinha" };
-    if (ev.tipo === "video") { await responder(ev, "🎬 Vídeo não serve para o processo. Mande *foto* ou *PDF* do documento, por favor."); return { recusado: "video" }; }
-    if (ev.midiaMime && !MIME_OK.test(String(ev.midiaMime).split(";")[0].trim())) { await responder(ev, `Esse tipo de arquivo (${String(ev.midiaMime).split(";")[0]}) não serve para o processo. Mande *foto* ou *PDF* do documento, por favor.`); return { recusado: ev.midiaMime }; }
-    if (ev.midiaTamanho && ev.midiaTamanho > LIMITE_ANEXO) { await responder(ev, "Esse arquivo passa de 25 MB. Mande uma foto ou um PDF menor, por favor."); return { recusado: "tamanho" }; }
+    if (ev.tipo === "video") { falar("🎬 Vídeo não serve para o processo. Mande *foto* ou *PDF* do documento, por favor."); return { recusado: "video" }; }
+    if (ev.midiaMime && !MIME_OK.test(String(ev.midiaMime).split(";")[0].trim())) { falar(`Esse tipo de arquivo (${String(ev.midiaMime).split(";")[0]}) não serve para o processo. Mande *foto* ou *PDF* do documento, por favor.`); return { recusado: ev.midiaMime }; }
+    if (ev.midiaTamanho && ev.midiaTamanho > LIMITE_ANEXO) { falar("Esse arquivo passa de 25 MB. Mande uma foto ou um PDF menor, por favor."); return { recusado: "tamanho" }; }
     midia = await guardarMidia(ev, chatRef.id);
-    if (!midia) { await responder(ev, "Não consegui baixar esse arquivo. Pode mandar de novo? Se for grande, o limite é 25 MB."); return { midiaFalhou: true }; }
+    if (!midia) { falar("Não consegui baixar esse arquivo. Pode mandar de novo? Se for grande, o limite é 25 MB."); return { midiaFalhou: true }; }
   }
 
   // Ler, decidir e gravar a conversa numa TRANSAÇÃO: várias fotos mandadas de uma vez chegam em
   // paralelo, e sem isso uma gravação apagaria a outra (o diálogo é função pura: repetir é seguro).
+  await naVez();
   let r = null, novo = null;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(chatRef);
@@ -126,8 +147,70 @@ async function processarEvento(payload) {
   if (r.acao === "criar_solicitacao") { resultado.solicId = await gravarSolicitacao(novo, r.dados); novo.solicId = resultado.solicId; await chatRef.set({ solicId: resultado.solicId }, { merge: true }); }
   if (r.acao === "anexar" && r.anexar && r.anexar.length) resultado.anexados = await anexarNaSolicitacao(novo, r.anexar);
   if (r.descartar && r.descartar.length) await Promise.all(r.descartar.map((a) => a.caminho ? bucket().file(a.caminho).delete().catch((e) => logger.warn("arquivo descartado não apagado", { e: e.message })) : null));
-  for (const m of r.mensagens) await responder(ev, m);
+  r.avisos.forEach(falar); if (r.pergunta) saida.perguntar = true;
   return resultado;
+}
+
+// ─── fila de respostas ────────────────────────────────────────────────────────
+const dormir = (ms) => new Promise((ok) => setTimeout(ok, ms));
+// Cada mensagem entra em `ativos` com a hora em que foi MANDADA no WhatsApp (a ordem de chegada aqui
+// varia: o PDF é maior, a instância pode estar acordando). Vez = ninguém mandado antes ainda ativo.
+async function chegada(filaRef, ev) {
+  const ts = Math.floor((ev.enviadaEm ? ev.enviadaEm.getTime() : Date.now()) / 1000);
+  return db.runTransaction(async (tx) => {
+    const s = await tx.get(filaRef), f = s.exists ? s.data() : {};
+    const n = (f.chegou || 0) + 1, ativos = Object.assign({}, f.ativos || {});
+    ativos[String(n)] = { ts, desde: Date.now() };
+    tx.set(filaRef, { chegou: n, ativos, avisos: f.avisos || [], perguntar: !!f.perguntar, em: agoraISO() });
+    return { n, ts };
+  });
+}
+const antes = (a, b) => a.ts < b.ts || (a.ts === b.ts && a.n < b.n);
+// Espera as mensagens mandadas antes desta terminarem (no máximo 60 s: se uma travou, segue)
+async function esperarVez(filaRef, eu) {
+  const limite = Date.now() + 60000;
+  while (Date.now() < limite) {
+    const s = await filaRef.get();
+    const ativos = s.exists ? (s.data().ativos || {}) : {};
+    const travadas = Date.now() - 90000;
+    const naFrente = Object.entries(ativos).some(([k, v]) => Number(k) !== eu.n && v.desde > travadas && antes({ n: Number(k), ts: v.ts }, eu));
+    if (!naFrente) return;
+    await dormir(500);
+  }
+  logger.warn("fila: a mensagem anterior não terminou; seguindo", { n: eu.n });
+}
+async function concluir(filaRef, eu, saida) {
+  await db.runTransaction(async (tx) => {
+    const s = await tx.get(filaRef), f = s.exists ? s.data() : {};
+    const ativos = Object.assign({}, f.ativos || {}); delete ativos[String(eu.n)];
+    const travadas = Date.now() - 90000;
+    Object.keys(ativos).forEach((k) => { if (!(ativos[k].desde > travadas)) delete ativos[k]; });   // travou de vez: sai da fila
+    tx.set(filaRef, { chegou: Math.max(f.chegou || 0, eu.n), ativos, avisos: (f.avisos || []).concat(saida.avisos),
+      perguntar: !!f.perguntar || saida.perguntar, em: agoraISO() });
+  });
+}
+// Depois de um respiro curto, se nada mais chegou nem está em andamento, manda tudo numa mensagem só
+async function despachar(filaRef, chatRef, ev) {
+  await dormir(2000);
+  const lote = await db.runTransaction(async (tx) => {
+    const s = await tx.get(filaRef); if (!s.exists) return null;
+    const f = s.data();
+    if (Object.keys(f.ativos || {}).length) return null;            // ainda tem mensagem sendo tratada: ela manda
+    if (!(f.avisos || []).length && !f.perguntar) return null;
+    tx.set(filaRef, Object.assign({}, f, { avisos: [], perguntar: false, em: agoraISO() }));
+    return f;
+  });
+  if (!lote) return;
+  const partes = [];
+  for (const m of lote.avisos || []) if (m && !partes.includes(m)) partes.push(m);
+  if (lote.perguntar) {
+    const snap = await chatRef.get();
+    const q = snap.exists ? dialogo.mensagemAtual(snap.data()) : null;
+    if (q) { const i = partes.indexOf(q); if (i >= 0) partes.splice(i, 1); partes.push(q); }
+  }
+  if (!partes.length) return;
+  const ok = await responder(ev, partes.join("\n\n"));
+  logger.info("resposta do lote", { partes: partes.length, enviada: ok });
 }
 
 // Configuração do robô (solicitacoes/__whatsapp), lida com cache curto: o webhook recebe TODAS as
@@ -183,7 +266,7 @@ async function ativarGrupo(ev, chatRef, codigo) {
 }
 
 // "vincular 123456" (no grupo do robô) — liga a conversa do grupo ao processo que gerou o código no Atos.
-async function vincular(ev, chatRef) {
+async function vincular(ev, chatRef, falar) {
   const ref = db.collection("codigos_vinculo").doc(ev.codigoVinculo);
   const agora = new Date();
   const resultado = await db.runTransaction(async (tx) => {
@@ -196,7 +279,7 @@ async function vincular(ev, chatRef) {
     tx.update(ref, { usadoEm: admin.firestore.FieldValue.serverTimestamp(), usadoPor: ev.remetenteNome || ev.remetenteTel || ev.chatJid, chatJid: ev.chatJid });
     return { ok: true, codigo: c };
   });
-  if (!resultado.ok) { await responder(ev, "Código inválido ou vencido. Gere outro na etapa 1 do processo no Atos (ele vale 10 minutos) e mande de novo: *vincular 123456*."); return { vinculo: resultado.erro }; }
+  if (!resultado.ok) { falar("Código inválido ou vencido. Gere outro na etapa 1 do processo no Atos (ele vale 10 minutos) e mande de novo: *vincular 123456*."); return { vinculo: resultado.erro }; }
   const c = resultado.codigo;
   const snap = await chatRef.get();
   const estado = dialogo.novoEstado(Object.assign(snap.exists ? snap.data() : {}, {
@@ -206,7 +289,7 @@ async function vincular(ev, chatRef) {
   await chatRef.set(estado, { merge: false });
   await db.collection("vinculos").doc(chatRef.id).set({ chatJid: ev.chatJid, grupo: ev.grupo, solicId: c.solicId || "", casoId: c.casoId || "", empresa: c.empresa || "", cnpj: c.cnpj || "", em: agoraISO(), por: ev.remetenteNome || ev.remetenteTel || "" });
   if (c.solicId) await db.collection("solicitacoes").doc(c.solicId).set({ whatsapp: { chatJid: ev.chatJid, grupo: ev.grupo, vinculadoEm: agoraISO() }, alteradoEm: agoraISO() }, { merge: true }).catch((e) => logger.warn("solicitação do código não atualizada", { e: e.message }));
-  await responder(ev, `✅ Conversa ligada ao processo de *${c.empresa || "empresa sem nome"}* no Atos.\n\n${dialogo.LGPD}\n\n${dialogo.menuTexto(estado)}`);
+  falar(`✅ Conversa ligada ao processo de *${c.empresa || "empresa sem nome"}* no Atos.\n\n${dialogo.LGPD}\n\n${dialogo.menuTexto(estado)}`);
   estado.lgpdEm = agoraISO(); await chatRef.set({ lgpdEm: estado.lgpdEm }, { merge: true });
   return { vinculo: "ok", solicId: c.solicId || null };
 }
