@@ -363,6 +363,7 @@ async function gravarSolicitacao(estado, dados) {
   };
   await db.collection("solicitacoes").doc(id).set(reg);
   await avisarHub("solicitacao.criada", reg);
+  await reenviarHubPendentes().catch(() => 0);
   return id;
 }
 
@@ -379,21 +380,55 @@ async function anexarNaSolicitacao(estado, itens) {
 }
 
 // Aviso ao Hub (Apps Script), com o endereço e o segredo que o app guarda em solicitacoes/__integracao.
+// MESMO formato do js/integracao.js do app: { evento, segredo, enviadoEm, solicitacao: {...} }. Até
+// 11/11/2026 isto mandava os campos soltos, o recebedor respondia 200 com {ok:false, "solicitação sem
+// identificador"} e aqui contava como entregue: nenhum pedido do WhatsApp chegou ao Hub. Agora a
+// resposta é lida, e o que não entrou fica marcado em hubAviso para tentar de novo.
+const TIPOS_HUB = { alt: "Alteração Contratual (Ltda)", const: "Constituição de Sociedade Limitada", dist_ltda: "Distrato de Sociedade Limitada",
+  transf_ei_ltda: "Transformação de Empresário Individual em Sociedade Limitada", sia_const: "Ato Constitutivo de Sociedade Individual de Advocacia" };
+const PEDIDOS_HUB = { abrir: "Abrir empresa", endereco: "Mudar endereço", socios: "Entrada ou saída de sócio", atividades: "Mudar atividades", capital: "Mudar capital",
+  nome: "Mudar o nome", transformar: "Mudar o tipo (MEI/EI ↔ Ltda)", fechar: "Fechar a empresa", advocacia: "Sociedade de advocacia (OAB)", outro: "Outro / não sei" };
+const STATUS_HUB = { nova: "Nova", andamento: "Em andamento", cliente: "Aguardando cliente", protocolada: "Protocolada", exigencia: "Em exigência", concluida: "Finalizada", cancelada: "Cancelada" };
+function pacoteHub(evento, reg, segredo) {
+  const p = String(reg.prazo || "").split("/");
+  const pedidos = (reg.pedidos || []).map((k) => PEDIDOS_HUB[k]).filter(Boolean).join(", ");
+  return { evento, segredo: segredo || "", enviadoEm: agoraISO(), origem: "atos-whatsapp",
+    solicitacao: { id: String(reg.id || ""), empresa: reg.empresa || "", cnpj: reg.cnpj || "", tipo: reg.tipo || "",
+      tipoNome: TIPOS_HUB[reg.tipo] || pedidos || "Solicitação", pedido: reg.pedidoTexto || pedidos,
+      prazo: p.length === 3 && p[2].length === 4 ? `${p[2]}-${p[1]}-${p[0]}` : "", responsavel: reg.responsavel || "", contato: reg.contato || "", fone: reg.fone || "",
+      status: reg.status || "nova", statusNome: STATUS_HUB[reg.status] || "Nova", obs: reg.obs || "", pendencia: reg.pendencia || "", abertaPor: reg.abertaPor || "whatsapp" } };
+}
 async function avisarHub(evento, reg) {
+  let ok = false, erro = "", resposta = null;
   try {
     const cfg = (await db.collection("solicitacoes").doc(ID_CFG_INTEGRA).get()).data() || {};
-    if (!cfg.url || !/^https:\/\/script\.google(usercontent)?\.com\//.test(cfg.url)) return false;
-    const TIPOS = { alt: "Alteração contratual", const: "Abertura", dist_ltda: "Baixa", transf_ei_ltda: "Transformação", sia_const: "Sociedade de advocacia" };
-    const STATUS = { nova: "Nova", andamento: "Em andamento", cliente: "Aguardando cliente", protocolada: "Protocolada", exigencia: "Em exigência", concluida: "Finalizada", cancelada: "Cancelada" };
-    const p = (reg.prazo || "").split("/");
-    const pacote = { evento, segredo: cfg.segredo || "", em: agoraISO(), origem: "atos-whatsapp",
-      id: String(reg.id || ""), empresa: reg.empresa || "", cnpj: reg.cnpj || "", tipo: reg.tipo || "", tipoNome: TIPOS[reg.tipo] || (reg.tipo ? reg.tipo : "A definir"),
-      pedido: reg.pedidoTexto || "", prazo: p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : "", responsavel: reg.responsavel || "", contato: reg.contato || "", fone: reg.fone || "",
-      status: reg.status || "nova", statusNome: STATUS[reg.status] || "Nova", obs: reg.obs || "", pendencia: reg.pendencia || "", abertaPor: reg.abertaPor || "whatsapp" };
-    const r = await fetch(cfg.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(pacote), redirect: "follow", signal: AbortSignal.timeout(20000) });
-    if (!r.ok) logger.warn("Hub respondeu", { status: r.status });
-    return r.ok;
-  } catch (e) { logger.warn("Hub não avisado", { erro: e && e.message }); return false; }
+    if (!cfg.url || !/^https:\/\/script\.google(usercontent)?\.com\//.test(cfg.url)) { erro = "integração com o Hub sem endereço"; }
+    else {
+      const r = await fetch(cfg.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(pacoteHub(evento, reg, cfg.segredo)), redirect: "follow", signal: AbortSignal.timeout(30000) });
+      const t = await r.text(); try { resposta = JSON.parse(t); } catch { resposta = null; }
+      ok = r.ok && !!resposta && resposta.ok !== false;
+      if (!ok) erro = (resposta && resposta.erro) || `HTTP ${r.status}${resposta ? "" : " sem resposta legível"}`;
+    }
+  } catch (e) { erro = (e && e.message) || "falha de rede"; }
+  if (reg.id) {
+    const marca = ok ? { ok: true, evento, em: agoraISO(), pendencia: (resposta && resposta.pendencia) || "" }
+      : { ok: false, pendente: true, evento, erro: String(erro).slice(0, 300), em: agoraISO(), tentativas: admin.firestore.FieldValue.increment(1) };
+    await db.collection("solicitacoes").doc(String(reg.id)).set({ hubAviso: marca }, { merge: true }).catch((e) => logger.warn("marca do aviso ao Hub não gravada", { e: e.message }));
+  }
+  if (ok) logger.info("Hub avisado", { evento, id: reg.id, pendencia: resposta && resposta.pendencia, repetido: !!(resposta && resposta.repetido) });
+  else logger.warn("Hub NÃO recebeu", { evento, id: reg.id, erro });
+  return ok;
+}
+// Tenta de novo os avisos que não entraram (no máximo 10 vezes cada)
+async function reenviarHubPendentes() {
+  const q = await db.collection("solicitacoes").where("hubAviso.pendente", "==", true).limit(20).get();
+  let n = 0;
+  for (const d of q.docs) {
+    const reg = Object.assign({ id: d.id }, d.data());
+    if ((reg.hubAviso.tentativas || 0) >= 10) continue;
+    if (await avisarHub(reg.hubAviso.evento || "solicitacao.criada", reg)) n++;
+  }
+  return n;
 }
 
 // ─── faxina diária: eventos de de-duplicação (30 dias) e códigos vencidos ───
@@ -408,8 +443,9 @@ exports.faxinaWhatsapp = onSchedule({ schedule: "20 3 * * *", timeZone: "America
       if (q.size < 400) break;
     }
   }
-  logger.info("faxina", { apagados: n });
+  const reavisados = await reenviarHubPendentes().catch((e) => { logger.warn("reenvio ao Hub falhou", { e: e.message }); return 0; });
+  logger.info("faxina", { apagados: n, reavisadosHub: reavisados });
 });
 
 // exposto para testes locais (node --test)
-exports._interno = { processarEvento, tokenConfere, chaveChat };
+exports._interno = { processarEvento, tokenConfere, chaveChat, pacoteHub };

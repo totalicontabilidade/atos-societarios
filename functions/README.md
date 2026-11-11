@@ -81,6 +81,11 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
   são tirados do texto). "Consta no documento" numa pergunta de CNPJ/número vira anotação e segue. Na
   alteração, o que muda dito na mensagem (*altere a denominação social*) não é perguntado. Arquivo
   mandado antes de escolher o pedido já entra na documentação dele.
+- **Aviso ao Hub:** todo pedido criado pelo robô vira pendência no Hub, no **mesmo formato** do
+  `js/integracao.js` do app (`{ evento, segredo, solicitacao: {...} }`; teste em `test/hub.test.js`). A
+  resposta do recebedor é lida (ele responde 200 até quando recusa); o resultado fica em
+  `solicitacoes/{id}.hubAviso`, e o que não entrou é reenviado a cada pedido novo e na faxina diária
+  (até 10 tentativas).
 - **Áudio** (até 2 minutos): é baixado, transcrito pelo **Whisper** da própria VPS (container
   `atos_transcricao`, imagem `onerahmet/openai-whisper-asr-webservice:v1.10.0`, modelo *small* em CPU,
   limitado a 1,5 CPU e 2 GB) e segue como texto. O robô mostra *🎤 Entendi: …* antes. O áudio não é
