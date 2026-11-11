@@ -50,12 +50,20 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
   do robô. As respostas completam aquela solicitação.
 - **Mensagens do próprio número** (do celular do escritório ou do robô) são ignoradas: quem conversa
   no grupo precisa usar outro número.
+- **Quem conversa é a equipe** (comercial e legalização), não o cliente (v1.75). Cada pedido começa pela
+  **documentação** (em alteração, fechamento e transformação, logo depois do CNPJ). Os dados que já estão nos
+  documentos (nascimento, endereço residencial) não são perguntados. No fim, nome e telefone do cliente
+  (opcionais) e quem fez o pedido (nome no WhatsApp) vão para a solicitação.
 - **Arquivos:** só foto, PDF e Word. Vídeo, áudio e outros formatos são recusados com aviso, antes de
-  baixar; acima de 25 MB também. Arquivo pedido numa pergunta de documento entra com o rótulo dela
-  (ex.: "Documentos pessoais de Ana Lima — cnh.jpg"). Arquivo que chega **fora da hora** faz o robô
-  perguntar **que documento é** (RG/CNH, CPF, comprovante de residência, endereço da empresa, IPTU,
-  contrato, CCMEI, OAB, outro, ou "mandei por engano", que apaga o arquivo). Depois do pedido
-  enviado, o arquivo classificado é **juntado à solicitação** já criada, com aviso a quem cadastra.
+  baixar; acima de 25 MB também. O robô entende o que é cada arquivo pela **legenda** (ex.: *RG do João*),
+  pelo **nome do arquivo** (ex.: `contrato_social.pdf`) ou por uma **mensagem escrita** na documentação:
+  escrita depois de arquivos sem legenda, vale para eles; escrita antes, vale para os próximos. O que
+  não der para saber, ele pergunta no fim da documentação (lista de 11 tipos, inclusive "mandei por
+  engano", que apaga o arquivo). Arquivo fora da documentação com legenda clara é guardado direto;
+  sem legenda, o robô pergunta. Depois do pedido enviado, é **juntado à solicitação** já criada.
+- **Fotos em lote:** a conversa é lida e gravada numa transação do Firestore, para que várias fotos
+  chegando ao mesmo tempo não se apaguem umas às outras.
+- **Cancelar / recomeçar** um pedido não enviado apaga do Storage os arquivos dele.
 - **Apagar anexo:** tirar um anexo do WhatsApp da solicitação apaga o arquivo do Storage (a regra
   deixa a equipe apagar em `whatsapp/`, nunca gravar).
 - Um pedido novo no mesmo grupo, depois de um enviado, começa limpo: não herda empresa nem processo.

@@ -99,10 +99,6 @@ async function processarEvento(payload) {
   if (decisao.acao === "ativar") return ativarGrupo(ev, chatRef, decisao.codigo);
   // dentro do grupo do robô, "vincular 123456" liga a conversa a um processo do Atos
   if (ev.codigoVinculo) return vincular(ev, chatRef);
-  const snap = await chatRef.get();
-  let estado = snap.exists ? snap.data() : null;
-  if (!estado) estado = dialogo.novoEstado({ chatJid: ev.chatJid, grupo: ev.grupo });
-
   // mídia: baixa pela Evolution e guarda no Storage antes de o diálogo decidir o que é
   let midia = null;
   if (ev.temMidia) {
@@ -115,14 +111,21 @@ async function processarEvento(payload) {
     if (!midia) { await responder(ev, "Não consegui baixar esse arquivo. Pode mandar de novo? Se for grande, o limite é 25 MB."); return { midiaFalhou: true }; }
   }
 
-  const r = dialogo.receber(estado, { texto: ev.texto, midia, remetenteTel: ev.remetenteTel, remetenteNome: ev.remetenteNome });
-  const novo = Object.assign(r.estado, { chatJid: ev.chatJid, grupo: ev.grupo, ultimaMsgEm: ev.enviadaEm.toISOString(), atualizadoEm: agoraISO() });
+  // Ler, decidir e gravar a conversa numa TRANSAÇÃO: várias fotos mandadas de uma vez chegam em
+  // paralelo, e sem isso uma gravação apagaria a outra (o diálogo é função pura: repetir é seguro).
+  let r = null, novo = null;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(chatRef);
+    const estado = snap.exists ? snap.data() : dialogo.novoEstado({ chatJid: ev.chatJid, grupo: ev.grupo });
+    r = dialogo.receber(estado, { texto: ev.texto, midia, remetenteTel: ev.remetenteTel, remetenteNome: ev.remetenteNome });
+    novo = Object.assign(r.estado, { chatJid: ev.chatJid, grupo: ev.grupo, ultimaMsgEm: ev.enviadaEm.toISOString(), atualizadoEm: agoraISO() });
+    if (r.acao === "cancelado") novo.canceladoEm = agoraISO();
+    tx.set(chatRef, novo);
+  });
   let resultado = { acao: r.acao || null };
-  if (r.acao === "criar_solicitacao") { resultado.solicId = await gravarSolicitacao(novo, r.dados); novo.solicId = resultado.solicId; }
+  if (r.acao === "criar_solicitacao") { resultado.solicId = await gravarSolicitacao(novo, r.dados); novo.solicId = resultado.solicId; await chatRef.set({ solicId: resultado.solicId }, { merge: true }); }
   if (r.acao === "anexar" && r.anexar && r.anexar.length) resultado.anexados = await anexarNaSolicitacao(novo, r.anexar);
   if (r.descartar && r.descartar.length) await Promise.all(r.descartar.map((a) => a.caminho ? bucket().file(a.caminho).delete().catch((e) => logger.warn("arquivo descartado não apagado", { e: e.message })) : null));
-  if (r.acao === "cancelado") novo.canceladoEm = agoraISO();
-  await chatRef.set(novo, { merge: false });
   for (const m of r.mensagens) await responder(ev, m);
   return resultado;
 }
@@ -203,7 +206,7 @@ async function vincular(ev, chatRef) {
   await chatRef.set(estado, { merge: false });
   await db.collection("vinculos").doc(chatRef.id).set({ chatJid: ev.chatJid, grupo: ev.grupo, solicId: c.solicId || "", casoId: c.casoId || "", empresa: c.empresa || "", cnpj: c.cnpj || "", em: agoraISO(), por: ev.remetenteNome || ev.remetenteTel || "" });
   if (c.solicId) await db.collection("solicitacoes").doc(c.solicId).set({ whatsapp: { chatJid: ev.chatJid, grupo: ev.grupo, vinculadoEm: agoraISO() }, alteradoEm: agoraISO() }, { merge: true }).catch((e) => logger.warn("solicitação do código não atualizada", { e: e.message }));
-  await responder(ev, `✅ Conversa ligada ao processo de *${c.empresa || "sua empresa"}* na Totali.\n\n${dialogo.LGPD}\n\n${dialogo.menuTexto(estado)}`);
+  await responder(ev, `✅ Conversa ligada ao processo de *${c.empresa || "empresa sem nome"}* no Atos.\n\n${dialogo.LGPD}\n\n${dialogo.menuTexto(estado)}`);
   estado.lgpdEm = agoraISO(); await chatRef.set({ lgpdEm: estado.lgpdEm }, { merge: true });
   return { vinculo: "ok", solicId: c.solicId || null };
 }
@@ -241,9 +244,9 @@ async function gravarSolicitacao(estado, dados) {
         obs: ((atual.obs || "") + "\n\n" + dados.obs).trim(), pedidoTexto: atual.pedidoTexto || dados.pedidoTexto,
         contato: atual.contato || dados.contato, fone: atual.fone || dados.fone, prazo: atual.prazo || dados.prazo,
         cnpj: atual.cnpj || dados.cnpj, respostaNova: true, pendencia: "Pedido completo pelo robô do WhatsApp: confira os dados e anexos.", pendenciaEm: agora,
-        whatsapp: Object.assign({}, atual.whatsapp || {}, { respostasEm: agora, fluxo: dados.fluxo, respostas: dados.respostas }), alteradoEm: agora,
+        whatsapp: Object.assign({}, atual.whatsapp || {}, { respostasEm: agora, fluxo: dados.fluxo, respostas: dados.respostas, solicitante: dados.solicitante || "" }), alteradoEm: agora,
       }, { merge: true });
-      await avisarHub("solicitacao.respondida", Object.assign({}, atual, { id, status: atual.status || "nova", pedidoTexto: dados.pedidoTexto, pendencia: "Cliente respondeu pelo WhatsApp" }));
+      await avisarHub("solicitacao.respondida", Object.assign({}, atual, { id, status: atual.status || "nova", pedidoTexto: dados.pedidoTexto, pendencia: "Pedido completo pelo WhatsApp" }));
       return id;
     }
   }
@@ -252,7 +255,7 @@ async function gravarSolicitacao(estado, dados) {
     id, empresa: dados.empresa, cnpj: dados.cnpj, tipo: dados.tipo, pedidos: dados.pedidos, docsOk: dados.docsOk,
     status: "nova", obs: dados.obs, pedidoTexto: dados.pedidoTexto, contato: dados.contato, fone: dados.fone, prazo: dados.prazo,
     responsavel: "", anexos: dados.anexos, historico: [historicoItem], criadoEm: agora, alteradoEm: agora,
-    abertaPor: "whatsapp", origem: "whatsapp", whatsapp: { chatJid: estado.chatJid, grupo: !!estado.grupo, fluxo: dados.fluxo, respostas: dados.respostas, respostasEm: agora },
+    abertaPor: "whatsapp", origem: "whatsapp", whatsapp: { chatJid: estado.chatJid, grupo: !!estado.grupo, fluxo: dados.fluxo, respostas: dados.respostas, respostasEm: agora, solicitante: dados.solicitante || "" },
   };
   await db.collection("solicitacoes").doc(id).set(reg);
   await avisarHub("solicitacao.criada", reg);
