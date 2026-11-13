@@ -4842,8 +4842,34 @@ window.TINA=(function(){
     // preparado poderia executar código pelo FontMatrix. A entrada aqui é arquivo de terceiro, então nunca reabilitar.
     const pdf=await pdfjsLib.getDocument({data:buf,isEvalSupported:false}).promise;
     let txt=""; const paginas=[]; const sparse=[]; const itens=[];   // itens = texto COM posição (x,y) — usado pelos parsers de formulário (CCMEI/cartão CNPJ), onde rótulo e valor são colunas
-    for(let p=1;p<=pdf.numPages;p++){onp&&onp("Lendo página "+p+"/"+pdf.numPages+"…");const pg=await pdf.getPage(p);const tc=await pg.getTextContent();const s=juntarItensTexto(tc.items);paginas.push(s);if(s.replace(/\s/g,"").length<20)sparse.push(p);
+    const imagem=[];   // páginas que são FOTO/ESCANEADAS: pouco texto digital e imagem desenhada nelas
+    for(let p=1;p<=pdf.numPages;p++){onp&&onp("Lendo página "+p+"/"+pdf.numPages+"…");const pg=await pdf.getPage(p);const tc=await pg.getTextContent();const s=juntarItensTexto(tc.items);paginas.push(s);
+      const nc=s.replace(/\s/g,"").length; if(nc<20)sparse.push(p);
+      if(nc<20 || (nc<PAG_IMG_MAX_TEXTO && await paginaTemImagem(pg))) imagem.push(p);
       tc.items.forEach(i=>{const v=(i.str||"").trim(); if(v&&i.transform)itens.push({s:v,x:Math.round(i.transform[4]),y:Math.round(i.transform[5]),p});});}
+    /* Documento MISTO — o caso comum da cópia autenticada: as páginas do contrato são escaneadas
+       (imagem) e o PDF ganha, no fim ou no rodapé, texto digital (Termo de Autenticidade do DREI,
+       "Página 1 de 3", carimbo da Junta). Antes, esse pouco de texto digital fazia o documento passar
+       por "digital": o corpo escaneado não era lido e só sobrava o rodapé. Agora cada página-imagem
+       passa pelo OCR, e o texto lido entra NO LUGAR DELA, na ordem das páginas — vira o texto principal.
+       Vale também para o PDF todo escaneado (todas as páginas caem aqui). */
+    const lidasOCR=new Set(), duvOCR=[];   // duvOCR: palavras que o OCR leu com pouca confiança
+    const ocrSubstituir=async(lista,forcar)=>{   // forcar: o texto digital é lixo (fonte sem ToUnicode) — fica o OCR
+      const lidas=await ocrPaginasSeparadas(pdf,lista,onp,duvOCR);
+      lista.forEach((p,i)=>{ lidasOCR.add(p); const o=(lidas[i]||"").trim(), dN=(paginas[p-1]||"").replace(/\s/g,"").length;
+        // o OCR da página desenhada já traz o texto digital dela (rodapé, carimbo). Texto digital de
+        // verdade (o Termo de Autenticidade, com o brasão em imagem) só é trocado se o OCR trouxer bem mais.
+        if(forcar ? o.length>0 : o.replace(/\s/g,"").length > dN*1.5+20) paginas[p-1]=o; });
+    };
+    if(imagem.length && window.Tesseract){
+      const alvo=imagem.slice(0,OCR_MAX_PAGINAS);
+      onp&&onp(alvo.length+" página(s) em imagem — rodando OCR (pode demorar)…");
+      try{ await ocrSubstituir(alvo); }
+      catch(err){
+        console.warn("OCR das páginas em imagem indisponível:",err);
+        if(sparse.length*2>=pdf.numPages) throw new Error("Este PDF tem páginas em imagem (escaneadas) e o OCR não pôde ser executado. Recarregue a página e tente de novo, ou preencha os campos manualmente.");
+      }
+    }
     txt=tirarRepeticoesPaginas(paginas).map(x=>x+"\n").join("");
     const total=txt.replace(/\s/g,"").length;
     // texto embutido ILEGÍVEL (fonte sem ToUnicode → sai como caracteres de controle) também exige OCR
@@ -4851,11 +4877,11 @@ window.TINA=(function(){
     const semKw=!/(brasileir|estrangeir|cnpj|\bcpf\b|sociedade|empres|cl[aá]usula|contrato|nome empresarial|inscri[çc])/i.test(txt);
     const garbled = total>=40 && (ctrl > total*0.03 || semKw);
     let ocr="", auth="";
-    if((total<40 || garbled) && window.Tesseract){ // PDF escaneado OU texto ilegível → OCR tudo (vira o texto principal)
+    const faltaOCR=[]; for(let p=1;p<=Math.min(pdf.numPages,OCR_MAX_PAGINAS);p++) if(!lidasOCR.has(p)) faltaOCR.push(p);
+    if((total<40 || garbled) && window.Tesseract && faltaOCR.length){ // texto ilegível (ou nada lido) → OCR das páginas que faltam, no lugar delas
       onp&&onp((garbled?"Texto do PDF ilegível — ":"PDF escaneado — ")+"rodando OCR (pode demorar)…");
-      const all=[]; for(let p=1;p<=Math.min(pdf.numPages,12);p++)all.push(p);
-      try{ txt=await ocrPages(pdf,all,onp); }
-      catch(err){ console.warn("OCR indisponível:",err); throw new Error("Este PDF é uma imagem (escaneado) e o OCR não pôde ser executado. Verifique a conexão com a internet — o motor de OCR é baixado online — ou preencha os campos manualmente."); }
+      try{ await ocrSubstituir(faltaOCR,garbled); txt=tirarRepeticoesPaginas(paginas).map(x=>x+"\n").join(""); }
+      catch(err){ console.warn("OCR indisponível:",err); throw new Error("Este PDF é uma imagem (escaneado) e o OCR não pôde ser executado. Recarregue a página e tente de novo, ou preencha os campos manualmente."); }
     } else if(window.Tesseract && !acharNIRE(txt) && detectarTipoDoc(txt)==="contrato"){ // texto digital sem NIRE → procurar na autenticação/chancela (imagem). CCMEI/cartão CNPJ não têm NIRE: pular o OCR (seria só demora).
       // OCR do carimbo é OPCIONAL (só busca o NIRE): se falhar (ex.: sem internet p/ baixar o Tesseract), NÃO descarta o texto digital já lido.
       try{
@@ -4864,9 +4890,10 @@ window.TINA=(function(){
         onp&&onp("Procurando NIRE na autenticação da Junta (OCR do rodapé)…");
         auth=await ocrFooters(pdf,foot,onp);
         // 2) fallback: se o rodapé não trouxe NIRE, OCR completo das páginas-imagem (chancela/cópia autenticada)
-        if(!acharNIRE(auth) && sparse.length){ onp&&onp("OCR das páginas escaneadas (pode demorar)…"); ocr=await ocrPages(pdf,sparse.slice(0,8),onp); }
+        if(!acharNIRE(auth) && sparse.length && !imagem.length){ onp&&onp("OCR das páginas escaneadas (pode demorar)…"); ocr=await ocrPages(pdf,sparse.slice(0,8),onp); }
       }catch(err){ auth=""; ocr=""; console.warn("OCR do carimbo indisponível — seguindo só com o texto digital (o NIRE pode não ser preenchido):",err); }
     }
+    if(lidasOCR.size) txt=consertarDuvidosasOCR(consertarNumeroClausulasOCR(txt),duvOCR);
     return {txt,ocr,auth,itens};
   }
   // OCR 100% offline: worker, core (wasm) e idioma português vendorizados em lib/ — sem depender de CDN.
@@ -4878,15 +4905,32 @@ window.TINA=(function(){
     const opts={ workerPath:dir+"tesseract-worker.min.js", corePath:dir+core, langPath:dir.replace(/\/$/,""), workerBlobURL:false };
     return Tesseract.createWorker("por",1,opts);   // OEM 1 (LSTM) = casa com os cores "-lstm"
   }
+  const OCR_MAX_PAGINAS=40;        // contrato consolidado longo passa de 12 páginas (o limite antigo cortava o fim)
+  const OCR_ESCALA=3.0;            // ~216 dpi numa A4: o Tesseract erra bem mais abaixo de 200 dpi (2.2 era ~160)
+  const PAG_IMG_MAX_TEXTO=600;     // página com imagem e menos que isto de texto digital = escaneada (o carimbo/rodapé digital fica abaixo disto)
+  async function paginaTemImagem(pg){
+    try{ const ops=await pg.getOperatorList(), O=pdfjsLib.OPS;
+      return ops.fnArray.some(f=>f===O.paintImageXObject||f===O.paintInlineImageXObject||f===O.paintImageXObjectRepeat||f===O.paintImageMaskXObject||f===O.paintImageMaskXObjectGroup); }
+    catch(e){ return false; }
+  }
+  /* Desenha a página num canvas para o OCR. intent:"print" é OBRIGATÓRIO: no modo de tela o pdf.js
+     desenha no ritmo do requestAnimationFrame, que o navegador PARA quando a aba não está visível
+     (outra aba, janela minimizada) — o OCR ficava parado em "OCR página 1…" para sempre. */
+  async function desenharPagina(pg,scale){
+    const vp=pg.getViewport({scale});
+    const cv=document.createElement("canvas");cv.width=Math.floor(vp.width);cv.height=Math.floor(vp.height);
+    const ctx=cv.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,cv.width,cv.height);   // fundo branco (imagem com transparência sai preta no OCR)
+    await pg.render({canvasContext:ctx,viewport:vp,intent:"print"}).promise;
+    return cv;
+  }
   async function ocrFooters(pdf,pages,onp){ // OCR só da faixa inferior (rodapé) — onde fica o carimbo digital da Junta
     if(!window.Tesseract) return "";
     let out=""; const worker=await criarWorkerOCR();
     try{
       for(let i=0;i<pages.length;i++){const p=pages[i];
         onp&&onp("OCR rodapé pág. "+p+" ("+(i+1)+"/"+pages.length+")…");
-        const pg=await pdf.getPage(p);const vp=pg.getViewport({scale:3.0});
-        const full=document.createElement("canvas");full.width=vp.width;full.height=vp.height;
-        await pg.render({canvasContext:full.getContext("2d"),viewport:vp}).promise;
+        const pg=await pdf.getPage(p);
+        const full=await desenharPagina(pg,3.0); const vp={width:full.width,height:full.height};
         const h=Math.max(1,Math.floor(vp.height*0.30));
         const crop=document.createElement("canvas");crop.width=vp.width;crop.height=h;
         crop.getContext("2d").drawImage(full,0,vp.height-h,vp.width,h,0,0,vp.width,h);
@@ -4896,20 +4940,88 @@ window.TINA=(function(){
     } finally { await worker.terminate(); }
     return out;
   }
-  async function ocrPages(pdf,pages,onp){
+  /* Texto do OCR SEM a sujeira do escaneado, linha a linha, pela confiança que o Tesseract dá a cada
+     palavra. O texto lido vira cláusula mantida no documento, então o lixo não pode passar:
+     - linha quase toda de baixa confiança = rabisco de assinatura, carimbo, borda, mancha → sai inteira;
+     - "|", "$", aspas soltas = a borda/vinco da folha lida como caractere → saem;
+     - letra solta e duvidosa na PONTA da linha ("Í", "ê", "H") = sujeira da margem → sai;
+     - "Página 1 de 3" é o contador que o portal carimba em cada folha, não é do contrato → sai. */
+  function textoOCRLimpo(data,duvidosas){   // duvidosas (opcional): recebe as palavras lidas com pouca confiança
+    const linhas=[]; ((data&&data.blocks)||[]).forEach(b=>(b.paragraphs||[]).forEach(p=>(p.lines||[]).forEach(l=>linhas.push(l))));
+    if(!linhas.length) return (data&&data.text)||"";
+    const lixo=t=>/^[|¦!$'"`´~^\[\]{}\\_]+$/.test(t);
+    const ponta=x=>{ const t=x.t; return /^[^0-9A-Za-zÀ-ú]+$/.test(t) || (t.length===1 && x.c<(/\d/.test(t)?75:88)) || (t.length===2 && x.c<40); };
+    // no meio da linha: só o que é claramente borrão — sinal solto ou 1-2 letras lidas com < 35%
+    const borrao=x=>(/^[^0-9A-Za-zÀ-ú]+$/.test(x.t) && x.c<60) || (x.t.length<=2 && x.c<35);
+    const out=[];
+    linhas.forEach(l=>{
+      if((l.confidence||0)<45) return;
+      let w=(l.words||[]).map(x=>({t:String(x.text||"").trim(),c:x.confidence||0}))
+        .map((x,i,a)=>(/^[$§]{1,2}$/.test(x.t) && a[i+1] && /^\d+[º°o]?[.,;]?$/.test(a[i+1].t)) ? {t:"§",c:99} : x)   // "$ 4º" = "§ 4º" (o OCR não conhece o símbolo de parágrafo)
+        .filter((x,i,a)=>x.t && (!lixo(x.t) || (i>0 && /^CL[ÁA]USULA$/i.test(a[i-1].t) && /^[|!l1]+$/.test(x.t))));   // "CLÁUSULA |" = cláusula I: o "|" fica para virar número
+      if(duvidosas) w.forEach(x=>{ if(x.c<60 && /^[A-Za-zÀ-ú]{3,}$/.test(x.t.replace(/[.,;:]$/,""))) duvidosas.push(x.t.replace(/[.,;:]$/,"")); });
+      w=w.filter((x,i,a)=>!borrao(x) || (i>0 && /^CL[ÁA]USULA$/i.test(a[i-1].t)));
+      while(w.length && ponta(w[0])) w.shift();
+      while(w.length && ponta(w[w.length-1])) w.pop();
+      if(!w.length) return;
+      if(w.length>=3 && w.filter(x=>x.c<50).length*2>w.length) return;
+      const s=w.map(x=>x.t).join(" ");
+      if(/^P[áa]gina\s+\d+\s+de\s+\d+$/i.test(s)) return;
+      out.push(s);
+    });
+    return out.join("\n");
+  }
+  /* Numeração romana das cláusulas lida pelo OCR: "CLÁUSULA |" (I), "Ill" (III), "VIII!" (VIII),
+     "XII!" (XIII). Sem isto a cláusula some (o rótulo não casa) ou sai com o número errado. Só mexe no
+     número SUJO (com | l ! 1) ou que não é romano válido, e usa a sequência: vale o seguinte ao anterior. */
+  const _ROM=(()=>{ const u=["","I","II","III","IV","V","VI","VII","VIII","IX"], d=["","X","XX","XXX","XL","L"]; const r=[]; for(let i=0;i<60;i++) r.push(d[Math.floor(i/10)]+u[i%10]); return r; })();
+  function consertarNumeroClausulasOCR(t){
+    let ant=0;
+    return String(t||"").replace(/(CL[ÁA]USULA\s+)([IVXl|!1]{1,8})(?![0-9A-Za-zÀ-ú])/g,(m,cl,tok)=>{
+      const limpo=tok.replace(/[l|!1]/g,"I"), n=_ROM.indexOf(limpo), sujo=limpo!==tok;
+      if(!sujo && n>0){ ant=n; return m; }                    // número limpo e válido: confia nele e segue a contagem dali
+      if(n>0 && n===ant+1){ ant=n; return cl+limpo; }
+      if(ant+1<_ROM.length){ ant++; return cl+_ROM[ant]; }
+      return m;
+    });
+  }
+  /* Palavra lida com POUCA confiança que aparece uma vez só, quando o documento tem, várias vezes, uma
+     palavra quase igual (uma letra de diferença): é a mesma palavra lida errado. Ex.: "nome empresarial:
+     EXEMPPLO MODELO LTDA" (lida com 31%) num contrato que traz "EXEMPLO MODELO" no título, no nome
+     fantasia e no cabeçalho de cada folha. Só nomes de 3+ letras; a escolhida tem de aparecer 2+ vezes. */
+  function _umaLetraDeDiferenca(a,b){
+    if(a===b || Math.abs(a.length-b.length)>1) return false;
+    let i=0,j=0,dif=0;
+    while(i<a.length && j<b.length){ if(a[i]===b[j]){i++;j++;continue;} if(++dif>1) return false;
+      if(a.length>b.length) i++; else if(b.length>a.length) j++; else {i++;j++;} }
+    return dif+(a.length-i)+(b.length-j)<=1;
+  }
+  function consertarDuvidosasOCR(t,duvidosas){
+    t=String(t||""); if(!duvidosas||!duvidosas.length) return t;
+    const conta={}; (t.match(/[A-Za-zÀ-ú]{3,}/g)||[]).forEach(p=>{ conta[p]=(conta[p]||0)+1; });
+    [...new Set(duvidosas)].forEach(w=>{
+      if((conta[w]||0)!==1) return;
+      const alt=Object.keys(conta).filter(p=>conta[p]>=2 && _umaLetraDeDiferenca(w,p) && (p===p.toUpperCase())===(w===w.toUpperCase()))
+        .sort((a,b)=>conta[b]-conta[a]);
+      if(alt.length===1 || (alt.length>1 && conta[alt[0]]>conta[alt[1]]))
+        t=t.replace(new RegExp("(^|[^A-Za-zÀ-ú])"+w+"(?![A-Za-zÀ-ú])"),"$1"+alt[0]);
+    });
+    return t;
+  }
+  async function ocrPaginasSeparadas(pdf,pages,onp,duvidosas){   // uma string por página, na ordem pedida
     if(!window.Tesseract) throw new Error("OCR (Tesseract) indisponível");
-    let out=""; const worker=await criarWorkerOCR();
+    const out=[]; const worker=await criarWorkerOCR();
     try{
       for(let i=0;i<pages.length;i++){const p=pages[i];
         onp&&onp("OCR página "+p+" ("+(i+1)+"/"+pages.length+")… pode demorar");
-        const pg=await pdf.getPage(p);const vp=pg.getViewport({scale:2.2});
-        const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;
-        await pg.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
-        const res=await worker.recognize(cv);out+=res.data.text+"\n";
+        const cv=await desenharPagina(await pdf.getPage(p),OCR_ESCALA);
+        const res=await worker.recognize(cv,{},{text:true,blocks:true});out.push(textoOCRLimpo(res.data,duvidosas));
+        cv.width=cv.height=0;   // solta a memória do canvas grande antes da próxima página
       }
     } finally { await worker.terminate(); }
     return out;
   }
+  async function ocrPages(pdf,pages,onp){ return (await ocrPaginasSeparadas(pdf,pages,onp)).map(s=>s+"\n").join(""); }
   function m1(t,re){const m=t.match(re);return m?m[1].trim():"";}
   const UFMAP={ACRE:"AC",ALAGOAS:"AL","AMAPÁ":"AP",AMAPA:"AP",AMAZONAS:"AM",BAHIA:"BA","CEARÁ":"CE",CEARA:"CE","DISTRITO FEDERAL":"DF","ESPÍRITO SANTO":"ES","ESPIRITO SANTO":"ES","GOIÁS":"GO",GOIAS:"GO","MARANHÃO":"MA",MARANHAO:"MA","MATO GROSSO":"MT","MATO GROSSO DO SUL":"MS","MINAS GERAIS":"MG","PARÁ":"PA",PARA:"PA","PARAÍBA":"PB",PARAIBA:"PB","PARANÁ":"PR",PARANA:"PR",PERNAMBUCO:"PE","PIAUÍ":"PI",PIAUI:"PI","RIO DE JANEIRO":"RJ","RIO GRANDE DO NORTE":"RN","RIO GRANDE DO SUL":"RS","RONDÔNIA":"RO",RONDONIA:"RO",RORAIMA:"RR","SANTA CATARINA":"SC","SÃO PAULO":"SP","SAO PAULO":"SP",SERGIPE:"SE",TOCANTINS:"TO"};
   function parseEndereco(str){
@@ -8313,7 +8425,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,partirItens,corrigirRedacaoMantida,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,renderWhatsConfig,painelWhats,analiseAtual:()=>_analise,marcarAnalise,paramVigente,aliquotaEfetiva,reparticaoSimples,fatorR,classificarCnae,irrfProLabore,compararRegimes,vedacoesSimples,interpretarCertidao,textoLaudo,dadosLaudo,gerarLaudoPdf,gravarPendencia,resumoPendencias,consultarCnpjCascata,fichaDeBrasilAPI:_fichaDeBrasilAPI,fichaDeOpenCNPJ:_fichaDeOpenCNPJ,fichaDeCnpjWs:_fichaDeCnpjWs,estadoAnalise,etapas:()=>ET,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,textoOCRLimpo,consertarNumeroClausulasOCR,consertarDuvidosasOCR,partirItens,corrigirRedacaoMantida,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,renderWhatsConfig,painelWhats,analiseAtual:()=>_analise,marcarAnalise,paramVigente,aliquotaEfetiva,reparticaoSimples,fatorR,classificarCnae,irrfProLabore,compararRegimes,vedacoesSimples,interpretarCertidao,textoLaudo,dadosLaudo,gerarLaudoPdf,gravarPendencia,resumoPendencias,consultarCnpjCascata,fichaDeBrasilAPI:_fichaDeBrasilAPI,fichaDeOpenCNPJ:_fichaDeOpenCNPJ,fichaDeCnpjWs:_fichaDeCnpjWs,estadoAnalise,etapas:()=>ET,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();

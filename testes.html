@@ -3248,6 +3248,52 @@
       reg("Limpar tira todas as marcas", D.querySelectorAll(".baixa-conf").length===0);
     }catch(e){ reg("Bateria da pouca confiança",false,String(e&&e.message||e).slice(0,120)); }
 
+    // ---------- 6g2b. Documento escaneado (OCR) ----------
+    /* Cópia autenticada típica: as folhas do contrato são FOTO (escaneadas) e o PDF traz um pouco de
+       texto digital (contador "Página 1 de 2", Termo de Autenticidade). Esse texto digital fazia o
+       documento passar por "digital" e só o rodapé era lido. Dados abaixo INVENTADOS. */
+    grupo("Documento escaneado (OCR)");
+    try{
+      var P2=W.TINA._pdf;
+      var pal=function(t,c){ return {text:t,confidence:c}; };
+      var lin=function(c,ws){ return {confidence:c,words:ws}; };
+      var dadosOCR={blocks:[{paragraphs:[{lines:[
+        lin(96,[pal("Página",97),pal("1",96),pal("de",96),pal("2",96)]),
+        lin(21,[pal("o",15),pal("MESES",0),pal("cos",10),pal("AD",23)]),
+        lin(95,[pal("CLÁUSULA",96),pal("|",92),pal("-",92),pal("DO",97),pal("NOME",97)]),
+        lin(90,[pal("|",80),pal("O",97),pal("capital",97),pal("é",96),pal("de",97),pal("R$",96),pal("1.000,00",96),pal("Í",57)]),
+        lin(92,[pal("nos",97),pal("termos",97),pal("do",97),pal("$",50),pal("4º",95),pal("do",97),pal("art.",97),pal("ah",20),pal("3º",95)]),
+        lin(49,[pal("Í",46),pal("ã",18),pal("|",82)])]}]}]};
+      var limpo=P2.textoOCRLimpo(dadosOCR,[]);
+      reg("Linha de rabisco (pouca confiança) sai inteira", !/MESES|cos/.test(limpo), limpo);
+      reg("Contador 'Página 1 de 2' do portal sai", !/P[áa]gina 1 de 2/.test(limpo), limpo);
+      reg("Borda da folha ('|') e letra solta na margem saem", /^O capital é de R\$ 1\.000,00$/m.test(limpo), limpo);
+      reg("'CLÁUSULA |' guarda o '|' para virar número", /CLÁUSULA \| - DO NOME/.test(limpo), limpo);
+      reg("'$ 4º' vira '§ 4º'; borrão de 2 letras no meio sai", /do § 4º do art\. 3º/.test(limpo), limpo);
+      var num=P2.consertarNumeroClausulasOCR("CLÁUSULA | - A. CLÁUSULA II - B. CLÁUSULA Ill - C. CLÁUSULA IV - D. CLÁUSULA V - E. CLÁUSULA VI - F. CLÁUSULA VII - G. CLÁUSULA VIII! - H. CLÁUSULA IX - I. CLÁUSULA X - J. CLÁUSULA XI - K. CLÁUSULA XII - L. CLÁUSULA XII! - M.");
+      reg("Números romanos lidos errado voltam à sequência (|→I, Ill→III, VIII!→VIII, XII!→XIII)",
+        /CLÁUSULA I - A/.test(num) && /CLÁUSULA III - C/.test(num) && /CLÁUSULA VIII - H/.test(num) && /CLÁUSULA XIII - M/.test(num) && /CLÁUSULA XII - L/.test(num), num);
+      reg("Cláusula por extenso (PRIMEIRA) não é mexida", P2.consertarNumeroClausulasOCR("CLÁUSULA PRIMEIRA - DO NOME")==="CLÁUSULA PRIMEIRA - DO NOME");
+      var duv=P2.consertarDuvidosasOCR("CONTRATO SOCIAL DA EXEMPLO MODELO LTDA. nome empresarial: EXEMPPLO MODELO LTDA, nome fantasia EXEMPLO MODELO. EXEMPLO MODELO LTDA",["EXEMPPLO"]);
+      reg("Palavra de pouca confiança vira a quase igual que o documento repete", /nome empresarial: EXEMPLO MODELO LTDA/.test(duv), duv);
+      reg("Sem palavra duvidosa o texto não muda", P2.consertarDuvidosasOCR("NOME ÚNICO LTDA",[])==="NOME ÚNICO LTDA");
+      // PDF de verdade: folha 1 = IMAGEM com o texto do contrato + "Página 1 de 2" digital; folha 2 = termo digital
+      var cv=D.createElement("canvas"); cv.width=1240; cv.height=1754; var cx=cv.getContext("2d");
+      cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height); cx.fillStyle="#000"; cx.font="34px serif";
+      ["CONTRATO SOCIAL DA EMPRESA FICTICIA EXEMPLO LTDA","CLAUSULA PRIMEIRA - DO CAPITAL","O capital social e de R$ 10.000,00 (dez mil reais),","dividido em 10.000 quotas de R$ 1,00 cada uma."]
+        .forEach(function(t,i){ cx.fillText(t,110,200+i*60); });
+      var pdfImg=await new Promise(function(res,rej){ try{ W.pdfMake.createPdf({pageSize:"A4",pageMargins:[0,0,0,0],defaultStyle:{font:"Times"},content:[
+        {image:cv.toDataURL("image/jpeg",0.92),width:595},{text:"Página 1 de 2",absolutePosition:{x:480,y:20},fontSize:8},
+        {text:"TERMO DE AUTENTICIDADE. Declaro, sob as penas da lei, que este documento é autêntico e condiz com o original. Inscrito no CPF nº 000.000.000-00.",pageBreak:"before",margin:[60,60,60,0]},
+        {text:"Página 2 de 2",absolutePosition:{x:480,y:20},fontSize:8}]}).getBlob(res); }catch(e){ rej(e); } setTimeout(function(){ rej(new Error("pdfMake não gerou o PDF de teste")); },20000); });
+      // com prazo: um OCR travado não pode parar a bateria inteira (no GitHub ela tem 30 min)
+      var ext=await Promise.race([P2.extrairTextoPDF(new W.File([pdfImg],"escaneado.pdf",{type:"application/pdf"}),function(){}),
+        new Promise(function(_,rej){ setTimeout(function(){ rej(new Error("OCR do PDF misto passou de 3 min")); },180000); })]);
+      reg("Folha escaneada de PDF misto é lida pelo OCR e entra no texto principal", /capital social/i.test(ext.txt) && /10\.000,00/.test(ext.txt), (ext.txt||"").slice(0,160));
+      reg("O texto digital da outra folha (termo) continua lá", /TERMO DE AUTENTICIDADE/.test(ext.txt));
+      reg("A folha escaneada vem antes do termo (ordem das páginas)", ext.txt.search(/capital social/i) < ext.txt.indexOf("TERMO DE AUTENTICIDADE"));
+    }catch(e){ reg("Bateria do documento escaneado",false,String(e&&e.message||e).slice(0,120)); }
+
     // ---------- 6g3. Sociedade individual de advocacia (registro na OAB) ----------
     /* O texto de leitura abaixo é INVENTADO, no molde do ato antigo da OAB/SE (razão social entre
        aspas, sede "na cidade de…", capital sem milhar, testemunhas e a certidão de registro). */
