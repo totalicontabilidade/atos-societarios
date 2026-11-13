@@ -321,6 +321,16 @@
     await espera(900);
     reg("Documento gerado nunca contém a expressão proibida", !/especificad[oa]s?\s+anteriormente/i.test(texto()));
     reg("Documento gerado não contém código CNAE", !/CNAE|\d{4}-\d\/\d{2}/.test(texto()));
+    // caixa: atividade lida do contrato (CAIXA ALTA) e atividade digitada saem no MESMO padrão
+    var NA=W.TINA._cmd.normalizarAtividades;
+    var cx=NA("COMÉRCIO VAREJISTA DE ARTIGOS DE TESTE; Comércio atacadista de produtos de exemplo em geral; comércio varejista de gás liquefeito de petróleo (GLP); SERVIÇOS DE CFTV E ALARME");
+    reg("Atividades no mesmo padrão de caixa (inicial maiúscula), com as siglas mantidas",
+      cx==="Comércio varejista de artigos de teste; Comércio atacadista de produtos de exemplo em geral; Comércio varejista de gás liquefeito de petróleo (GLP); Serviços de CFTV e alarme", cx);
+    reg("Objeto em frase corrida (cooperativa: 'a prestação…') não ganha maiúscula", NA("a prestação de serviços aos associados")==="a prestação de serviços aos associados");
+    $("objeto").value="COMÉRCIO VAREJISTA DE ARTIGOS DE TESTE; Comércio atacadista de produtos de exemplo em geral";
+    try{ await W.TINA.gerarPreview(); }catch(e){}
+    await espera(900);
+    reg("No documento a atividade em CAIXA ALTA sai igual à digitada", /Comércio varejista de artigos de teste; Comércio atacadista de produtos de exemplo em geral/.test(texto()) && !/COMÉRCIO VAREJISTA DE ARTIGOS DE TESTE/.test(texto()));
 
     // ---------- 6b2. Sócia pessoa jurídica no quadro ----------
     grupo("Sócio pessoa jurídica");
@@ -3014,6 +3024,8 @@
       val("gateData","05/11/2026"); val("gateContato","Cliente"); val("gateNota","De acordo");
       $("btnGateRegistrar").click(); await espera(900);
       reg("Registrar o “de acordo” leva à etapa 6 (documento)", D.body.dataset.etapaAtual==="6" && /confirmado/.test(et(5).textContent));
+      reg("Baixar (.docx/PDF) só na etapa 6: a barra do formulário não mostra os botões",
+        !$("btnBaixar").offsetParent && !$("btnPDF").offsetParent && $("etapaPainel").querySelectorAll("[data-et-baixar]").length===2);
       // protocolo (etapa 7)
       et(7).click(); await espera(500);
       reg("Etapa 7 (protocolo) tem o “Protocolei” na tela", !!$("etapaPainel").querySelector("#btnProtocolei") && $("protoSolic").style.display!=="none");

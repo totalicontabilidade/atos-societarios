@@ -5179,6 +5179,36 @@ window.TINA=(function(){
   const RE_CNAE_1=/(?:\bCNAE[\s:.]*)?\b(\d{2}\s*\.?\s*\d{2}\s*[-–]?\s*\d\s*[\/-]\s*\d{2})\b/;
   function semNEA(t){ return String(t||"").replace(RE_NEA,""); }
   function fmtCnae(c){ const d=String(c||"").replace(/\D/g,""); return d.length===7 ? (d.slice(0,4)+"-"+d.slice(4,5)+"/"+d.slice(5,7)) : String(c||"").trim(); }
+  /* Caixa das atividades: todas no MESMO padrão, o da descrição oficial do CNAE — inicial maiúscula e
+     o resto minúsculo ("Comércio varejista de hortifrutigranjeiros"). A lista misturava a atividade
+     lida do contrato (em CAIXA ALTA) com a digitada (normal) e o ato saía com uma de cada jeito.
+     - atividade toda em maiúsculas → minúsculas, mantendo as siglas (GLP, TV, EPI…) e o que está entre
+       parênteses curto ("(GLP)");
+     - palavra longa em maiúsculas no meio de texto normal ("de HORTIFRUTIGRANJEIROS") → minúscula;
+     - começa com minúscula → inicial maiúscula, MENOS quando abre com artigo/preposição: aí é frase
+       corrida, como o objeto da cooperativa ("que tem por objeto: a prestação de serviços…"). */
+  const SIGLAS_ATIV=new Set(["GLP","GNV","TV","TI","EPI","EPIS","CD","CDS","DVD","DVDS","PC","PCS","SVA","LAN","CNAE","ABNT","SUS","ONG","ONGS","MEI","ME","EPP","LTDA","SA","IPTU","IPVA","ISS","ICMS","INSS","FGTS","CNH","ATM","GPS","LED","LCD","PVC","MDF","ASO","UTI","SPA","BPO","CRM","ERP","HD","SSD","USB","3D","DNA","RH","PET","EVA","CFTV","UHF","VHF","SMS","QR","ART","RRT","II","III","IV"]);
+  function caixaAtividade(s){
+    s=String(s||""); const letras=s.replace(/[^A-Za-zÀ-ÿ]/g,"");
+    if(!letras) return s;
+    const tudoMaiusc=letras.length>=4 && letras===letras.toUpperCase();
+    const ehSigla=(w,entreParenteses)=>SIGLAS_ATIV.has(w.toUpperCase().replace(/[^A-Z0-9À-Ý]/g,"")) || (entreParenteses && w.replace(/[^A-Za-zÀ-ÿ]/g,"").length<=5);
+    let dentro=0;
+    s=s.split(/(\s+)/).map(tok=>{
+      if(/^\s+$/.test(tok)) return tok;
+      const abre=(tok.match(/\(/g)||[]).length, fecha=(tok.match(/\)/g)||[]).length;
+      const entre=dentro>0 || abre>0; dentro+=abre-fecha; if(dentro<0) dentro=0;
+      const l=tok.replace(/[^A-Za-zÀ-ÿ]/g,"");
+      if(!l || l!==l.toUpperCase()) return tok;                 // já tem minúscula: fica como está
+      if(ehSigla(tok,entre)) return tok;
+      if(tudoMaiusc || l.length>=6) return tok.toLowerCase();
+      return tok;
+    }).join("");
+    const m=s.match(/^([^A-Za-zÀ-ÿ]*)([A-Za-zÀ-ÿ]+)/);
+    if(m && /^[a-zà-ÿ]/.test(m[2]) && !/^(?:a|o|as|os|de|da|do|das|dos|em|na|no|nas|nos|para|com|por|pela|pelo|e|ou)$/.test(m[2]))
+      s=m[1]+m[2].charAt(0).toUpperCase()+m[2].slice(1)+s.slice(m[0].length);
+    return s;
+  }
   function normalizarAtividades(txt,manterCnae){
     const partes=String(txt||"").split(/\s*;\s*|\s*[\r\n]+\s*/);
     const out=[];
@@ -5189,6 +5219,7 @@ window.TINA=(function(){
       s=s.replace(RE_NEA,"");                       // tira a expressão proibida
       s=s.replace(/^[\s;,.:\-–—]+/,"").replace(/[\s;,.:\-–—]+$/,"").replace(/\s{2,}/g," ").trim();
       if(!s) return;
+      s=caixaAtividade(s);
       if(manterCnae&&cod) s+=" (CNAE "+cod+")";
       out.push(s);
     });
@@ -8425,7 +8456,7 @@ window.TINA=(function(){
   });
   window.addEventListener("load",()=>bootPronto());              // rede lenta: libera assim que tudo carregou
   setTimeout(()=>bootPronto(),8000);                              // trava de segurança: nunca ficar preso
-  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,textoOCRLimpo,consertarNumeroClausulasOCR,consertarDuvidosasOCR,partirItens,corrigirRedacaoMantida,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade},_ux:{toast,renderPainel,renderWhatsConfig,painelWhats,analiseAtual:()=>_analise,marcarAnalise,paramVigente,aliquotaEfetiva,reparticaoSimples,fatorR,classificarCnae,irrfProLabore,compararRegimes,vedacoesSimples,interpretarCertidao,textoLaudo,dadosLaudo,gerarLaudoPdf,gravarPendencia,resumoPendencias,consultarCnpjCascata,fichaDeBrasilAPI:_fichaDeBrasilAPI,fichaDeOpenCNPJ:_fichaDeOpenCNPJ,fichaDeCnpjWs:_fichaDeCnpjWs,estadoAnalise,etapas:()=>ET,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
+  return{recalc,removeSocio,gerarPreview,baixarDocx,baixarPDF,gerarPdfBlob,exemplo,limpar,validar,acaoValidar,_u:{extensoReais,extensoInt,dataExtenso,validaCPF,validaCNPJ,fmtCnpj},_pdf:{parseContratoTexto,textoOCRLimpo,consertarNumeroClausulasOCR,consertarDuvidosasOCR,partirItens,corrigirRedacaoMantida,dataMaioridade,concordarQualif,caixaTitulo,juntarItensTexto,tirarRepeticoesPaginas,extrairTextoPDF,separarTabelaQuotas,rejuntarNomeTabela,aoPresente,semDeclaracaoEIRELI,deEIRELIparaLTDA,aplicarDadosContrato,aplicarDocFormulario,procedencia,aplicarAtribuicao,atribuirCampo,atribuirSocio,confLer,confGravar,abrirProcedencia,avaliarConfianca,marcarBaixaConfianca,procedenciaAtual:()=>_procedencia,definirProcedencia:(a)=>{_procedencia=a||[];},comparacao:()=>_comparacao,preProtocolo,anonimizarContrato,sobrouDadoReal,buildBlob},_cmd:{parseComandos,normAtividade,mesmaAtividade,normalizarAtividades},_ux:{toast,renderPainel,renderWhatsConfig,painelWhats,analiseAtual:()=>_analise,marcarAnalise,paramVigente,aliquotaEfetiva,reparticaoSimples,fatorR,classificarCnae,irrfProLabore,compararRegimes,vedacoesSimples,interpretarCertidao,textoLaudo,dadosLaudo,gerarLaudoPdf,gravarPendencia,resumoPendencias,consultarCnpjCascata,fichaDeBrasilAPI:_fichaDeBrasilAPI,fichaDeOpenCNPJ:_fichaDeOpenCNPJ,fichaDeCnpjWs:_fichaDeCnpjWs,estadoAnalise,etapas:()=>ET,domToPdfmake:_domToPdfmake,sincronizarCidadeAto,finalizarSolic,ligarAvisoSolic,sincronizarSolic,sincronizarAtos,registrarCaso,registrarCasoAuto,ligarEspelhoAtos,checarBackup,salvarCasos,aplicarModoComercial,renderSolic,gravarSolic,novaSolic,editarSolic,renderAnexos,anexarArquivos,exportarCasos,importarCasos,duplicarCaso,abrirConfig,aplicarCfg,lerCfg,salvarCfg,snapshotForm,restaurarForm,draftTemConteudo,shade,checarConsistencia,cepUF,lerObjetos,salvarObjetos,inserirObjeto,modo:()=>MODE,renderErros,textoAviso,msgCliente,docsDaSolic,precisaDoComercial,recadoPendente,enviarResposta},
     _sol:{trabalharSolic,lerAnexoSolic,moverSolic,solicDoAto,ligarSolic,desligarSolic,renderLigacao,modoTemLeitor,switchMode,
       gerarEmail,abrirPreProtocolo,abrirTrabalho,salvarTrabalho,solicLigada:()=>_solicLigada,casoAtual:()=>casoAtualId}};
 })();

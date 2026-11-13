@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://firebasestorage.googleapis.com data: blob:; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br https://brasilapi.com.br https://api.opencnpj.org https://minhareceita.org https://publica.cnpj.ws https://whatsappwebhook-dvjo4cygzq-rj.a.run.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com wss://firestore.googleapis.com https://firebasestorage.googleapis.com data: blob:; media-src 'self' https://firebasestorage.googleapis.com data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="versao" content="1.75" />
+<meta name="versao" content="1.76" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#14293f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,7 +18,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="assets/icone-512.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icone-192.png" />
 <title>Atos Societários — Totali Soluções Contábeis</title>
-<link rel="stylesheet" href="css/app.css?v=1.75">
+<link rel="stylesheet" href="css/app.css?v=1.76">
 </head>
 <body>
 <!-- Tela de carregamento: as bibliotecas (docx, pdf.js, OCR) levam um instante e, sem sinal nenhum,
@@ -609,8 +609,10 @@
     <nav class="secoes" id="secoesIdx" aria-label="Seções do formulário"></nav>
     <button class="btn o" id="btnValidar" aria-label="Validar preenchimento">✓ Validar<span class="so-pc"> preenchimento</span></button>
     <button class="btn p" id="btnGerar">👁 <span class="so-pc">Gerar </span>prévia</button>
-    <button class="btn g" id="btnBaixar">⬇ .docx</button>
-    <button class="btn o" id="btnPDF">⬇ PDF</button>
+    <!-- Baixar só na etapa "Documento", depois da confirmação do cliente: estes dois ficam ESCONDIDOS
+         aqui e são o motor que os botões da etapa acionam (data-et-baixar → click). Não apagar. -->
+    <button class="btn g" id="btnBaixar" hidden style="display:none">⬇ .docx</button>
+    <button class="btn o" id="btnPDF" hidden style="display:none">⬇ PDF</button>
     <span class="status muted" id="status">Preencha os dados e gere a prévia.</span>
     <button class="btn p" id="btnProximo" type="button" title="Ir para a conferência (pré-protocolo e antes e depois)">Próximo<span class="so-pc">: conferência</span> →</button>
   </div>
@@ -1164,21 +1166,21 @@ window.__pdfjsFallback=function(){
      Ele existe para o service worker ANTIGO não encontrar o arquivo no cache e ser obrigado a buscar
      da rede: sem isso, na primeira abertura depois de uma atualização a página nova rodava com o
      js/nuvem.js velho, e o que dependia dos dois falhava calado. -->
-<script defer src="js/nuvem-config.js?v=1.75"></script>
-<script defer src="js/nuvem.js?v=1.75"></script>
-<script defer src="js/integracao.js?v=1.75"></script>
-<script defer src="js/modelos-coop.js?v=1.75"></script>
-<script defer src="js/gerador-coop.js?v=1.75"></script>
-<script defer src="js/modelos-sa.js?v=1.75"></script>
-<script defer src="js/gerador-sa.js?v=1.75"></script>
-<script defer src="js/gerador-sia.js?v=1.75"></script>
+<script defer src="js/nuvem-config.js?v=1.76"></script>
+<script defer src="js/nuvem.js?v=1.76"></script>
+<script defer src="js/integracao.js?v=1.76"></script>
+<script defer src="js/modelos-coop.js?v=1.76"></script>
+<script defer src="js/gerador-coop.js?v=1.76"></script>
+<script defer src="js/modelos-sa.js?v=1.76"></script>
+<script defer src="js/gerador-sa.js?v=1.76"></script>
+<script defer src="js/gerador-sia.js?v=1.76"></script>
 <script src="lib/pdfmake.min.js"></script>
 <script src="lib/pdfmake-times.js"></script>
 <script src="lib/tesseract.min.js"></script>
 <!-- Parâmetros tributários (valor + vigência + fonte) usados pela etapa 2; gerado por script, não editar à mão -->
-<script src="js/parametros-tributarios.js?v=1.75"></script>
-<script src="js/erros.js?v=1.75"></script>
-<script src="js/app.js?v=1.75"></script>
+<script src="js/parametros-tributarios.js?v=1.76"></script>
+<script src="js/erros.js?v=1.76"></script>
+<script src="js/app.js?v=1.76"></script>
 <button id="btnTopo" type="button" title="Voltar ao topo" aria-label="Voltar ao topo">↑</button>
 <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 <div id="draftBanner">
