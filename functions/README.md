@@ -98,6 +98,23 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
 - Um pedido novo no mesmo grupo, depois de um enviado, começa limpo: não herda empresa nem processo.
 - Figurinhas e reações são ignoradas.
 - **Sem atendimento humano pelo robô:** o grupo é interno (comercial e legalização), não tem cliente. Não existe o comando *equipe* nem a opção *0* (tirados na v1.75).
+- **Comentário** (18/11/2026): *comentário: o cliente tem pressa* (ou *comentário* sozinho e o texto na
+  mensagem seguinte) entra na **conversa da solicitação no Atos** (campo `respostas`, o mesmo das respostas
+  do comercial, marcado como novo) e vira **comentário na pendência do Hub** (evento
+  `solicitacao.comentario` do `receber.gs`, com o nome de quem escreveu). Não muda as respostas do pedido.
+  Sem pedido enviado ainda, fica guardado na conversa e vai junto no envio. O que o Hub não recebeu fica em
+  `comentarios_hub/{id}` e é reenviado no próximo pedido e na faxina (até 10 vezes; recebedor antigo responde
+  `ignorado`, e isso conta como não entregue). Legenda de arquivo nunca é comentário.
+- **Pausa** (18/11/2026): *pausar* cala o robô para a equipe conversar no grupo; *ativar* volta na hora.
+  Cada mensagem durante a pausa estica mais 5 minutos; depois de 5 minutos sem mensagem, a primeira que
+  chegar já é atendida (com o aviso "a pausa acabou"). Não há relógio: a pausa vencida só é notada na
+  mensagem seguinte. Na pausa nada é baixado, transcrito, gravado nem respondido (arquivo mandado nela
+  precisa ser mandado de novo). A marca fica em `conversas/{chat}.pausaAte` (milissegundos). Mensagem do
+  próprio número do escritório não estica a pausa (o robô ignora essas mensagens).
+- **Quem fez o pedido** (18/11/2026): é quem começou a conversa do pedido, não quem mandou a última
+  mensagem; os outros que participaram vão como "(com …)". A **descrição** escrita pela equipe (anotações,
+  "Descreva o pedido") abre a observação e o texto do pedido, com 📝. Texto escrito enquanto o robô pergunta
+  o tipo de um arquivo não é mais descartado: vira anotação, ou escolhe o pedido se descrever um.
 
 ## Operação
 

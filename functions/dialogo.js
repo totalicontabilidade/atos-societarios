@@ -267,7 +267,27 @@ function retomar(estado, msgs) {
 }
 
 const LGPD = "🔒 Os dados e documentos mandados aqui vão para o Atos e só servem para preparar o ato (LGPD). Mande só o que for do processo.";
-const AJUDA = "Comandos: *enviar* (manda o pedido com o que já tem) · *voltar* (pergunta anterior) · *resumo* · *menu* (recomeçar) · *cancelar*.";
+const AJUDA = "Comandos: *enviar* (manda o pedido com o que já tem) · *voltar* (pergunta anterior) · *resumo* · *menu* (recomeçar) · *cancelar* · *comentário …* (vai para o Atos e o Hub) · *pausar* (o robô fica quieto; *ativar* volta).";
+
+// ─── comentário para o Hub e pausa do robô ───────────────────────────────────
+// "comentário: cliente tem pressa" → entra na conversa da solicitação no Atos e vira comentário na pendência do Hub.
+// "comentário" sozinho → a próxima mensagem escrita é o comentário.
+const RE_COMENTARIO = /^\s*(?:coment[aá]rio|comentar|coment)(?=$|[\s:,;.\-–])[\s:,;.\-–]*/i;
+function comentarioDoTexto(texto) {
+  const t = String(texto || ""), m = RE_COMENTARIO.exec(t);
+  return m ? t.slice(m[0].length).trim() : null;
+}
+// "pausar" deixa o grupo conversar sem o robô; volta com "ativar" ou depois de 5 minutos sem mensagem
+const PAUSA_MS = 5 * 60000;
+function comandoPausa(texto) {
+  const t = semAcento(String(texto || "").trim()).replace(/[.!]+$/, "").replace(/\s+/g, " ").trim();
+  if (/^(pausar|pausa|pause|pausar (o )?robo|robo pausa(do)?)$/.test(t)) return "pausar";
+  if (/^(ativar|ativa|ativar (o )?robo|despausar|retomar|robo ativo)$/.test(t)) return "ativar";
+  return null;
+}
+// Pausa ativa agora? (pausaAte em milissegundos)
+const pausado = (estado, agoraMs) => !!(estado && estado.pausaAte && Number(estado.pausaAte) > (agoraMs || Date.now()));
+const PALAVRAS_COMANDO = /^(menu|cancelar|enviar|resumo|voltar|ajuda|pausar|ativar|ok|pular)$/i;
 
 // ─── motor ─────────────────────────────────────────────────────────────────
 function novoEstado(extra) { return Object.assign({ fluxo: null, respostas: {}, ordem: [], criadoEm: new Date().toISOString() }, extra || {}); }
@@ -346,8 +366,9 @@ function resumo(estado) {
   const f = FLUXOS[estado.fluxo]; if (!f) return "Nada respondido ainda.";
   const linhas = passosAtivos(estado).filter((p) => estado.respostas[p.id] !== undefined).map((p, i) => `*${i + 1}.* ${rotuloPasso(p, estado)}: ${valorLegivel(p, estado.respostas[p.id])}`);
   const av = estado.respostas["_arq.avulsos"] || [];
-  const notas = estado.respostas._notas || [];
-  return `📋 *${f.nome}*\n` + (linhas.join("\n") || "—") + (av.length ? `\nOutros arquivos: ${av.map(descricaoCurta).join("; ")}` : "") + (notas.length ? `\nAnotações: ${notas.join(" / ")}` : "");
+  const notas = estado.respostas._notas || [], coments = estado.comentarios || [];
+  return `📋 *${f.nome}*\n` + (linhas.join("\n") || "—") + (av.length ? `\nOutros arquivos: ${av.map(descricaoCurta).join("; ")}` : "") + (notas.length ? `\nAnotações: ${notas.join(" / ")}` : "")
+    + (coments.length ? `\nComentários: ${coments.length}` : "");
 }
 // Todos os arquivos guardados nesta conversa (para apagar do Storage quando o pedido é cancelado)
 function todosArquivos(estado) {
@@ -372,7 +393,7 @@ const NUMERICOS = ["cpf", "cnpj", "cep", "data", "fone", "dinheiro", "inteiro", 
 const RE_ENVIAR = /^(enviar|envia|envie|enviar assim|enviar agora|pode enviar|manda assim|mandar assim|pode mandar|enviar só isso|enviar so isso)$/i;
 const RE_PRONTO = /^(ok|okay|pronto|continuar|seguir|terminei|só isso|so isso|é isso|e isso|acabou|fim|foi tudo|é tudo|e tudo)$/i;
 const RE_PULAR = /^(pular|nao|não|n[aã]o tenho|sem|nenhum[ao]?|depois)$/i;
-function zerarPedido(estado) { estado.fluxo = null; estado.respostas = {}; estado.ordem = []; estado.arquivosPendentes = []; estado.destinoPendentes = null; estado.rotuloProximo = null; estado.aguardandoCorrecao = false; }
+function zerarPedido(estado) { estado.participantes = estado.remetenteNome ? [estado.remetenteNome] : []; estado.fluxo = null; estado.respostas = {}; estado.ordem = []; estado.arquivosPendentes = []; estado.destinoPendentes = null; estado.rotuloProximo = null; estado.aguardandoCorrecao = false; }
 
 const CONF_MENU = "Recomeçar apaga o que já foi respondido e os arquivos deste pedido. Confirma? *1* — Sim, recomeçar · *2* — Não, continuar";
 const CONF_CANCELAR = "Cancelar apaga este pedido e os arquivos dele. Confirma? *1* — Sim · *2* — Não";
@@ -399,11 +420,24 @@ function receberMensagem(estadoIn, entrada) {
   const midia = entrada.midia || null;
   if (entrada.remetenteTel) estado.remetenteTel = entrada.remetenteTel;
   if (entrada.remetenteNome) estado.remetenteNome = entrada.remetenteNome;
+  // quem participou deste pedido (o grupo é um só: um descreve, outro manda os arquivos, outro envia)
+  const quemAgora = entrada.remetenteNome || entrada.remetenteTel || "";
+  if (quemAgora && !(estado.participantes || []).includes(quemAgora)) estado.participantes = (estado.participantes || []).concat([quemAgora]).slice(-6);
   estado.atualizadoEm = new Date().toISOString();
   const msgs = [], out = { estado, mensagens: msgs, acao: null };
 
   // comandos globais (só em mensagem de texto: legenda de arquivo nunca é comando)
   if (!midia) {
+    // comentário para o Hub: "comentário: …", ou a mensagem logo depois de "comentário" sozinho
+    let coment = comentarioDoTexto(texto);
+    if (coment === null && estado.aguardandoComentario && texto && !PALAVRAS_COMANDO.test(t)) coment = texto;
+    estado.aguardandoComentario = false;
+    if (coment !== null) {
+      if (!coment) { estado.aguardandoComentario = true; msgs.push("💬 Escreva o comentário na próxima mensagem. Ele vai para a solicitação no Atos e para a pendência no Hub (não muda as respostas do pedido)."); return out; }
+      comentar(estado, out, msgs, coment);
+      if ((estado.fluxo && estado.respostas.confirmar !== "sim") || estado.cancelando) { const q = mensagemAtual(estado); if (q) msgs.push(q); }
+      return out;
+    }
     if (/^(menu|recomeçar|recomecar|início|inicio|oi|olá|ola|bom dia|boa tarde|boa noite)$/i.test(t) && (!estado.fluxo || /^(menu|recomeçar|recomecar)$/i.test(t))) {
       if (estado.fluxo && Object.keys(estado.respostas).length && estado.respostas.confirmar !== "sim") { estado.cancelando = "menu"; msgs.push(CONF_MENU); return out; }
       const av = estado.fluxo ? null : estado.respostas["_arq.avulsos"], pend = estado.fluxo ? [] : (estado.arquivosPendentes || []);
@@ -414,6 +448,7 @@ function receberMensagem(estadoIn, entrada) {
     if (estado.cancelando) {
       if (/^(1|sim|s)$/i.test(t)) {
         const modo = estado.cancelando; out.descartar = todosArquivos(estado); estado.cancelando = null; zerarPedido(estado);
+        if ((estado.comentarios || []).length && !estado.solicId) estado.comentarios = [];   // eram do pedido descartado
         if (modo === "cancelar") { out.acao = "cancelado"; msgs.push("Pedido cancelado. Para começar outro, mande *menu*."); } else msgs.push(menuTexto(estado));
         return out;
       }
@@ -491,16 +526,23 @@ function receberMensagem(estadoIn, entrada) {
     else msgs.push(`📎 Recebi também *${midia.nome}*. Antes, me diga que documento é o anterior.`);
     return out;
   }
+  // Arquivo sem tipo esperando resposta. Texto que não é tipo de documento NÃO é jogado fora (até
+  // 18/11/2026 era: a descrição do pedido escrita nessa hora se perdia): se descreve um pedido e ainda
+  // não há pedido escolhido, escolhe o pedido; frase com 3+ palavras vira anotação. Depois pergunta de novo.
   if (pendentes()) {
     let tipo = escolherOpcao(texto, TIPOS_ARQ.map((x) => [x[0], x[1]])), desc = "";
     if (!tipo && /\b(engano|errad[oa]|descart|apag)/.test(semAcento(texto))) tipo = "descartar";
     if (!tipo) { tipo = classificarDoc(texto); desc = texto; }
-    if (!tipo) { msgs.push("Não entendi o tipo. Responda com o *número* ou escreva o documento (ex.: *RG da Maria*).\n\n" + perguntaTipoArquivo(estado)); return out; }
-    const arq = estado.arquivosPendentes.shift();
-    if (tipo === "descartar") { out.descartar = (out.descartar || []).concat([arq]); msgs.push(`🗑 Descartei *${arq.nome}*.`); }
-    else guardarClassificado(estado, out, msgs, rotular(arq, tipo, desc || arq.legenda));
-    if (!pendentes()) estado.destinoPendentes = null;
-    retomar(estado, msgs); return out;
+    if (!tipo && !estado.fluxo && texto.length >= 4 && adivinharFluxo(texto)) { /* segue: escolhe o pedido logo abaixo */ }
+    else if (!tipo && texto.split(/\s+/).length >= 3) { anotar(estado, texto); msgs.push(`📝 Anotado: _${texto.slice(0, 120)}_ (vai junto no pedido).`); msgs.push(perguntaTipoArquivo(estado)); return out; }
+    else if (!tipo) { msgs.push("Não entendi o tipo. Responda com o *número* ou escreva o documento (ex.: *RG da Maria*).\n\n" + perguntaTipoArquivo(estado)); return out; }
+    else {
+      const arq = estado.arquivosPendentes.shift();
+      if (tipo === "descartar") { out.descartar = (out.descartar || []).concat([arq]); msgs.push(`🗑 Descartei *${arq.nome}*.`); }
+      else guardarClassificado(estado, out, msgs, rotular(arq, tipo, desc || arq.legenda));
+      if (!pendentes()) estado.destinoPendentes = null;
+      retomar(estado, msgs); return out;
+    }
   }
 
   // sem fluxo: a resposta é o menu
@@ -523,6 +565,8 @@ function receberMensagem(estadoIn, entrada) {
     if (v === "alterar" && notas && notas.length) { const m = mudancasDoTexto(notas.join(" ")); if (m.length) { estado.respostas.oQueMuda = m; estado.ordem.push("oQueMuda"); } }
     msgs.push(`Vamos lá: *${FLUXOS[v].nome}*.` + (adivinhado ? " (Entendi pela mensagem. Se não for isso, mande *menu*.)" : ""));
     if (av && av.length && !passoDocs) msgs.push(`Já está guardado: ${av.map(descricaoCurta).join("; ")}.`);
+    // arquivo ainda sem tipo (o pedido foi escrito enquanto o robô perguntava): entra na documentação do pedido
+    if (pendentes()) { if (passoDocs) { estado.respostas["_arq." + passoDocs.id] = estado.respostas["_arq." + passoDocs.id] || []; estado.destinoPendentes = "_arq." + passoDocs.id; } msgs.push(perguntaTipoArquivo(estado)); return out; }
     const p0 = passoAtual(estado); if (p0) msgs.push(textoPergunta(p0, estado)); return out;
   }
 
@@ -544,7 +588,7 @@ function receberMensagem(estadoIn, entrada) {
   if (!p) {
     // tudo respondido: confirmação final
     if (estado.respostas.confirmar === undefined) {
-      if (/^(1|sim|confirmar|confirmo|ok)$/i.test(t)) { estado.respostas.confirmar = "sim"; estado.encerrado = true; out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); msgs.push("✅ Pedido enviado: já está no Atos, na lista de solicitações, para a legalização."); return out; }
+      if (/^(1|sim|confirmar|confirmo|ok)$/i.test(t)) { estado.respostas.confirmar = "sim"; estado.encerrado = true; out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); levarComentarios(estado, out.dados); msgs.push("✅ Pedido enviado: já está no Atos, na lista de solicitações, para a legalização."); return out; }
       if (/^(2|corrigir|não|nao|n)$/i.test(t)) { estado.aguardandoCorrecao = true; msgs.push(resumo(estado) + "\n\nQual item quer corrigir? Digite o *número*."); return out; }
       msgs.push(resumo(estado) + "\n\nEstá tudo certo? *1* — Confirmar e enviar · *2* — Corrigir algo"); return out;
     }
@@ -582,11 +626,24 @@ function enviarAgora(estado, out, msgs) {
   });
   estado.cancelando = null; estado.aguardandoCorrecao = false; estado.rotuloProximo = null;
   r.confirmar = "sim"; estado.encerrado = true; estado.enviadoAntesDoFim = true;
-  out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado);
+  out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); levarComentarios(estado, out.dados);
   const faltou = out.dados.faltou || [];
   msgs.push(resumo(estado) + "\n\n✅ Pedido enviado com o que já tem: está no Atos, na lista de solicitações, para a legalização." +
     (faltou.length ? `\nFicou para a legalização ver nos documentos: ${faltou.join("; ").replace(/\?$/, "")}.` : "") + "\nArquivos mandados agora ainda entram neste pedido.");
 }
+// Comentário para o Hub. Com processo no Atos (pedido já enviado ou conversa vinculada), sai na hora
+// (acao "comentar"; quem avisa se o Hub recebeu é o webhook). Sem processo ainda, fica guardado e vai
+// junto quando o pedido for enviado (levarComentarios).
+function comentar(estado, out, msgs, texto) {
+  const c = { id: "C" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), texto: String(texto).trim().slice(0, 1000),
+    por: estado.remetenteNome || estado.remetenteTel || "", em: new Date().toISOString() };
+  if (estado.solicId) { out.acao = "comentar"; out.comentario = c; return; }
+  estado.comentarios = (estado.comentarios || []).concat([c]).slice(-20);
+  msgs.push(`💬 Comentário guardado: vai para o Atos e para o Hub junto com o pedido, quando ele for enviado.`);
+}
+// Na hora de enviar: os comentários guardados vão junto, e a lista de quem participou recomeça para o próximo pedido
+function levarComentarios(estado, dados) { dados.comentarios = (estado.comentarios || []).slice(); estado.comentarios = []; estado.participantes = []; }
+
 // Arquivo já identificado: entra na documentação do pedido em andamento, ou é juntado ao pedido já enviado
 function guardarClassificado(estado, out, msgs, item) {
   if (estado.respostas.confirmar === "sim") { out.anexar = (out.anexar || []).concat([item]); out.acao = out.acao || "anexar"; msgs.push(`📎 ${descricaoCurta(item)}: juntado ao pedido já enviado.`); return; }
@@ -606,7 +663,7 @@ function montarSolicitacao(estado) {
     if (p.tipo === "arquivo") v.forEach((a) => { anexos.push(Object.assign({ passo: p.id }, a)); marcaDoc(a.doc); }); });
   (r["_arq.avulsos"] || []).forEach((a) => { anexos.push(Object.assign({ passo: "avulso" }, a)); marcaDoc(a.doc); });
   (estado.arquivosPendentes || []).forEach((a) => anexos.push(Object.assign({ passo: "avulso", doc: "", docNome: "Não identificado" }, a, { nome: `Não identificado — ${a.nome}` })));
-  const linhas = passos.filter((p) => r[p.id] !== undefined && p.tipo !== "arquivo").map((p) => `${rotuloPasso(p, estado)}: ${valorLegivel(p, r[p.id])}`);
+  const linhas = passos.filter((p) => r[p.id] !== undefined && p.tipo !== "arquivo" && p.id !== "descricao" && p.id !== "outroDetalhe").map((p) => `${rotuloPasso(p, estado)}: ${valorLegivel(p, r[p.id])}`);
   const cnpj = r.cnpj ? cnpjLimpo(r.cnpj) : (estado.cnpj || "");
   const ex = extrasDoTexto(r.extras);
   const empresa = estado.empresa || r.nomeEmpresa || r.novoNome || (cnpj ? "CNPJ " + fmtCNPJ(cnpj) : "") || (r.contatoNome || ex.contatoNome ? "Pedido de " + (r.contatoNome || ex.contatoNome) : "Pedido pelo WhatsApp");
@@ -614,15 +671,26 @@ function montarSolicitacao(estado) {
   const prazoTxt = r.prazo || ex.prazo;
   const prazo = /^\d{2}\/\d{2}\/\d{4}$/.test(String(prazoTxt || "")) ? prazoTxt : "";
   const faltou = passos.filter((p) => !p.opcional && p.tipo !== "arquivo" && (r[p.id] === undefined || r[p.id] === "")).map((p) => rotuloPasso(p, estado));
-  const quem = estado.remetenteNome || estado.remetenteTel || "";
+  // Quem fez o pedido é quem COMEÇOU (o primeiro a escrever), não quem mandou a última mensagem: o
+  // grupo é um só, e até 18/11/2026 o pedido descrito pelo Raoni e enviado pelo Hesley saía "feito por Hesley".
+  const pessoas = (estado.participantes || []).length ? estado.participantes : [estado.remetenteNome || estado.remetenteTel || ""].filter(Boolean);
+  const quem = pessoas[0] || "", outros = pessoas.slice(1);
+  const autoria = quem ? quem + (outros.length ? " (com " + outros.join(", ") + ")" : "") : "";
+  // A descrição escrita pela equipe vem PRIMEIRO na observação: é ela que diz o que fazer. Antes ficava
+  // na 3ª linha, depois do texto padrão, e o cartão do Atos mostra só 4 linhas.
+  const desc = [r.descricao, r.outroDetalhe].concat(r._notas || []).filter((x) => x && String(x).trim()).map((x) => String(x).trim());
+  const descricao = desc.filter((x, i) => desc.indexOf(x) === i);
   return {
     empresa, cnpj: cnpj ? fmtCNPJ(cnpj) : "", tipo: f.tipoAto, pedidos, docsOk,
-    contato: contatoNome || "", fone: contatoFone || "", prazo, solicitante: quem, faltou,
-    pedidoTexto: `${f.nome} — pedido feito pelo WhatsApp${quem ? " por " + quem : ""}.` + (r.descricao ? " " + r.descricao : "") + (r.outroDetalhe ? " " + r.outroDetalhe : "") + ((r._notas || []).length ? " Anotações: " + r._notas.join(" / ") : ""),
-    obs: `Pedido pelo WhatsApp (${f.nome})${quem ? ", feito por " + quem : ""}, ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.\n` + linhas.join("\n") + ((r._notas || []).length ? "\nAnotações da equipe: " + r._notas.join(" / ") : "")
+    contato: contatoNome || "", fone: contatoFone || "", prazo, solicitante: quem, participantes: pessoas, faltou, descricao,
+    pedidoTexto: (descricao.length ? descricao.join(" / ") + " — " : "") + `${f.nome}, pedido feito pelo WhatsApp${autoria ? " por " + autoria : ""}.`,
+    obs: (descricao.length ? "📝 " + descricao.join("\n📝 ") + "\n\n" : "")
+      + `Pedido pelo WhatsApp (${f.nome})${autoria ? ", feito por " + autoria : ""}, ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.`
+      + (linhas.length ? "\n" + linhas.join("\n") : "")
       + (faltou.length ? "\nEnviado antes do fim; ver nos documentos: " + faltou.join("; ") : ""),
     anexos, respostas: r, fluxo: estado.fluxo,
   };
 }
 
-module.exports = { FLUXOS, MENU, LGPD, TIPOS_ARQ, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto, classificarDoc, adivinharFluxo, mensagemAtual, textoFalado, extrasDoTexto, mudancasDoTexto };
+module.exports = { FLUXOS, MENU, LGPD, TIPOS_ARQ, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto, classificarDoc, adivinharFluxo, mensagemAtual, textoFalado, extrasDoTexto, mudancasDoTexto,
+  comentarioDoTexto, comandoPausa, pausado, PAUSA_MS };

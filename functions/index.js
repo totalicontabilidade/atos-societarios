@@ -119,6 +119,11 @@ async function tratar(ev, chatRef, filaRef, n, saida) {
   const naVez = async () => { if (!saida.esperou) { await esperarVez(filaRef, n); saida.esperou = true; } };
   // dentro do grupo do robô, "vincular 123456" liga a conversa a um processo do Atos
   if (ev.codigoVinculo) { await naVez(); return vincular(ev, chatRef, falar); }
+  // PAUSA: com o robô pausado, nada é baixado, transcrito nem respondido; cada mensagem estica a pausa
+  const cmdPausa = ev.temMidia ? null : dialogo.comandoPausa(ev.texto);
+  if (cmdPausa) await naVez();
+  const pausa = await controlarPausa(ev, chatRef, cmdPausa, falar, saida);
+  if (pausa) return pausa;
   // mídia: baixa pela Evolution e guarda no Storage antes de o diálogo decidir o que é
   let midia = null;
   // áudio vira texto (Whisper na VPS) e segue como se tivesse sido digitado
@@ -127,6 +132,8 @@ async function tratar(ev, chatRef, filaRef, n, saida) {
     if (!t.ok) { falar(t.aviso); return { audio: t.erro }; }
     falar(`🎤 Entendi: _${t.texto.slice(0, 500)}_`);
     ev = Object.assign({}, ev, { texto: dialogo.textoFalado(t.texto), temMidia: false, mensagemBruta: null, midiaBase64: null });
+    const falado = dialogo.comandoPausa(ev.texto);   // "pausar" dito em áudio
+    if (falado) { await naVez(); return controlarPausa(ev, chatRef, falado, falar, saida); }
   }
   if (ev.temMidia) {
     if (ev.tipo === "figurinha") return { ignorado: "figurinha" };
@@ -143,18 +150,109 @@ async function tratar(ev, chatRef, filaRef, n, saida) {
   let r = null, novo = null;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(chatRef);
-    const estado = snap.exists ? snap.data() : dialogo.novoEstado({ chatJid: ev.chatJid, grupo: ev.grupo });
+    // (a conversa pode existir só com a marca da pausa: completa com o estado vazio)
+    const estado = Object.assign(dialogo.novoEstado({ chatJid: ev.chatJid, grupo: ev.grupo }), snap.exists ? snap.data() : {});
     r = dialogo.receber(estado, { texto: ev.texto, midia, remetenteTel: ev.remetenteTel, remetenteNome: ev.remetenteNome });
     novo = Object.assign(r.estado, { chatJid: ev.chatJid, grupo: ev.grupo, ultimaMsgEm: ev.enviadaEm.toISOString(), atualizadoEm: agoraISO() });
     if (r.acao === "cancelado") novo.canceladoEm = agoraISO();
     tx.set(chatRef, novo);
   });
   let resultado = { acao: r.acao || null };
-  if (r.acao === "criar_solicitacao") { resultado.solicId = await gravarSolicitacao(novo, r.dados); novo.solicId = resultado.solicId; await chatRef.set({ solicId: resultado.solicId }, { merge: true }); }
+  if (r.acao === "criar_solicitacao") {
+    resultado.solicId = await gravarSolicitacao(novo, r.dados); novo.solicId = resultado.solicId; await chatRef.set({ solicId: resultado.solicId }, { merge: true });
+    // comentários escritos antes de o pedido existir: vão agora para a pendência que acabou de nascer
+    if ((r.dados.comentarios || []).length) { const c = await enviarComentarios(resultado.solicId, r.dados.comentarios); r.avisos.push(textoComentarios(c)); }
+  }
+  if (r.acao === "comentar" && r.comentario) { const c = await enviarComentarios(novo.solicId, [r.comentario]); resultado.comentario = c.ok ? "entregue" : "pendente"; falar(textoComentarios(c)); }
   if (r.acao === "anexar" && r.anexar && r.anexar.length) resultado.anexados = await anexarNaSolicitacao(novo, r.anexar);
   if (r.descartar && r.descartar.length) await Promise.all(r.descartar.map((a) => a.caminho ? bucket().file(a.caminho).delete().catch((e) => logger.warn("arquivo descartado não apagado", { e: e.message })) : null));
   r.avisos.forEach(falar); if (r.pergunta) saida.perguntar = true;
   return resultado;
+}
+
+// ─── pausa do robô ────────────────────────────────────────────────────────────
+// "pausar" deixa a equipe conversar no grupo sem o robô no meio. Cada mensagem durante a pausa a
+// estica por mais 5 minutos (é "5 minutos sem interação"); "ativar" volta na hora. Não há relógio
+// rodando: a pausa vencida é percebida na primeira mensagem depois dela, que o robô já atende.
+// Devolve o resultado quando a mensagem para aqui, ou null para seguir o atendimento normal.
+async function controlarPausa(ev, chatRef, cmd, falar, saida) {
+  const agora = Date.now(), ate = agora + dialogo.PAUSA_MS, quem = ev.remetenteNome || ev.remetenteTel || "";
+  const r = await db.runTransaction(async (tx) => {
+    const s = await tx.get(chatRef), e = s.exists ? s.data() : {};
+    const ativa = dialogo.pausado(e, agora);
+    if (cmd === "pausar") { tx.set(chatRef, { pausaAte: ate, pausadaPor: quem, pausadaEm: agoraISO() }, { merge: true }); return ativa ? "continua" : "pausou"; }
+    if (cmd === "ativar") { if (e.pausaAte) tx.set(chatRef, { pausaAte: null, ativadaPor: quem, ativadaEm: agoraISO() }, { merge: true }); return ativa ? "ativou" : "jaAtivo"; }
+    if (ativa) { tx.set(chatRef, { pausaAte: ate }, { merge: true }); return "calado"; }
+    if (e.pausaAte) { tx.set(chatRef, { pausaAte: null }, { merge: true }); return "venceu"; }
+    return null;
+  });
+  if (r === "pausou") falar("⏸ Robô *pausado*: podem conversar à vontade. Volto sozinho depois de *5 minutos* sem mensagens no grupo, ou quando alguém mandar *ativar*.\nArquivos mandados durante a pausa *não* são guardados.");
+  else if (r === "continua") falar("⏸ Continuo pausado: volto depois de 5 minutos sem mensagens, ou com *ativar*.");
+  else if (r === "ativou" || r === "jaAtivo") { falar(r === "ativou" ? "▶️ Robô *ativo* de novo. Se mandaram arquivo durante a pausa, mandem outra vez." : "▶️ O robô já está ativo."); saida.perguntar = true; }
+  else if (r === "venceu") { falar("▶️ A pausa acabou (5 minutos sem mensagens no grupo); voltei."); return null; }
+  if (!r) return null;
+  return { pausa: r };
+}
+
+// ─── comentário para o Hub ────────────────────────────────────────────────────
+// "comentário: …" no grupo entra na conversa da solicitação no Atos (respostas, como as do comercial) e
+// vira comentário na pendência do Hub daquela solicitação. No Hub, cada um fica em comentarios_hub/{id} até o Hub confirmar; o que não entrou (Hub fora,
+// recebedor sem o evento novo, pendência ainda não criada) é reenviado no próximo pedido e na faxina.
+async function enviarComentarios(solicId, lista) {
+  const s = solicId ? await db.collection("solicitacoes").doc(solicId).get() : null;
+  const reg = Object.assign({ id: solicId || "" }, s && s.exists ? s.data() : {});
+  const res = { ok: 0, falhou: 0, empresa: reg.empresa || "", erro: "", noAtos: false };
+  // no Atos: entra na conversa do pedido (o mesmo lugar das respostas do comercial), marcada como nova
+  if (s && s.exists) res.noAtos = await comentarNoAtos(solicId, lista).catch((e) => { logger.warn("comentário não gravado no Atos", { e: e.message }); return false; });
+  if (solicId) await reenviarComentariosPendentes(solicId).catch(() => 0);   // os mais antigos primeiro
+  for (const c of lista) {
+    const ref = db.collection("comentarios_hub").doc(c.id);
+    await ref.set(Object.assign({}, c, { solicId: solicId || "", pendente: true, tentativas: 0, criadoEm: new Date() }));
+    const r = solicId ? await entregarComentario(reg, c) : { ok: false, erro: "sem solicitação" };
+    if (r.ok) { await ref.delete(); res.ok++; }
+    else { res.falhou++; res.erro = r.erro; await ref.set({ tentativas: 1, erro: String(r.erro).slice(0, 300), tentadoEm: agoraISO() }, { merge: true }); }
+  }
+  return res;
+}
+// Conversa do pedido no Atos: `respostas` ({ txt, em, por, anexos }), com respostaNova para quem
+// cadastra ver o "nova". Repetir não duplica (id do comentário).
+async function comentarNoAtos(solicId, lista) {
+  const ref = db.collection("solicitacoes").doc(solicId);
+  await db.runTransaction(async (tx) => {
+    const s = await tx.get(ref); if (!s.exists) return;
+    const atual = s.data().respostas || [], ids = new Set(atual.map((x) => x && x.id).filter(Boolean));
+    const novos = lista.filter((c) => !ids.has(c.id)).map((c) => ({ id: c.id, txt: c.texto, em: c.em || agoraISO(), por: (c.por ? c.por + " (WhatsApp)" : "WhatsApp"), anexos: [], origem: "whatsapp" }));
+    if (!novos.length) return;
+    tx.update(ref, { respostas: atual.concat(novos).slice(-30), respostaNova: true, alteradoEm: agoraISO() });
+  });
+  return true;
+}
+async function entregarComentario(reg, c) {
+  const r = await postarHub("solicitacao.comentario", reg, { comentario: { id: c.id, texto: c.texto, por: c.por || "", em: c.em || agoraISO() } });
+  if (r.ok && r.resposta && r.resposta.semPendencia) return { ok: false, erro: "a pendência desta solicitação ainda não está no Hub" };
+  if (!r.ok) logger.warn("comentário NÃO entrou no Hub", { id: reg.id, erro: r.erro });
+  return r;
+}
+function textoComentarios(c) {
+  const n = c.ok + c.falhou, um = n === 1;
+  const atos = c.noAtos ? "na solicitação do Atos e " : "";
+  if (!c.falhou) return `💬 ${um ? "Comentário anotado" : n + " comentários anotados"} ${atos}na pendência do Hub${c.empresa ? ` (${c.empresa})` : ""}.`;
+  return `💬 ${um ? "Comentário anotado" : n + " comentários anotados"}${c.noAtos ? " na solicitação do Atos" : ""}, mas o Hub não recebeu agora; tento de novo sozinho.`;
+}
+async function reenviarComentariosPendentes(soDaSolic) {
+  let q = db.collection("comentarios_hub").where("pendente", "==", true);
+  if (soDaSolic) q = q.where("solicId", "==", soDaSolic);
+  const docs = (await q.limit(30).get()).docs.map((d) => Object.assign({ _ref: d.ref }, d.data()))
+    .filter((c) => c.solicId && (c.tentativas || 0) < 10).sort((a, b) => String(a.em).localeCompare(String(b.em)));
+  const regs = {};
+  let n = 0;
+  for (const c of docs) {
+    if (!regs[c.solicId]) { const s = await db.collection("solicitacoes").doc(c.solicId).get(); regs[c.solicId] = Object.assign({ id: c.solicId }, s.exists ? s.data() : {}); }
+    const r = await entregarComentario(regs[c.solicId], c);
+    if (r.ok) { await c._ref.delete(); n++; }
+    else await c._ref.set({ tentativas: admin.firestore.FieldValue.increment(1), erro: String(r.erro).slice(0, 300), tentadoEm: agoraISO() }, { merge: true });
+  }
+  return n;
 }
 
 // ─── fila de respostas ────────────────────────────────────────────────────────
@@ -290,7 +388,7 @@ async function vincular(ev, chatRef, falar) {
   const snap = await chatRef.get();
   const estado = dialogo.novoEstado(Object.assign(snap.exists ? snap.data() : {}, {
     chatJid: ev.chatJid, grupo: ev.grupo, empresa: c.empresa || "", cnpj: c.cnpj || "", solicId: c.solicId || "", casoId: c.casoId || "",
-    vinculo: { codigo: ev.codigoVinculo, em: agoraISO(), por: ev.remetenteNome || ev.remetenteTel || "", autorUid: c.autorUid || "" }, fluxo: null, respostas: {}, ordem: [],
+    vinculo: { codigo: ev.codigoVinculo, em: agoraISO(), por: ev.remetenteNome || ev.remetenteTel || "", autorUid: c.autorUid || "" }, fluxo: null, respostas: {}, ordem: [], pausaAte: null,
   }));
   await chatRef.set(estado, { merge: false });
   await db.collection("vinculos").doc(chatRef.id).set({ chatJid: ev.chatJid, grupo: ev.grupo, solicId: c.solicId || "", casoId: c.casoId || "", empresa: c.empresa || "", cnpj: c.cnpj || "", em: agoraISO(), por: ev.remetenteNome || ev.remetenteTel || "" });
@@ -364,6 +462,7 @@ async function gravarSolicitacao(estado, dados) {
   await db.collection("solicitacoes").doc(id).set(reg);
   await avisarHub("solicitacao.criada", reg);
   await reenviarHubPendentes().catch(() => 0);
+  await reenviarComentariosPendentes().catch(() => 0);
   return id;
 }
 
@@ -389,27 +488,33 @@ const TIPOS_HUB = { alt: "Alteração Contratual (Ltda)", const: "Constituição
 const PEDIDOS_HUB = { abrir: "Abrir empresa", endereco: "Mudar endereço", socios: "Entrada ou saída de sócio", atividades: "Mudar atividades", capital: "Mudar capital",
   nome: "Mudar o nome", transformar: "Mudar o tipo (MEI/EI ↔ Ltda)", fechar: "Fechar a empresa", advocacia: "Sociedade de advocacia (OAB)", outro: "Outro / não sei" };
 const STATUS_HUB = { nova: "Nova", andamento: "Em andamento", cliente: "Aguardando cliente", protocolada: "Protocolada", exigencia: "Em exigência", concluida: "Finalizada", cancelada: "Cancelada" };
-function pacoteHub(evento, reg, segredo) {
+function pacoteHub(evento, reg, segredo, extra) {
   const p = String(reg.prazo || "").split("/");
   const pedidos = (reg.pedidos || []).map((k) => PEDIDOS_HUB[k]).filter(Boolean).join(", ");
-  return { evento, segredo: segredo || "", enviadoEm: agoraISO(), origem: "atos-whatsapp",
+  return { evento, segredo: segredo || "", enviadoEm: agoraISO(), origem: "atos-whatsapp", ...(extra || {}),
     solicitacao: { id: String(reg.id || ""), empresa: reg.empresa || "", cnpj: reg.cnpj || "", tipo: reg.tipo || "",
       tipoNome: TIPOS_HUB[reg.tipo] || pedidos || "Solicitação", pedido: reg.pedidoTexto || pedidos,
       prazo: p.length === 3 && p[2].length === 4 ? `${p[2]}-${p[1]}-${p[0]}` : "", responsavel: reg.responsavel || "", contato: reg.contato || "", fone: reg.fone || "",
       status: reg.status || "nova", statusNome: STATUS_HUB[reg.status] || "Nova", obs: reg.obs || "", pendencia: reg.pendencia || "", abertaPor: reg.abertaPor || "whatsapp" } };
 }
-async function avisarHub(evento, reg) {
+// Manda um evento ao Hub e lê a resposta. "ignorado" conta como NÃO entregue: é o que um recebedor
+// antigo responde a um evento que ele não conhece (ex.: solicitacao.comentario antes de republicar).
+async function postarHub(evento, reg, extra) {
   let ok = false, erro = "", resposta = null;
   try {
     const cfg = (await db.collection("solicitacoes").doc(ID_CFG_INTEGRA).get()).data() || {};
     if (!cfg.url || !/^https:\/\/script\.google(usercontent)?\.com\//.test(cfg.url)) { erro = "integração com o Hub sem endereço"; }
     else {
-      const r = await fetch(cfg.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(pacoteHub(evento, reg, cfg.segredo)), redirect: "follow", signal: AbortSignal.timeout(30000) });
+      const r = await fetch(cfg.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(pacoteHub(evento, reg, cfg.segredo, extra)), redirect: "follow", signal: AbortSignal.timeout(30000) });
       const t = await r.text(); try { resposta = JSON.parse(t); } catch { resposta = null; }
-      ok = r.ok && !!resposta && resposta.ok !== false;
-      if (!ok) erro = (resposta && resposta.erro) || `HTTP ${r.status}${resposta ? "" : " sem resposta legível"}`;
+      ok = r.ok && !!resposta && resposta.ok !== false && !resposta.ignorado;
+      if (!ok) erro = (resposta && resposta.erro) || (resposta && resposta.ignorado ? `o recebedor do Hub não conhece o evento ${evento} (republicar o receber.gs)` : `HTTP ${r.status}${resposta ? "" : " sem resposta legível"}`);
     }
   } catch (e) { erro = (e && e.message) || "falha de rede"; }
+  return { ok, erro, resposta };
+}
+async function avisarHub(evento, reg) {
+  const { ok, erro, resposta } = await postarHub(evento, reg);
   if (reg.id) {
     const marca = ok ? { ok: true, evento, em: agoraISO(), pendencia: (resposta && resposta.pendencia) || "" }
       : { ok: false, pendente: true, evento, erro: String(erro).slice(0, 300), em: agoraISO(), tentativas: admin.firestore.FieldValue.increment(1) };
@@ -435,7 +540,7 @@ async function reenviarHubPendentes() {
 exports.faxinaWhatsapp = onSchedule({ schedule: "20 3 * * *", timeZone: "America/Sao_Paulo" }, async () => {
   const limiteEv = new Date(Date.now() - DIAS_EVENTOS * 86400000), limiteCod = new Date(Date.now() - DIAS_CODIGO * 86400000);
   let n = 0;
-  for (const [col, campo, lim] of [["whatsapp_eventos", "em", limiteEv], ["codigos_vinculo", "expiraEm", limiteCod]]) {
+  for (const [col, campo, lim] of [["whatsapp_eventos", "em", limiteEv], ["codigos_vinculo", "expiraEm", limiteCod], ["comentarios_hub", "criadoEm", limiteEv]]) {
     for (;;) {
       const q = await db.collection(col).where(campo, "<", lim).limit(400).get();
       if (q.empty) break;
@@ -444,7 +549,8 @@ exports.faxinaWhatsapp = onSchedule({ schedule: "20 3 * * *", timeZone: "America
     }
   }
   const reavisados = await reenviarHubPendentes().catch((e) => { logger.warn("reenvio ao Hub falhou", { e: e.message }); return 0; });
-  logger.info("faxina", { apagados: n, reavisadosHub: reavisados });
+  const comentarios = await reenviarComentariosPendentes().catch((e) => { logger.warn("reenvio de comentários falhou", { e: e.message }); return 0; });
+  logger.info("faxina", { apagados: n, reavisadosHub: reavisados, comentariosHub: comentarios });
 });
 
 // exposto para testes locais (node --test)

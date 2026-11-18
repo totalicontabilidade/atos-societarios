@@ -165,7 +165,7 @@ test("sem pedido escolhido: texto livre já abre o pedido certo e vira anotaçã
   const n = conversa(["preciso ver isso com calma"]);
   assert.equal(n.estado.fluxo, null); assert.match(n.saidas[0], /Anotei/); assert.match(n.saidas[0], /Qual é o pedido/);
   const f = conversa(["preciso ver isso com calma", "3", "00.000.000/0001-91", "ok", "30/06/2026", "Ana", "1", "pular", "1"]);
-  assert.match(f.ultimo.dados.obs, /Anotações da equipe: preciso ver isso com calma/);
+  assert.match(f.ultimo.dados.obs, /^📝 preciso ver isso com calma\n/);
 });
 
 test("avisos separados da pergunta: a pergunta que vale vem por último e é a de agora", () => {
@@ -212,7 +212,7 @@ test("'enviar' manda o pedido com o que já tem, em qualquer pergunta; o que fal
   assert.equal(r.ultimo.acao, "criar_solicitacao");
   const s = r.ultimo.dados;
   assert.equal(s.anexos.length, 1); assert.match(s.anexos[0].nome, /estatuto ou ata/);
-  assert.match(s.obs, /Anotações da equipe: Preciso que altere a denominação social \/ CNPJ da empresa: O CNPJ consta/);
+  assert.match(s.obs, /^📝 Preciso que altere a denominação social\n📝 CNPJ da empresa: O CNPJ consta/);
   assert.match(s.obs, /Enviado antes do fim/);
   // arquivo sem tipo na documentação vai como "Não identificado"; nada para enviar = não envia
   const p = conversa(["1", { midia: arq("IMG-9.jpg") }, "enviar"]);
