@@ -429,6 +429,13 @@ function receberMensagem(estadoIn, entrada) {
   // comandos globais (só em mensagem de texto: legenda de arquivo nunca é comando)
   if (!midia) {
     // comentário para o Hub: "comentário: …", ou a mensagem logo depois de "comentário" sozinho
+    // mensagem ENCAMINHADA (em geral do cliente) não responde pergunta: é comentário, marcado como encaminhado
+    if (entrada.encaminhada && texto) {
+      estado.aguardandoComentario = false;
+      comentar(estado, out, msgs, texto, true);
+      if (((estado.fluxo && estado.respostas.confirmar !== "sim") || estado.cancelando) && !(estado.arquivosPendentes || []).length) { const q = mensagemAtual(estado); if (q) msgs.push(q); }
+      return out;
+    }
     let coment = comentarioDoTexto(texto);
     if (coment === null && estado.aguardandoComentario && texto && !PALAVRAS_COMANDO.test(t)) coment = texto;
     estado.aguardandoComentario = false;
@@ -475,7 +482,7 @@ function receberMensagem(estadoIn, entrada) {
   }
 
   const pendentes = () => (estado.arquivosPendentes || []).length;
-  const passoArq = (estado.fluxo && !estado.aguardandoCorrecao && !pendentes()) ? passoAtual(estado) : null;
+  const passoArq = (estado.fluxo && !estado.aguardandoCorrecao && !pendentes() && estado.respostas.confirmar !== "sim") ? passoAtual(estado) : null;
 
   // ── na documentação: recebe quantos arquivos vierem e entende o que é cada um ──
   if (passoArq && passoArq.tipo === "arquivo") {
@@ -534,7 +541,7 @@ function receberMensagem(estadoIn, entrada) {
     if (!tipo && /\b(engano|errad[oa]|descart|apag)/.test(semAcento(texto))) tipo = "descartar";
     if (!tipo) { tipo = classificarDoc(texto); desc = texto; }
     if (!tipo && !estado.fluxo && texto.length >= 4 && adivinharFluxo(texto)) { /* segue: escolhe o pedido logo abaixo */ }
-    else if (!tipo && texto.split(/\s+/).length >= 3) { anotar(estado, texto); msgs.push(`📝 Anotado: _${texto.slice(0, 120)}_ (vai junto no pedido).`); msgs.push(perguntaTipoArquivo(estado)); return out; }
+    else if (!tipo && texto.split(/\s+/).length >= 3) { anotarOuComentar(estado, out, msgs, texto); msgs.push(perguntaTipoArquivo(estado)); return out; }
     else if (!tipo) { msgs.push("Não entendi o tipo. Responda com o *número* ou escreva o documento (ex.: *RG da Maria*).\n\n" + perguntaTipoArquivo(estado)); return out; }
     else {
       const arq = estado.arquivosPendentes.shift();
@@ -584,7 +591,8 @@ function receberMensagem(estadoIn, entrada) {
     msgs.push("Digite o *número* do item que quer corrigir (veja o resumo acima), ou *voltar*."); return out;
   }
 
-  const p = passoAtual(estado);
+  // pedido já enviado (inclusive com "enviar" antes do fim): nada mais responde pergunta dele
+  const p = estado.respostas.confirmar === "sim" ? null : passoAtual(estado);
   if (!p) {
     // tudo respondido: confirmação final
     if (estado.respostas.confirmar === undefined) {
@@ -592,6 +600,8 @@ function receberMensagem(estadoIn, entrada) {
       if (/^(2|corrigir|não|nao|n)$/i.test(t)) { estado.aguardandoCorrecao = true; msgs.push(resumo(estado) + "\n\nQual item quer corrigir? Digite o *número*."); return out; }
       msgs.push(resumo(estado) + "\n\nEstá tudo certo? *1* — Confirmar e enviar · *2* — Corrigir algo"); return out;
     }
+    // pedido já enviado: frase solta vira comentário nele (antes era respondida com este aviso e se perdia)
+    if (texto.split(/\s+/).length >= 3 && estado.solicId) { comentar(estado, out, msgs, texto); return out; }
     msgs.push("Este pedido já foi enviado. Arquivos mandados agora entram nele; para um pedido novo, mande *menu*."); return out;
   }
 
@@ -634,12 +644,20 @@ function enviarAgora(estado, out, msgs) {
 // Comentário para o Hub. Com processo no Atos (pedido já enviado ou conversa vinculada), sai na hora
 // (acao "comentar"; quem avisa se o Hub recebeu é o webhook). Sem processo ainda, fica guardado e vai
 // junto quando o pedido for enviado (levarComentarios).
-function comentar(estado, out, msgs, texto) {
-  const c = { id: "C" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), texto: String(texto).trim().slice(0, 1000),
+const MARCA_ENCAMINHADA = "↪️ Mensagem encaminhada:\n";
+function comentar(estado, out, msgs, texto, encaminhada) {
+  const c = { id: "C" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), texto: ((encaminhada ? MARCA_ENCAMINHADA : "") + String(texto).trim()).slice(0, 1500),
     por: estado.remetenteNome || estado.remetenteTel || "", em: new Date().toISOString() };
+  if (encaminhada) c.encaminhada = true;
   if (estado.solicId) { out.acao = "comentar"; out.comentario = c; return; }
   estado.comentarios = (estado.comentarios || []).concat([c]).slice(-20);
-  msgs.push(`💬 Comentário guardado: vai para o Atos e para o Hub junto com o pedido, quando ele for enviado.`);
+  msgs.push(encaminhada ? "💬 Mensagem encaminhada guardada como comentário: vai para o Atos e o Hub junto com o pedido."
+    : "💬 Comentário guardado: vai para o Atos e para o Hub junto com o pedido, quando ele for enviado.");
+}
+// Frase solta: antes do envio vira anotação do pedido; com o pedido já enviado, vira comentário (não se perde)
+function anotarOuComentar(estado, out, msgs, texto) {
+  if (estado.respostas.confirmar === "sim" && estado.solicId) { comentar(estado, out, msgs, texto); return; }
+  anotar(estado, texto); msgs.push(`📝 Anotado: _${texto.slice(0, 120)}_ (vai junto no pedido).`);
 }
 // Na hora de enviar: os comentários guardados vão junto, e a lista de quem participou recomeça para o próximo pedido
 function levarComentarios(estado, dados) { dados.comentarios = (estado.comentarios || []).slice(); estado.comentarios = []; estado.participantes = []; }

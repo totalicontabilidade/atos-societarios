@@ -119,7 +119,16 @@ function normalizarEvento(payload) {
     midiaBase64: midia && typeof d.message.base64 === "string" ? d.message.base64 : null,
     enviadaEm: dataDoTimestamp(d.messageTimestamp),
     codigoVinculo: codigoDeVinculo(texto),
+    // mensagem ENCAMINHADA (em geral do cliente): a Evolution 2.3.7 põe o contextInfo no nível de `data`;
+    // nas versões/tipos em que ele vem dentro da mensagem, também é lido
+    encaminhada: encaminhada(d),
   };
+}
+
+function encaminhada(d) {
+  if (d.contextInfo && d.contextInfo.isForwarded) return true;
+  const m = d.message || {};
+  return Object.keys(m).some((k) => m[k] && typeof m[k] === "object" && m[k].contextInfo && m[k].contextInfo.isForwarded === true);
 }
 
 module.exports = { normalizarEvento, codigoDeVinculo, chaveTelefone, telefoneDoJid, ehGrupo };

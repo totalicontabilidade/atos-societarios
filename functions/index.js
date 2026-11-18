@@ -152,7 +152,7 @@ async function tratar(ev, chatRef, filaRef, n, saida) {
     const snap = await tx.get(chatRef);
     // (a conversa pode existir só com a marca da pausa: completa com o estado vazio)
     const estado = Object.assign(dialogo.novoEstado({ chatJid: ev.chatJid, grupo: ev.grupo }), snap.exists ? snap.data() : {});
-    r = dialogo.receber(estado, { texto: ev.texto, midia, remetenteTel: ev.remetenteTel, remetenteNome: ev.remetenteNome });
+    r = dialogo.receber(estado, { texto: ev.texto, midia, remetenteTel: ev.remetenteTel, remetenteNome: ev.remetenteNome, encaminhada: !!ev.encaminhada });
     novo = Object.assign(r.estado, { chatJid: ev.chatJid, grupo: ev.grupo, ultimaMsgEm: ev.enviadaEm.toISOString(), atualizadoEm: agoraISO() });
     if (r.acao === "cancelado") novo.canceladoEm = agoraISO();
     tx.set(chatRef, novo);

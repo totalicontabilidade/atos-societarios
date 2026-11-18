@@ -121,3 +121,40 @@ test("texto escrito enquanto o robô pergunta o tipo do arquivo não se perde", 
   assert.equal(f.estado.respostas["_arq.docs"].length, 1);   // entrou na documentação do pedido
   assert.match(f.mensagens.join("\n"), /CNPJ/);
 });
+
+// ─── 18/11/2026 (tarde): a mensagem do cliente sobre CNAE, encaminhada pelo Raoni, foi descartada ───
+test("parser: mensagem encaminhada é marcada (contextInfo no nível de data, como na Evolution 2.3.7)", () => {
+  const P = require("../parser");
+  const base = { event: "messages.upsert", data: { key: { remoteJid: "1203@g.us", id: "X1", participant: "1@lid", fromMe: false }, pushName: "Raoni",
+    message: { conversation: "Porque aí coloco o CNAE\nASSISTENTE SOCIAL" }, messageTimestamp: 1795000783 } };
+  assert.equal(P.normalizarEvento(base).encaminhada, false);
+  const enc = JSON.parse(JSON.stringify(base)); enc.data.contextInfo = { isForwarded: true, forwardingScore: 1 };
+  assert.equal(P.normalizarEvento(enc).encaminhada, true);
+  const ext = JSON.parse(JSON.stringify(base)); ext.data.message = { extendedTextMessage: { text: "oi", contextInfo: { isForwarded: true } } };
+  assert.equal(P.normalizarEvento(ext).encaminhada, true);
+});
+
+test("encaminhada vira comentário marcado, mesmo com arquivo esperando o tipo (o caso real)", () => {
+  let e = D.novoEstado();
+  e = D.receber(e, { texto: "4", remetenteNome: "Raoni" }).estado;
+  e = D.receber(e, { texto: "", midia: arq("Safari.pdf"), remetenteNome: "Raoni" }).estado;
+  assert.equal(e.arquivosPendentes.length, 1);
+  const r = D.receber(e, { texto: "Porque aí coloco o CNAE\nASSISTENTE SOCIAL", remetenteNome: "Raoni", encaminhada: true });
+  assert.equal(r.estado.comentarios.length, 1);
+  assert.match(r.estado.comentarios[0].texto, /^↪️ Mensagem encaminhada:\nPorque aí coloco o CNAE/);
+  assert.equal(r.estado.comentarios[0].por, "Raoni");
+  assert.equal(r.estado.comentarios[0].encaminhada, true);
+  assert.equal(r.estado.arquivosPendentes.length, 1);   // o arquivo continua esperando o tipo
+  // com processo no Atos, sai na hora
+  const s = D.receber(D.novoEstado({ solicId: "W1" }), { texto: "cnae 8299-7/99", remetenteNome: "Raoni", encaminhada: true });
+  assert.equal(s.acao, "comentar"); assert.match(s.comentario.texto, /encaminhada/);
+});
+
+test("depois do pedido enviado, frase solta vira comentário nele (o 'contato é o de Marina' se perdia)", () => {
+  const e = D.novoEstado({ remetenteNome: "Raoni", solicId: "W1", fluxo: "outro", respostas: { confirmar: "sim" }, arquivosPendentes: [arq("x.pdf")] });
+  let r = D.receber(e, { texto: "O contato é o de Marina", remetenteNome: "Raoni" });
+  assert.equal(r.acao, "comentar"); assert.equal(r.comentario.texto, "O contato é o de Marina");
+  assert.match(r.mensagens.join("\n"), /que documento é/);
+  r = D.receber(Object.assign(D.novoEstado({ solicId: "W1", fluxo: "outro" }), { respostas: { confirmar: "sim" } }), { texto: "cliente ligou agora há pouco", remetenteNome: "Hesley" });
+  assert.equal(r.acao, "comentar");
+});
