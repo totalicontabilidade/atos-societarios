@@ -105,6 +105,13 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
   Sem pedido enviado ainda, fica guardado na conversa e vai junto no envio. O que o Hub não recebeu fica em
   `comentarios_hub/{id}` e é reenviado no próximo pedido e na faxina (até 10 vezes; recebedor antigo responde
   `ignorado`, e isso conta como não entregue). Legenda de arquivo nunca é comentário.
+- **Mensagem encaminhada** (18/11/2026): texto encaminhado (em geral do cliente; `contextInfo.isForwarded`,
+  que na Evolution 2.3.7 vem no nível de `data`) não responde pergunta: vira comentário marcado
+  "↪️ Mensagem encaminhada", com o nome de quem encaminhou. Com o pedido já enviado, frase solta (3+ palavras)
+  também vira comentário nele.
+- **Recuperar mensagens:** o robô não guarda o texto das mensagens, mas o log da Evolution guarda o que
+  chega (`docker logs --since … atos_whatsapp` na Magalu, com `pushName`, `conversation`, `isForwarded`,
+  `messageTimestamp`). Foi assim que as mensagens perdidas em 18/11/2026 voltaram para as solicitações.
 - **Pausa** (18/11/2026): *pausar* cala o robô para a equipe conversar no grupo; *ativar* volta na hora.
   Cada mensagem durante a pausa estica mais 5 minutos; depois de 5 minutos sem mensagem, a primeira que
   chegar já é atendida (com o aviso "a pausa acabou"). Não há relógio: a pausa vencida só é notada na
