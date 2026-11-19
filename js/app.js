@@ -7407,12 +7407,12 @@ window.TINA=(function(){
 
   /* ---- Pendências: o checklist humano com as telas oficiais e a leitura dos PDFs ---- */
   const PEND_ITENS=[
-    {id:"cnd_rfb",esfera:"Federal",nome:"Certidão de débitos federais e dívida ativa (CND/CPEN)",orgao:"RFB/PGFN",url:"https://servicos.receitafederal.gov.br/servico/certidoes/",dias:180,tipo:"cnd_rfb",nota:"hCaptcha; 180 dias (Portaria Conjunta RFB/PGFN 1.751/2014)"},
+    {id:"cnd_rfb",esfera:"Federal",nome:"Certidão de débitos federais e dívida ativa (CND/CPEN)",orgao:"RFB/PGFN",url:"https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj",dias:180,tipo:"cnd_rfb",nota:"hCaptcha; 180 dias (Portaria Conjunta RFB/PGFN 1.751/2014)"},
     {id:"crf",esfera:"Federal",nome:"Regularidade do FGTS (CRF)",orgao:"Caixa",url:"https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf",dias:30,tipo:"crf",nota:"captcha; 30 dias"},
     {id:"cndt",esfera:"Federal",nome:"Certidão de débitos trabalhistas (CNDT)",orgao:"TST",url:"https://cndt-certidao.tst.jus.br/gerarCertidao",dias:180,tipo:"cndt",nota:"captcha próprio; 180 dias. Validação em cndt-certidao.tst.jus.br/consultarCertidao (número + ano)"},
     {id:"optantes",esfera:"Federal",nome:"Consulta Optantes do Simples Nacional",orgao:"RFB",url:"https://consopt.www8.receita.fazenda.gov.br/consultaoptantes",dias:0,tipo:"optantes",nota:"hCaptcha; é a prova oficial da opção (a ficha acima é base mensal)"},
-    {id:"sitfiscal",esfera:"Federal",nome:"Minhas Dívidas e Pendências (situação fiscal)",orgao:"e-CAC",url:"https://www.gov.br/pt-br/servicos/consultar-dividas-e-pendencias",dias:0,tipo:"sitfiscal",nota:"gov.br prata/ouro com procuração; substituiu o Relatório de Situação Fiscal em 09/03/2026"},
-    {id:"sefaz_se",esfera:"Estadual (SE)",nome:"Certidão negativa de débitos estaduais",orgao:"SEFAZ/SE",url:"https://sic-emissao.apps.sefaz.se.gov.br/certidao-negativa",dias:30,tipo:"sefaz_se",nota:"reCAPTCHA, sem login; 30 dias (Portaria SEFAZ 283/2001)"},
+    {id:"sitfiscal",esfera:"Federal",nome:"Minhas Dívidas e Pendências (situação fiscal)",orgao:"Receita Federal",url:"https://servicos.receitafederal.gov.br/servico/pendencias",dias:0,tipo:"sitfiscal",nota:"portal Serviços da Receita Federal; gov.br prata/ouro com procuração; substituiu o Relatório de Situação Fiscal em 09/03/2026"},
+    {id:"sefaz_se",esfera:"Estadual (SE)",nome:"Certidão negativa de débitos estaduais",orgao:"SEFAZ/SE · Portal Fazendário",url:"https://portais-fazendario.apps.sefaz.se.gov.br/private/portal-fazendario/modulo?sistema=SERVICOSONLINE&descricao=Servi%C3%A7os%20Online&menu=S88ddff7d#/private/certidao-negativa",dias:30,tipo:"sefaz_se",nota:"login no Portal Fazendário (Serviços Online › Emissão › Certidão Negativa); 30 dias (Portaria SEFAZ 283/2001)"},
     {id:"municipal",esfera:"Municipal",nome:"Certidão negativa municipal (ISS/IPTU/taxas)",orgao:"Prefeitura",url:"",dias:0,tipo:"municipal",nota:"a tela depende do município; validade conforme a certidão"},
     {id:"junta",esfera:"Junta",nome:"Situação na JUCESE (viabilidade / certidão simplificada)",orgao:"JUCESE · Agiliza",url:"https://www.agiliza.se.gov.br/",dias:0,tipo:"junta",nota:"login gov.br; só a Consulta de Informação é pública"}
   ];
@@ -7474,17 +7474,16 @@ window.TINA=(function(){
     const box=$("anPend"); if(!box) return; const its=itensPendencias(), c=cnpjDaAnalise();
     if(!c){ box.innerHTML='<div class="hint">Sem CNPJ não há certidão a tirar: numa abertura, as pendências são dos sócios (CPF) e ficam fora desta versão.</div>'; return; }
     let esf=""; box.innerHTML='<table class="pend-tab"><tbody>'+its.map(it=>{ const r=pendRegistro(it.id), s=PEND_SIT[r.situacao]||null, venc=pendVencida(r);
-      const cab=(it.esfera!==esf)?'<tr class="pend-esf"><td colspan="3">'+escHtml(it.esfera)+'</td></tr>':""; esf=it.esfera;
+      const cab=(it.esfera!==esf)?'<tr class="pend-esf"><td colspan="2">'+escHtml(it.esfera)+'</td></tr>':""; esf=it.esfera;
       const badge=s?'<span class="pend-st '+(venc&&s[0]==="ok"?"warn":s[0])+'">'+escHtml(s[1])+(venc?" · VENCIDA":"")+'</span>':'<span class="pend-st falta">a conferir</span>';
       const det=[r.validade?"válida até "+escHtml(r.validade):"",r.emitida?"emitida "+escHtml(r.emitida):"",r.numero?"nº "+escHtml(r.numero):"",r.por?"por "+escHtml(r.por)+(r.em?" em "+escHtml(r.em):""):""].filter(Boolean).join(" · ");
       const av=(r.avisos||[]).map(x=>'<div class="et-av pend-av">⚠ '+escHtml(x)+'</div>').join("");
-      return cab+'<tr><td class="pend-nome"><b>'+escHtml(it.nome)+'</b><div class="hint">'+escHtml(it.orgao)+(it.dias?" · "+it.dias+" dias":"")+(it.nota?" · "+escHtml(it.nota):"")+'</div>'+(det?'<div class="hint">'+det+'</div>':"")+av+'</td>'
-        +'<td class="pend-badge">'+badge+'</td>'
-        +'<td class="pend-acoes">'+(it.url?'<a class="btn o mini" href="'+escHtml(it.url)+'" target="_blank" rel="noopener">↗ Emitir</a>':'')
+      return cab+'<tr><td class="pend-nome"><b>'+escHtml(it.nome)+'</b><div class="pend-badge">'+badge+'</div><div class="hint">'+escHtml(it.orgao)+(it.dias?" · "+it.dias+" dias":"")+(it.nota?" · "+escHtml(it.nota):"")+'</div>'+(det?'<div class="hint">'+det+'</div>':"")+av+'</td>'
+        +'<td class="pend-acoes"><div class="pend-bts">'+(it.url?'<a class="btn o mini" href="'+escHtml(it.url)+'" target="_blank" rel="noopener">↗ Emitir</a>':'')
         +'<label class="btn o mini">📎 Ler PDF<input type="file" accept="application/pdf" data-pend-pdf="'+it.id+'" hidden></label>'
         +'<button type="button" class="btn ok mini" data-pend="'+it.id+'" data-sit="conferido_ok" title="Conferi na tela oficial: sem pendência">✓</button>'
         +'<button type="button" class="btn o mini" data-pend="'+it.id+'" data-sit="conferido_pend" title="Conferi: há pendência">⚠</button>'
-        +'<button type="button" class="btn s mini" data-pend="'+it.id+'" data-sit="nao_se_aplica" title="Não se aplica a esta empresa">—</button></td></tr>'; }).join("")+'</tbody></table>'
+        +'<button type="button" class="btn s mini" data-pend="'+it.id+'" data-sit="nao_se_aplica" title="Não se aplica a esta empresa">—</button></div></td></tr>'; }).join("")+'</tbody></table>'
       +'<div class="hint" style="margin-top:6px">As telas oficiais têm captcha: o contador emite, baixa o PDF e lê aqui (o Atos confere tipo, situação, validade e CNPJ). “✓” e “⚠” registram uma conferência feita na tela, com quem e quando.</div>';
     box.querySelectorAll("[data-pend-pdf]").forEach(inp=>inp.addEventListener("change",()=>{ const f=inp.files&&inp.files[0]; if(f) lerCertidaoArquivo(inp.dataset.pendPdf,f); }));
     box.querySelectorAll("[data-pend]").forEach(b=>b.addEventListener("click",()=>{ const sit=b.dataset.sit; const extra=sit==="conferido_pend"?(prompt("Qual a pendência? (fica no laudo)")||""):""; gravarPendencia(b.dataset.pend,{situacao:sit,origem:"tela",obs:extra,validade:(sit==="nao_se_aplica"?"":pendRegistro(b.dataset.pend).validade||""),avisos:[]}); }));
