@@ -150,11 +150,17 @@ test("encaminhada vira comentário marcado, mesmo com arquivo esperando o tipo (
   assert.equal(s.acao, "comentar"); assert.match(s.comentario.texto, /encaminhada/);
 });
 
-test("depois do pedido enviado, frase solta vira comentário nele (o 'contato é o de Marina' se perdia)", () => {
+test("depois do pedido enviado, frase solta é pedido novo; o arquivo sem tipo que sobrou vai para o enviado", () => {
   const e = D.novoEstado({ remetenteNome: "Raoni", solicId: "W1", fluxo: "outro", respostas: { confirmar: "sim" }, arquivosPendentes: [arq("x.pdf")] });
   let r = D.receber(e, { texto: "O contato é o de Marina", remetenteNome: "Raoni" });
-  assert.equal(r.acao, "comentar"); assert.equal(r.comentario.texto, "O contato é o de Marina");
-  assert.match(r.mensagens.join("\n"), /que documento é/);
-  r = D.receber(Object.assign(D.novoEstado({ solicId: "W1", fluxo: "outro" }), { respostas: { confirmar: "sim" } }), { texto: "cliente ligou agora há pouco", remetenteNome: "Hesley" });
+  assert.notEqual(r.acao, "comentar");
+  assert.equal(r.anexarEm, "W1"); assert.equal(r.anexar.length, 1);
+  assert.deepEqual(r.estado.respostas._notas, ["O contato é o de Marina"]);
+  assert.equal(r.estado.solicId, ""); assert.equal(r.estado.solicAnterior, "W1");
+  // "comentário: …" continua indo para o enviado
+  r = D.receber(Object.assign(D.novoEstado({ solicId: "W1", fluxo: "outro" }), { respostas: { confirmar: "sim" } }), { texto: "comentário: cliente ligou agora há pouco", remetenteNome: "Hesley" });
   assert.equal(r.acao, "comentar");
+  // "obrigado" depois do envio: nada
+  r = D.receber(Object.assign(D.novoEstado({ solicId: "W1", fluxo: "outro" }), { respostas: { confirmar: "sim" } }), { texto: "Obrigado!", remetenteNome: "Hesley" });
+  assert.equal(r.mensagens.length, 0); assert.equal(r.estado.solicId, "W1");
 });

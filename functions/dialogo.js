@@ -401,12 +401,16 @@ const CONF_CANCELAR = "Cancelar apaga este pedido e os arquivos dele. Confirma? 
 function mensagemAtual(estado) {
   if (estado.cancelando === "menu") return CONF_MENU;
   if (estado.cancelando === "cancelar") return CONF_CANCELAR;
+  if (estado.perguntaDestino) return perguntaDestinoTexto(estado);
+  if (estado.perguntaInicio) return perguntaInicioTexto(estado);
   const m = []; retomar(estado, m); return m[m.length - 1] || null;
 }
 // Separa os avisos da pergunta final: quando chegam várias mensagens juntas, o webhook junta os
 // avisos de todas numa resposta só e faz a pergunta que vale no fim, uma vez.
 function receber(estadoIn, entrada) {
-  const out = receberMensagem(estadoIn, entrada), atual = mensagemAtual(out.estado), m = out.mensagens;
+  const out = receberMensagem(estadoIn, entrada);
+  registrarMensagem(estadoIn || {}, out, entrada);
+  const atual = mensagemAtual(out.estado), m = out.mensagens;
   if (atual && m.length && m[m.length - 1] === atual) { out.avisos = m.slice(0, -1); out.pergunta = atual; }
   else { out.avisos = m.slice(); out.pergunta = null; }
   return out;
@@ -425,12 +429,26 @@ function receberMensagem(estadoIn, entrada) {
   if (quemAgora && !(estado.participantes || []).includes(quemAgora)) estado.participantes = (estado.participantes || []).concat([quemAgora]).slice(-6);
   estado.atualizadoEm = new Date().toISOString();
   const msgs = [], out = { estado, mensagens: msgs, acao: null };
-  // PEDIDO NOVO depois de um já enviado (23/11/2026): o Raoni mandou 5 fotos, 4 mensagens encaminhadas e
-  // "Constituição" no grupo, e o robô, ainda preso ao pedido de 18/11 (baixa de uma filial), pôs as
-  // mensagens como comentário NELE e respondeu "este pedido já foi enviado" ao tipo do processo.
-  if (comecaPedidoNovo(estado, entrada, texto, midia)) abrirPedidoNovo(estado, out, msgs, entrada.agora);
+  const agora = entrada.agora || Date.now();
+  // resposta a uma pergunta do robô: para qual pedido vai o comentário / a partir de qual mensagem é o pedido novo
+  if (estado.perguntaDestino && responderDestino(estado, out, msgs, texto, midia)) return out;
+  if (estado.perguntaInicio && responderInicio(estado, out, msgs, texto, midia) === "fim") return out;
+  // PEDIDO NOVO (23/11/2026): o Raoni mandou 5 fotos, 4 mensagens encaminhadas e "Constituição" no grupo,
+  // e o robô, ainda preso ao pedido de 18/11 (baixa de uma filial), pôs as mensagens como comentário NELE.
+  // Agora: depois de um pedido enviado, o que chega é pedido novo (só "comentário" não é); e com um pedido
+  // em andamento, 20 minutos sem mensagem também abrem um novo (o de antes vai do jeito que estava).
+  if (!midia && enviadoJa(estado) && RE_CORTESIA.test(texto)) return out;   // "obrigado" depois do envio: nada a fazer
+  if (abreNovoDepoisDeEnviado(estado, entrada, texto, midia)) abrirPedidoNovo(estado, out, msgs, agora);
+  else if (silencioLongo(estado, entrada, texto, midia, agora)) trocarPedido(estado, out, msgs, [], "silencio");
 
   // comandos globais (só em mensagem de texto: legenda de arquivo nunca é comando)
+  if (midia && (estado.aguardandoComentario || comentarioDoTexto(texto) !== null)) {
+    // arquivo mandado como comentário ("comentário" e depois o arquivo, ou na legenda): pergunta para qual pedido vai
+    estado.aguardandoComentario = false;
+    comentarComDestino(estado, out, msgs, { arq: midia, legenda: (comentarioDoTexto(texto) || "").slice(0, 120) }, agora);
+    if (!estado.perguntaDestino && emAndamento(estado) && !(estado.arquivosPendentes || []).length) { const q = mensagemAtual(estado); if (q) msgs.push(q); }
+    return out;
+  }
   if (!midia) {
     // comentário para o Hub: "comentário: …", ou a mensagem logo depois de "comentário" sozinho
     // mensagem ENCAMINHADA (em geral do cliente) não responde pergunta: é comentário, marcado como encaminhado
@@ -444,9 +462,9 @@ function receberMensagem(estadoIn, entrada) {
     if (coment === null && estado.aguardandoComentario && texto && !PALAVRAS_COMANDO.test(t)) coment = texto;
     estado.aguardandoComentario = false;
     if (coment !== null) {
-      if (!coment) { estado.aguardandoComentario = true; msgs.push("💬 Escreva o comentário na próxima mensagem. Ele vai para a solicitação no Atos e para a pendência no Hub (não muda as respostas do pedido)."); return out; }
-      comentar(estado, out, msgs, coment);
-      if ((estado.fluxo && estado.respostas.confirmar !== "sim") || estado.cancelando) { const q = mensagemAtual(estado); if (q) msgs.push(q); }
+      if (!coment) { estado.aguardandoComentario = true; msgs.push("💬 Escreva o comentário (ou mande o arquivo) na próxima mensagem. Ele vai para a solicitação no Atos e para a pendência no Hub (não muda as respostas do pedido)."); return out; }
+      comentarComDestino(estado, out, msgs, { texto: coment }, agora);
+      if (!estado.perguntaDestino && ((estado.fluxo && estado.respostas.confirmar !== "sim") || estado.cancelando)) { const q = mensagemAtual(estado); if (q) msgs.push(q); }
       return out;
     }
     if (/^(menu|recomeçar|recomecar|início|inicio|oi|olá|ola|bom dia|boa tarde|boa noite)$/i.test(t) && (!estado.fluxo || /^(menu|recomeçar|recomecar)$/i.test(t))) {
@@ -468,7 +486,7 @@ function receberMensagem(estadoIn, entrada) {
     if (/^cancelar$/i.test(t)) { if (!estado.fluxo) { msgs.push("Não há pedido em andamento. Mande *menu* para começar."); return out; } estado.cancelando = "cancelar"; msgs.push(CONF_CANCELAR); return out; }
     if (RE_ENVIAR.test(t)) {
       if (!estado.fluxo) { msgs.push("Primeiro escolha o pedido."); msgs.push(menuTexto(estado)); return out; }
-      if (estado.respostas.confirmar === "sim") { msgs.push("Este pedido já foi enviado. Arquivos mandados agora entram nele; para um pedido novo, mande *menu*."); return out; }
+      if (estado.respostas.confirmar === "sim") { msgs.push("Este pedido já foi enviado. " + DEPOIS_DO_ENVIO); return out; }
       if (!temAlgo(estado)) { msgs.push("Ainda não há nada para enviar: mande a documentação ou responda a pergunta."); retomar(estado, msgs); return out; }
       enviarAgora(estado, out, msgs); return out;
     }
@@ -485,6 +503,11 @@ function receberMensagem(estadoIn, entrada) {
     if (/^ajuda$/i.test(t)) { msgs.push(AJUDA); retomar(estado, msgs); return out; }
   }
 
+  // NOME DE ATO no meio de um pedido em andamento ("Baixa", "Alteração contratual"): provavelmente é outro pedido
+  if (!midia && !entrada.encaminhada && estado.fluxo && !enviadoJa(estado) && !estado.aguardandoCorrecao && !estado.cancelando) {
+    const v = nomeDoAto(texto);
+    if (v && atoNoMeio(estado, out, msgs, v, texto, agora)) return out;
+  }
   const pendentes = () => (estado.arquivosPendentes || []).length;
   const passoArq = (estado.fluxo && !estado.aguardandoCorrecao && !pendentes() && estado.respostas.confirmar !== "sim") ? passoAtual(estado) : null;
 
@@ -563,22 +586,7 @@ function receberMensagem(estadoIn, entrada) {
     const livre = texto.length >= 4 && !/^\d+([,\s]+\d+)*$/.test(t);
     if (!v && livre) { v = adivinharFluxo(texto); adivinhado = !!v; anotar(estado, texto); }
     if (!v) { if (livre) msgs.push(`📝 Anotei: _${texto.slice(0, 120)}_ (vai junto no pedido).`); msgs.push(menuTexto(estado)); return out; }
-    // pedido novo depois de um enviado: não herda o processo nem a empresa do anterior
-    if (estado.encerrado) { estado.solicId = ""; estado.empresa = ""; estado.cnpj = ""; estado.vinculo = null; estado.casoId = ""; estado.encerrado = false; }
-    const av = estado.respostas["_arq.avulsos"], notas = estado.respostas._notas;   // mandados antes de escolher o pedido
-    estado.fluxo = v; estado.respostas = {}; estado.ordem = []; estado.rotuloProximo = null;
-    const passoDocs = FLUXOS[v].passos.find((p) => p.tipo === "arquivo");
-    if (av && av.length && passoDocs) estado.respostas["_arq." + passoDocs.id] = av; else if (av) estado.respostas["_arq.avulsos"] = av;
-    if (notas && notas.length) { if (v === "outro") estado.respostas.descricao = notas.join(" / "); else estado.respostas._notas = notas; }
-    if (estado.cnpj && FLUXOS[v].passos.some((p) => p.id === "cnpj")) { estado.respostas.cnpj = fmtCNPJ(estado.cnpj); estado.ordem.push("cnpj"); }
-    if (estado.respostas.descricao) estado.ordem.push("descricao");
-    // alteração: o que muda já dito na mensagem ("altere a denominação social") não é perguntado
-    if (v === "alterar" && notas && notas.length) { const m = mudancasDoTexto(notas.join(" ")); if (m.length) { estado.respostas.oQueMuda = m; estado.ordem.push("oQueMuda"); } }
-    msgs.push(`Vamos lá: *${FLUXOS[v].nome}*.` + (adivinhado ? " (Entendi pela mensagem. Se não for isso, mande *menu*.)" : ""));
-    if (av && av.length && !passoDocs) msgs.push(`Já está guardado: ${av.map(descricaoCurta).join("; ")}.`);
-    // arquivo ainda sem tipo (o pedido foi escrito enquanto o robô perguntava): entra na documentação do pedido
-    if (pendentes()) { if (passoDocs) { estado.respostas["_arq." + passoDocs.id] = estado.respostas["_arq." + passoDocs.id] || []; estado.destinoPendentes = "_arq." + passoDocs.id; } msgs.push(perguntaTipoArquivo(estado)); return out; }
-    const p0 = passoAtual(estado); if (p0) msgs.push(textoPergunta(p0, estado)); return out;
+    escolherFluxo(estado, msgs, v, adivinhado); return out;
   }
 
   // correção depois do resumo: "corrigir" → número do item
@@ -600,13 +608,13 @@ function receberMensagem(estadoIn, entrada) {
   if (!p) {
     // tudo respondido: confirmação final
     if (estado.respostas.confirmar === undefined) {
-      if (/^(1|sim|confirmar|confirmo|ok)$/i.test(t)) { estado.respostas.confirmar = "sim"; estado.encerrado = true; estado.enviadoEm = new Date().toISOString(); out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); levarComentarios(estado, out.dados); msgs.push("✅ Pedido enviado: já está no Atos, na lista de solicitações, para a legalização."); return out; }
+      if (/^(1|sim|confirmar|confirmo|ok)$/i.test(t)) { estado.respostas.confirmar = "sim"; estado.encerrado = true; estado.enviadoEm = new Date().toISOString(); out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); levarComentarios(estado, out.dados); msgs.push("✅ Pedido enviado: já está no Atos, na lista de solicitações, para a legalização.\n" + DEPOIS_DO_ENVIO); return out; }
       if (/^(2|corrigir|não|nao|n)$/i.test(t)) { estado.aguardandoCorrecao = true; msgs.push(resumo(estado) + "\n\nQual item quer corrigir? Digite o *número*."); return out; }
       msgs.push(resumo(estado) + "\n\nEstá tudo certo? *1* — Confirmar e enviar · *2* — Corrigir algo"); return out;
     }
     // pedido já enviado: frase solta vira comentário nele (antes era respondida com este aviso e se perdia)
     if (texto.split(/\s+/).length >= 3 && estado.solicId) { comentar(estado, out, msgs, texto); return out; }
-    msgs.push("Este pedido já foi enviado. Arquivos mandados agora entram nele; para um pedido novo, mande *menu*."); return out;
+    msgs.push("Este pedido já foi enviado. " + DEPOIS_DO_ENVIO); return out;
   }
 
   const v = validar(p, texto);
@@ -629,7 +637,28 @@ function receberMensagem(estadoIn, entrada) {
   else msgs.push(resumo(estado) + "\n\nEstá tudo certo? *1* — Confirmar e enviar · *2* — Corrigir algo");
   return out;
 }
-// "enviar": fecha a documentação em aberto e manda o pedido com o que já tem; o que faltou vai listado
+// Pedido escolhido (pelo menu, pela mensagem ou pelo nome do ato): o que veio antes entra nele
+function escolherFluxo(estado, msgs, v, adivinhado) {
+  // pedido novo depois de um enviado: não herda o processo nem a empresa do anterior
+  if (estado.encerrado) { estado.solicId = ""; estado.empresa = ""; estado.cnpj = ""; estado.vinculo = null; estado.casoId = ""; estado.encerrado = false; }
+  const av = estado.respostas["_arq.avulsos"], notas = estado.respostas._notas;   // mandados antes de escolher o pedido
+  estado.fluxo = v; estado.respostas = {}; estado.ordem = []; estado.rotuloProximo = null;
+  const passoDocs = FLUXOS[v].passos.find((p) => p.tipo === "arquivo");
+  if (av && av.length && passoDocs) estado.respostas["_arq." + passoDocs.id] = av; else if (av) estado.respostas["_arq.avulsos"] = av;
+  if (notas && notas.length) { if (v === "outro") estado.respostas.descricao = notas.join(" / "); else estado.respostas._notas = notas; }
+  if (estado.cnpj && FLUXOS[v].passos.some((p) => p.id === "cnpj")) { estado.respostas.cnpj = fmtCNPJ(estado.cnpj); estado.ordem.push("cnpj"); }
+  if (estado.respostas.descricao) estado.ordem.push("descricao");
+  // alteração: o que muda já dito na mensagem ("altere a denominação social") não é perguntado
+  if (v === "alterar" && notas && notas.length) { const m = mudancasDoTexto(notas.join(" ")); if (m.length) { estado.respostas.oQueMuda = m; estado.ordem.push("oQueMuda"); } }
+  msgs.push(`Vamos lá: *${FLUXOS[v].nome}*.` + (adivinhado ? " (Entendi pela mensagem. Se não for isso, mande *menu*.)" : ""));
+  if (av && av.length && !passoDocs) msgs.push(`Já está guardado: ${av.map(descricaoCurta).join("; ")}.`);
+  // arquivo ainda sem tipo (o pedido foi escrito enquanto o robô perguntava): entra na documentação do pedido
+  if ((estado.arquivosPendentes || []).length) { if (passoDocs) { estado.respostas["_arq." + passoDocs.id] = estado.respostas["_arq." + passoDocs.id] || []; estado.destinoPendentes = "_arq." + passoDocs.id; } msgs.push(perguntaTipoArquivo(estado)); return; }
+  const p0 = passoAtual(estado); if (p0) msgs.push(textoPergunta(p0, estado));
+}
+// "enviar": fecha a documentação em aberto e manda o pedido com o que já tem; o que faltou vai listado.
+// Arquivo ainda sem tipo vai como "Não identificado" (montarSolicitacao) e não é mais perguntado: o que
+// chega depois do envio já é pedido novo.
 function enviarAgora(estado, out, msgs) {
   const r = estado.respostas;
   Object.keys(r).filter((k) => k.startsWith("_arq.") && k !== "_arq.avulsos").forEach((k) => {
@@ -641,37 +670,219 @@ function enviarAgora(estado, out, msgs) {
   estado.cancelando = null; estado.aguardandoCorrecao = false; estado.rotuloProximo = null;
   r.confirmar = "sim"; estado.encerrado = true; estado.enviadoAntesDoFim = true; estado.enviadoEm = new Date().toISOString();
   out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); levarComentarios(estado, out.dados);
+  const semTipo = (estado.arquivosPendentes || []).length;
+  estado.arquivosPendentes = []; estado.destinoPendentes = null; estado.perguntaInicio = null; estado.ultimas = [];
   const faltou = out.dados.faltou || [];
   msgs.push(resumo(estado) + "\n\n✅ Pedido enviado com o que já tem: está no Atos, na lista de solicitações, para a legalização." +
-    (faltou.length ? `\nFicou para a legalização ver nos documentos: ${faltou.join("; ").replace(/\?$/, "")}.` : "") + "\nArquivos mandados agora ainda entram neste pedido.");
+    (faltou.length ? `\nFicou para a legalização ver nos documentos: ${faltou.join("; ").replace(/\?$/, "")}.` : "") +
+    (semTipo ? `\n${semTipo > 1 ? semTipo + " arquivos foram" : "1 arquivo foi"} como *Não identificado*.` : "") + "\n" + DEPOIS_DO_ENVIO);
 }
-// ─── pedido novo depois de um enviado ──────────────────────────────────────────
-// Começa um pedido novo, em vez de juntar ao já enviado:
-//  • texto curto que diz o tipo do processo ("Constituição", "abertura de empresa", "alteração da X");
-//  • arquivo ou mensagem encaminhada quando o pedido anterior foi enviado há mais de 30 minutos (ou
-//    não se sabe quando): é outro assunto chegando. Dentro dos 30 minutos, continua juntando ao enviado.
-// "comentário: …" escrito à mão continua indo para o pedido enviado.
-const RECENTE_MS = 30 * 60000;
-const RE_TIPO_PROCESSO = /\b(abrir|abertura|constitui\w*|nova empresa|empresa nova|alterac\w*|alterar|baixa|baixar|fechar|fechamento|encerra\w*|distrato|dissoluc\w*|transforma\w*|advocacia)\b/;
-function comecaPedidoNovo(estado, entrada, texto, midia) {
-  if (!estado.respostas || estado.respostas.confirmar !== "sim" || estado.cancelando) return false;
-  const agora = entrada.agora || Date.now(), enviado = Date.parse(estado.enviadoEm || "") || 0;
-  const antigo = !enviado || agora - enviado > RECENTE_MS;
-  if (midia || (entrada.encaminhada && texto)) return antigo;
-  if (!texto || comentarioDoTexto(texto) !== null || PALAVRAS_COMANDO.test(texto) || RE_ENVIAR.test(texto)) return false;
-  return texto.split(/\s+/).length <= 8 && RE_TIPO_PROCESSO.test(" " + semAcento(texto) + " ") && !!adivinharFluxo(texto);
+const DEPOIS_DO_ENVIO = "O que chegar agora (arquivo ou mensagem) começa um *pedido novo*. Para juntar a este, escreva *comentário* antes.";
+const naoIdentificado = (a) => { const c = Object.assign({}, a, { doc: "", docNome: "Não identificado", nome: `Não identificado — ${a.nome}` }); delete c.pendente; return c; };
+
+// ─── pedido novo ──────────────────────────────────────────────────────────────
+// Regras dele (23/11/2026). É pedido novo:
+//  • o que chega depois de um pedido enviado ("enviar", confirmação ou envio sozinho), menos "comentário";
+//  • o que chega depois de 20 minutos sem mensagem, com um pedido em andamento (que vai do jeito que estava);
+//  • o nome de outro ato no meio de um pedido ("Baixa", "Alteração contratual"). Se antes dele vieram
+//    arquivos ou frases soltas, o robô pergunta a partir de qual mensagem é o pedido novo.
+// "comentário …" (texto ou arquivo) pergunta para qual pedido vai, quando há mais de um possível.
+const SILENCIO_NOVO_MS = 20 * 60000, RECENTES_MS = 3 * 24 * 3600 * 1000;
+const RE_CORTESIA = /^(obrigad[oa]s?|muito obrigad[oa]|obg|valeu|vlw|blz|beleza|show|certo|ok+|okay|perfeito|top|massa|[👍🙏👏✅]+)[\s!.]*$/iu;
+const RE_INICIO_ATO = /^(abrir|abertura|constitui\w*|nova empresa|empresa nova|alterac\w*|alterar|baixa|baixar|fechar|fechamento|encerra\w*|distrato|dissoluc\w*|transforma\w*|advocacia|sociedade de advocacia)\b/;
+const enviadoJa = (e) => !!(e && e.respostas && e.respostas.confirmar === "sim");
+const emAndamento = (e) => !enviadoJa(e) && !!(e.fluxo || todosArquivos(e).length);
+const fuso = { timeZone: "America/Sao_Paulo" };
+const horaCurta = (iso) => new Date(iso || Date.now()).toLocaleString("pt-BR", Object.assign({ hour: "2-digit", minute: "2-digit" }, fuso));
+const diaHora = (iso) => new Date(iso || Date.now()).toLocaleString("pt-BR", Object.assign({ day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }, fuso));
+// "Constituição", "Baixa da filial", "Alteração contratual" → o fluxo; frase comum → null
+function nomeDoAto(texto) {
+  const t = String(texto || "").trim();
+  if (!t || t.split(/\s+/).length > 5) return null;
+  return RE_INICIO_ATO.test(semAcento(t).replace(/^[^a-z]+/, "")) ? adivinharFluxo(t) : null;
 }
-function abrirPedidoNovo(estado, out, msgs, agoraMs) {
-  const agora = agoraMs || Date.now(), anterior = estado.solicId || "", nomeAnterior = (FLUXOS[estado.fluxo] || {}).nome || "";
-  // arquivo sem tipo que sobrou do pedido anterior (mais de 30 min): não se perde, vai para ele
-  const pend = estado.arquivosPendentes || [];
-  const velhos = pend.filter((a) => !(Date.parse(a.em || "") > agora - RECENTE_MS)), novos = pend.filter((a) => !velhos.includes(a));
-  if (velhos.length && anterior) { out.anexar = velhos.map((a) => Object.assign({}, a, { doc: "", docNome: "Não identificado", nome: `Não identificado — ${a.nome}` })); out.anexarEm = anterior; out.acao = "anexar"; }
-  const quem = estado.remetenteNome || estado.remetenteTel || "";
+function abreNovoDepoisDeEnviado(estado, entrada, texto, midia) {
+  if (!enviadoJa(estado) || estado.cancelando || estado.aguardandoComentario || comentarioDoTexto(texto) !== null) return false;
+  if (midia || (entrada.encaminhada && texto)) return true;
+  if (!texto || /^\d{1,2}$/.test(texto) || PALAVRAS_COMANDO.test(texto) || RE_ENVIAR.test(texto) || comandoPausa(texto)) return false;
+  return true;
+}
+function silencioLongo(estado, entrada, texto, midia, agora) {
+  if (!emAndamento(estado) || estado.cancelando || estado.aguardandoComentario || comentarioDoTexto(texto) !== null) return false;
+  const ultima = ultimaAtividade(estado);
+  if (!ultima || agora - ultima < SILENCIO_NOVO_MS) return false;
+  return !(!midia && texto && (PALAVRAS_COMANDO.test(texto) || RE_ENVIAR.test(texto) || RE_CORTESIA.test(texto)));
+}
+// Zera a conversa para um pedido novo (não herda processo, empresa, vínculo nem comentários)
+function novoPedido(estado, extra) {
   zerarPedido(estado);
-  Object.assign(estado, { solicAnterior: anterior, solicId: "", empresa: "", cnpj: "", vinculo: null, casoId: "", encerrado: false, enviadoAntesDoFim: false,
-    enviadoEm: null, comentarios: [], arquivosPendentes: novos, participantes: quem ? [quem] : [], autoAvisoEm: null });
-  msgs.push(`📂 Pedido novo${nomeAnterior ? ` (o anterior, *${nomeAnterior}*, já tinha sido enviado)` : ""}.`);
+  Object.assign(estado, { solicId: "", empresa: "", cnpj: "", vinculo: null, casoId: "", encerrado: false, enviadoAntesDoFim: false, enviadoEm: null,
+    comentarios: [], autoAvisoEm: null, aguardandoComentario: false, perguntaInicio: null, perguntaDestino: null, ultimas: [] }, extra || {});
+}
+// Depois de um pedido enviado
+function abrirPedidoNovo(estado, out, msgs) {
+  const anterior = estado.solicId || "", nomeAnterior = (FLUXOS[estado.fluxo] || {}).nome || "";
+  // arquivo sem tipo que sobrou do pedido enviado (de antes da versão de 23/11): não se perde, vai para ele
+  const pend = estado.arquivosPendentes || [];
+  if (pend.length && anterior) { out.anexar = pend.map(naoIdentificado); out.anexarEm = anterior; out.acao = "anexar"; }
+  novoPedido(estado, { solicAnterior: anterior, arquivosPendentes: anterior ? [] : pend });
+  msgs.push(`📂 Pedido novo${nomeAnterior ? ` (o anterior, *${nomeAnterior}*, já foi enviado)` : ""}.`);
+}
+// Com um pedido em andamento: ele vai do jeito que está (menos o que foi `movidos` para o novo) e começa outro.
+// movidos = mensagens de estado.ultimas que passam para o pedido novo (arquivos, anotações, comentários).
+function trocarPedido(estado, out, msgs, movidos, motivo) {
+  const velho = JSON.parse(JSON.stringify(estado));
+  const caminhos = new Set(movidos.map((m) => m.caminho).filter(Boolean)), ids = new Set(movidos.map((m) => m.comentId).filter(Boolean));
+  const arqs = [];
+  const tira = (lista) => lista.filter((a) => { if (a && typeof a === "object" && a.caminho && caminhos.has(a.caminho)) { arqs.push(a); return false; } return true; });
+  Object.keys(velho.respostas || {}).forEach((k) => { if (k !== "_notas" && Array.isArray(velho.respostas[k])) velho.respostas[k] = tira(velho.respostas[k]); });
+  velho.arquivosPendentes = tira(velho.arquivosPendentes || []);
+  const notas = (velho.respostas._notas || []).slice(), notasNovo = [];
+  movidos.filter((m) => m.nota).forEach((m) => { const i = notas.indexOf(m.nota); if (i >= 0) { notas.splice(i, 1); notasNovo.push(m.nota); } });
+  velho.respostas._notas = notas;
+  let comNovo = (velho.comentarios || []).filter((c) => ids.has(c.id));
+  velho.comentarios = (velho.comentarios || []).filter((c) => !ids.has(c.id));
+  const nomeVelho = (FLUXOS[velho.fluxo] || {}).nome || "";
+  let tinha = -1;
+  if (velho.fluxo || todosArquivos(velho).length) {
+    const tmp = { estado: velho, mensagens: [], acao: null };
+    tinha = fecharComoEsta(velho, tmp, tmp.mensagens);
+    out.criarAnterior = { solicId: velho.solicId || "", dados: tmp.dados };
+  } else { comNovo = velho.comentarios.concat(comNovo); notasNovo.unshift(...notas); }
+  novoPedido(estado, { solicAnterior: velho.solicId || "" });
+  const classificados = arqs.filter((a) => a.doc && !a.pendente);
+  if (classificados.length) estado.respostas["_arq.avulsos"] = classificados;
+  if (notasNovo.length) estado.respostas._notas = notasNovo;
+  estado.arquivosPendentes = arqs.filter((a) => !classificados.includes(a)).map((a) => { const c = Object.assign({}, a); delete c.pendente; return c; });
+  estado.comentarios = comNovo; estado.ultimas = movidos.slice();
+  msgs.push("📂 Pedido novo." + (tinha >= 0 ? ` O pedido em andamento (*${nomeVelho}*) foi enviado do jeito que estava${motivo === "silencio" ? ", porque ficou 20 minutos sem mensagem" : ""}` +
+    (tinha ? ` (${tinha > 1 ? tinha + " arquivos sem tipo foram" : "1 arquivo sem tipo foi"} como *Não identificado*)` : "") + "." : "") +
+    (arqs.length ? ` ${arqs.length > 1 ? arqs.length + " arquivos vieram" : "1 arquivo veio"} para o pedido novo.` : ""));
+}
+// As últimas mensagens que podem ser do pedido novo: arquivos, anotações e comentários depois da
+// última resposta a uma pergunta do robô (até 8, dos últimos 20 minutos)
+function mensagensSoltas(estado, agora) {
+  const u = estado.ultimas || [], soltas = [];
+  for (let i = u.length - 1; i >= 0 && soltas.length < 8; i--) {
+    const m = u[i];
+    if (m.uso === "resposta" || agora - (Date.parse(m.em || "") || 0) > SILENCIO_NOVO_MS) break;
+    soltas.unshift(m);
+  }
+  return soltas;
+}
+// Nome de ato com pedido em andamento. Devolve true quando a mensagem para aqui.
+function atoNoMeio(estado, out, msgs, v, texto, agora) {
+  const mesmo = v === estado.fluxo;
+  if (!temAlgo(estado) && !todosArquivos(estado).length) {
+    if (mesmo) return false;
+    // pedido escolhido, mas nada respondido ainda: só troca
+    const notas = estado.respostas._notas, av = estado.respostas["_arq.avulsos"], antes = FLUXOS[estado.fluxo].nome;
+    estado.respostas = {}; if (notas) estado.respostas._notas = notas; if (av) estado.respostas["_arq.avulsos"] = av;
+    msgs.push(`Troquei o pedido (era *${antes}*, sem nada respondido).`);
+    anotar(estado, texto); escolherFluxo(estado, msgs, v, false); return true;
+  }
+  const soltas = mensagensSoltas(estado, agora);
+  if (!soltas.length && !mesmo) { trocarPedido(estado, out, msgs, [], "ato"); anotar(estado, texto); escolherFluxo(estado, msgs, v, false); return true; }
+  estado.perguntaInicio = { fluxo: v, texto: texto.slice(0, 300), itens: soltas, mesmo };
+  msgs.push(perguntaInicioTexto(estado)); return true;
+}
+function perguntaInicioTexto(estado) {
+  const pi = estado.perguntaInicio, n = pi.itens.length, atual = (FLUXOS[estado.fluxo] || {}).nome || "pedido", curto = pi.texto.slice(0, 50);
+  return `📂 “${curto}” parece um *pedido novo* (${FLUXOS[pi.fluxo].nome}), e há um pedido em andamento (*${atual}*).` +
+    (n ? " A partir de qual mensagem é o pedido novo?\n" + pi.itens.map((m, i) => `*${i + 1}* — ${m.rotulo}`).join("\n") : "") +
+    `\n*${n + 1}* — ${n ? `Só a partir de “${curto}”` : "É pedido novo"}\n*${n + 2}* — Não é pedido novo (continua o de *${atual}*)` +
+    `\n_O pedido em andamento vai do jeito que está${n ? ", com o que veio antes da mensagem escolhida" : ""}._`;
+}
+// "fim": a mensagem era a resposta; "segue": não respondeu, vale o mais provável e a mensagem continua
+function responderInicio(estado, out, msgs, texto, midia) {
+  const pi = estado.perguntaInicio, n = pi.itens.length; estado.perguntaInicio = null;
+  const k = !midia && /^\s*\d+\s*$/.test(texto) ? Number(texto) : NaN, respondeu = k >= 1 && k <= n + 2;
+  if (k === n + 2 || (!respondeu && pi.mesmo)) {
+    anotar(estado, pi.texto);
+    if (!respondeu) return "segue";
+    msgs.push(`Certo: continua o pedido de *${FLUXOS[estado.fluxo].nome}* (anotei “${pi.texto.slice(0, 50)}”).`); retomar(estado, msgs); return "fim";
+  }
+  trocarPedido(estado, out, msgs, k >= 1 && k <= n ? pi.itens.slice(k - 1) : [], "ato");
+  anotar(estado, pi.texto); escolherFluxo(estado, msgs, pi.fluxo, false);
+  if (respondeu) return "fim";
+  msgs.push(`(Sem número na resposta: o pedido novo começou em “${pi.texto.slice(0, 50)}”.)`);
+  return "segue";
+}
+
+// ─── comentário: para qual pedido vai ─────────────────────────────────────────
+function rotuloPedido(p) {
+  const nome = p.fluxoNome || (FLUXOS[p.fluxo] || {}).nome || "";
+  return `${p.empresa || "Pedido " + p.id}${nome ? " — " + nome : ""}${p.em ? ", enviado " + diaHora(p.em) : ""}`;
+}
+// O pedido em andamento (ou o processo vinculado) e os enviados nos últimos 3 dias, até 4
+function opcoesDestino(estado, agora) {
+  const ops = [];
+  if (emAndamento(estado) || (estado.solicId && !enviadoJa(estado)))
+    ops.push({ atual: true, rotulo: "O pedido em andamento" + (estado.fluxo ? ` (${FLUXOS[estado.fluxo].nome}${estado.empresa ? ", " + estado.empresa : ""})` : "") });
+  const lista = [];
+  if (enviadoJa(estado) && estado.solicId) lista.push({ id: estado.solicId, empresa: estado.empresa, fluxo: estado.fluxo, em: estado.enviadoEm });
+  const rec = (estado.pedidosRecentes || []).filter((p) => p && p.id && agora - (Date.parse(p.em || "") || 0) <= RECENTES_MS);
+  lista.push(...rec);
+  if (!rec.length && estado.solicAnterior) lista.push({ id: estado.solicAnterior });
+  lista.forEach((p) => { if (ops.length < 4 && !ops.some((o) => o.id === p.id)) ops.push({ id: p.id, rotulo: rotuloPedido(Object.assign({}, rec.find((x) => x.id === p.id) || {}, p)) }); });
+  return ops;
+}
+// item = { texto } ou { arq, legenda }
+function comentarComDestino(estado, out, msgs, item, agora) {
+  const ops = opcoesDestino(estado, agora);
+  if (ops.length <= 1) { aplicarDestino(estado, out, msgs, item, ops[0] || null); return; }
+  estado.perguntaDestino = { item, opcoes: ops };
+  msgs.push(perguntaDestinoTexto(estado));
+}
+function perguntaDestinoTexto(estado) {
+  const pd = estado.perguntaDestino;
+  return `💬 Para qual pedido vai ${pd.item.arq ? `o arquivo *${pd.item.arq.nome}*` : "o comentário"}?\n` + pd.opcoes.map((o, i) => `*${i + 1}* — ${o.rotulo}`).join("\n");
+}
+function aplicarDestino(estado, out, msgs, item, op) {
+  const paraOutro = !!(op && op.id && op.id !== estado.solicId);
+  if (!item.arq) {
+    if (!paraOutro) { comentar(estado, out, msgs, item.texto); return; }
+    out.comentarEm = (out.comentarEm || []).concat([{ solicId: op.id, comentario: novoComentario(estado, item.texto) }]);   // o webhook diz se entrou
+    return;
+  }
+  const tipo = classificarDoc(item.legenda) || classificarDoc(item.arq.nome);
+  const doc = tipo ? rotular(item.arq, tipo, item.legenda) : null;
+  if (paraOutro) {
+    const it = doc || naoIdentificado(item.arq);
+    out.anexarOutros = (out.anexarOutros || []).concat([{ solicId: op.id, itens: [it] }]);
+    msgs.push(`📎 ${descricaoCurta(it)}: juntado a *${op.rotulo}*.`); return;
+  }
+  if (enviadoJa(estado)) {
+    const it = doc || naoIdentificado(item.arq);
+    out.anexar = (out.anexar || []).concat([it]); out.acao = out.acao || "anexar"; msgs.push(`📎 ${descricaoCurta(it)}: juntado ao pedido já enviado.`); return;
+  }
+  if (doc) { guardarClassificado(estado, out, msgs, doc); return; }
+  estado.arquivosPendentes = (estado.arquivosPendentes || []).concat([Object.assign({}, item.arq, item.legenda ? { legenda: item.legenda } : {})]);
+}
+// true: a mensagem era a resposta. Sem número, vai para a 1ª opção (a mais provável) e a mensagem continua.
+function responderDestino(estado, out, msgs, texto, midia) {
+  const pd = estado.perguntaDestino; estado.perguntaDestino = null;
+  const k = !midia && /^\s*\d+\s*$/.test(texto) ? Number(texto) : NaN, ok = k >= 1 && k <= pd.opcoes.length, op = pd.opcoes[ok ? k - 1 : 0];
+  aplicarDestino(estado, out, msgs, pd.item, op);
+  if (!ok) { msgs.push(`(Sem número na resposta: ${pd.item.arq ? "o arquivo" : "o comentário"} foi para *${op.rotulo}*.)`); return false; }
+  if (emAndamento(estado) || estado.cancelando) { const q = mensagemAtual(estado); if (q) msgs.push(q); }
+  return true;
+}
+// O que cada mensagem foi, para a pergunta "a partir de qual mensagem" (estado.ultimas)
+function registrarMensagem(antes, out, entrada) {
+  const e = out.estado;
+  if (enviadoJa(e)) { e.ultimas = []; return; }
+  const midia = entrada.midia, texto = String(entrada.texto || "").trim(), em = new Date(entrada.agora || Date.now()).toISOString();
+  let m = null;
+  if (midia && midia.caminho) m = { uso: "arquivo", caminho: midia.caminho, rotulo: `📎 ${midia.nome}${texto ? ` (“${texto.slice(0, 30)}”)` : ""}, ${horaCurta(em)}` };
+  else if (texto) {
+    const ca = new Set((antes.comentarios || []).map((c) => c.id)), c = (e.comentarios || []).find((x) => !ca.has(x.id));
+    const na = (antes.respostas && antes.respostas._notas) || [], nd = (e.respostas && e.respostas._notas) || [];
+    if (c) m = { uso: "comentario", comentId: c.id, rotulo: `${c.encaminhada ? "↪️ " : "💬 "}“${String(c.texto).replace(MARCA_ENCAMINHADA, "").replace(/\s+/g, " ").slice(0, 40)}”, ${horaCurta(em)}` };
+    else if (nd.length && (nd.length > na.length || nd[nd.length - 1] !== na[na.length - 1])) m = { uso: "nota", nota: nd[nd.length - 1], rotulo: `📝 “${nd[nd.length - 1].slice(0, 40)}”, ${horaCurta(em)}` };
+    else m = { uso: "resposta", rotulo: `“${texto.slice(0, 40)}”` };
+  }
+  if (m) { m.em = em; e.ultimas = (e.ultimas || []).concat([m]).slice(-12); }
 }
 
 // ─── envio automático por falta de resposta ────────────────────────────────────
@@ -694,29 +905,49 @@ function inatividade(estado, agora) {
   return agora - ultima >= AVISO_INATIVO_MS ? "avisar" : null;
 }
 const AVISO_INATIVO = "⏳ Faz 10 minutos que não chega mensagem neste pedido. Se ninguém mandar mais nada em *1 minuto*, eu envio do jeito que está (documentos e informações) para o Atos.";
-function enviarPorInatividade(estadoIn) {
-  const estado = JSON.parse(JSON.stringify(estadoIn)), msgs = [], out = { estado, mensagens: msgs, acao: null };
+// Manda o pedido do jeito que está (sem pedido escolhido, o tipo sai do que foi escrito, ou "Outro
+// assunto"); arquivo sem tipo entra na documentação como "Não identificado". Devolve quantos eram sem tipo.
+function fecharComoEsta(estado, out, msgs) {
   if (!estado.fluxo) {
-    // arquivos sem pedido escolhido: o pedido sai pelo que foi escrito (anotações e encaminhadas), ou "Outro assunto"
     const notas = estado.respostas._notas || [];
     const v = adivinharFluxo(notas.concat((estado.comentarios || []).map((c) => c.texto)).join(" ")) || "outro";
     estado.fluxo = v;
     if (v === "outro" && notas.length) estado.respostas.descricao = notas.join(" / ");
   }
-  // arquivo sem tipo entra na documentação como "Não identificado" (no resumo e na solicitação)
-  const naoId = (a) => { const c = Object.assign({}, a, { doc: "", docNome: "Não identificado", nome: `Não identificado — ${a.nome}` }); delete c.pendente; return c; };
   const passoDocs = FLUXOS[estado.fluxo].passos.find((p) => p.tipo === "arquivo");
   let tinha = 0;
   Object.keys(estado.respostas).filter((k) => k.startsWith("_arq.") && k !== "_arq.avulsos").forEach((k) => {
-    estado.respostas[k] = (estado.respostas[k] || []).map((a) => (a.pendente ? (tinha++, naoId(a)) : a)); });
+    estado.respostas[k] = (estado.respostas[k] || []).map((a) => (a.pendente ? (tinha++, naoIdentificado(a)) : a)); });
   if ((estado.arquivosPendentes || []).length && passoDocs) {
     tinha += estado.arquivosPendentes.length;
     const destino = estado.respostas[passoDocs.id] !== undefined ? passoDocs.id : "_arq." + passoDocs.id;
-    estado.respostas[destino] = (estado.respostas[destino] || []).concat(estado.arquivosPendentes.map(naoId));
+    estado.respostas[destino] = (estado.respostas[destino] || []).concat(estado.arquivosPendentes.map(naoIdentificado));
     estado.arquivosPendentes = []; estado.destinoPendentes = null;
   } else tinha += (estado.arquivosPendentes || []).length;
+  estado.perguntaInicio = null;
   enviarAgora(estado, out, msgs);
-  estado.autoAvisoEm = null; estado.autoEnviadoEm = new Date().toISOString();
+  return tinha;
+}
+function enviarPorInatividade(estadoIn) {
+  const estado = JSON.parse(JSON.stringify(estadoIn)), msgs = [], out = { estado, mensagens: msgs, acao: null };
+  const agora = Date.now();
+  // pergunta do robô sem resposta: vale a opção mais provável
+  if (estado.perguntaDestino) {
+    const pd = estado.perguntaDestino; estado.perguntaDestino = null;
+    aplicarDestino(estado, out, [], pd.item, pd.opcoes[0]);
+    if (out.acao === "comentar" && out.comentario) { out.comentarEm = (out.comentarEm || []).concat([{ solicId: estado.solicId, comentario: out.comentario }]); out.acao = null; out.comentario = null; }
+    if (out.acao === "anexar") out.acao = null;
+  }
+  if (estado.perguntaInicio && !estado.perguntaInicio.mesmo) {
+    const pi = estado.perguntaInicio; estado.perguntaInicio = null;
+    trocarPedido(estado, out, msgs, [], "ato"); anotar(estado, pi.texto); escolherFluxo(estado, msgs, pi.fluxo, false);
+    msgs[0] = "⏱️ Ninguém respondeu por 11 minutos. " + msgs[0];
+    estado.autoAvisoEm = null; estado.autoEnviadoEm = new Date(agora).toISOString();
+    return out;
+  }
+  if (estado.perguntaInicio) anotar(estado, estado.perguntaInicio.texto);
+  const tinha = fecharComoEsta(estado, out, msgs);
+  estado.autoAvisoEm = null; estado.autoEnviadoEm = new Date(agora).toISOString();
   msgs[0] = "⏱️ *Enviado sozinho*: ninguém mandou mensagem por 11 minutos.\n\n" + msgs[0] +
     (tinha ? `\n${tinha > 1 ? tinha + " arquivos foram" : "1 arquivo foi"} sem dizer o que é: entram como *Não identificado*.` : "");
   return out;
@@ -726,10 +957,14 @@ function enviarPorInatividade(estadoIn) {
 // (acao "comentar"; quem avisa se o Hub recebeu é o webhook). Sem processo ainda, fica guardado e vai
 // junto quando o pedido for enviado (levarComentarios).
 const MARCA_ENCAMINHADA = "↪️ Mensagem encaminhada:\n";
-function comentar(estado, out, msgs, texto, encaminhada) {
+function novoComentario(estado, texto, encaminhada) {
   const c = { id: "C" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), texto: ((encaminhada ? MARCA_ENCAMINHADA : "") + String(texto).trim()).slice(0, 1500),
     por: estado.remetenteNome || estado.remetenteTel || "", em: new Date().toISOString() };
   if (encaminhada) c.encaminhada = true;
+  return c;
+}
+function comentar(estado, out, msgs, texto, encaminhada) {
+  const c = novoComentario(estado, texto, encaminhada);
   if (estado.solicId) { out.acao = "comentar"; out.comentario = c; return; }
   estado.comentarios = (estado.comentarios || []).concat([c]).slice(-20);
   msgs.push(encaminhada ? "💬 Mensagem encaminhada guardada como comentário: vai para o Atos e o Hub junto com o pedido."
@@ -798,4 +1033,5 @@ function montarSolicitacao(estado) {
 }
 
 module.exports = { FLUXOS, MENU, LGPD, TIPOS_ARQ, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto, classificarDoc, adivinharFluxo, mensagemAtual, textoFalado, extrasDoTexto, mudancasDoTexto,
-  comentarioDoTexto, comandoPausa, pausado, PAUSA_MS, inatividade, enviarPorInatividade, AVISO_INATIVO, AVISO_INATIVO_MS, ENVIO_DEPOIS_AVISO_MS, todosArquivos };
+  comentarioDoTexto, comandoPausa, pausado, PAUSA_MS, inatividade, enviarPorInatividade, AVISO_INATIVO, AVISO_INATIVO_MS, ENVIO_DEPOIS_AVISO_MS, todosArquivos,
+  opcoesDestino, nomeDoAto, SILENCIO_NOVO_MS };

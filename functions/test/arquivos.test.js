@@ -94,15 +94,17 @@ test("arquivo antes de escolher o pedido: pergunta o tipo, mostra o menu e o arq
   assert.equal(r.estado.respostas["_arq.docs"].length, 1);   // já conta na documentação do pedido
 });
 
-test("arquivo depois do pedido enviado: é juntado à solicitação já criada", () => {
+test("arquivo depois do pedido enviado: começa pedido novo; com 'comentário' antes, é juntado ao enviado", () => {
   const fim = ["6", "pular", "regularizar", "ok", "pular", "1"];
   let r = conversa(fim.concat([{ midia: arq("iptu.pdf") }]));
-  assert.equal(r.estado.respostas.confirmar, "sim");
+  assert.equal(r.estado.respostas.confirmar, undefined);   // pedido novo, ainda sem tipo
+  assert.match(r.saidas[6], /Pedido novo/);
+  assert.notEqual(r.ultimo.acao, "anexar");
+  r = conversa(fim.concat(["comentário", { midia: arq("iptu.pdf") }]));
   assert.equal(r.ultimo.acao, "anexar");
   assert.equal(r.ultimo.anexar[0].doc, "iptu"); assert.equal(r.ultimo.anexar[0].nome, "Carnê ou inscrição do IPTU — iptu.pdf");
-  assert.match(r.saidas[6], /juntado ao pedido já enviado/);
-  r = conversa(fim.concat([{ midia: arq("x.jpg") }, "6"]));
-  assert.equal(r.ultimo.acao, "anexar"); assert.equal(r.ultimo.anexar[0].doc, "iptu");
+  assert.match(r.saidas[7], /juntado ao pedido já enviado/);
+  assert.equal(r.estado.respostas.confirmar, "sim");
 });
 
 test("pedido novo no mesmo grupo depois de um enviado não herda o processo anterior", () => {

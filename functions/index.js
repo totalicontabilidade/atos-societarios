@@ -152,7 +152,7 @@ async function tratar(ev, chatRef, filaRef, n, saida) {
     const snap = await tx.get(chatRef);
     // (a conversa pode existir só com a marca da pausa: completa com o estado vazio)
     const estado = Object.assign(dialogo.novoEstado({ chatJid: ev.chatJid, grupo: ev.grupo }), snap.exists ? snap.data() : {});
-    r = dialogo.receber(estado, { texto: ev.texto, midia, remetenteTel: ev.remetenteTel, remetenteNome: ev.remetenteNome, encaminhada: !!ev.encaminhada });
+    r = dialogo.receber(estado, { texto: ev.texto, midia, remetenteTel: ev.remetenteTel, remetenteNome: ev.remetenteNome, encaminhada: !!ev.encaminhada, agora: ev.enviadaEm.getTime() });
     novo = Object.assign(r.estado, { chatJid: ev.chatJid, grupo: ev.grupo, ultimaMsgEm: ev.enviadaEm.toISOString(), atualizadoEm: agoraISO() });
     if (r.acao === "cancelado") novo.canceladoEm = agoraISO();
     tx.set(chatRef, novo);
@@ -169,8 +169,19 @@ async function efetuar(r, novo, chatRef, falar) {
   r.avisos = r.avisos || [];
   // arquivo sem tipo que sobrou do pedido anterior (ao começar um pedido novo): vai para o anterior
   if (r.anexarEm && r.anexar && r.anexar.length) resultado.anexadosAnterior = await anexarNaSolicitacao({ solicId: r.anexarEm }, r.anexar);
+  // pedido em andamento que foi do jeito que estava porque começou outro (20 min sem mensagem, nome de outro ato)
+  if (r.criarAnterior) {
+    const ant = r.criarAnterior, id = await gravarSolicitacao({ solicId: ant.solicId, chatJid: novo.chatJid, grupo: novo.grupo }, ant.dados);
+    resultado.anterior = id; novo.solicAnterior = id;
+    await lembrarPedido(novo, chatRef, id, ant.dados, { solicAnterior: id });
+    if ((ant.dados.comentarios || []).length) { const c = await enviarComentarios(id, ant.dados.comentarios); r.avisos.push(textoComentarios(c)); }
+  }
+  // comentário ou arquivo que alguém disse ser de outro pedido (a pergunta "para qual pedido vai?")
+  for (const x of r.comentarEm || []) { const c = await enviarComentarios(x.solicId, [x.comentario]); falar(textoComentarios(c)); }
+  for (const x of r.anexarOutros || []) await anexarNaSolicitacao({ solicId: x.solicId }, x.itens);
   if (r.acao === "criar_solicitacao") {
-    resultado.solicId = await gravarSolicitacao(novo, r.dados); novo.solicId = resultado.solicId; await chatRef.set({ solicId: resultado.solicId }, { merge: true });
+    resultado.solicId = await gravarSolicitacao(novo, r.dados); novo.solicId = resultado.solicId;
+    await lembrarPedido(novo, chatRef, resultado.solicId, r.dados, { solicId: resultado.solicId });
     // comentários escritos antes de o pedido existir: vão agora para a pendência que acabou de nascer
     if ((r.dados.comentarios || []).length) { const c = await enviarComentarios(resultado.solicId, r.dados.comentarios); r.avisos.push(textoComentarios(c)); }
   }
@@ -178,6 +189,13 @@ async function efetuar(r, novo, chatRef, falar) {
   if (r.acao === "anexar" && !r.anexarEm && r.anexar && r.anexar.length) resultado.anexados = await anexarNaSolicitacao(novo, r.anexar);
   if (r.descartar && r.descartar.length) await Promise.all(r.descartar.map((a) => a.caminho ? bucket().file(a.caminho).delete().catch((e) => logger.warn("arquivo descartado não apagado", { e: e.message })) : null));
   return resultado;
+}
+
+// Pedidos enviados por esta conversa (os 5 últimos): são as opções de "para qual pedido vai o comentário?"
+async function lembrarPedido(novo, chatRef, id, dados, extra) {
+  const item = { id, empresa: dados.empresa || "", fluxo: dados.fluxo || "", fluxoNome: (dialogo.FLUXOS[dados.fluxo] || {}).nome || "", em: agoraISO() };
+  novo.pedidosRecentes = [item].concat((novo.pedidosRecentes || []).filter((p) => p && p.id !== id)).slice(0, 5);
+  await chatRef.set(Object.assign({ pedidosRecentes: novo.pedidosRecentes }, extra || {}), { merge: true });
 }
 
 // ─── envio automático por falta de resposta ──────────────────────────────────

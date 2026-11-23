@@ -125,18 +125,34 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
 
 - **Pedido novo depois de um enviado** (23/11/2026): o Raoni mandou 5 fotos, 4 mensagens encaminhadas do
   cliente e "Constituição", e o robô, ainda preso ao pedido enviado em 18/11 (baixa de uma filial), pôs as
-  mensagens como comentário *nele* e respondeu "este pedido já foi enviado". Agora começa um **pedido novo**:
-  texto curto com o tipo do processo (*Constituição*, *abertura*, *alteração da X*, *baixa*…), a qualquer
-  hora; e arquivo ou mensagem encaminhada quando o pedido anterior foi enviado há **mais de 30 minutos**
-  (`conversas/{chat}.enviadoEm`; sem a marca, conta como antigo). Dentro dos 30 minutos, arquivo e
-  encaminhada continuam juntando ao pedido enviado; *comentário: …* escrito à mão sempre vai para ele.
-  Arquivo sem tipo que sobrou do pedido anterior vai para ele como "Não identificado" (nada se perde).
-  O número do anterior fica em `solicAnterior`.
+  mensagens como comentário *nele* e respondeu "este pedido já foi enviado". Regras dele, do mesmo dia
+  (`dialogo.js`, seção "pedido novo"). É **pedido novo**:
+  - **tudo o que chega depois de um pedido enviado** (*enviar*, confirmação ou envio sozinho): texto,
+    arquivo, mensagem encaminhada. Não abrem: *comentário …*, comandos, número solto e cortesia
+    (*obrigado*, *ok*, 👍, que o robô ignora). O *enviar* manda arquivo sem tipo como "Não identificado" e não
+    pergunta mais nada, justamente para o que vier depois ser do pedido novo;
+  - **o que chega depois de 20 minutos sem mensagem**, com um pedido em andamento: o de antes vai do jeito
+    que estava (`criarAnterior`, gravado pelo `efetuar`) e a mensagem já entra no novo. Comandos (*enviar*…)
+    continuam sendo do pedido em andamento;
+  - **o nome de outro ato no meio de um pedido** (texto de até 5 palavras que *começa* com constituição,
+    abertura, alteração, baixa, distrato, transformação, advocacia…): sem nada solto antes, troca direto (o
+    de antes vai como está); com arquivos, anotações ou encaminhadas depois da última resposta (`ultimas`,
+    as 12 últimas mensagens e o que cada uma virou), o robô **pergunta a partir de qual mensagem** é o pedido
+    novo (lista numerada + "só a partir desta" + "não é pedido novo"). O mesmo ato do pedido em andamento
+    sempre pergunta. Pedido escolhido sem nada respondido só troca o tipo.
+  **Comentário** (*comentário: …*, ou *comentário* e depois o texto ou o **arquivo**): com mais de um pedido
+  possível — o em andamento e os enviados por esta conversa nos últimos 3 dias (`pedidosRecentes`, até 5,
+  gravados pelo `lembrarPedido`) — o robô **pergunta para qual vai**. Resposta que não é número: vai para a
+  1ª opção (o em andamento) e a mensagem segue normal. Comentário para outro pedido sai em `comentarEm`;
+  arquivo, em `anexarOutros`. Arquivo sem tipo que sobrou do pedido enviado vai para ele como "Não
+  identificado". O número do anterior fica em `solicAnterior`.
 - **Envio sozinho por falta de resposta** (23/11/2026): pedido em andamento, com arquivo, sem mensagem há
   **10 minutos**: o robô avisa no grupo que envia em 1 minuto; sem mensagem nova nesse minuto, envia do jeito
   que está (como o *enviar*), com os arquivos sem tipo como "Não identificado", e diz no grupo. Mensagem
   depois do aviso recomeça a contagem. Pausa, cancelamento por confirmar e pedido sem arquivo não disparam.
-  Sem pedido escolhido, o tipo sai das anotações e encaminhadas, ou vira *Outro assunto*. Quem conta o tempo
+  Sem pedido escolhido, o tipo sai das anotações e encaminhadas, ou vira *Outro assunto*. Pergunta do robô
+  sem resposta vale a opção mais provável: o comentário vai para o pedido em andamento; "a partir de qual
+  mensagem" envia o de antes e deixa o novo aberto (só "é o mesmo ato" conta como não novo). Quem conta o tempo
   é o agendamento `faxinaWhatsapp`, que agora bate **a cada minuto** (a faxina em si continua às 03:20):
   um agendamento só, porque o Cloud Scheduler dá 3 de graça por conta de cobrança. Lê só a conversa do grupo
   do robô (2 leituras por minuto). Marcas: `autoAvisoEm`, `autoEnviadoEm`. As mensagens encaminhadas também
