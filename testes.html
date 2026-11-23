@@ -105,7 +105,7 @@
 
     // começa do zero: sobra de uma execução interrompida (licença vencida, casos, rascunho)
     // faria testes falharem por motivo que não é do app
-    try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic","tinaIdsExcluidos","tinaErros"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
+    try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic","tinaSolRecolhidas","tinaIdsExcluidos","tinaErros"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
     try{
     // ---------- 1. Carregamento ----------
     grupo("Carregamento");
@@ -1541,6 +1541,20 @@
       reg("Solicitação é salva", lista.length===1 && lista[0].empresa==="PADARIA EXEMPLO LTDA");
       reg("CNPJ da solicitação sai formatado", lista.length===1 && /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(lista[0].cnpj||""), lista.length?lista[0].cnpj:"");
       reg("Prazo vencido aparece destacado", /vencido/i.test(($("solicLista")||{}).innerText||""));
+      // v1.78: cartão da lista de processos recolhe pelo cabeçalho e lembra a escolha
+      var sc=D.querySelector("#solicLista .sol"), cab=sc&&sc.querySelector("[data-sol-rec]");
+      reg("Cartão da lista de processos é recolhível pelo cabeçalho", !!cab && !sc.classList.contains("recolhida") && cab.getAttribute("aria-expanded")==="true");
+      if(cab) cab.click(); await espera(80);
+      reg("Recolhido: o detalhe some e o nome, a situação e os botões ficam", sc.classList.contains("recolhida") && !sc.querySelector(".sol-tempo").offsetParent
+        && !!sc.querySelector(".sol-emp").offsetParent && !!sc.querySelector(".sol-st").offsetParent && !!sc.querySelector("[data-sol-abrir]").offsetParent);
+      $("solicBusca").dispatchEvent(new W.Event("input",{bubbles:true})); await espera(300);
+      sc=D.querySelector("#solicLista .sol");
+      reg("Continua recolhido depois de a lista ser redesenhada", !!sc && sc.classList.contains("recolhida"));
+      var lsR=JSON.parse(W.localStorage.getItem("tinaSolic")||"[]"); lsR[0].alteradoEm=new Date(Date.now()+5000).toISOString(); W.localStorage.setItem("tinaSolic",JSON.stringify(lsR));
+      $("solicBusca").dispatchEvent(new W.Event("input",{bubbles:true})); await espera(300);
+      sc=D.querySelector("#solicLista .sol");
+      reg("Se a solicitação muda depois, o cartão volta a abrir sozinho", !!sc && !sc.classList.contains("recolhida"));
+      reg("Com um cartão só, não aparece o “Recolher todos”", $("btnSolicRecTodos").style.display==="none");
       // prazo inválido não passa
       $("btnSolicNova").click(); await espera(220);
       val("sEmpresa","OUTRA EXEMPLO"); val("sPrazo","31/02/2026");
@@ -3403,7 +3417,7 @@
       grupo("Execução"); reg("A bateria terminou sem erro inesperado",false,String(e&&e.message||e).slice(0,140));
       try{ console.error("erro na suite:",e); }catch(_){}
     } finally {
-      try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic","tinaIdsExcluidos","tinaErros"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
+      try{ ["tinaCasos","tinaDraft","tinaObjetos","tinaCfg","tinaBackup","tinaLic","tinaIni","tinaTrabalhos","tinaSolic","tinaSolRecolhidas","tinaIdsExcluidos","tinaErros"].forEach(function(k){ W.localStorage.removeItem(k); }); }catch(e){}
       fim();
     }
   }

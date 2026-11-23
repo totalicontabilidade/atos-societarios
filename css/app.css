@@ -98,6 +98,17 @@
   .sol.st-nova{--c:#1d5fa8}.sol.st-andamento{--c:#b8860b}.sol.st-cliente{--c:#c2570c}.sol.st-protocolada{--c:#6b3fa0}.sol.st-exigencia{--c:#b42318}.sol.st-concluida{--c:var(--ok)}.sol.st-cancelada{--c:#687889}
   .sol.acabou{animation:valflash 1.15s ease-out}
   .sol-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  /* lista de processos: o cartão recolhe pelo cabeçalho; ficam empresa, situação, tipo/prazo e os botões */
+  .sol.recolhivel>.sol-cab{cursor:pointer;margin:-4px -5px 0;padding:4px 5px;border-radius:8px;user-select:none}
+  .sol.recolhivel>.sol-cab:hover{background:#f2f6fb}
+  .sol.recolhivel>.sol-cab:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+  .sol.recolhivel>.sol-cab .rec-seta{flex:0 0 auto;margin-top:1px;font-size:13px;color:var(--navy2)}
+  .sol.recolhivel>.sol-cab .sol-emp{flex:1;min-width:0}
+  .sol.recolhida>.sol-cab .rec-seta{transform:none}
+  .sol.recolhida{padding-bottom:9px}
+  .sol.recolhida>:not(.sol-cab):not(.sol-meta):not(.sol-acoes){display:none!important}
+  .sol.recolhida>.sol-acoes{margin-top:7px;padding-top:7px}
+  #btnSolicRecTodos{margin:6px 0 0}
   .sol-emp{font-size:14.5px;font-weight:750;color:var(--ink);line-height:1.3;word-break:break-word}
   .sol-st{flex:0 0 auto;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:#e8f0fb;color:#1d5fa8;white-space:nowrap}
   .sol.st-andamento .sol-st{background:#fdf6e6;color:#8a5f00}

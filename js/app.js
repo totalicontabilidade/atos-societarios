@@ -3862,18 +3862,23 @@ window.TINA=(function(){
     const nPrec=l.filter(precisaDaTela).length, comSep=separar && nPrec>0 && nPrec<l.length;
     box.innerHTML=((f==="exigencia"||f==="todas")?resumoExigencias(tot):"")+l.map((r,ix)=>{
       const sep=!comSep?"":(ix===0?'<div class="sol-sep precisa">'+(_modoComercial?"Precisa de você":"Respostas novas")+" ("+nPrec+")</div>":(ix===nPrec?'<div class="sol-sep">Acompanhando</div>':""));
-      return sep+cartaoSolic(r,hoje,T);
+      return sep+cartaoSolic(r,hoje,T,true);
     }).join("");
     ligarCartoesSolic(box);
+    atualizarRecSolicTodos();
     _posRenderSolic(f,q);
   }
   /* Um cartão de solicitação. Função à parte porque ele aparece em dois lugares: na lista de
      processos e na etapa "Pedido" do ato. */
-  function cartaoSolic(r,hoje,T){
+  function cartaoSolic(r,hoje,T,recolhivel){
       const pz=_prazoSolic(r,hoje), st=SOLIC_STATUS[r.status]?r.status:"nova", precisa=precisaDaTela(r);
       const faltam=docsDaSolic(r).filter(d=>(r.docsOk||[]).indexOf(d)<0);
-      return '<div class="sol st-'+st+(precisa?" precisa":"")+'" data-sol-id="'+escHtml(r.id)+'">'
-        +'<div class="sol-cab"><div class="sol-emp">'+escHtml(r.empresa||"(sem empresa)")+"</div>"
+      const rec=!!recolhivel && solicRecolhida(r);
+      return '<div class="sol st-'+st+(precisa?" precisa":"")+(recolhivel?" recolhivel":"")+(rec?" recolhida":"")+'" data-sol-id="'+escHtml(r.id)+'">'
+        +(recolhivel
+          ?'<div class="sol-cab" role="button" tabindex="0" data-sol-rec="'+escHtml(r.id)+'" aria-expanded="'+String(!rec)+'" title="Abrir ou recolher o cartão">'
+            +'<span class="rec-seta" aria-hidden="true">▸</span><div class="sol-emp">'+escHtml(r.empresa||"(sem empresa)")+"</div>"
+          :'<div class="sol-cab"><div class="sol-emp">'+escHtml(r.empresa||"(sem empresa)")+"</div>")
         +'<span class="sol-st">'+escHtml(SOLIC_STATUS[r.status]||r.status||"")+"</span></div>"
         +'<div class="sol-meta"><span>'+escHtml(T[r.tipo]||(r.tipo?r.tipo:"ato a definir"))+"</span>"
           +(r.cnpj?"<span>"+escHtml(r.cnpj)+"</span>":"")
@@ -3912,7 +3917,33 @@ window.TINA=(function(){
         +_acoesSolic(r)
         +"</div>";
   }
+  /* Cartão recolhível na lista de processos: recolhido, fica o cabeçalho (empresa e situação), a
+     linha do tipo/prazo e os botões — o próximo passo continua a um clique. A escolha fica guardada
+     neste navegador junto com o alteradoEm da solicitação: se ela muda depois (resposta, exigência,
+     novo status), o cartão volta a abrir sozinho, para a novidade não ficar escondida. */
+  function _lerSolRec(){ try{ const o=JSON.parse(localStorage.getItem("tinaSolRecolhidas")||"{}"); return (o&&typeof o==="object"&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
+  function _gravarSolRec(o){ const ids=new Set(lerSolic().map(r=>r.id)); Object.keys(o).forEach(k=>{ if(!ids.has(k)) delete o[k]; });
+    try{ localStorage.setItem("tinaSolRecolhidas",JSON.stringify(o)); }catch(e){} }
+  function solicRecolhida(r){ const o=_lerSolRec(); return !!(r && r.id && (r.id in o) && o[r.id]===String(r.alteradoEm||"")); }
+  function recolherSolic(ids,recolher){
+    const o=_lerSolRec(), sols=lerSolic();
+    ids.forEach(id=>{ const r=sols.find(x=>x.id===id); if(recolher && r) o[id]=String(r.alteradoEm||""); else delete o[id];
+      const el=document.querySelector('#solicLista .sol[data-sol-id="'+CSS.escape(id)+'"]');
+      if(el){ el.classList.toggle("recolhida",!!recolher); const c=el.querySelector("[data-sol-rec]"); if(c) c.setAttribute("aria-expanded",String(!recolher)); } });
+    _gravarSolRec(o); atualizarRecSolicTodos();
+  }
+  function atualizarRecSolicTodos(){
+    const b=$("btnSolicRecTodos"); if(!b) return;
+    const cs=document.querySelectorAll("#solicLista .sol.recolhivel");
+    b.style.display=cs.length>=2?"":"none";
+    const todas=cs.length && [...cs].every(c=>c.classList.contains("recolhida"));
+    b.textContent=todas?"▾ Abrir todos":"▴ Recolher todos"; b.dataset.recolher=todas?"0":"1";
+  }
   function ligarCartoesSolic(box){
+    box.querySelectorAll("[data-sol-rec]").forEach(c=>{ const alt=e=>{ if(e.target.closest("a,button,summary,input,textarea,select")) return;
+        const el=c.closest(".sol"); recolherSolic([c.dataset.solRec],!el.classList.contains("recolhida")); };
+      c.addEventListener("click",alt);
+      c.addEventListener("keydown",e=>{ if(e.target===c && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); alt(e); } }); });
     box.querySelectorAll("[data-sol-abrir]").forEach(b=>b.addEventListener("click",()=>trabalharSolic(b.dataset.solAbrir)));
     box.querySelectorAll("[data-sol-exig]").forEach(b=>b.addEventListener("click",()=>registrarExigencia(b.dataset.solExig)));
     box.querySelectorAll("[data-sol-reproto]").forEach(b=>b.addEventListener("click",()=>reprotocolar(b.dataset.solReproto)));
@@ -8054,6 +8085,9 @@ window.TINA=(function(){
     // fechar a janela com o formulário aberto descarta o que estava sendo lançado, como o Cancelar
     if($("btnSolicClose")) $("btnSolicClose").addEventListener("click",()=>{ if(_formSolicAberto()) cancelarFormSolic(); $("solicModal").classList.remove("open"); });
     if($("btnSolicNova")) $("btnSolicNova").addEventListener("click",novaSolic);
+    if($("btnSolicRecTodos")) $("btnSolicRecTodos").addEventListener("click",()=>{
+      const ids=[...document.querySelectorAll("#solicLista .sol.recolhivel")].map(c=>c.dataset.solId);
+      recolherSolic(ids,$("btnSolicRecTodos").dataset.recolher!=="0"); });
     if($("btnSolicSalvar")) $("btnSolicSalvar").addEventListener("click",gravarSolic);
     if($("sStatus")) $("sStatus").addEventListener("change",mostrarExig);
     if($("btnSolicCancelar")) $("btnSolicCancelar").addEventListener("click",cancelarFormSolic);
