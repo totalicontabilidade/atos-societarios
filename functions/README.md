@@ -146,6 +146,18 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
   1ª opção (o em andamento) e a mensagem segue normal. Comentário para outro pedido sai em `comentarEm`;
   arquivo, em `anexarOutros`. Arquivo sem tipo que sobrou do pedido enviado vai para ele como "Não
   identificado". O número do anterior fica em `solicAnterior`.
+- **Recado: pedido que não é ato** (23/11/2026). Caso de 18/11: o Raoni mandou a foto de um ponto e um áudio
+  pedindo para ver na prefeitura se dava para abrir CNPJ ali; virou comentário do pedido da ITN. Decisão
+  dele: **o Atos é só para atos** — recado vira **só uma pendência própria no Hub**, e no Atos não fica nada
+  (nem solicitação, nem lista, nem o arquivo, que é apagado do Storage). Entra por *recado: …* (ou *recado*
+  e depois o texto, o áudio ou o arquivo), pela opção 7 do menu, ou quando, sem pedido escolhido, a frase
+  fala de consulta, prefeitura, viabilidade, alvará, certidão, licença… (`pareceRecado`): aí o robô pergunta
+  *1 — recado · 2 — ato*. Sem resposta (ou no envio sozinho), fica como recado. Sem pedido escolhido, o
+  recado leva o que estava solto (arquivos, anotações, encaminhadas); com pedido em andamento, não mexe nele.
+  A pendência (`hubDoRecado`) usa o mesmo evento `solicitacao.criada`, com id `R…` e título
+  "📌 Recado do grupo (não é ato) — de Fulano"; os arquivos aparecem listados ("no grupo do WhatsApp").
+  Quem resolve é o Hub (riscar a pendência). Se o Hub não receber, o robô avisa para mandar de novo: não há
+  fila de recados, para nada ficar guardado no Atos.
 - **Envio sozinho por falta de resposta** (23/11/2026): pedido em andamento, com arquivo, sem mensagem há
   **10 minutos**: o robô avisa no grupo que envia em 1 minuto; sem mensagem nova nesse minuto, envia do jeito
   que está (como o *enviar*), com os arquivos sem tipo como "Não identificado", e diz no grupo. Mensagem

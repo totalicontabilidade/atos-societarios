@@ -248,7 +248,7 @@ const FLUXOS = {
     ],
   },
 };
-const MENU = [["abrir", "Abrir uma empresa"], ["alterar", "Alterar uma empresa que já existe"], ["fechar", "Fechar uma empresa"], ["transformar", "Mudar o tipo (MEI/EI → Ltda)"], ["advocacia", "Sociedade de advocacia (OAB)"], ["outro", "Outro assunto"]];
+const MENU = [["abrir", "Abrir uma empresa"], ["alterar", "Alterar uma empresa que já existe"], ["fechar", "Fechar uma empresa"], ["transformar", "Mudar o tipo (MEI/EI → Ltda)"], ["advocacia", "Sociedade de advocacia (OAB)"], ["outro", "Outro assunto"], ["recado", "Recado para a equipe (não é ato)"]];
 
 function perguntaTipoArquivo(estado) {
   const f = estado.arquivosPendentes[0];
@@ -267,7 +267,7 @@ function retomar(estado, msgs) {
 }
 
 const LGPD = "🔒 Os dados e documentos mandados aqui vão para o Atos e só servem para preparar o ato (LGPD). Mande só o que for do processo.";
-const AJUDA = "Comandos: *enviar* (manda o pedido com o que já tem) · *voltar* (pergunta anterior) · *resumo* · *menu* (recomeçar) · *cancelar* · *comentário …* (vai para o Atos e o Hub) · *pausar* (o robô fica quieto; *ativar* volta).";
+const AJUDA = "Comandos: *enviar* (manda o pedido com o que já tem) · *voltar* (pergunta anterior) · *resumo* · *menu* (recomeçar) · *cancelar* · *comentário …* (vai para o Atos e o Hub) · *recado …* (o que não é ato: vira pendência só no Hub) · *pausar* (o robô fica quieto; *ativar* volta).";
 
 // ─── comentário para o Hub e pausa do robô ───────────────────────────────────
 // "comentário: cliente tem pressa" → entra na conversa da solicitação no Atos e vira comentário na pendência do Hub.
@@ -401,6 +401,8 @@ const CONF_CANCELAR = "Cancelar apaga este pedido e os arquivos dele. Confirma? 
 function mensagemAtual(estado) {
   if (estado.cancelando === "menu") return CONF_MENU;
   if (estado.cancelando === "cancelar") return CONF_CANCELAR;
+  if (estado.perguntaRecado) return perguntaRecadoTexto(estado);
+  if (estado.aguardandoRecado) return PEDE_RECADO;
   if (estado.perguntaDestino) return perguntaDestinoTexto(estado);
   if (estado.perguntaInicio) return perguntaInicioTexto(estado);
   const m = []; retomar(estado, m); return m[m.length - 1] || null;
@@ -433,6 +435,17 @@ function receberMensagem(estadoIn, entrada) {
   // resposta a uma pergunta do robô: para qual pedido vai o comentário / a partir de qual mensagem é o pedido novo
   if (estado.perguntaDestino && responderDestino(estado, out, msgs, texto, midia)) return out;
   if (estado.perguntaInicio && responderInicio(estado, out, msgs, texto, midia) === "fim") return out;
+  if (estado.perguntaRecado && responderRecado(estado, out, msgs, texto, midia, entrada)) return out;
+  // RECADO (pedido que não é ato, como "ver na prefeitura se dá para abrir CNPJ nesse ponto"): não abre
+  // pedido nem mexe no que está em andamento; vai só para o Hub, como pendência própria
+  const rec = recadoDoTexto(texto);
+  if (rec !== null || (estado.aguardandoRecado && (midia || (texto && !PALAVRAS_COMANDO.test(t))))) {
+    estado.aguardandoRecado = false;
+    if (rec === "" && !midia) { estado.aguardandoRecado = true; msgs.push(PEDE_RECADO); return out; }
+    recadoAgora(estado, out, msgs, rec !== null ? rec : texto, midia);
+    return out;
+  }
+  estado.aguardandoRecado = false;
   // PEDIDO NOVO (23/11/2026): o Raoni mandou 5 fotos, 4 mensagens encaminhadas e "Constituição" no grupo,
   // e o robô, ainda preso ao pedido de 18/11 (baixa de uma filial), pôs as mensagens como comentário NELE.
   // Agora: depois de um pedido enviado, o que chega é pedido novo (só "comentário" não é); e com um pedido
@@ -507,6 +520,11 @@ function receberMensagem(estadoIn, entrada) {
   if (!midia && !entrada.encaminhada && estado.fluxo && !enviadoJa(estado) && !estado.aguardandoCorrecao && !estado.cancelando) {
     const v = nomeDoAto(texto);
     if (v && atoNoMeio(estado, out, msgs, v, texto, agora)) return out;
+  }
+  // sem pedido escolhido, frase que fala de consulta, prefeitura, viabilidade, alvará…: pergunta se é recado
+  if (!midia && !entrada.encaminhada && !entrada.semRecado && !estado.fluxo && !enviadoJa(estado) && pareceRecado(texto)) {
+    estado.perguntaRecado = { texto: texto.slice(0, 3000) };
+    msgs.push(perguntaRecadoTexto(estado)); return out;
   }
   const pendentes = () => (estado.arquivosPendentes || []).length;
   const passoArq = (estado.fluxo && !estado.aguardandoCorrecao && !pendentes() && estado.respostas.confirmar !== "sim") ? passoAtual(estado) : null;
@@ -583,6 +601,7 @@ function receberMensagem(estadoIn, entrada) {
   if (!estado.fluxo) {
     if (!estado.lgpdEm) { estado.lgpdEm = new Date().toISOString(); msgs.push(LGPD); }
     let v = escolherOpcao(texto, MENU), adivinhado = false;
+    if (v === "recado") { estado.aguardandoRecado = true; msgs.push(PEDE_RECADO); return out; }
     const livre = texto.length >= 4 && !/^\d+([,\s]+\d+)*$/.test(t);
     if (!v && livre) { v = adivinharFluxo(texto); adivinhado = !!v; anotar(estado, texto); }
     if (!v) { if (livre) msgs.push(`📝 Anotei: _${texto.slice(0, 120)}_ (vai junto no pedido).`); msgs.push(menuTexto(estado)); return out; }
@@ -809,6 +828,77 @@ function responderInicio(estado, out, msgs, texto, midia) {
   return "segue";
 }
 
+// ─── recado: pedido que não é ato ─────────────────────────────────────────────
+// Caso de 18/11/2026: o Raoni mandou a foto de um ponto e um áudio ("preciso ver consulta e prefeitura
+// para ver se esse ponto a gente pode abrir um CNPJ"). Não é ato: é trabalho para a equipe. Virou
+// comentário do pedido da ITN; com as regras de pedido novo viraria um "Abrir empresa". Agora é RECADO:
+// sai em out.recado e o index.js abre uma PENDÊNCIA PRÓPRIA NO HUB. Nada fica no Atos (decisão dele:
+// "o Atos é só para atos") — nem solicitação, nem lista, nem o arquivo.
+//  • "recado: …", ou "recado" e depois o texto, o áudio ou o arquivo; ou a opção do menu;
+//  • sem pedido escolhido, frase que fala de consulta, prefeitura, viabilidade, alvará, certidão… → o robô pergunta.
+// Sem pedido escolhido, o recado leva o que estava solto (arquivos, anotações, encaminhadas): era o contexto dele.
+const RE_RECADO = /^\s*(?:recado|tarefa)(?=$|[\s:,;.\-–])[\s:,;.\-–]*/i;
+const RE_SERVICO = /\b(consult\w*|prefeitura|viabilidade|alvara\w*|certid\w*|analis\w*|parecer|uso do solo|bombeiros?|vigilancia sanitaria|licenca\w*|licenciamento|habite se|habitese|zoneamento|inscricao (municipal|estadual))\b/;
+const PEDE_RECADO = "📌 Escreva o recado (ou mande o áudio ou o arquivo) na próxima mensagem. Ele vira uma pendência no Hub, sem abrir pedido de ato.";
+function recadoDoTexto(texto) {
+  const t = String(texto || ""), m = RE_RECADO.exec(t);
+  return m ? t.slice(m[0].length).trim() : null;
+}
+function pareceRecado(texto) {
+  const t = String(texto || "").trim();
+  if (t.split(/\s+/).length < 6 || comentarioDoTexto(t) !== null) return false;
+  const s = semAcento(t).replace(/^[^a-z]+/, "");
+  return RE_SERVICO.test(" " + s + " ") && !RE_INICIO_ATO.test(s);
+}
+function perguntaRecadoTexto(estado) {
+  const soltos = !estado.fluxo ? todosArquivos(estado).length : 0;
+  return "📌 Isso parece um *recado para a equipe*, não um pedido de ato. É isso?\n*1* — Sim, é recado (vira pendência no Hub)\n*2* — Não, é um pedido de ato" +
+    (soltos ? `\n_${soltos > 1 ? "Os " + soltos + " arquivos mandados antes contam" : "O arquivo mandado antes conta"} como parte do recado._` : "");
+}
+// true: a mensagem era a resposta. Sem resposta, fica como recado (foi o que o robô entendeu) e a mensagem segue.
+function responderRecado(estado, out, msgs, texto, midia, entrada) {
+  const pr = estado.perguntaRecado; estado.perguntaRecado = null;
+  const s = midia ? "" : semAcento(texto).trim();
+  const k = /^(1|sim|s|e recado|recado)$/.test(s) ? 1 : (/^(2|nao|n|ato|e ato)$/.test(s) ? 2 : 0);
+  if (k === 2) {
+    // não é recado: o texto segue como se tivesse acabado de chegar (escolhe o pedido ou vira anotação)
+    const sub = receberMensagem(estado, Object.assign({}, entrada, { texto: pr.texto, midia: null, encaminhada: false, semRecado: true }));
+    Object.keys(estado).forEach((x) => delete estado[x]); Object.assign(estado, sub.estado);
+    ["acao", "dados", "anexar", "anexarEm", "descartar", "comentario", "comentarEm", "anexarOutros", "criarAnterior", "recado"].forEach((x) => { if (sub[x] != null) out[x] = sub[x]; });
+    msgs.push(...sub.mensagens); return true;
+  }
+  criarRecado(estado, out, msgs, pr.texto, !estado.fluxo && !enviadoJa(estado));
+  if (k === 1) return true;
+  msgs.push("(Sem resposta: ficou como recado.)");
+  if (!midia && RE_CORTESIA.test(texto)) return true;   // "Certo", "ok": nada mais a fazer
+  return false;
+}
+function recadoAgora(estado, out, msgs, texto, midia) {
+  const absorver = !estado.fluxo && !enviadoJa(estado);
+  criarRecado(estado, out, msgs, texto || (midia && midia.legenda) || "", absorver, midia);
+  if (emAndamento(estado) || estado.cancelando) { const q = mensagemAtual(estado); if (q) msgs.push(q); }
+}
+// O arquivo do recado não fica no Atos: vai em out.descartar (o index apaga do Storage) e a pendência diz
+// que ele está no grupo, com o nome e a hora.
+function criarRecado(estado, out, msgs, texto, absorver, midia) {
+  const r = estado.respostas || {}, arquivos = [], notas = [], mensagens = [];
+  if (absorver) {
+    Object.keys(r).forEach((k) => { if (k !== "_notas" && Array.isArray(r[k])) r[k].forEach((a) => { if (a && typeof a === "object" && a.caminho) arquivos.push(a); }); });
+    (estado.arquivosPendentes || []).forEach((a) => arquivos.push(a));
+    (r._notas || []).forEach((n) => notas.push(String(n)));
+    (estado.comentarios || []).forEach((c) => mensagens.push((c.encaminhada ? "↪️ " : "💬 ") + String(c.texto).replace(MARCA_ENCAMINHADA, "").replace(/\s*\n\s*/g, " ").trim()));
+  }
+  if (midia) arquivos.push(midia);
+  out.recado = { texto: String(texto || "").trim().slice(0, 3000), por: estado.remetenteNome || estado.remetenteTel || "",
+    participantes: (estado.participantes || []).slice(), notas, mensagens, em: new Date().toISOString(),
+    arquivos: arquivos.map((a) => ({ nome: a.nome || "arquivo", em: a.em || "", legenda: a.legenda || "" })) };
+  out.descartar = (out.descartar || []).concat(arquivos.filter((a) => a.caminho));
+  if (absorver) { estado.respostas = {}; estado.ordem = []; estado.arquivosPendentes = []; estado.destinoPendentes = null; estado.comentarios = []; estado.ultimas = []; estado.rotuloProximo = null; estado.autoAvisoEm = null; }
+  const n = arquivos.length;
+  msgs.push("📌 *Recado* anotado para a equipe (não é ato): vai para o Hub como pendência." + (n ? ` ${n > 1 ? "Os " + n + " arquivos ficam" : "O arquivo fica"} só aqui no grupo.` : "") +
+    (absorver ? "" : " O pedido em andamento continua."));
+}
+
 // ─── comentário: para qual pedido vai ─────────────────────────────────────────
 function rotuloPedido(p) {
   const nome = p.fluxoNome || (FLUXOS[p.fluxo] || {}).nome || "";
@@ -938,6 +1028,14 @@ function enviarPorInatividade(estadoIn) {
     if (out.acao === "comentar" && out.comentario) { out.comentarEm = (out.comentarEm || []).concat([{ solicId: estado.solicId, comentario: out.comentario }]); out.acao = null; out.comentario = null; }
     if (out.acao === "anexar") out.acao = null;
   }
+  if (estado.perguntaRecado) {
+    // o robô achou que era recado e ninguém respondeu: fica como recado (sem criar pedido de ato)
+    const pr = estado.perguntaRecado; estado.perguntaRecado = null;
+    criarRecado(estado, out, msgs, pr.texto, !estado.fluxo);
+    msgs[msgs.length - 1] = "⏱️ Ninguém respondeu por 11 minutos. " + msgs[msgs.length - 1];
+    estado.autoAvisoEm = null; estado.autoEnviadoEm = new Date(agora).toISOString();
+    return out;
+  }
   if (estado.perguntaInicio && !estado.perguntaInicio.mesmo) {
     const pi = estado.perguntaInicio; estado.perguntaInicio = null;
     trocarPedido(estado, out, msgs, [], "ato"); anotar(estado, pi.texto); escolherFluxo(estado, msgs, pi.fluxo, false);
@@ -1034,4 +1132,4 @@ function montarSolicitacao(estado) {
 
 module.exports = { FLUXOS, MENU, LGPD, TIPOS_ARQ, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto, classificarDoc, adivinharFluxo, mensagemAtual, textoFalado, extrasDoTexto, mudancasDoTexto,
   comentarioDoTexto, comandoPausa, pausado, PAUSA_MS, inatividade, enviarPorInatividade, AVISO_INATIVO, AVISO_INATIVO_MS, ENVIO_DEPOIS_AVISO_MS, todosArquivos,
-  opcoesDestino, nomeDoAto, SILENCIO_NOVO_MS };
+  opcoesDestino, nomeDoAto, SILENCIO_NOVO_MS, pareceRecado, recadoDoTexto };

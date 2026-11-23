@@ -187,6 +187,13 @@ async function efetuar(r, novo, chatRef, falar) {
   }
   if (r.acao === "comentar" && r.comentario) { const c = await enviarComentarios(novo.solicId, [r.comentario]); resultado.comentario = c.ok ? "entregue" : "pendente"; falar(textoComentarios(c)); }
   if (r.acao === "anexar" && !r.anexarEm && r.anexar && r.anexar.length) resultado.anexados = await anexarNaSolicitacao(novo, r.anexar);
+  // recado (pedido que não é ato): só uma pendência própria no Hub; no Atos não fica nada (nem o arquivo)
+  if (r.recado) {
+    const h = await postarHub("solicitacao.criada", hubDoRecado(r.recado));
+    resultado.recado = h.ok ? ((h.resposta && h.resposta.pendencia) || "ok") : null;
+    if (h.ok) logger.info("recado no Hub", { pendencia: h.resposta && h.resposta.pendencia });
+    else { logger.warn("recado NÃO entrou no Hub", { erro: h.erro }); r.avisos.push("⚠️ O Hub não recebeu o recado agora. Mande de novo daqui a pouco, por favor (o Atos não guarda recados)."); }
+  }
   if (r.descartar && r.descartar.length) await Promise.all(r.descartar.map((a) => a.caminho ? bucket().file(a.caminho).delete().catch((e) => logger.warn("arquivo descartado não apagado", { e: e.message })) : null));
   return resultado;
 }
@@ -557,12 +564,26 @@ function pacoteHub(evento, reg, segredo, extra) {
   const pedidos = (reg.pedidos || []).map((k) => PEDIDOS_HUB[k]).filter(Boolean).join(", ");
   return { evento, segredo: segredo || "", enviadoEm: agoraISO(), origem: "atos-whatsapp", ...(extra || {}),
     solicitacao: { id: String(reg.id || ""), empresa: reg.empresa || "", cnpj: reg.cnpj || "", tipo: reg.tipo || "",
-      tipoNome: TIPOS_HUB[reg.tipo] || pedidos || "Solicitação", pedido: reg.pedidoTexto || pedidos,
+      tipoNome: reg.tipoNome || TIPOS_HUB[reg.tipo] || pedidos || "Solicitação", pedido: reg.pedidoTexto || pedidos,
       prazo: p.length === 3 && p[2].length === 4 ? `${p[2]}-${p[1]}-${p[0]}` : "", responsavel: reg.responsavel || "", contato: reg.contato || "", fone: reg.fone || "",
       status: reg.status || "nova", statusNome: STATUS_HUB[reg.status] || "Nova", obs: reg.obs || "", pendencia: reg.pendencia || "", abertaPor: reg.abertaPor || "whatsapp" } };
 }
 // Manda um evento ao Hub e lê a resposta. "ignorado" conta como NÃO entregue: é o que um recebedor
 // antigo responde a um evento que ele não conhece (ex.: solicitacao.comentario antes de republicar).
+// Recado do grupo (pedido que não é ato) no formato que o recebedor do Hub já aceita: o mesmo evento das
+// solicitações, com id "R…" (o Hub abre a pendência pela origem). Quem resolve é o Hub, riscando a pendência.
+function hubDoRecado(rec) {
+  const hora = (iso) => (iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
+  const arqs = (rec.arquivos || []).map((a) => `📎 ${a.nome}${a.legenda ? ` (“${a.legenda}”)` : ""}${a.em ? ", " + hora(a.em) : ""}`);
+  const outros = (rec.participantes || []).filter((p) => p && p !== rec.por);
+  return {
+    id: rec.id || "R" + Date.now().toString(36).toUpperCase() + crypto.randomInt(0, 36).toString(36).toUpperCase(),
+    tipoNome: "📌 Recado do grupo (não é ato)", empresa: rec.por ? "de " + rec.por : "grupo do WhatsApp",
+    pedidoTexto: rec.texto || (arqs.length ? "(só arquivo)" : ""), status: "nova", abertaPor: "whatsapp",
+    obs: [].concat(rec.notas || [], rec.mensagens || [], arqs.length ? [arqs.length > 1 ? "Arquivos no grupo do WhatsApp (não ficam no Atos):" : "Arquivo no grupo do WhatsApp (não fica no Atos):"].concat(arqs) : [],
+      [`Recado pelo WhatsApp, ${hora(rec.em || new Date().toISOString())}${outros.length ? " (com " + outros.join(", ") + ")" : ""}.`]).join("\n"),
+  };
+}
 async function postarHub(evento, reg, extra) {
   let ok = false, erro = "", resposta = null;
   try {
@@ -626,4 +647,4 @@ async function faxina() {
 }
 
 // exposto para testes locais (node --test)
-exports._interno = { processarEvento, tokenConfere, chaveChat, pacoteHub, relogioInatividade };
+exports._interno = { processarEvento, tokenConfere, chaveChat, pacoteHub, relogioInatividade, hubDoRecado };
