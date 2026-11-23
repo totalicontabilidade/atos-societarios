@@ -19,7 +19,7 @@ WhatsApp do escritório ──► Evolution API v2.3.7 (VPS Magalu, container at
 
 | Onde | O quê |
 |---|---|
-| `functions/index.js` | webhook (token, de-duplicação, mídia → Storage, resposta pela Evolution), `vincular`, gravação da solicitação, aviso ao Hub, faxina diária |
+| `functions/index.js` | webhook (token, de-duplicação, mídia → Storage, resposta pela Evolution), `vincular`, gravação da solicitação, aviso ao Hub, relógio de cada minuto (envio por falta de resposta) e faxina diária |
 | `functions/dialogo.js` | catálogo de fluxos (abrir, alterar, fechar, transformar, advocacia, outro), validações, resumo, correção, comandos (*voltar*, *resumo*, *menu*, *cancelar*) |
 | `functions/portaria.js` | decide antes de gravar: só o grupo ativado é atendido; privado e outros grupos são descartados |
 | `functions/parser.js` | tradução do evento da Evolution (copiado do TotaliFinance, adaptado ao privado) |
@@ -122,6 +122,25 @@ para fora do grupo ativado, mesmo que outra parte do código erre.
   mensagem; os outros que participaram vão como "(com …)". A **descrição** escrita pela equipe (anotações,
   "Descreva o pedido") abre a observação e o texto do pedido, com 📝. Texto escrito enquanto o robô pergunta
   o tipo de um arquivo não é mais descartado: vira anotação, ou escolhe o pedido se descrever um.
+
+- **Pedido novo depois de um enviado** (23/11/2026): o Raoni mandou 5 fotos, 4 mensagens encaminhadas do
+  cliente e "Constituição", e o robô, ainda preso ao pedido enviado em 18/11 (baixa de uma filial), pôs as
+  mensagens como comentário *nele* e respondeu "este pedido já foi enviado". Agora começa um **pedido novo**:
+  texto curto com o tipo do processo (*Constituição*, *abertura*, *alteração da X*, *baixa*…), a qualquer
+  hora; e arquivo ou mensagem encaminhada quando o pedido anterior foi enviado há **mais de 30 minutos**
+  (`conversas/{chat}.enviadoEm`; sem a marca, conta como antigo). Dentro dos 30 minutos, arquivo e
+  encaminhada continuam juntando ao pedido enviado; *comentário: …* escrito à mão sempre vai para ele.
+  Arquivo sem tipo que sobrou do pedido anterior vai para ele como "Não identificado" (nada se perde).
+  O número do anterior fica em `solicAnterior`.
+- **Envio sozinho por falta de resposta** (23/11/2026): pedido em andamento, com arquivo, sem mensagem há
+  **10 minutos**: o robô avisa no grupo que envia em 1 minuto; sem mensagem nova nesse minuto, envia do jeito
+  que está (como o *enviar*), com os arquivos sem tipo como "Não identificado", e diz no grupo. Mensagem
+  depois do aviso recomeça a contagem. Pausa, cancelamento por confirmar e pedido sem arquivo não disparam.
+  Sem pedido escolhido, o tipo sai das anotações e encaminhadas, ou vira *Outro assunto*. Quem conta o tempo
+  é o agendamento `faxinaWhatsapp`, que agora bate **a cada minuto** (a faxina em si continua às 03:20):
+  um agendamento só, porque o Cloud Scheduler dá 3 de graça por conta de cobrança. Lê só a conversa do grupo
+  do robô (2 leituras por minuto). Marcas: `autoAvisoEm`, `autoEnviadoEm`. As mensagens encaminhadas também
+  entram na observação da solicitação, e "Nome da empresa: X" escrito ou encaminhado vira o nome do cartão.
 
 ## Operação
 

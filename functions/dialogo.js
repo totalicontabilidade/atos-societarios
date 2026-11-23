@@ -425,6 +425,10 @@ function receberMensagem(estadoIn, entrada) {
   if (quemAgora && !(estado.participantes || []).includes(quemAgora)) estado.participantes = (estado.participantes || []).concat([quemAgora]).slice(-6);
   estado.atualizadoEm = new Date().toISOString();
   const msgs = [], out = { estado, mensagens: msgs, acao: null };
+  // PEDIDO NOVO depois de um já enviado (23/11/2026): o Raoni mandou 5 fotos, 4 mensagens encaminhadas e
+  // "Constituição" no grupo, e o robô, ainda preso ao pedido de 18/11 (baixa de uma filial), pôs as
+  // mensagens como comentário NELE e respondeu "este pedido já foi enviado" ao tipo do processo.
+  if (comecaPedidoNovo(estado, entrada, texto, midia)) abrirPedidoNovo(estado, out, msgs, entrada.agora);
 
   // comandos globais (só em mensagem de texto: legenda de arquivo nunca é comando)
   if (!midia) {
@@ -596,7 +600,7 @@ function receberMensagem(estadoIn, entrada) {
   if (!p) {
     // tudo respondido: confirmação final
     if (estado.respostas.confirmar === undefined) {
-      if (/^(1|sim|confirmar|confirmo|ok)$/i.test(t)) { estado.respostas.confirmar = "sim"; estado.encerrado = true; out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); levarComentarios(estado, out.dados); msgs.push("✅ Pedido enviado: já está no Atos, na lista de solicitações, para a legalização."); return out; }
+      if (/^(1|sim|confirmar|confirmo|ok)$/i.test(t)) { estado.respostas.confirmar = "sim"; estado.encerrado = true; estado.enviadoEm = new Date().toISOString(); out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); levarComentarios(estado, out.dados); msgs.push("✅ Pedido enviado: já está no Atos, na lista de solicitações, para a legalização."); return out; }
       if (/^(2|corrigir|não|nao|n)$/i.test(t)) { estado.aguardandoCorrecao = true; msgs.push(resumo(estado) + "\n\nQual item quer corrigir? Digite o *número*."); return out; }
       msgs.push(resumo(estado) + "\n\nEstá tudo certo? *1* — Confirmar e enviar · *2* — Corrigir algo"); return out;
     }
@@ -635,12 +639,89 @@ function enviarAgora(estado, out, msgs) {
     estado.arquivosPendentes = (estado.arquivosPendentes || []).concat(pend); delete r[k];
   });
   estado.cancelando = null; estado.aguardandoCorrecao = false; estado.rotuloProximo = null;
-  r.confirmar = "sim"; estado.encerrado = true; estado.enviadoAntesDoFim = true;
+  r.confirmar = "sim"; estado.encerrado = true; estado.enviadoAntesDoFim = true; estado.enviadoEm = new Date().toISOString();
   out.acao = "criar_solicitacao"; out.dados = montarSolicitacao(estado); levarComentarios(estado, out.dados);
   const faltou = out.dados.faltou || [];
   msgs.push(resumo(estado) + "\n\n✅ Pedido enviado com o que já tem: está no Atos, na lista de solicitações, para a legalização." +
     (faltou.length ? `\nFicou para a legalização ver nos documentos: ${faltou.join("; ").replace(/\?$/, "")}.` : "") + "\nArquivos mandados agora ainda entram neste pedido.");
 }
+// ─── pedido novo depois de um enviado ──────────────────────────────────────────
+// Começa um pedido novo, em vez de juntar ao já enviado:
+//  • texto curto que diz o tipo do processo ("Constituição", "abertura de empresa", "alteração da X");
+//  • arquivo ou mensagem encaminhada quando o pedido anterior foi enviado há mais de 30 minutos (ou
+//    não se sabe quando): é outro assunto chegando. Dentro dos 30 minutos, continua juntando ao enviado.
+// "comentário: …" escrito à mão continua indo para o pedido enviado.
+const RECENTE_MS = 30 * 60000;
+const RE_TIPO_PROCESSO = /\b(abrir|abertura|constitui\w*|nova empresa|empresa nova|alterac\w*|alterar|baixa|baixar|fechar|fechamento|encerra\w*|distrato|dissoluc\w*|transforma\w*|advocacia)\b/;
+function comecaPedidoNovo(estado, entrada, texto, midia) {
+  if (!estado.respostas || estado.respostas.confirmar !== "sim" || estado.cancelando) return false;
+  const agora = entrada.agora || Date.now(), enviado = Date.parse(estado.enviadoEm || "") || 0;
+  const antigo = !enviado || agora - enviado > RECENTE_MS;
+  if (midia || (entrada.encaminhada && texto)) return antigo;
+  if (!texto || comentarioDoTexto(texto) !== null || PALAVRAS_COMANDO.test(texto) || RE_ENVIAR.test(texto)) return false;
+  return texto.split(/\s+/).length <= 8 && RE_TIPO_PROCESSO.test(" " + semAcento(texto) + " ") && !!adivinharFluxo(texto);
+}
+function abrirPedidoNovo(estado, out, msgs, agoraMs) {
+  const agora = agoraMs || Date.now(), anterior = estado.solicId || "", nomeAnterior = (FLUXOS[estado.fluxo] || {}).nome || "";
+  // arquivo sem tipo que sobrou do pedido anterior (mais de 30 min): não se perde, vai para ele
+  const pend = estado.arquivosPendentes || [];
+  const velhos = pend.filter((a) => !(Date.parse(a.em || "") > agora - RECENTE_MS)), novos = pend.filter((a) => !velhos.includes(a));
+  if (velhos.length && anterior) { out.anexar = velhos.map((a) => Object.assign({}, a, { doc: "", docNome: "Não identificado", nome: `Não identificado — ${a.nome}` })); out.anexarEm = anterior; out.acao = "anexar"; }
+  const quem = estado.remetenteNome || estado.remetenteTel || "";
+  zerarPedido(estado);
+  Object.assign(estado, { solicAnterior: anterior, solicId: "", empresa: "", cnpj: "", vinculo: null, casoId: "", encerrado: false, enviadoAntesDoFim: false,
+    enviadoEm: null, comentarios: [], arquivosPendentes: novos, participantes: quem ? [quem] : [], autoAvisoEm: null });
+  msgs.push(`📂 Pedido novo${nomeAnterior ? ` (o anterior, *${nomeAnterior}*, já tinha sido enviado)` : ""}.`);
+}
+
+// ─── envio automático por falta de resposta ────────────────────────────────────
+// Pedido em andamento, com arquivo, parado há 10 minutos: o robô avisa que manda em 1 minuto; sem
+// mensagem nova nesse minuto, manda do jeito que está (como o comando "enviar") e diz no grupo.
+// Quem chama é o relógio do index.js (a cada minuto). "agora" e as marcas são em milissegundos/ISO.
+const AVISO_INATIVO_MS = 10 * 60000, ENVIO_DEPOIS_AVISO_MS = 60000;
+function ultimaAtividade(estado) {
+  return Math.max(Date.parse(estado.ultimaMsgEm || "") || 0, estado.pausaAte ? Number(estado.pausaAte) - PAUSA_MS : 0);
+}
+// "avisar", "enviar" ou null
+function inatividade(estado, agora) {
+  if (!estado || estado.cancelando || pausado(estado, agora)) return null;
+  if (!estado.respostas || estado.respostas.confirmar === "sim") return null;
+  if (!todosArquivos(estado).length) return null;
+  const ultima = ultimaAtividade(estado); if (!ultima) return null;
+  const aviso = Date.parse(estado.autoAvisoEm || "") || 0;
+  // o relógio bate a cada minuto: 10 s de folga para o envio não escorregar para o minuto seguinte
+  if (aviso > ultima) return agora - aviso >= ENVIO_DEPOIS_AVISO_MS - 10000 ? "enviar" : null;
+  return agora - ultima >= AVISO_INATIVO_MS ? "avisar" : null;
+}
+const AVISO_INATIVO = "⏳ Faz 10 minutos que não chega mensagem neste pedido. Se ninguém mandar mais nada em *1 minuto*, eu envio do jeito que está (documentos e informações) para o Atos.";
+function enviarPorInatividade(estadoIn) {
+  const estado = JSON.parse(JSON.stringify(estadoIn)), msgs = [], out = { estado, mensagens: msgs, acao: null };
+  if (!estado.fluxo) {
+    // arquivos sem pedido escolhido: o pedido sai pelo que foi escrito (anotações e encaminhadas), ou "Outro assunto"
+    const notas = estado.respostas._notas || [];
+    const v = adivinharFluxo(notas.concat((estado.comentarios || []).map((c) => c.texto)).join(" ")) || "outro";
+    estado.fluxo = v;
+    if (v === "outro" && notas.length) estado.respostas.descricao = notas.join(" / ");
+  }
+  // arquivo sem tipo entra na documentação como "Não identificado" (no resumo e na solicitação)
+  const naoId = (a) => { const c = Object.assign({}, a, { doc: "", docNome: "Não identificado", nome: `Não identificado — ${a.nome}` }); delete c.pendente; return c; };
+  const passoDocs = FLUXOS[estado.fluxo].passos.find((p) => p.tipo === "arquivo");
+  let tinha = 0;
+  Object.keys(estado.respostas).filter((k) => k.startsWith("_arq.") && k !== "_arq.avulsos").forEach((k) => {
+    estado.respostas[k] = (estado.respostas[k] || []).map((a) => (a.pendente ? (tinha++, naoId(a)) : a)); });
+  if ((estado.arquivosPendentes || []).length && passoDocs) {
+    tinha += estado.arquivosPendentes.length;
+    const destino = estado.respostas[passoDocs.id] !== undefined ? passoDocs.id : "_arq." + passoDocs.id;
+    estado.respostas[destino] = (estado.respostas[destino] || []).concat(estado.arquivosPendentes.map(naoId));
+    estado.arquivosPendentes = []; estado.destinoPendentes = null;
+  } else tinha += (estado.arquivosPendentes || []).length;
+  enviarAgora(estado, out, msgs);
+  estado.autoAvisoEm = null; estado.autoEnviadoEm = new Date().toISOString();
+  msgs[0] = "⏱️ *Enviado sozinho*: ninguém mandou mensagem por 11 minutos.\n\n" + msgs[0] +
+    (tinha ? `\n${tinha > 1 ? tinha + " arquivos foram" : "1 arquivo foi"} sem dizer o que é: entram como *Não identificado*.` : "");
+  return out;
+}
+
 // Comentário para o Hub. Com processo no Atos (pedido já enviado ou conversa vinculada), sai na hora
 // (acao "comentar"; quem avisa se o Hub recebeu é o webhook). Sem processo ainda, fica guardado e vai
 // junto quando o pedido for enviado (levarComentarios).
@@ -684,7 +765,10 @@ function montarSolicitacao(estado) {
   const linhas = passos.filter((p) => r[p.id] !== undefined && p.tipo !== "arquivo" && p.id !== "descricao" && p.id !== "outroDetalhe").map((p) => `${rotuloPasso(p, estado)}: ${valorLegivel(p, r[p.id])}`);
   const cnpj = r.cnpj ? cnpjLimpo(r.cnpj) : (estado.cnpj || "");
   const ex = extrasDoTexto(r.extras);
-  const empresa = estado.empresa || r.nomeEmpresa || r.novoNome || (cnpj ? "CNPJ " + fmtCNPJ(cnpj) : "") || (r.contatoNome || ex.contatoNome ? "Pedido de " + (r.contatoNome || ex.contatoNome) : "Pedido pelo WhatsApp");
+  // "Nome da empresa: Rancho da Brasa" numa anotação ou mensagem encaminhada, quando a pergunta não foi respondida
+  const nomeEscrito = (() => { for (const x of (r._notas || []).concat((estado.comentarios || []).map((c) => String(c.texto).replace(MARCA_ENCAMINHADA, "")))) {
+    const m = /^\s*nome (?:da empresa|empresarial|pretendido)\s*[:\-–\n]\s*([^\n]{2,80})/i.exec(String(x)); if (m) return m[1].trim(); } return ""; })();
+  const empresa = estado.empresa || r.nomeEmpresa || r.novoNome || nomeEscrito || (cnpj ? "CNPJ " + fmtCNPJ(cnpj) : "") || (r.contatoNome || ex.contatoNome ? "Pedido de " + (r.contatoNome || ex.contatoNome) : "Pedido pelo WhatsApp");
   const contatoNome = r.contatoNome || ex.contatoNome, contatoFone = r.contatoFone || ex.contatoFone;
   const prazoTxt = r.prazo || ex.prazo;
   const prazo = /^\d{2}\/\d{2}\/\d{4}$/.test(String(prazoTxt || "")) ? prazoTxt : "";
@@ -698,6 +782,8 @@ function montarSolicitacao(estado) {
   // na 3ª linha, depois do texto padrão, e o cartão do Atos mostra só 4 linhas.
   const desc = [r.descricao, r.outroDetalhe].concat(r._notas || []).filter((x) => x && String(x).trim()).map((x) => String(x).trim());
   const descricao = desc.filter((x, i) => desc.indexOf(x) === i);
+  // mensagens encaminhadas (em geral do cliente: nome, atividade, telefone): também na observação, que o cartão mostra
+  const encaminhadas = (estado.comentarios || []).filter((c) => c.encaminhada).map((c) => String(c.texto).replace(MARCA_ENCAMINHADA, "").replace(/\s*\n\s*/g, " ").trim()).filter(Boolean);
   return {
     empresa, cnpj: cnpj ? fmtCNPJ(cnpj) : "", tipo: f.tipoAto, pedidos, docsOk,
     contato: contatoNome || "", fone: contatoFone || "", prazo, solicitante: quem, participantes: pessoas, faltou, descricao,
@@ -705,10 +791,11 @@ function montarSolicitacao(estado) {
     obs: (descricao.length ? "📝 " + descricao.join("\n📝 ") + "\n\n" : "")
       + `Pedido pelo WhatsApp (${f.nome})${autoria ? ", feito por " + autoria : ""}, ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.`
       + (linhas.length ? "\n" + linhas.join("\n") : "")
-      + (faltou.length ? "\nEnviado antes do fim; ver nos documentos: " + faltou.join("; ") : ""),
+      + (faltou.length ? "\nEnviado antes do fim; ver nos documentos: " + faltou.join("; ") : "")
+      + (encaminhadas.length ? "\n↪️ Mensagens encaminhadas: " + encaminhadas.join(" / ") : ""),
     anexos, respostas: r, fluxo: estado.fluxo,
   };
 }
 
 module.exports = { FLUXOS, MENU, LGPD, TIPOS_ARQ, novoEstado, receber, passoAtual, passosAtivos, resumo, montarSolicitacao, validaCPF, validaCNPJ, menuTexto, classificarDoc, adivinharFluxo, mensagemAtual, textoFalado, extrasDoTexto, mudancasDoTexto,
-  comentarioDoTexto, comandoPausa, pausado, PAUSA_MS };
+  comentarioDoTexto, comandoPausa, pausado, PAUSA_MS, inatividade, enviarPorInatividade, AVISO_INATIVO, AVISO_INATIVO_MS, ENVIO_DEPOIS_AVISO_MS, todosArquivos };

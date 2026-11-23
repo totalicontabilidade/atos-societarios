@@ -157,17 +157,63 @@ async function tratar(ev, chatRef, filaRef, n, saida) {
     if (r.acao === "cancelado") novo.canceladoEm = agoraISO();
     tx.set(chatRef, novo);
   });
-  let resultado = { acao: r.acao || null };
+  const resultado = await efetuar(r, novo, chatRef, falar);
+  r.avisos.forEach(falar); if (r.pergunta) saida.perguntar = true;
+  return resultado;
+}
+
+// O que o diálogo decidiu e precisa de banco: criar a solicitação, comentar, anexar, apagar arquivo.
+// `falar` recebe o que vai antes dos avisos; o que sai depois entra em r.avisos.
+async function efetuar(r, novo, chatRef, falar) {
+  const resultado = { acao: r.acao || null };
+  r.avisos = r.avisos || [];
+  // arquivo sem tipo que sobrou do pedido anterior (ao começar um pedido novo): vai para o anterior
+  if (r.anexarEm && r.anexar && r.anexar.length) resultado.anexadosAnterior = await anexarNaSolicitacao({ solicId: r.anexarEm }, r.anexar);
   if (r.acao === "criar_solicitacao") {
     resultado.solicId = await gravarSolicitacao(novo, r.dados); novo.solicId = resultado.solicId; await chatRef.set({ solicId: resultado.solicId }, { merge: true });
     // comentários escritos antes de o pedido existir: vão agora para a pendência que acabou de nascer
     if ((r.dados.comentarios || []).length) { const c = await enviarComentarios(resultado.solicId, r.dados.comentarios); r.avisos.push(textoComentarios(c)); }
   }
   if (r.acao === "comentar" && r.comentario) { const c = await enviarComentarios(novo.solicId, [r.comentario]); resultado.comentario = c.ok ? "entregue" : "pendente"; falar(textoComentarios(c)); }
-  if (r.acao === "anexar" && r.anexar && r.anexar.length) resultado.anexados = await anexarNaSolicitacao(novo, r.anexar);
+  if (r.acao === "anexar" && !r.anexarEm && r.anexar && r.anexar.length) resultado.anexados = await anexarNaSolicitacao(novo, r.anexar);
   if (r.descartar && r.descartar.length) await Promise.all(r.descartar.map((a) => a.caminho ? bucket().file(a.caminho).delete().catch((e) => logger.warn("arquivo descartado não apagado", { e: e.message })) : null));
-  r.avisos.forEach(falar); if (r.pergunta) saida.perguntar = true;
   return resultado;
+}
+
+// ─── envio automático por falta de resposta ──────────────────────────────────
+// Pedido com arquivo parado há 10 minutos: aviso no grupo; 1 minuto depois, sem mensagem nova, o
+// pedido vai do jeito que está e o grupo fica sabendo. Só a conversa do grupo do robô é olhada
+// (2 leituras por minuto). A decisão é do dialogo.inatividade, refeita dentro da transação: uma
+// mensagem que chegue no meio cancela o envio.
+async function relogioInatividade() {
+  const cfg = await configWhats(true);
+  if (!cfg.grupoJid) return null;
+  const chatRef = db.collection("conversas").doc(chaveChat(cfg.grupoJid));
+  const snap = await chatRef.get();
+  if (!snap.exists || !dialogo.inatividade(snap.data(), Date.now())) return null;
+  // mensagem sendo tratada agora: espera o próximo minuto
+  const fila = await db.collection("conversas_fila").doc(chatRef.id).get();
+  if (fila.exists && Object.values(fila.data().ativos || {}).some((v) => v && v.desde > Date.now() - 90000)) return { esperou: "fila" };
+  let acao = null, r = null, novo = null;
+  await db.runTransaction(async (tx) => {
+    const s = await tx.get(chatRef); if (!s.exists) return;
+    const estado = s.data(); acao = dialogo.inatividade(estado, Date.now());
+    if (acao === "avisar") tx.set(chatRef, { autoAvisoEm: agoraISO() }, { merge: true });
+    else if (acao === "enviar") {
+      r = dialogo.enviarPorInatividade(estado);
+      novo = Object.assign(r.estado, { chatJid: cfg.grupoJid, grupo: true, atualizadoEm: agoraISO() });
+      tx.set(chatRef, novo);
+    }
+  });
+  const ev = { chatJid: cfg.grupoJid, grupo: true };
+  if (acao === "avisar") { await responder(ev, dialogo.AVISO_INATIVO); logger.info("inatividade: aviso no grupo"); return { inatividade: "aviso" }; }
+  if (acao !== "enviar") return null;
+  const partes = [];
+  const resultado = await efetuar(r, novo, chatRef, (m) => partes.push(m));
+  const texto = r.mensagens.concat(partes, r.avisos.filter((m) => !r.mensagens.includes(m))).join("\n\n");
+  await responder(ev, texto);
+  logger.info("inatividade: pedido enviado sozinho", resultado);
+  return { inatividade: "enviado", ...resultado };
 }
 
 // ─── pausa do robô ────────────────────────────────────────────────────────────
@@ -536,8 +582,16 @@ async function reenviarHubPendentes() {
   return n;
 }
 
-// ─── faxina diária: eventos de de-duplicação (30 dias) e códigos vencidos ───
-exports.faxinaWhatsapp = onSchedule({ schedule: "20 3 * * *", timeZone: "America/Sao_Paulo" }, async () => {
+// ─── relógio do robô: a cada minuto, o envio por falta de resposta; às 03:20, a faxina ───
+// Um agendamento só (o Cloud Scheduler dá 3 de graça por conta de cobrança, e os outros sistemas da
+// Totali já usam): bate a cada minuto e faz a faxina diária quando é 03:20 em São Paulo.
+exports.faxinaWhatsapp = onSchedule({ schedule: "* * * * *", timeZone: "America/Sao_Paulo", secrets: [API_KEY], timeoutSeconds: 110, retryCount: 0 }, async () => {
+  process.env.WHATSAPP_API_KEY = API_KEY.value();
+  await relogioInatividade().catch((e) => logger.error("relógio de inatividade falhou", { erro: e && e.message, stack: e && e.stack }));
+  const hora = new Date().toLocaleString("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hour12: false });
+  if (hora === "03:20") await faxina();
+});
+async function faxina() {
   const limiteEv = new Date(Date.now() - DIAS_EVENTOS * 86400000), limiteCod = new Date(Date.now() - DIAS_CODIGO * 86400000);
   let n = 0;
   for (const [col, campo, lim] of [["whatsapp_eventos", "em", limiteEv], ["codigos_vinculo", "expiraEm", limiteCod], ["comentarios_hub", "criadoEm", limiteEv]]) {
@@ -551,7 +605,7 @@ exports.faxinaWhatsapp = onSchedule({ schedule: "20 3 * * *", timeZone: "America
   const reavisados = await reenviarHubPendentes().catch((e) => { logger.warn("reenvio ao Hub falhou", { e: e.message }); return 0; });
   const comentarios = await reenviarComentariosPendentes().catch((e) => { logger.warn("reenvio de comentários falhou", { e: e.message }); return 0; });
   logger.info("faxina", { apagados: n, reavisadosHub: reavisados, comentariosHub: comentarios });
-});
+}
 
 // exposto para testes locais (node --test)
-exports._interno = { processarEvento, tokenConfere, chaveChat, pacoteHub };
+exports._interno = { processarEvento, tokenConfere, chaveChat, pacoteHub, relogioInatividade };
